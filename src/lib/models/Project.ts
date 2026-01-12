@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type TimeframeType = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+export type TimeframeType = 'today' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 export type ProjectStatus = 'planned' | 'active' | 'complete';
 
 export interface IProjectStage {
@@ -50,7 +50,7 @@ const ProjectSchema: Schema = new Schema(
     },
     timeframeType: {
       type: String,
-      enum: ['weekly', 'monthly', 'quarterly', 'yearly'],
+      enum: ['today', 'weekly', 'monthly', 'quarterly', 'yearly'],
       required: true,
     },
     color: {
