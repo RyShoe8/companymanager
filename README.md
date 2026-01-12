@@ -1,33 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Company Manager
+
+A Next.js application for company planning and asset management.
+
+## Features
+
+- **Planning Map**: Visual calendar view for projects across multiple time horizons (Today, Weekly, Monthly, Quarterly, Yearly)
+- **Asset Repository**: Centralized directory of tools, documents, and resources
+- **Employee Management**: Track employee capacity, workload, and assignments
+- **Project Management**: Create projects with stages, estimated hours, and assignments
+- **Role-Based Access Control**: Administrator and User roles with appropriate permissions
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
+
+```bash
+npm install
+```
+
+Create a `.env.local` file in the root directory with your MongoDB connection string:
+
+```
+MONGODB_URI=your_mongodb_connection_string
+NEXTAUTH_SECRET=your_secret_key
+NEXTAUTH_URL=http://localhost:3000
+```
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Next.js 16** - React framework with App Router
+- **MongoDB Atlas** - Database
+- **Mongoose** - ODM for MongoDB
+- **Tailwind CSS** - Styling
+- **TypeScript** - Type safety
 
 ## Deploy on Vercel
 
