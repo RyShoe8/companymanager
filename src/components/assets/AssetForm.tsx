@@ -10,7 +10,7 @@ interface AssetFormProps {
   asset?: IAsset;
   projects?: Array<{ _id: string; name: string }>;
   operations?: Array<{ _id: string; name: string }>;
-  onSubmit: (data: Partial<IAsset>) => void;
+  onSubmit: (data: Partial<IAsset> & { linkedProjectId?: string; linkedOperationId?: string }) => void;
   onCancel: () => void;
 }
 
