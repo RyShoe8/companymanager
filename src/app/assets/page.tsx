@@ -107,7 +107,7 @@ export default function AssetsPage() {
     }
   };
 
-  const handleSubmitAsset = async (data: Partial<IAsset> & { linkedProjectId?: string; linkedOperationId?: string }) => {
+  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string }) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';
