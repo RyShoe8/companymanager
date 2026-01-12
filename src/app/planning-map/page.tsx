@@ -36,7 +36,7 @@ export default function PlanningMapPage() {
     try {
       const [projectsRes, operationsRes, employeesRes] = await Promise.all([
         fetch(`/api/projects?timeframeType=${timeframe}`),
-        fetch(`/api/operations?recurrenceType=${timeframe}`),
+        fetch(`/api/operations?recurrenceType=${timeframe === 'today' ? 'weekly' : timeframe}`),
         fetch('/api/employees'),
       ]);
 
@@ -230,7 +230,7 @@ export default function PlanningMapPage() {
         >
           <OperationForm
             operation={editingOperation}
-            recurrenceType={timeframe}
+            recurrenceType={timeframe === 'today' ? 'weekly' : timeframe}
             onSubmit={handleSubmitOperation}
             onCancel={() => {
               setShowOperationForm(false);
