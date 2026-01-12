@@ -8,6 +8,7 @@ export interface SessionPayload {
   userId: string;
   email: string;
   expiresAt: Date;
+  [key: string]: unknown;
 }
 
 export async function encrypt(payload: SessionPayload): Promise<string> {
