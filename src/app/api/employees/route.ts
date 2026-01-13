@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Send invitation email (only if we have a token)
-      if (invitation.token) {
+      if (invitation && invitation.token) {
         try {
           const invitationLink = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/register?token=${invitation.token}`;
           console.log('Sending invitation email for employee:', name, 'to:', email);
