@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
+import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export async function GET(request: NextRequest) {
@@ -17,9 +18,19 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    // Get user's organizationId
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    // Find all users in the same organization
+    const orgUsers = await User.find({ organizationId: user.organizationId });
+    const orgUserIds = orgUsers.map(u => u._id);
+
     // Search in name, description, and tags
     const assets = await Asset.find({
-      userId: session.userId,
+      userId: { $in: orgUserIds },
       $or: [
         { name: { $regex: query, $options: 'i' } },
         { description: { $regex: query, $options: 'i' } },

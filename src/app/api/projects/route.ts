@@ -10,12 +10,23 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    // Get user's organizationId
+    const User = (await import('@/lib/models/User')).default;
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    // Find all users in the same organization
+    const orgUsers = await User.find({ organizationId: user.organizationId });
+    const orgUserIds = orgUsers.map(u => u._id);
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
     // Don't filter by timeframeType - projects should appear based on their date range
     // timeframeType is just metadata about the view they were created in
-    const query: any = { userId: session.userId };
+    const query: any = { userId: { $in: orgUserIds } };
     if (status) {
       query.status = status;
     }

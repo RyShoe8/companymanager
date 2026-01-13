@@ -10,6 +10,17 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    // Get user's organizationId
+    const User = (await import('@/lib/models/User')).default;
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    // Find all users in the same organization
+    const orgUsers = await User.find({ organizationId: user.organizationId });
+    const orgUserIds = orgUsers.map(u => u._id);
+
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const category = searchParams.get('category');
@@ -17,7 +28,7 @@ export async function GET(request: NextRequest) {
     const linkedProjectStageIndex = searchParams.get('linkedProjectStageIndex');
     const linkedOperationId = searchParams.get('linkedOperationId');
 
-    const query: any = { userId: session.userId };
+    const query: any = { userId: { $in: orgUserIds } };
     if (type) {
       query.type = type;
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
+import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     const { id } = await params;
 
-    const project = await Project.findOne({ _id: id, userId: session.userId });
+    // Get user's organizationId
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    // Find all users in the same organization
+    const orgUsers = await User.find({ organizationId: user.organizationId });
+    const orgUserIds = orgUsers.map(u => u._id);
+
+    const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -34,7 +45,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     const { id } = await params;
 
-    const project = await Project.findOne({ _id: id, userId: session.userId });
+    // Get user's organizationId
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    // Find all users in the same organization
+    const orgUsers = await User.find({ organizationId: user.organizationId });
+    const orgUserIds = orgUsers.map(u => u._id);
+
+    const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -86,7 +107,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await connectDB();
     const { id } = await params;
 
-    const project = await Project.findOneAndDelete({ _id: id, userId: session.userId });
+    // Get user's organizationId
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    // Find all users in the same organization
+    const orgUsers = await User.find({ organizationId: user.organizationId });
+    const orgUserIds = orgUsers.map(u => u._id);
+
+    const project = await Project.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
