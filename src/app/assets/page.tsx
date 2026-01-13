@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { IAsset } from '@/lib/models/Asset';
 import AssetCard from '@/components/assets/AssetCard';
@@ -10,7 +10,7 @@ import AssetFilters from '@/components/assets/AssetFilters';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 
-export default function AssetsPage() {
+function AssetsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [assets, setAssets] = useState<IAsset[]>([]);
@@ -235,5 +235,17 @@ export default function AssetsPage() {
         </Modal>
       </div>
     </div>
+  );
+}
+
+export default function AssetsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center text-gray-600 dark:text-gray-400">Loading...</div>
+      </div>
+    }>
+      <AssetsPageContent />
+    </Suspense>
   );
 }
