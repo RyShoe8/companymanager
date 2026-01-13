@@ -37,13 +37,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, role, jobTitle, weeklyHours, employeeType, email } = body;
 
-    // Log the received data for debugging
-    console.log('Received employee data:', { name, role, jobTitle, weeklyHours, employeeType, email });
-    
-    // Debug: Check if BREVO_API_KEY is accessible in API route
-    console.log('[API Route] BREVO_API_KEY exists:', !!process.env.BREVO_API_KEY);
-    console.log('[API Route] BREVO_API_KEY prefix:', process.env.BREVO_API_KEY ? process.env.BREVO_API_KEY.substring(0, 20) + '...' : 'NOT SET');
-
     if (!name || !role || weeklyHours === undefined || weeklyHours === null || isNaN(parseFloat(weeklyHours))) {
       return NextResponse.json({ 
         error: 'Name, role, and weeklyHours are required. WeeklyHours must be a valid number.',
@@ -178,7 +171,6 @@ export async function POST(request: NextRequest) {
       if (invitation && invitation.token) {
         try {
           const invitationLink = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/register?token=${invitation.token}`;
-          console.log('Sending invitation email for employee:', name, 'to:', email);
           await sendInvitationEmail({
             recipientEmail: email.toLowerCase(),
             recipientName: name,
@@ -188,18 +180,10 @@ export async function POST(request: NextRequest) {
             role,
             expiresInDays: 7,
           });
-          console.log('✓ Invitation email sent successfully to:', email);
         } catch (emailError: any) {
-          console.error('✗ Failed to send invitation email:', emailError?.message || emailError);
-          console.error('Email error details:', {
-            message: emailError?.message,
-            response: emailError?.response?.body,
-            statusCode: emailError?.response?.statusCode,
-          });
+          console.error('Failed to send invitation email:', emailError?.message || emailError);
           // Don't fail the request if email fails - invitation is still created/updated
         }
-      } else {
-        console.warn('No invitation token available, skipping email send');
       }
 
       // Add contact to Brevo

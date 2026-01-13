@@ -1,24 +1,14 @@
 import * as brevo from '@getbrevo/brevo';
 
-// Access environment variable - Next.js loads .env.local automatically
 const apiKey = process.env.BREVO_API_KEY;
-
-// Debug logging
-console.log('[Brevo Init] Checking BREVO_API_KEY...');
-console.log('[Brevo Init] process.env.BREVO_API_KEY exists:', !!process.env.BREVO_API_KEY);
-console.log('[Brevo Init] process.env.BREVO_API_KEY value:', process.env.BREVO_API_KEY ? process.env.BREVO_API_KEY.substring(0, 20) + '...' : 'NOT SET');
-console.log('[Brevo Init] All env vars starting with BREVO:', Object.keys(process.env).filter(k => k.startsWith('BREVO')));
 
 if (!apiKey) {
   console.warn('BREVO_API_KEY is not set. Email functionality will be disabled.');
-  console.warn('Make sure .env.local exists in the project root and contains BREVO_API_KEY=...');
-  console.warn('You may need to restart the Next.js dev server after adding/updating .env.local');
 } else {
   // Check if it's an SMTP key (starts with xsmtpsib-) - SDK needs REST API key
   if (apiKey.startsWith('xsmtpsib-')) {
     console.warn('WARNING: You are using an SMTP API key. The Brevo SDK requires a REST API v3 key.');
     console.warn('Please get your REST API key from: https://app.brevo.com/settings/keys/api');
-    console.warn('SMTP keys (xsmtpsib-*) are for SMTP connections only, not the REST API.');
   }
 }
 
@@ -32,15 +22,11 @@ if (apiKey) {
     
     contactsApiInstance = new brevo.ContactsApi();
     contactsApiInstance.setApiKey(brevo.ContactsApiApiKeys.apiKey, apiKey);
-    console.log('✓ Brevo API instances initialized successfully');
-    console.log('  API Key prefix:', apiKey.substring(0, 20) + '...');
   } catch (error) {
-    console.error('✗ Error initializing Brevo API instances:', error);
+    console.error('Error initializing Brevo API instances:', error);
     apiInstance = null;
     contactsApiInstance = null;
   }
-} else {
-  console.warn('⚠ BREVO_API_KEY is not set in process.env');
 }
 
 export interface InvitationEmailData {
@@ -58,10 +44,7 @@ export interface InvitationEmailData {
  */
 export async function sendInvitationEmail(data: InvitationEmailData): Promise<void> {
   if (!apiInstance) {
-    const errorMsg = 'Brevo API is not configured. Email will not be sent. Please set BREVO_API_KEY environment variable.';
-    console.error(errorMsg);
-    console.error('Current BREVO_API_KEY value:', process.env.BREVO_API_KEY ? 'SET (but API instance not initialized)' : 'NOT SET');
-    throw new Error(errorMsg); // Throw error so caller knows it failed
+    throw new Error('Brevo API is not configured. Please set BREVO_API_KEY environment variable.');
   }
 
   const sendSmtpEmail = new brevo.SendSmtpEmail();
@@ -136,27 +119,9 @@ If you didn't expect this invitation, you can safely ignore this email.
   `;
 
   try {
-    console.log('Attempting to send invitation email to:', data.recipientEmail);
-    console.log('Email details:', {
-      to: sendSmtpEmail.to,
-      subject: sendSmtpEmail.subject,
-      sender: sendSmtpEmail.sender,
-      hasHtmlContent: !!sendSmtpEmail.htmlContent,
-      hasTextContent: !!sendSmtpEmail.textContent,
-    });
-    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log('Invitation email sent successfully:', result);
+    await apiInstance.sendTransacEmail(sendSmtpEmail);
   } catch (error: any) {
-    console.error('Error sending invitation email:', error);
-    console.error('Error details:', {
-      message: error?.message,
-      statusCode: error?.response?.statusCode,
-      statusText: error?.response?.statusText,
-      responseBody: error?.response?.body,
-      responseData: error?.response?.data,
-      responseText: error?.response?.text,
-      fullResponse: JSON.stringify(error?.response, null, 2),
-    });
+    console.error('Error sending invitation email:', error?.message || error);
     throw error;
   }
 }
@@ -193,21 +158,15 @@ export async function createBrevoContact(data: CreateContactData): Promise<void>
     createContact.updateEnabled = true; // Update if contact already exists
 
     await contactsApiInstance.createContact(createContact);
-    console.log(`Contact created/updated in Brevo: ${data.email}`);
   } catch (error: any) {
     // If contact already exists, try to add them to the list
     if (error?.response?.body?.code === 'duplicate_parameter' || error?.response?.statusCode === 400) {
-      console.log(`Contact already exists in Brevo: ${data.email}, adding to list...`);
-      // Try to add contact to list using addContactToList
       try {
         await contactsApiInstance.addContactToList(3, { emails: [data.email.toLowerCase()] });
-        console.log(`Contact added to list in Brevo: ${data.email}`);
       } catch (listError: any) {
-        // If already in list, that's fine
+        // If already in list, that's fine - silently continue
         if (listError?.response?.body?.code !== 'duplicate_parameter') {
           console.error('Error adding contact to list in Brevo:', listError);
-        } else {
-          console.log(`Contact already in list: ${data.email}`);
         }
       }
     } else {
@@ -228,12 +187,9 @@ export async function deleteBrevoContact(email: string): Promise<void> {
 
   try {
     await contactsApiInstance.deleteContact(email.toLowerCase());
-    console.log(`Contact deleted from Brevo: ${email}`);
   } catch (error: any) {
-    // If contact doesn't exist, that's okay
-    if (error?.response?.statusCode === 404) {
-      console.log(`Contact not found in Brevo: ${email}`);
-    } else {
+    // If contact doesn't exist, that's okay - silently continue
+    if (error?.response?.statusCode !== 404) {
       console.error('Error deleting contact from Brevo:', error);
       // Don't throw - we don't want to fail employee deletion if Brevo fails
     }
