@@ -124,7 +124,14 @@ export async function POST(request: NextRequest) {
 
     // Send invitation email
     try {
-      const invitationLink = getInvitationLink(token);
+      // Get base URL from request headers or environment
+      const origin = request.headers.get('origin') || request.headers.get('host');
+      let baseUrl: string | undefined;
+      if (origin) {
+        // If origin is a full URL, use it; otherwise construct from host
+        baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
+      }
+      const invitationLink = getInvitationLink(token, baseUrl);
       await sendInvitationEmail({
         recipientEmail: email.toLowerCase(),
         recipientName: name || email.split('@')[0],

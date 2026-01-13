@@ -170,7 +170,15 @@ export async function POST(request: NextRequest) {
       // Send invitation email (only if we have a token)
       if (invitation && invitation.token) {
         try {
-          const invitationLink = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/register?token=${invitation.token}`;
+          // Get base URL from request headers or environment
+          const origin = request.headers.get('origin') || request.headers.get('host');
+          let baseUrl: string | undefined;
+          if (origin) {
+            // If origin is a full URL, use it; otherwise construct from host
+            baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
+          }
+          const { getInvitationLink } = await import('@/lib/utils/invitation');
+          const invitationLink = getInvitationLink(invitation.token, baseUrl);
           await sendInvitationEmail({
             recipientEmail: email.toLowerCase(),
             recipientName: name,

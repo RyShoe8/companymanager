@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   // Allow access to auth pages and API routes
-  if (pathname.startsWith('/api/auth') || pathname.startsWith('/login') || pathname.startsWith('/register')) {
+  if (pathname.startsWith('/api/auth') || pathname.startsWith('/api/invitations/') || pathname.startsWith('/login') || pathname.startsWith('/register')) {
     return NextResponse.next();
   }
 
@@ -13,7 +13,7 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('session');
   
   // If no session and trying to access protected route, redirect to login
-  if (!session && !pathname.startsWith('/api/auth')) {
+  if (!session && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/invitations/')) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
