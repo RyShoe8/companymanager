@@ -29,7 +29,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
+    const { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
 
     await connectDB();
     const { id } = await params;
@@ -41,6 +41,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (name !== undefined) project.name = name;
     if (description !== undefined) project.description = description;
+    if (url !== undefined) project.url = url;
     if (startDate !== undefined) project.startDate = new Date(startDate);
     if (endDate !== undefined) project.endDate = new Date(endDate);
     if (timeframeType !== undefined) project.timeframeType = timeframeType;
@@ -61,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           endDate: new Date(stage.endDate),
           estimatedHours: stage.estimatedHours || undefined,
           assignedTo: stage.assignedTo || undefined,
-          status: stage.status || 'planned',
+          status: stage.status || 'planning',
         }));
       } else {
         project.stages = [];

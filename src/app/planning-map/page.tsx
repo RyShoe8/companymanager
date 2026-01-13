@@ -13,6 +13,7 @@ import ProjectForm from '@/components/planning-map/ProjectForm';
 import OperationForm from '@/components/planning-map/OperationForm';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import Toggle from '@/components/ui/Toggle';
 
 export default function PlanningMapPage() {
   const router = useRouter();
@@ -26,6 +27,8 @@ export default function PlanningMapPage() {
   const [showOperationForm, setShowOperationForm] = useState(false);
   const [editingProject, setEditingProject] = useState<IProject | undefined>();
   const [editingOperation, setEditingOperation] = useState<IOperation | undefined>();
+  const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
+  const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -35,13 +38,10 @@ export default function PlanningMapPage() {
     setLoading(true);
     try {
       const [projectsRes, operationsRes, employeesRes] = await Promise.all([
-        fetch(`/api/projects?timeframeType=${timeframe}`),
-        fetch(`/api/operations?recurrenceType=${timeframe === 'today' ? 'weekly' : timeframe}`),
+        fetch('/api/projects'), // Always fetch all projects - calendar handles date filtering
+        fetch('/api/operations'), // Fetch all operations - calendar handles recurrence and date filtering
         fetch('/api/employees'),
       ]);
-
-      // Filter employees to exclude the current user's admin employee record if needed
-      // (or show all employees in the organization)
 
       if (projectsRes.status === 401 || operationsRes.status === 401 || employeesRes.status === 401) {
         router.push('/login');
@@ -52,19 +52,20 @@ export default function PlanningMapPage() {
       const operationsData = await operationsRes.json();
       const employeesData = await employeesRes.json();
 
-      // For monthly view, load all projects (calendar handles filtering)
-      // For other timeframes, filter by date range
-      let filteredProjects = projectsData;
-      if (timeframe !== 'monthly') {
-        const range = getTimeframeRange(timeframe);
-        filteredProjects = projectsData.filter((project: IProject) => {
-          const start = new Date(project.startDate);
-          const end = new Date(project.endDate);
-          return (start <= range.end && end >= range.start);
-        });
+      // Get current user's employee name
+      try {
+        const userResponse = await fetch('/api/auth/me');
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+          setCurrentUserEmployeeName(currentEmployee?.name || null);
+        }
+      } catch (error) {
+        console.error('Error loading current user:', error);
       }
 
-      setProjects(filteredProjects);
+      // Pass all projects to CalendarView - it will handle date filtering based on its viewDate
+      setProjects(projectsData);
       setOperations(operationsData);
       setEmployees(employeesData);
     } catch (error) {
@@ -170,7 +171,7 @@ export default function PlanningMapPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4">
       <div className="w-full mx-auto">
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4 mb-4">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Planning</h1>
             <div className="flex gap-2">
               <Button onClick={handleCreateProject}>+ New Project</Button>
@@ -182,19 +183,46 @@ export default function PlanningMapPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Calendar View</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Calendar View</h2>
+              {currentUserEmployeeName && (
+                <Toggle
+                  label="Show only my assignments"
+                  checked={showOnlyAssigned}
+                  onChange={setShowOnlyAssigned}
+                />
+              )}
+            </div>
                     <CalendarView
-                      projects={projects}
+                      projects={showOnlyAssigned && currentUserEmployeeName 
+                        ? projects.filter(p => 
+                            p.assignedTo === currentUserEmployeeName || 
+                            p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
+                          )
+                        : projects}
+                      operations={showOnlyAssigned && currentUserEmployeeName
+                        ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
+                        : operations}
                       timeframe={timeframe}
                       currentDate={currentDate}
                       onProjectClick={handleEditProject}
+                      onOperationClick={handleEditOperation}
+                      onDateChange={setCurrentDate}
                     />
           </div>
 
           <div>
             <EmployeeSidebar
               employees={employees}
-              projects={projects}
+              projects={showOnlyAssigned && currentUserEmployeeName 
+                ? projects.filter(p => 
+                    p.assignedTo === currentUserEmployeeName || 
+                    p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
+                  )
+                : projects}
+              operations={showOnlyAssigned && currentUserEmployeeName
+                ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
+                : operations}
               timeframe={timeframe}
               currentDate={currentDate}
             />

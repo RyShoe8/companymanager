@@ -11,13 +11,11 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
-    const timeframeType = searchParams.get('timeframeType');
     const status = searchParams.get('status');
 
+    // Don't filter by timeframeType - projects should appear based on their date range
+    // timeframeType is just metadata about the view they were created in
     const query: any = { userId: session.userId };
-    if (timeframeType) {
-      query.timeframeType = timeframeType;
-    }
     if (status) {
       query.status = status;
     }
@@ -37,7 +35,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
+    const { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
 
     if (!name || !startDate || !endDate || !timeframeType) {
       return NextResponse.json(
@@ -51,11 +49,12 @@ export async function POST(request: NextRequest) {
     const projectData: any = {
       name,
       description,
+      url,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       timeframeType,
       color: color || '#3b82f6',
-      status: status || 'planned',
+      status: status || 'planning',
       userId: session.userId,
     };
 

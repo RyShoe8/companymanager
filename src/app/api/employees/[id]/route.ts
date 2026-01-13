@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
+import { deleteBrevoContact } from '@/lib/services/email';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -96,10 +97,50 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Only Administrators can delete employees' }, { status: 403 });
     }
 
-    const employee = await Employee.findOneAndDelete({ _id: id, organizationId: user.organizationId });
+    // Find the employee first to get their name for cleanup
+    const employee = await Employee.findOne({ _id: id, organizationId: user.organizationId });
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
+
+    const employeeName = employee.name;
+    const employeeEmail = employee.email;
+
+    // Delete the employee from the database
+    await Employee.deleteOne({ _id: id, organizationId: user.organizationId });
+
+    // Remove from Brevo if email exists
+    if (employeeEmail) {
+      try {
+        await deleteBrevoContact(employeeEmail);
+      } catch (brevoError) {
+        console.error('Error removing contact from Brevo:', brevoError);
+        // Don't fail the request if Brevo fails
+      }
+    }
+
+    // Clean up assignments in projects and operations
+    const Project = (await import('@/lib/models/Project')).default;
+    const Operation = (await import('@/lib/models/Operation')).default;
+
+    // Remove employee assignments from projects
+    await Project.updateMany(
+      { userId: session.userId, assignedTo: employeeName },
+      { $unset: { assignedTo: '' } }
+    );
+
+    // Remove employee assignments from project stages
+    await Project.updateMany(
+      { userId: session.userId, 'stages.assignedTo': employeeName },
+      { $set: { 'stages.$[stage].assignedTo': null } },
+      { arrayFilters: [{ 'stage.assignedTo': employeeName }] }
+    );
+
+    // Remove employee assignments from operations
+    await Operation.updateMany(
+      { userId: session.userId, assignedTo: employeeName },
+      { $unset: { assignedTo: '' } }
+    );
 
     return NextResponse.json({ message: 'Employee deleted successfully' });
   } catch (error) {

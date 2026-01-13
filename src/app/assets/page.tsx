@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { IAsset } from '@/lib/models/Asset';
 import AssetCard from '@/components/assets/AssetCard';
 import AssetSearch from '@/components/assets/AssetSearch';
@@ -12,6 +12,7 @@ import Button from '@/components/ui/Button';
 
 export default function AssetsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [assets, setAssets] = useState<IAsset[]>([]);
   const [filteredAssets, setFilteredAssets] = useState<IAsset[]>([]);
   const [projects, setProjects] = useState<Array<{ _id: string; name: string }>>([]);
@@ -20,16 +21,27 @@ export default function AssetsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [operationFilter, setOperationFilter] = useState<string | null>(null);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<IAsset | undefined>();
 
   useEffect(() => {
+    // Get filter parameters from URL
+    const projectId = searchParams?.get('projectId');
+    const operationId = searchParams?.get('operationId');
+    if (projectId) {
+      setProjectFilter(projectId);
+    }
+    if (operationId) {
+      setOperationFilter(operationId);
+    }
     loadData();
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     filterAssets();
-  }, [assets, searchQuery, typeFilter, categoryFilter]);
+  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, operationFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -61,6 +73,22 @@ export default function AssetsPage() {
 
   const filterAssets = async () => {
     let filtered = [...assets];
+
+    // Apply project filter
+    if (projectFilter) {
+      filtered = filtered.filter((asset) => {
+        const linkedProjectId = asset.linkedProjectId?.toString();
+        return linkedProjectId === projectFilter;
+      });
+    }
+
+    // Apply operation filter
+    if (operationFilter) {
+      filtered = filtered.filter((asset) => {
+        const linkedOperationId = asset.linkedOperationId?.toString();
+        return linkedOperationId === operationFilter;
+      });
+    }
 
     // Apply search
     if (searchQuery) {
@@ -157,6 +185,9 @@ export default function AssetsPage() {
             onClear={() => {
               setTypeFilter('');
               setCategoryFilter('');
+              setProjectFilter(null);
+              setOperationFilter(null);
+              router.push('/assets');
             }}
             categories={categories}
           />

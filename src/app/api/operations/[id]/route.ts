@@ -29,7 +29,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, recurrenceType, status } = body;
+    const { name, description, url, recurrenceType, status, assignedTo, estimatedHours, startDate, endDate } = body;
 
     await connectDB();
     const { id } = await params;
@@ -41,8 +41,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (name !== undefined) operation.name = name;
     if (description !== undefined) operation.description = description;
+    if (url !== undefined) operation.url = url;
     if (recurrenceType !== undefined) operation.recurrenceType = recurrenceType;
     if (status !== undefined) operation.status = status;
+    if (assignedTo !== undefined) {
+      operation.assignedTo = assignedTo === '' ? undefined : assignedTo;
+    }
+    if (estimatedHours !== undefined) {
+      operation.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
+    }
+    if (startDate !== undefined) {
+      operation.startDate = startDate === '' ? undefined : new Date(startDate);
+    }
+    if (endDate !== undefined) {
+      operation.endDate = endDate === '' ? undefined : new Date(endDate);
+    }
 
     await operation.save();
 

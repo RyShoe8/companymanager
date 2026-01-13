@@ -1,15 +1,17 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type AssetType = 'spreadsheet' | 'document' | 'tool' | 'folder' | 'link' | 'other';
+export type AssetType = 'spreadsheet' | 'document' | 'tool' | 'folder' | 'link' | 'screenshot' | 'other';
 
 export interface IAsset extends Document {
   name: string;
   type: AssetType;
   url?: string;
+  fileUrl?: string; // For uploaded files (screenshots, etc.)
   description?: string;
   category?: string;
   tags: string[];
   linkedProjectId?: Types.ObjectId;
+  linkedProjectStageIndex?: number; // Index of the stage in the project's stages array
   linkedOperationId?: Types.ObjectId;
   userId: Types.ObjectId;
   createdAt: Date;
@@ -25,10 +27,14 @@ const AssetSchema: Schema = new Schema(
     },
     type: {
       type: String,
-      enum: ['spreadsheet', 'document', 'tool', 'folder', 'link', 'other'],
+      enum: ['spreadsheet', 'document', 'tool', 'folder', 'link', 'screenshot', 'other'],
       required: true,
     },
     url: {
+      type: String,
+      trim: true,
+    },
+    fileUrl: {
       type: String,
       trim: true,
     },
@@ -47,6 +53,10 @@ const AssetSchema: Schema = new Schema(
     linkedProjectId: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
+    },
+    linkedProjectStageIndex: {
+      type: Number,
+      min: 0,
     },
     linkedOperationId: {
       type: Schema.Types.ObjectId,

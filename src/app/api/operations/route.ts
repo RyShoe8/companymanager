@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, recurrenceType, status } = body;
+    const { name, description, url, recurrenceType, status, assignedTo, estimatedHours, startDate, endDate } = body;
 
     if (!name || !recurrenceType) {
       return NextResponse.json({ error: 'Name and recurrenceType are required' }, { status: 400 });
@@ -45,13 +45,29 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const operation = await Operation.create({
+    const operationData: any = {
       name,
       description,
+      url,
       recurrenceType,
-      status: status || 'planned',
+      status: status || 'planning',
       userId: session.userId,
-    });
+    };
+
+    if (assignedTo) {
+      operationData.assignedTo = assignedTo;
+    }
+    if (estimatedHours !== undefined) {
+      operationData.estimatedHours = estimatedHours;
+    }
+    if (startDate) {
+      operationData.startDate = new Date(startDate);
+    }
+    if (endDate) {
+      operationData.endDate = new Date(endDate);
+    }
+
+    const operation = await Operation.create(operationData);
 
     return NextResponse.json(operation, { status: 201 });
   } catch (error) {

@@ -3,12 +3,13 @@ import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
+import Invitation from '@/lib/models/Invitation';
 import { createSession } from '@/lib/auth/session';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name } = body;
+    const { email, password, name, invitationToken } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return NextResponse.json({ error: 'User already exists' }, { status: 400 });
     }
@@ -25,36 +26,95 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with temporary organizationId (will be updated after creation)
-    // We'll use a placeholder first, then update it
-    const tempOrgId = `temp-${Date.now()}`;
+    let organizationId: string;
+    let employeeId: string | undefined;
+
+    // If invitation token is provided, validate it and use the invitation's organization
+    if (invitationToken) {
+      const invitation = await Invitation.findOne({
+        token: invitationToken,
+        status: 'pending',
+      });
+
+      if (!invitation) {
+        return NextResponse.json(
+          { error: 'Invalid or expired invitation token' },
+          { status: 400 }
+        );
+      }
+
+      // Check if invitation has expired
+      if (new Date() > invitation.expiresAt) {
+        invitation.status = 'expired';
+        await invitation.save();
+        return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 });
+      }
+
+      // Verify email matches invitation email
+      if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+        return NextResponse.json(
+          { error: 'Email does not match the invitation' },
+          { status: 400 }
+        );
+      }
+
+      // Use organization from invitation
+      organizationId = invitation.organizationId;
+      employeeId = invitation.employeeId?.toString();
+
+      // Mark invitation as accepted
+      invitation.status = 'accepted';
+      await invitation.save();
+    } else {
+      // No invitation - create new organization (user is admin)
+      organizationId = `temp-${Date.now()}`;
+    }
+
+    // Create user
     const user = await User.create({
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       name,
-      organizationId: tempOrgId,
+      organizationId,
     });
 
-    // Set organizationId to user's own ID (they are the organization admin)
-    user.organizationId = user._id.toString();
-    await user.save();
+    // If no invitation, set organizationId to user's own ID (they are the organization admin)
+    if (!invitationToken) {
+      user.organizationId = user._id.toString();
+      await user.save();
+      organizationId = user._id.toString();
+    }
 
-    // Create admin employee record for the user
-    await Employee.create({
-      name: name || email.split('@')[0],
-      role: 'Administrator',
-      weeklyHours: 40,
-      employeeType: 'full-time',
-      userId: user._id,
-      organizationId: user._id.toString(),
-    });
+    // Handle employee record
+    if (invitationToken && employeeId) {
+      // Link existing employee record to the new user
+      const employee = await Employee.findById(employeeId);
+      if (employee) {
+        employee.userId = user._id;
+        // Update name if provided
+        if (name) {
+          employee.name = name;
+        }
+        await employee.save();
+      }
+    } else {
+      // Create admin employee record for the user (new organization)
+      await Employee.create({
+        name: name || email.split('@')[0],
+        role: 'Administrator',
+        weeklyHours: 40,
+        employeeType: 'full-time',
+        userId: user._id,
+        organizationId: user._id.toString(),
+      });
+    }
 
     // Create session
     await createSession(user._id.toString(), user.email);
 
     return NextResponse.json(
       {
-        message: 'User created successfully',
+        message: invitationToken ? 'Account created successfully. Welcome to the team!' : 'User created successfully',
         user: {
           id: user._id.toString(),
           email: user.email,

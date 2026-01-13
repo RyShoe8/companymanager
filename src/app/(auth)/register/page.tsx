@@ -1,19 +1,61 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 
+interface InvitationData {
+  email: string;
+  role: string;
+  invitedBy: {
+    name?: string;
+    email: string;
+  };
+}
+
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const invitationToken = searchParams.get('token');
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingInvitation, setLoadingInvitation] = useState(false);
+  const [invitation, setInvitation] = useState<InvitationData | null>(null);
+
+  // Load invitation details if token is present
+  useEffect(() => {
+    if (invitationToken) {
+      setLoadingInvitation(true);
+      fetch(`/api/invitations/${invitationToken}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.error) {
+            setError(data.error);
+          } else {
+            setInvitation({
+              email: data.email,
+              role: data.role,
+              invitedBy: data.invitedBy,
+            });
+            setEmail(data.email); // Pre-fill email
+          }
+        })
+        .catch((err) => {
+          console.error('Error loading invitation:', err);
+          setError('Failed to load invitation details');
+        })
+        .finally(() => {
+          setLoadingInvitation(false);
+        });
+    }
+  }, [invitationToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +77,12 @@ export default function RegisterPage() {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          invitationToken: invitationToken || undefined,
+        }),
       });
 
       const data = await response.json();
@@ -59,10 +106,21 @@ export default function RegisterPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            Create your account
+            {invitation ? 'Accept Invitation' : 'Create your account'}
           </h2>
+          {invitation && (
+            <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>{invitation.invitedBy.name || invitation.invitedBy.email}</strong> has invited you to join as a{' '}
+                <strong>{invitation.role}</strong>.
+              </p>
+            </div>
+          )}
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        {loadingInvitation ? (
+          <div className="text-center py-8 text-gray-600 dark:text-gray-400">Loading invitation...</div>
+        ) : (
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
               {error}
@@ -83,6 +141,7 @@ export default function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              disabled={!!invitation} // Disable email if from invitation
             />
             <Input
               label="Password"
@@ -115,6 +174,7 @@ export default function RegisterPage() {
             </Link>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

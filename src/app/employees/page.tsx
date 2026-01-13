@@ -79,19 +79,27 @@ export default function EmployeesPage() {
       const url = editingEmployee ? `/api/employees/${editingEmployee._id}` : '/api/employees';
       const method = editingEmployee ? 'PUT' : 'POST';
 
+      console.log('Submitting employee data:', data);
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
-      if (response.ok) {
-        setShowEmployeeForm(false);
-        setEditingEmployee(undefined);
-        loadData();
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        alert(`Error: ${errorData.error || 'Failed to save employee'}`);
+        return;
       }
+
+      setShowEmployeeForm(false);
+      setEditingEmployee(undefined);
+      loadData();
     } catch (error) {
       console.error('Error saving employee:', error);
+      alert('Failed to save employee. Please check the console for details.');
     }
   };
 

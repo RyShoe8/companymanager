@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { IProject, TimeframeType, ProjectStatus, IProjectStage } from '@/lib/models/Project';
+import { IEmployee } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
+import CommentThread from '@/components/comments/CommentThread';
 
 interface ProjectFormProps {
   project?: IProject;
@@ -14,8 +17,11 @@ interface ProjectFormProps {
 }
 
 export default function ProjectForm({ project, timeframeType, onSubmit, onCancel }: ProjectFormProps) {
+  const router = useRouter();
   const [name, setName] = useState(project?.name || '');
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [description, setDescription] = useState(project?.description || '');
+  const [url, setUrl] = useState(project?.url || '');
   const [startDate, setStartDate] = useState(
     project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : ''
   );
@@ -23,11 +29,42 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     project?.endDate ? new Date(project.endDate).toISOString().split('T')[0] : ''
   );
   const [color, setColor] = useState(project?.color || '#3b82f6');
-  const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planned');
+  const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planning');
   const [estimatedHours, setEstimatedHours] = useState(project?.estimatedHours?.toString() || '');
   const [assignedTo, setAssignedTo] = useState(project?.assignedTo || '');
   const [stages, setStages] = useState<IProjectStage[]>(project?.stages || []);
   const [showStages, setShowStages] = useState(false);
+  const [employees, setEmployees] = useState<IEmployee[]>([]);
+
+  useEffect(() => {
+    // Fetch employees for the dropdown
+    const fetchEmployees = async () => {
+      try {
+        const response = await fetch('/api/employees');
+        if (response.ok) {
+          const data = await response.json();
+          setEmployees(data);
+        }
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+      }
+    };
+    fetchEmployees();
+
+    // Fetch current user ID
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUserId(data.id);
+        }
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   useEffect(() => {
     if (!project) {
@@ -61,7 +98,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       name: '',
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      status: 'planned',
+      status: 'planning' as ProjectStatus,
     };
     setStages([...stages, newStage]);
   };
@@ -81,6 +118,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     const submitData: Partial<IProject> = {
       name,
       description,
+      url: url || undefined,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       timeframeType,
@@ -131,6 +169,13 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
+      <Input
+        label="URL (optional)"
+        type="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://example.com"
+      />
       <div className="grid grid-cols-2 gap-4">
         <Input
           label="Start Date"
@@ -157,11 +202,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           onChange={(e) => setEstimatedHours(e.target.value)}
           placeholder="e.g., 40"
         />
-        <Input
+        <Select
           label="Assigned To (optional)"
           value={assignedTo}
           onChange={(e) => setAssignedTo(e.target.value)}
-          placeholder="Person or team name"
+          options={[
+            { value: '', label: 'None' },
+            ...employees.map(emp => ({ value: emp.name, label: emp.name }))
+          ]}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -176,7 +224,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           value={status}
           onChange={(e) => setStatus(e.target.value as ProjectStatus)}
           options={[
-            { value: 'planned', label: 'Planned' },
+            { value: 'planning', label: 'Planning' },
             { value: 'active', label: 'Active' },
             { value: 'complete', label: 'Complete' },
           ]}
@@ -262,19 +310,22 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     value={stage.estimatedHours?.toString() || ''}
                     onChange={(e) => updateStage(index, 'estimatedHours', e.target.value ? parseFloat(e.target.value) : undefined)}
                   />
-                  <Input
+                  <Select
                     label="Assigned To (optional)"
                     value={stage.assignedTo || ''}
                     onChange={(e) => updateStage(index, 'assignedTo', e.target.value)}
-                    placeholder="Person or team name"
+                    options={[
+                      { value: '', label: 'None' },
+                      ...employees.map(emp => ({ value: emp.name, label: emp.name }))
+                    ]}
                   />
                 </div>
                 <Select
                   label="Status"
-                  value={stage.status || 'planned'}
+                  value={stage.status || 'planning'}
                   onChange={(e) => updateStage(index, 'status', e.target.value as ProjectStatus)}
                   options={[
-                    { value: 'planned', label: 'Planned' },
+                    { value: 'planning', label: 'Planning' },
                     { value: 'active', label: 'Active' },
                     { value: 'complete', label: 'Complete' },
                   ]}
@@ -291,13 +342,58 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         )}
       </div>
 
-      <div className="flex gap-2 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          {project ? 'Update' : 'Create'} Project
-        </Button>
+      {/* Comments Section */}
+      {project && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <CommentThread
+            entityType="project"
+            entityId={project._id.toString()}
+            currentUserId={currentUserId}
+          />
+        </div>
+      )}
+
+      {/* Stage Comments */}
+      {showStages && stages.length > 0 && project && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Stage Comments</h4>
+          <div className="space-y-4">
+            {stages.map((stage, index) => (
+              <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Stage {index + 1}: {stage.name}</h5>
+                <CommentThread
+                  entityType="projectStage"
+                  entityId={project._id.toString()}
+                  stageIndex={index}
+                  currentUserId={currentUserId}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
+        {project && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              router.push(`/assets?projectId=${project._id}`);
+              onCancel();
+            }}
+          >
+            View Assets
+          </Button>
+        )}
+        <div className="flex gap-2 ml-auto">
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit">
+            {project ? 'Update' : 'Create'} Project
+          </Button>
+        </div>
       </div>
     </form>
   );

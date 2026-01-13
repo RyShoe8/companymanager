@@ -22,11 +22,18 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const parsedWeeklyHours = parseFloat(weeklyHours);
+    if (isNaN(parsedWeeklyHours)) {
+      alert('Please enter a valid number for weekly hours');
+      return;
+    }
+
     onSubmit({
       name,
       role,
       jobTitle: jobTitle || undefined,
-      weeklyHours: parseFloat(weeklyHours),
+      weeklyHours: parsedWeeklyHours,
       employeeType,
       email: email || undefined,
     });
