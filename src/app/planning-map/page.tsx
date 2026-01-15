@@ -195,15 +195,15 @@ export default function PlanningMapPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-[100px] max-md:px-4">
+    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
       <div className="w-full mx-auto">
         <div className="mb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <h1 className="text-3xl font-bold text-text-primary">Planning</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Planning</h1>
             {isManagerOrAdmin && (
-              <div className="flex gap-2">
-                <Button onClick={handleCreateProject}>+ New Project</Button>
-                <Button onClick={handleCreateOperation} variant="secondary">+ New Operation</Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button onClick={handleCreateProject} className="w-full sm:w-auto">+ New Project</Button>
+                <Button onClick={handleCreateOperation} variant="secondary" className="w-full sm:w-auto">+ New Operation</Button>
               </div>
             )}
           </div>

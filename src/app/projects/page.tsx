@@ -158,7 +158,7 @@ export default function ProjectsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
         <div className="max-w-7xl mx-auto">
           <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
@@ -167,11 +167,11 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Projects</h1>
-          <Button onClick={handleCreateProject}>+ New Project</Button>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Projects</h1>
+          <Button onClick={handleCreateProject} className="w-full sm:w-auto">+ New Project</Button>
         </div>
 
         {projects.length === 0 ? (

@@ -14,6 +14,7 @@ export default function Navigation() {
   const router = useRouter();
   const [showProfile, setShowProfile] = useState(false);
   const [showOrganization, setShowOrganization] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<{ name?: string; email: string; profilePicture?: string; isAdmin?: boolean } | null>(null);
 
   useEffect(() => {
@@ -107,14 +108,22 @@ export default function Navigation() {
     },
   ];
 
+  const navLinks = [
+    { href: '/planning-map', label: 'Planning' },
+    { href: '/assets', label: 'Assets' },
+    { href: '/projects', label: 'Projects' },
+    { href: '/operations', label: 'Operations' },
+    { href: '/employees', label: 'Employees' },
+  ];
+
   return (
     <>
       <nav className="bg-background-card border-b border-border mb-[10px]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex">
+            <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center">
-                <Link href="/planning-map" className="flex items-center gap-3">
+                <Link href="/planning-map" className="flex items-center gap-2 sm:gap-3">
                   <Image
                     src="/images/Nucleas.png"
                     alt="Nucleas Logo"
@@ -124,65 +133,48 @@ export default function Navigation() {
                     priority
                     unoptimized
                   />
-                  <span className="text-xl font-bold text-text-primary">
+                  <span className="text-lg sm:text-xl font-bold text-text-primary">
                     Nucleas
                   </span>
                 </Link>
               </div>
-              <div className="ml-6 flex space-x-8">
-                <Link
-                  href="/planning-map"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
-                    pathname === '/planning-map'
-                      ? 'border-primary text-text-primary'
-                      : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-dark'
-                  }`}
-                >
-                  Planning
-                </Link>
-                <Link
-                  href="/assets"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
-                    pathname === '/assets'
-                      ? 'border-primary text-text-primary'
-                      : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-dark'
-                  }`}
-                >
-                  Assets
-                </Link>
-                <Link
-                  href="/projects"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
-                    pathname === '/projects'
-                      ? 'border-primary text-text-primary'
-                      : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-dark'
-                  }`}
-                >
-                  Projects
-                </Link>
-                <Link
-                  href="/operations"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
-                    pathname === '/operations'
-                      ? 'border-accent text-text-primary'
-                      : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-dark'
-                  }`}
-                >
-                  Operations
-                </Link>
-              <Link
-                href="/employees"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
-                  pathname === '/employees'
-                    ? 'border-primary text-text-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-dark'
-                }`}
-              >
-                Employees
-              </Link>
+              {/* Desktop Navigation */}
+              <div className="hidden md:ml-6 md:flex md:space-x-4 lg:space-x-8">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
+                      pathname === link.href
+                        ? link.href === '/operations'
+                          ? 'border-accent text-text-primary'
+                          : 'border-primary text-text-primary'
+                        : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-dark'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-2 sm:gap-4">
+              {/* Mobile menu button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
+              {/* User dropdown */}
               <Dropdown
                 trigger={
                   <div className="flex items-center gap-2 cursor-pointer">
@@ -211,7 +203,7 @@ export default function Navigation() {
                         {userInitials}
                       </div>
                     )}
-                    <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="hidden sm:block w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -221,6 +213,29 @@ export default function Navigation() {
               />
             </div>
           </div>
+          {/* Mobile Navigation Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-border py-4">
+              <div className="space-y-1">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                      pathname === link.href
+                        ? link.href === '/operations'
+                          ? 'bg-accent-light text-accent-dark'
+                          : 'bg-primary-light text-primary-dark'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-background'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 

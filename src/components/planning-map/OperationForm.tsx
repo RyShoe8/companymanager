@@ -108,7 +108,7 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
         onChange={(e) => setUrl(e.target.value)}
         placeholder="https://example.com"
       />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Start Date (optional)"
           type="date"
@@ -122,7 +122,7 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
           onChange={(e) => setEndDate(e.target.value)}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Recurrence"
           value={currentRecurrenceType}
@@ -143,7 +143,7 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
           placeholder="e.g., 8 or 0.25 (15 min)"
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Status"
           value={status}
@@ -177,7 +177,7 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
         </div>
       )}
 
-      <div className="flex gap-2 justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-2 justify-between items-stretch sm:items-center">
         {operation && (
           <Button
             type="button"
@@ -186,15 +186,16 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
               router.push(`/assets?operationId=${operation._id}`);
               onCancel();
             }}
+            className="w-full sm:w-auto"
           >
             View Assets
           </Button>
         )}
-        <div className="flex gap-2 ml-auto">
-          <Button type="button" variant="secondary" onClick={onCancel}>
+        <div className="flex flex-col sm:flex-row gap-2 sm:ml-auto w-full sm:w-auto">
+          <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
             Cancel
           </Button>
-          <Button type="submit">
+          <Button type="submit" className="w-full sm:w-auto">
             {operation ? 'Update' : 'Create'} Operation
           </Button>
         </div>

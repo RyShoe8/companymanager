@@ -171,7 +171,7 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
         onChange={(e) => setTags(e.target.value)}
         placeholder="tag1, tag2, tag3"
       />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Linked Project (optional)"
           value={linkedProjectId}

@@ -64,7 +64,7 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
         onChange={(e) => setJobTitle(e.target.value)}
         placeholder="e.g., Senior Developer, Product Manager, Designer"
       />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Weekly Hours"
           type="number"

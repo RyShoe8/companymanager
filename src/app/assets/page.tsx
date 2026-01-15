@@ -205,14 +205,14 @@ function AssetsPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-      <div className="w-full mx-auto px-[100px] max-md:px-4">
+      <div className="w-full mx-auto px-4 sm:px-6 lg:px-[100px]">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Assets</h1>
-          <div className="flex gap-4 mb-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">Assets</h1>
+          <div className="flex flex-col sm:flex-row gap-4 mb-4">
             <div className="flex-1">
               <AssetSearch value={searchQuery} onChange={setSearchQuery} />
             </div>
-            <Button onClick={handleCreateAsset}>+ New Asset</Button>
+            <Button onClick={handleCreateAsset} className="w-full sm:w-auto">+ New Asset</Button>
           </div>
           <AssetFilters
             type={typeFilter}

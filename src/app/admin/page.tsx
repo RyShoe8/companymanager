@@ -105,7 +105,7 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-8">
+      <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-text-secondary">Loading...</div>
         </div>
@@ -115,7 +115,7 @@ export default function AdminPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-8">
+      <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
         <div className="max-w-7xl mx-auto">
           <Card className="p-6">
             <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
@@ -131,7 +131,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-8">
+    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-text-primary mb-2">Admin Dashboard</h1>
@@ -149,7 +149,8 @@ export default function AdminPage() {
 
         <Card className="p-6">
           <h2 className="text-xl font-semibold text-text-primary mb-4">All Users</h2>
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
@@ -237,6 +238,87 @@ export default function AdminPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {users.length === 0 ? (
+              <div className="text-center py-8 text-text-secondary">
+                No users found
+              </div>
+            ) : (
+              users.map((user) => (
+                <Card key={user.id} className="p-4">
+                  <div className="space-y-3">
+                    <div>
+                      <div className="text-xs font-semibold text-text-secondary mb-1">Email</div>
+                      <div className="text-sm text-text-primary">{user.email}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-text-secondary mb-1">Name</div>
+                      <div className="text-sm text-text-primary">{user.name}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-text-secondary mb-1">Organization</div>
+                      <div className="text-sm text-text-primary">{user.organizationName}</div>
+                    </div>
+                    {user.organizationDomain && (
+                      <div>
+                        <div className="text-xs font-semibold text-text-secondary mb-1">Domain</div>
+                        <a
+                          href={`https://${user.organizationDomain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-primary hover:text-primary-hover"
+                        >
+                          {user.organizationDomain}
+                        </a>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                      <div>
+                        <div className="text-xs font-semibold text-text-secondary mb-1">Role</div>
+                        {user.isAdmin ? (
+                          <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
+                            Admin
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded bg-border text-text-secondary text-xs font-medium">
+                            User
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleToggleAdmin(user.id, user.isAdmin, user.email)}
+                          disabled={updatingId === user.id}
+                          className={`text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50 ${
+                            user.isAdmin
+                              ? 'bg-warning-light text-warning-dark hover:bg-warning'
+                              : 'bg-primary-light text-primary-dark hover:bg-primary'
+                          }`}
+                        >
+                          {updatingId === user.id 
+                            ? 'Updating...' 
+                            : user.isAdmin 
+                              ? 'Remove Admin' 
+                              : 'Make Admin'
+                          }
+                        </button>
+                        {!user.isAdmin && (
+                          <button
+                            onClick={() => handleDelete(user.id, user.email)}
+                            disabled={deletingId === user.id}
+                            className="text-xs px-3 py-1.5 rounded text-error hover:bg-error-light transition-colors disabled:opacity-50"
+                          >
+                            {deletingId === user.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         </Card>
       </div>

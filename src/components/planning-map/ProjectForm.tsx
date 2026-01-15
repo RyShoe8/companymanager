@@ -166,7 +166,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         placeholder="https://example.com"
         disabled={isRegularUser}
       />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Start Date or Single Date"
           type="date"
@@ -184,7 +184,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           disabled={isRegularUser}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Estimated Hours (optional)"
           type="number"
@@ -206,7 +206,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           ]}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="Color"
           value={color}
@@ -290,7 +290,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   value={stage.description || ''}
                   onChange={(e) => updateStage(index, 'description', e.target.value)}
                 />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Input
                     label="Start Date"
                     type="date"
@@ -306,7 +306,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     required
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Input
                     label="Estimated Hours (optional)"
                     type="number"
