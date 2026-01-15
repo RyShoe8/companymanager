@@ -27,7 +27,9 @@ export const metadata: Metadata = {
   creator: "Nucleas",
   publisher: "Nucleas",
   icons: {
-    icon: '/images/icon.png',
+    icon: [
+      { url: '/images/icon.png', type: 'image/png' },
+    ],
     shortcut: '/images/icon.png',
     apple: '/images/icon.png',
   },
