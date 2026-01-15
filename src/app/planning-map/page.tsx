@@ -198,7 +198,7 @@ export default function PlanningMapPage() {
     <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
       <div className="w-full mx-auto">
         <div className="mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
             <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Planning</h1>
             {isManagerOrAdmin && (
               <div className="flex flex-col sm:flex-row gap-2">
