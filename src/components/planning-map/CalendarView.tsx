@@ -1222,9 +1222,6 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             →
           </Button>
         </div>
-        <Button variant="secondary" size="sm" onClick={goToToday}>
-          Today
-        </Button>
       </div>
 
       {/* Calendar Content */}
