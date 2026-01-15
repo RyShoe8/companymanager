@@ -7,7 +7,7 @@ export interface IInvitation extends Document {
   token: string; // Unique token for the invitation link
   organizationId: string; // Organization identifier (userId of admin)
   employeeId?: Types.ObjectId; // Reference to the Employee record if created
-  role: 'Administrator' | 'User'; // Role for the employee
+  role: 'Administrator' | 'Manager' | 'User'; // Role for the employee
   jobTitle?: string;
   weeklyHours?: number;
   employeeType?: 'full-time' | 'part-time' | 'contractor';
@@ -44,7 +44,7 @@ const InvitationSchema: Schema = new Schema(
     },
     role: {
       type: String,
-      enum: ['Administrator', 'User'],
+      enum: ['Administrator', 'Manager', 'User'],
       required: true,
       default: 'User',
     },

@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type TimeframeType = 'today' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-export type ProjectStatus = 'planning' | 'active' | 'complete';
+export type ProjectStatus = 'planning' | 'active' | 'in-review' | 'complete';
 
 export interface IProjectStage {
   name: string;
@@ -61,11 +61,11 @@ const ProjectSchema: Schema = new Schema(
     color: {
       type: String,
       required: true,
-      default: '#3b82f6', // blue-500
+      default: '#347AF6', // Nucleus Blue
     },
     status: {
       type: String,
-      enum: ['planning', 'active', 'complete'],
+      enum: ['planning', 'active', 'in-review', 'complete'],
       default: 'planning',
     },
     estimatedHours: {
@@ -105,7 +105,7 @@ const ProjectSchema: Schema = new Schema(
         },
         status: {
           type: String,
-          enum: ['planning', 'active', 'complete'],
+          enum: ['planning', 'active', 'in-review', 'complete'],
           default: 'planning',
         },
       },

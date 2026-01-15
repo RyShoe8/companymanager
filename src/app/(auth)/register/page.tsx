@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 
 interface InvitationData {
   email: string;
@@ -92,7 +93,13 @@ function RegisterForm() {
         return;
       }
 
-      router.push('/planning-map');
+      // Check if user needs to set up organization
+      const userData = data.user;
+      if (!userData.organizationSetupComplete) {
+        router.push('/setup-organization');
+      } else {
+        router.push('/planning-map');
+      }
       router.refresh();
     } catch (err) {
       setError('An error occurred. Please try again.');
@@ -102,15 +109,15 @@ function RegisterForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-text-primary">
             {invitation ? 'Accept Invitation' : 'Create your account'}
           </h2>
           {invitation && (
-            <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
+            <div className="mt-4 bg-primary-light border border-primary/20 rounded-lg p-4">
+              <p className="text-sm text-primary-dark">
                 <strong>{invitation.invitedBy.name || invitation.invitedBy.email}</strong> has invited you to join as a{' '}
                 <strong>{invitation.role}</strong>.
               </p>
@@ -118,11 +125,11 @@ function RegisterForm() {
           )}
         </div>
         {loadingInvitation ? (
-          <div className="text-center py-8 text-gray-600 dark:text-gray-400">Loading invitation...</div>
+          <div className="text-center py-8 text-text-secondary">Loading invitation...</div>
         ) : (
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
+            <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
               {error}
             </div>
           )}
@@ -165,10 +172,22 @@ function RegisterForm() {
               {loading ? 'Creating account...' : 'Register'}
             </Button>
           </div>
+          
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-background text-text-secondary">Or continue with</span>
+            </div>
+          </div>
+
+          <GoogleSignInButton invitationToken={invitationToken} />
+
           <div className="text-center">
             <Link
               href="/login"
-              className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400"
+              className="text-sm text-primary hover:text-primary-hover transition-colors"
             >
               Already have an account? Sign in
             </Link>
@@ -183,8 +202,8 @@ function RegisterForm() {
 export default function RegisterPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center text-gray-600 dark:text-gray-400">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center text-text-secondary">Loading...</div>
       </div>
     }>
       <RegisterForm />

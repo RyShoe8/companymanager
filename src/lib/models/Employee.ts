@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type EmployeeType = 'full-time' | 'part-time' | 'contractor';
-export type EmployeeRole = 'Administrator' | 'User';
+export type EmployeeRole = 'Administrator' | 'Manager' | 'User';
 
 export interface IEmployee extends Document {
   name: string;
@@ -25,7 +25,7 @@ const EmployeeSchema: Schema = new Schema(
     },
     role: {
       type: String,
-      enum: ['Administrator', 'User'],
+      enum: ['Administrator', 'Manager', 'User'],
       required: true,
       default: 'User',
     },

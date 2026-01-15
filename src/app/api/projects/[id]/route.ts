@@ -51,6 +51,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
+    // Check if user is a Manager or Administrator
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+
     // Find all users in the same organization
     const orgUsers = await User.find({ organizationId: user.organizationId });
     const orgUserIds = orgUsers.map(u => u._id);
@@ -58,6 +63,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // If user is not a Manager or Administrator, only allow status change from active to in-review
+    if (!isManagerOrAdmin) {
+      if (currentUserEmployee?.role !== 'User') {
+        return NextResponse.json({ error: 'Only Managers, Administrators, and Users can update projects' }, { status: 403 });
+      }
+      
+      // Regular users can only change status from active to in-review
+      if (status !== undefined && status !== project.status) {
+        if (project.status !== 'active' || status !== 'in-review') {
+          return NextResponse.json({ error: 'Users can only change status from active to in-review' }, { status: 403 });
+        }
+      }
+      
+      // Regular users cannot change other fields
+      if (name !== undefined || description !== undefined || url !== undefined || 
+          startDate !== undefined || endDate !== undefined || timeframeType !== undefined || 
+          color !== undefined || estimatedHours !== undefined || assignedTo !== undefined || 
+          stages !== undefined) {
+        return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
+      }
     }
 
     if (name !== undefined) project.name = name;

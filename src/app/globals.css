@@ -3,19 +3,51 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Nucleas Brand Colors */
+  --primary: #347AF6; /* Nucleus Blue */
+  --primary-hover: #2D6AE5;
+  --primary-light: #E8F0FE;
+  --primary-dark: #1E4A9C;
+  
+  --secondary: #7A57D6; /* Orbital Purple */
+  --secondary-hover: #6B4BC7;
+  --secondary-light: #F0EBFF;
+  --secondary-dark: #4A3594;
+  
+  --accent: #40C9DB; /* Teal Cyan */
+  --accent-hover: #36B3C4;
+  --accent-light: #E0F7FA;
+  --accent-dark: #2A8A99;
+  
+  /* Neutrals */
+  --text-primary: #202637; /* Charcoal Navy */
+  --text-secondary: #5E677D; /* Muted Slate */
+  
+  --border: #E1E5EE; /* Soft Gray */
+  --border-dark: #C5CCDB;
+  
+  --background: #F7F8FC; /* Off-White */
+  --background-card: #FFFFFF;
+  
+  /* Semantic Colors */
+  --success: #36B37E;
+  --success-light: #E3F5ED;
+  --success-dark: #2A8F63;
+  
+  --warning: #FFAB00;
+  --warning-light: #FFF4E0;
+  --warning-dark: #CC8800;
+  
+  --error: #DE350B;
+  --error-light: #FCE8E4;
+  --error-dark: #B22A09;
+  
+  /* Legacy */
+  --foreground: var(--text-primary);
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
+  color: var(--text-primary);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }

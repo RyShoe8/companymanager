@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
 import { IProject } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
@@ -16,7 +16,20 @@ interface EmployeeSidebarProps {
 }
 
 export default function EmployeeSidebar({ employees, projects, operations, timeframe, currentDate }: EmployeeSidebarProps) {
+  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   const range = getTimeframeRange(timeframe, currentDate);
+  
+  const toggleEmployee = (employeeId: string) => {
+    setExpandedEmployees(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(employeeId)) {
+        newSet.delete(employeeId);
+      } else {
+        newSet.add(employeeId);
+      }
+      return newSet;
+    });
+  };
   // Normalize start date to beginning of day, end date to end of day for accurate calculations
   const startDate = new Date(range.start);
   startDate.setHours(0, 0, 0, 0);
@@ -523,68 +536,94 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         const totalHours = totalAvailableHours(employee);
         const utilizationPercent = totalHours > 0 ? Math.round((committedHours / totalHours) * 100) : 0;
 
+        const employeeId = employee._id.toString();
+        const isExpanded = expandedEmployees.has(employeeId);
+
         return (
-          <Card key={employee._id.toString()} className="p-4">
+          <Card key={employeeId} className="p-4">
+            {/* Header - Always visible */}
             <div className="mb-3">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-semibold text-gray-900 dark:text-white">{employee.name}</h4>
-                <span className={`text-xs px-1.5 py-0.5 rounded ${
-                  employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 flex-1">
+                  <button
+                    onClick={() => toggleEmployee(employeeId)}
+                    className="flex items-center gap-2 flex-1 text-left hover:opacity-80 transition-opacity"
+                  >
+                    <svg
+                      className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">{employee.name}</h4>
+                  </button>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                    employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                    employee.role === 'Manager' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                  }`}>
+                    {employee.role}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Utilization Bar - Always visible */}
+              <div className="mb-2">
+                <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+                  <span>Utilization</span>
+                  <span>{utilizationPercent}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${
+                      utilizationPercent > 100 ? 'bg-red-500' :
+                      utilizationPercent > 80 ? 'bg-orange-500' :
+                      'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(utilizationPercent, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Expanded Content */}
+            {isExpanded && (
+              <>
+                {employee.jobTitle && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{employee.jobTitle}</p>
+                )}
+                <span className={`text-xs px-2 py-0.5 rounded inline-block mb-3 ${
+                  employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                  employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                  'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                 }`}>
-                  {employee.role}
+                  {employee.employeeType === 'full-time' ? 'Full-Time' :
+                   employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
                 </span>
-              </div>
-              {employee.jobTitle && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{employee.jobTitle}</p>
-              )}
-              <span className={`text-xs px-2 py-0.5 rounded inline-block ${
-                employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-              }`}>
-                {employee.employeeType === 'full-time' ? 'Full-Time' :
-                 employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
-              </span>
-            </div>
 
-            <div className="space-y-2 mb-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Available:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{totalHours}h</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Committed:</span>
-                <span className="font-medium text-orange-600 dark:text-orange-400">{committedHours}h</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Remaining:</span>
-                <span className={`font-medium ${availableHours > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {availableHours}h
-                </span>
-              </div>
-            </div>
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Available:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{totalHours}h</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Committed:</span>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">{committedHours}h</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Remaining:</span>
+                    <span className={`font-medium ${availableHours > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {availableHours}h
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
 
-            {/* Utilization Bar */}
-            <div className="mb-3">
-              <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                <span>Utilization</span>
-                <span>{utilizationPercent}%</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full ${
-                    utilizationPercent > 100 ? 'bg-red-500' :
-                    utilizationPercent > 80 ? 'bg-orange-500' :
-                    'bg-green-500'
-                  }`}
-                  style={{ width: `${Math.min(utilizationPercent, 100)}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Assigned Operations */}
-            {(() => {
+            {/* Assigned Operations - Only show when expanded */}
+            {isExpanded && (() => {
               const employeeOps = getOperationsForEmployee(employee.name);
               const activeOps = employeeOps.filter(instance => instance.operation.status !== 'complete');
               
@@ -624,8 +663,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               );
             })()}
 
-            {/* Assigned Projects */}
-            {employeeProjects.length > 0 && (
+            {/* Assigned Projects - Only show when expanded */}
+            {isExpanded && employeeProjects.length > 0 && (
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                 <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Projects:</p>
                 <div className="space-y-1">

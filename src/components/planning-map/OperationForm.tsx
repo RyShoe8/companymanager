@@ -151,6 +151,7 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
           options={[
             { value: 'planning', label: 'Planning' },
             { value: 'active', label: 'Active' },
+            { value: 'in-review', label: 'In Review' },
             { value: 'complete', label: 'Complete' },
           ]}
         />

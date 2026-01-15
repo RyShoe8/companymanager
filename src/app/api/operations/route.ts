@@ -12,10 +12,15 @@ export async function GET(request: NextRequest) {
 
     // Get user's organizationId
     const User = (await import('@/lib/models/User')).default;
+    const Employee = (await import('@/lib/models/Employee')).default;
     const user = await User.findById(session.userId);
     if (!user || !user.organizationId) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
+
+    // Check if user is a Manager or Administrator
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
 
     // Find all users in the same organization
     const orgUsers = await User.find({ organizationId: user.organizationId });
@@ -33,6 +38,11 @@ export async function GET(request: NextRequest) {
       query.status = status;
     }
 
+    // If user is not a Manager or Administrator, filter to only assigned operations
+    if (!isManagerOrAdmin && currentUserEmployee) {
+      query.assignedTo = currentUserEmployee.name;
+    }
+
     const operations = await Operation.find(query).sort({ createdAt: -1 });
 
     return NextResponse.json(operations);
@@ -47,14 +57,29 @@ export async function POST(request: NextRequest) {
     const session = await requireAuth(request);
     if (session instanceof NextResponse) return session;
 
+    await connectDB();
+
+    // Check if user is a Manager or Administrator
+    const User = (await import('@/lib/models/User')).default;
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+
+    if (!isManagerOrAdmin) {
+      return NextResponse.json({ error: 'Only Managers and Administrators can create operations' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, description, url, recurrenceType, status, assignedTo, estimatedHours, startDate, endDate } = body;
 
     if (!name || !recurrenceType) {
       return NextResponse.json({ error: 'Name and recurrenceType are required' }, { status: 400 });
     }
-
-    await connectDB();
 
     const operationData: any = {
       name,

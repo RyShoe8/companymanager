@@ -1,0 +1,245 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  organizationName: string;
+  organizationDomain: string | null;
+  createdAt: string;
+  isAdmin: boolean;
+}
+
+export default function AdminPage() {
+  const router = useRouter();
+  const [users, setUsers] = useState<User[]>([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('/api/admin/users');
+        if (response.status === 403) {
+          setError('Access denied. Admin privileges required.');
+          return;
+        }
+        if (!response.ok) {
+          throw new Error('Failed to fetch users');
+        }
+        const data = await response.json();
+        setUsers(data.users);
+        setTotalUsers(data.totalUsers);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load users');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
+  }, []);
+
+  const handleToggleAdmin = async (userId: string, currentStatus: boolean, userEmail: string) => {
+    const action = currentStatus ? 'remove admin privileges from' : 'promote to admin';
+    if (!confirm(`Are you sure you want to ${action} ${userEmail}?`)) {
+      return;
+    }
+
+    setUpdatingId(userId);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAdmin: !currentStatus }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update user');
+      }
+
+      // Update user in list
+      setUsers(users.map(u => 
+        u.id === userId ? { ...u, isAdmin: !currentStatus } : u
+      ));
+    } catch (err: any) {
+      alert(err.message || 'Failed to update user');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleDelete = async (userId: string, userEmail: string) => {
+    if (!confirm(`Are you sure you want to delete user ${userEmail}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(userId);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete user');
+      }
+
+      // Remove user from list
+      setUsers(users.filter(u => u.id !== userId));
+      setTotalUsers(totalUsers - 1);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete user');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-text-secondary">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          <Card className="p-6">
+            <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
+              {error}
+            </div>
+            <Button onClick={() => router.push('/planning-map')} className="mt-4">
+              Go Back
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-text-primary mb-2">Admin Dashboard</h1>
+          <p className="text-text-secondary">Manage users and system settings</p>
+        </div>
+
+        <Card className="p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-text-primary mb-1">Registered Users</h2>
+              <p className="text-3xl font-bold text-primary">{totalUsers}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold text-text-primary mb-4">All Users</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Email</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Name</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Organization</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Domain</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Joined</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Role</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-text-secondary">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-text-secondary">
+                      No users found
+                    </td>
+                  </tr>
+                ) : (
+                  users.map((user) => (
+                    <tr key={user.id} className="border-b border-border hover:bg-background">
+                      <td className="py-3 px-4 text-sm text-text-primary">{user.email}</td>
+                      <td className="py-3 px-4 text-sm text-text-primary">{user.name}</td>
+                      <td className="py-3 px-4 text-sm text-text-primary">{user.organizationName}</td>
+                      <td className="py-3 px-4 text-sm text-text-primary">
+                        {user.organizationDomain ? (
+                          <a
+                            href={`https://${user.organizationDomain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary-hover"
+                          >
+                            {user.organizationDomain}
+                          </a>
+                        ) : (
+                          <span className="text-text-secondary">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-text-secondary">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4 text-sm">
+                        {user.isAdmin ? (
+                          <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
+                            Admin
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded bg-border text-text-secondary text-xs font-medium">
+                            User
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => handleToggleAdmin(user.id, user.isAdmin, user.email)}
+                            disabled={updatingId === user.id}
+                            className={`text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 ${
+                              user.isAdmin
+                                ? 'bg-warning-light text-warning-dark hover:bg-warning'
+                                : 'bg-primary-light text-primary-dark hover:bg-primary'
+                            }`}
+                          >
+                            {updatingId === user.id 
+                              ? 'Updating...' 
+                              : user.isAdmin 
+                                ? 'Remove Admin' 
+                                : 'Make Admin'
+                            }
+                          </button>
+                          {!user.isAdmin && (
+                            <button
+                              onClick={() => handleDelete(user.id, user.email)}
+                              disabled={deletingId === user.id}
+                              className="text-error hover:text-error-dark transition-colors disabled:opacity-50"
+                            >
+                              {deletingId === user.id ? 'Deleting...' : 'Delete'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

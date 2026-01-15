@@ -53,7 +53,8 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
         onChange={(e) => setRole(e.target.value as EmployeeRole)}
         options={[
           { value: 'Administrator', label: 'Administrator (can edit employees)' },
-          { value: 'User', label: 'User (cannot edit employees)' },
+          { value: 'Manager', label: 'Manager (can create projects/operations, see all)' },
+          { value: 'User', label: 'User (can only see assigned items)' },
         ]}
         required
       />

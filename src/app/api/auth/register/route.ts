@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
       password: hashedPassword,
       name,
       organizationId,
+      organizationSetupComplete: !!invitationToken, // If invited, org is already set up
     });
 
     // If no invitation, set organizationId to user's own ID (they are the organization admin)
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
       await Employee.create({
         name: name || email.split('@')[0],
         role: 'Administrator',
-        weeklyHours: 40,
+        weeklyHours: 0,
         employeeType: 'full-time',
         userId: user._id,
         organizationId: user._id.toString(),
@@ -119,6 +120,7 @@ export async function POST(request: NextRequest) {
           id: user._id.toString(),
           email: user.email,
           name: user.name,
+          organizationSetupComplete: user.organizationSetupComplete,
         },
       },
       { status: 201 }

@@ -4,8 +4,24 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Allow access to auth pages and API routes
-  if (pathname.startsWith('/api/auth') || pathname.startsWith('/api/invitations/') || pathname.startsWith('/login') || pathname.startsWith('/register')) {
+  // Allow access to auth pages, setup page, admin page, public pages, and API routes
+  if (
+    pathname.startsWith('/api/auth') || 
+    pathname.startsWith('/api/invitations/') || 
+    pathname.startsWith('/api/organization') ||
+    pathname.startsWith('/api/profile') ||
+    pathname.startsWith('/api/admin') ||
+    pathname.startsWith('/api/contact') ||
+    pathname.startsWith('/login') || 
+    pathname.startsWith('/register') ||
+    pathname === '/setup-organization' ||
+    pathname === '/admin' ||
+    pathname === '/about' ||
+    pathname === '/contact' ||
+    pathname === '/terms' ||
+    pathname === '/privacy' ||
+    pathname.startsWith('/features/')
+  ) {
     return NextResponse.next();
   }
 
@@ -30,7 +46,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - uploads (uploaded user files)
+     * - images (static images)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|uploads|images).*)',
   ],
 };

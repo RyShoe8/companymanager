@@ -306,12 +306,12 @@ export default function CalendarView({ projects, operations, timeframe, currentD
     return (
       <div className="p-8 min-h-[600px]">
         <div className="mb-6">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{dayName}</h2>
-          <p className="text-xl text-gray-600 dark:text-gray-400">{dateStr}</p>
+          <h2 className="text-3xl font-bold text-text-primary mb-2">{dayName}</h2>
+          <p className="text-xl text-text-secondary">{dateStr}</p>
         </div>
 
         {todayProjects.length === 0 && todayOperations.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-16 text-text-secondary">
             <p className="text-lg mb-2">No projects or operations scheduled for today</p>
             <p className="text-sm">Create a project or operation to get started!</p>
           </div>
@@ -319,27 +319,27 @@ export default function CalendarView({ projects, operations, timeframe, currentD
           <div className="space-y-4">
             {todayOperations.length > 0 && (
               <>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                <h3 className="text-xl font-semibold text-text-primary mb-4">
                   Operations ({todayOperations.length})
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   {todayOperations.map((instance, idx) => {
                     const totalDays = Math.ceil((instance.endDate.getTime() - instance.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                     const operation = instance.operation;
-                    const color = '#9333ea'; // Purple color for operations
+                    const color = operation.status === 'in-review' ? '#FFAB00' : '#40C9DB'; // Warning for in-review, Teal Cyan (accent) for others
 
                     return (
                       <div
                         key={`operation-${operation._id.toString()}-${idx}`}
                         onClick={() => onOperationClick(operation)}
-                        className="p-6 rounded-lg cursor-pointer hover:opacity-90 transition-opacity border-2 border-gray-200 dark:border-gray-700"
+                        className="p-6 rounded-lg cursor-pointer hover:opacity-90 transition-opacity border-2 border-border"
                         style={{
                           backgroundColor: color + '20',
                           borderColor: color,
                         }}
                       >
                         <div className="flex items-start justify-between mb-3">
-                          <h4 className={`text-xl font-bold text-gray-900 dark:text-white ${operation.status === 'complete' ? 'line-through' : ''}`} style={{ color: color }}>
+                          <h4 className={`text-xl font-bold text-text-primary ${operation.status === 'complete' ? 'line-through' : ''}`} style={{ color: color }}>
                             {operation.name}
                           </h4>
                           <span
@@ -351,24 +351,24 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         </div>
                         
                         {operation.description && (
-                          <p className="text-gray-700 dark:text-gray-300 mb-3">{operation.description}</p>
+                          <p className="text-text-secondary mb-3">{operation.description}</p>
                         )}
 
                         <div className="space-y-2">
                           <div className="flex items-center gap-4 text-sm">
-                            <span className="text-gray-600 dark:text-gray-400">
+                            <span className="text-text-secondary">
                               <strong>Recurrence:</strong> {operation.recurrenceType}
                             </span>
                           </div>
                           
                           {operation.estimatedHours && (
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <div className="text-sm text-text-secondary">
                               <strong>Estimated Hours:</strong> {operation.estimatedHours}h
                             </div>
                           )}
                           
                           {operation.assignedTo && (
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <div className="text-sm text-text-secondary">
                               <strong>Assigned To:</strong> {operation.assignedTo}
                             </div>
                           )}
@@ -381,7 +381,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             )}
             {todayProjects.length > 0 && (
               <>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                <h3 className="text-xl font-semibold text-text-primary mb-4">
                   Projects ({todayProjects.length})
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -389,55 +389,56 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 const projectStart = new Date(project.startDate);
                 const projectEnd = new Date(project.endDate);
                 const totalDays = Math.ceil((projectEnd.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                const displayColor = project.status === 'in-review' ? '#ef4444' : project.color; // Red for in-review
 
                 return (
                   <div
                     key={project._id.toString()}
                     onClick={() => onProjectClick(project)}
-                    className="p-6 rounded-lg cursor-pointer hover:opacity-90 transition-opacity border-2 border-gray-200 dark:border-gray-700"
+                    className="p-6 rounded-lg cursor-pointer hover:opacity-90 transition-opacity border-2 border-border"
                     style={{
-                      backgroundColor: project.color + '20',
-                      borderColor: project.color,
+                      backgroundColor: displayColor + '20',
+                      borderColor: displayColor,
                     }}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <h4 className={`text-xl font-bold text-gray-900 dark:text-white ${project.status === 'complete' ? 'line-through opacity-60' : ''}`} style={{ color: project.color }}>
+                      <h4 className={`text-xl font-bold text-text-primary ${project.status === 'complete' ? 'line-through opacity-60' : ''}`} style={{ color: displayColor }}>
                         {project.name}
                       </h4>
                       <span
                         className="px-3 py-1 rounded-full text-sm font-medium text-white"
-                        style={{ backgroundColor: project.color }}
+                        style={{ backgroundColor: displayColor }}
                       >
                         {project.status}
                       </span>
                     </div>
                     
                     {project.description && (
-                      <p className="text-gray-700 dark:text-gray-300 mb-3">{project.description}</p>
+                      <p className="text-text-secondary mb-3">{project.description}</p>
                     )}
 
                     <div className="space-y-2">
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">
+                        <span className="text-text-secondary">
                           <strong>Duration:</strong> {formatDate(projectStart)} - {formatDate(projectEnd)} ({totalDays} {totalDays === 1 ? 'day' : 'days'})
                         </span>
                       </div>
                       
                       {project.estimatedHours && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-text-secondary">
                           <strong>Estimated Hours:</strong> {project.estimatedHours}h
                         </div>
                       )}
                       
                       {project.assignedTo && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-text-secondary">
                           <strong>Assigned To:</strong> {project.assignedTo}
                         </div>
                       )}
 
                       {project.stages && project.stages.length > 0 && (
                         <div className="mt-4">
-                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Stages:</p>
+                          <p className="text-sm font-semibold text-text-primary mb-2">Stages:</p>
                           <div className="space-y-2">
                             {project.stages.map((stage, idx) => {
                               const stageStart = new Date(stage.startDate);
@@ -450,13 +451,13 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               return (
                                 <div
                                   key={idx}
-                                  className="p-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                                  className="p-3 rounded border border-border bg-background-card"
                                 >
-                                  <div className="font-medium text-gray-900 dark:text-white">{stage.name}</div>
+                                  <div className="font-medium text-text-primary">{stage.name}</div>
                                   {stage.description && (
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{stage.description}</p>
+                                    <p className="text-sm text-text-secondary mt-1">{stage.description}</p>
                                   )}
-                                  <div className="flex gap-4 mt-2 text-xs text-gray-500 dark:text-gray-500">
+                                  <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                     {stage.estimatedHours && <span>{stage.estimatedHours}h</span>}
                                     {stage.assignedTo && <span>Assigned: {stage.assignedTo}</span>}
                                     <span className="capitalize">{stage.status}</span>
@@ -493,28 +494,28 @@ export default function CalendarView({ projects, operations, timeframe, currentD
 
     return (
       <>
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-7 border-b border-border">
           {dayNames.map((day) => (
             <div
               key={day}
-              className="p-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900"
+              className="p-3 text-center text-sm font-semibold text-text-secondary bg-background"
             >
               {day}
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 relative">
+        <div className="grid grid-cols-7 divide-x divide-border relative">
           {days.map((day, dayIdx) => {
             const isCurrentDay = isToday(day);
 
             return (
               <div
                 key={dayIdx}
-                className={`p-4 min-h-[360px] relative ${isCurrentDay ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                className={`p-4 min-h-[360px] relative ${isCurrentDay ? 'bg-primary-light' : ''}`}
               >
                 <div
                   className={`text-lg font-semibold mb-3 ${
-                    isCurrentDay ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
+                    isCurrentDay ? 'text-primary' : 'text-text-primary'
                   }`}
                 >
                   {day.getDate()}
@@ -634,9 +635,10 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             return itemPositions.map((pos, idx) => {
               const topPosition = baseTop + (stackPositions[idx] * rowHeight);
               const isOperation = pos.type === 'operation';
-              const color = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
-              const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
               const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
+              const baseColor = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
+              const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
+              const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
               const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
               const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
               
@@ -699,11 +701,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
 
     return (
       <>
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-7 border-b border-border">
           {dayNames.map((day) => (
             <div
               key={day}
-              className="p-2 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900"
+              className="p-2 text-center text-sm font-semibold text-text-secondary bg-background"
             >
               {day}
             </div>
@@ -719,13 +721,13 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 return (
                   <div
                     key={dayIdx}
-                    className={`p-2 relative ${!inViewRange ? 'bg-gray-50 dark:bg-gray-900/50 opacity-50' : ''} ${
-                      isCurrentDay ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                    className={`p-2 relative ${!inViewRange ? 'bg-background opacity-50' : ''} ${
+                      isCurrentDay ? 'bg-primary-light' : ''
                     }`}
                   >
                     <div
                       className={`text-sm font-medium mb-1 ${
-                        isCurrentDay ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
+                        isCurrentDay ? 'text-primary' : 'text-text-primary'
                       }`}
                     >
                       {day.getDate()}
@@ -846,9 +848,10 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 return itemPositions.map((pos, idx) => {
                   const topPosition = baseTop + (stackPositions[idx] * rowHeight);
                   const isOperation = pos.type === 'operation';
-                  const color = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
-                  const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                   const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
+                  const baseColor = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
+                  const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
+                  const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                   const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
                   const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
                   
@@ -931,16 +934,16 @@ export default function CalendarView({ projects, operations, timeframe, currentD
           return (
             <div
               key={idx}
-              className="bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 p-6 min-h-[400px]"
+              className="bg-background rounded-lg border border-border p-6 min-h-[400px]"
             >
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              <h3 className="text-xl font-semibold text-text-primary mb-4">
                 {monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </h3>
               <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 mb-2">
                 {dayNames.map((day) => (
                   <div
                     key={day}
-                    className="p-2 text-center text-sm font-semibold text-gray-700 dark:text-gray-300"
+                    className="p-2 text-center text-sm font-semibold text-text-secondary"
                   >
                     {day}
                   </div>
@@ -956,12 +959,12 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       return (
                         <div
                           key={dayIdx}
-                          className={`p-2 relative ${!inMonth ? 'bg-gray-100 dark:bg-gray-800/50 opacity-50' : ''} ${
-                            isCurrentDay ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                          className={`p-2 relative ${!inMonth ? 'bg-background opacity-50' : ''} ${
+                            isCurrentDay ? 'bg-primary-light' : ''
                           }`}
                         >
                           <div className={`text-sm font-medium mb-1 ${
-                            isCurrentDay ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
+                            isCurrentDay ? 'text-primary' : 'text-text-primary'
                           }`}>
                             {day.getDate()}
                           </div>
@@ -1077,9 +1080,10 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       return itemPositions.map((pos, posIdx) => {
                         const topPosition = baseTop + (stackPositions[posIdx] * rowHeight);
                         const isOperation = pos.type === 'operation';
-                        const color = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
-                        const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                         const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
+                        const baseColor = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
+                        const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
+                        const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                         
                         return (
                           <div
@@ -1143,22 +1147,23 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             return (
               <div
                 key={idx}
-                className="bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 p-4 min-h-[300px]"
+                className="bg-background rounded-lg border border-border p-4 min-h-[300px]"
               >
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {monthStart.toLocaleDateString('en-US', { month: 'short' })}
                 </h3>
                 <div className="space-y-2">
                   {/* Operations first */}
                   {monthOperationInstances.map((instance) => {
                     const operation = instance.operation;
+                    const operationColor = operation.status === 'in-review' ? '#ef4444' : '#9333ea';
                     return (
                       <div
                         key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`}
                         onClick={() => onOperationClick(operation)}
                         className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${operation.status === 'complete' ? 'line-through opacity-60' : ''}`}
                         style={{
-                          backgroundColor: '#9333ea',
+                          backgroundColor: operationColor,
                           color: 'white',
                         }}
                         title={operation.name}
@@ -1168,20 +1173,23 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     );
                   })}
                   {/* Projects */}
-                  {monthProjects.map((project) => (
-                    <div
-                      key={project._id.toString()}
-                      onClick={() => onProjectClick(project)}
-                      className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'complete' ? 'line-through opacity-60' : ''}`}
-                      style={{
-                        backgroundColor: project.color,
-                        color: 'white',
-                      }}
-                      title={project.name}
-                    >
-                      <div className="font-medium truncate">{project.name}</div>
-                    </div>
-                  ))}
+                  {monthProjects.map((project) => {
+                    const projectColor = project.status === 'in-review' ? '#ef4444' : project.color;
+                    return (
+                      <div
+                        key={project._id.toString()}
+                        onClick={() => onProjectClick(project)}
+                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'complete' ? 'line-through opacity-60' : ''}`}
+                        style={{
+                          backgroundColor: projectColor,
+                          color: 'white',
+                        }}
+                        title={project.name}
+                      >
+                        <div className="font-medium truncate">{project.name}</div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -1192,14 +1200,14 @@ export default function CalendarView({ projects, operations, timeframe, currentD
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div className="bg-background-card rounded-lg border border-border overflow-hidden">
       {/* Calendar Header with Navigation */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between p-4 border-b border-border">
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => navigatePeriod('prev')}>
             ←
           </Button>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white min-w-[200px] text-center">
+          <h3 className="text-lg font-semibold text-text-primary min-w-[200px] text-center">
             {getViewTitle()}
           </h3>
           <Button variant="secondary" size="sm" onClick={() => navigatePeriod('next')}>

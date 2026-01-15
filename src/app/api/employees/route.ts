@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (role !== 'Administrator' && role !== 'User') {
-      return NextResponse.json({ error: 'Role must be Administrator or User' }, { status: 400 });
+    if (role !== 'Administrator' && role !== 'Manager' && role !== 'User') {
+      return NextResponse.json({ error: 'Role must be Administrator, Manager, or User' }, { status: 400 });
     }
 
     await connectDB();

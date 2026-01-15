@@ -11,9 +11,10 @@ import CalendarView from '@/components/planning-map/CalendarView';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import ProjectForm from '@/components/planning-map/ProjectForm';
 import OperationForm from '@/components/planning-map/OperationForm';
+import ProjectDetailView from '@/components/planning-map/ProjectDetailView';
+import OperationDetailView from '@/components/planning-map/OperationDetailView';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
-import Toggle from '@/components/ui/Toggle';
 
 export default function PlanningMapPage() {
   const router = useRouter();
@@ -25,10 +26,14 @@ export default function PlanningMapPage() {
   const [loading, setLoading] = useState(true);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [showOperationForm, setShowOperationForm] = useState(false);
+  const [showProjectDetail, setShowProjectDetail] = useState(false);
+  const [showOperationDetail, setShowOperationDetail] = useState(false);
   const [editingProject, setEditingProject] = useState<IProject | undefined>();
   const [editingOperation, setEditingOperation] = useState<IOperation | undefined>();
-  const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
-  const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
+  const [viewingProject, setViewingProject] = useState<IProject | undefined>();
+  const [viewingOperation, setViewingOperation] = useState<IOperation | undefined>();
+  const [isManagerOrAdmin, setIsManagerOrAdmin] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
 
   useEffect(() => {
     loadData();
@@ -52,13 +57,13 @@ export default function PlanningMapPage() {
       const operationsData = await operationsRes.json();
       const employeesData = await employeesRes.json();
 
-      // Get current user's employee name
+      // Get current user's role
       try {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
           const userData = await userResponse.json();
           const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          setCurrentUserEmployeeName(currentEmployee?.name || null);
+          setIsManagerOrAdmin(currentEmployee ? (currentEmployee.role === 'Manager' || currentEmployee.role === 'Administrator') : false);
         }
       } catch (error) {
         console.error('Error loading current user:', error);
@@ -80,15 +85,23 @@ export default function PlanningMapPage() {
     setShowProjectForm(true);
   };
 
+  const handleViewProject = (project: IProject) => {
+    setViewingProject(project);
+    setShowProjectDetail(true);
+  };
+
   const handleEditProject = (project: IProject) => {
     setEditingProject(project);
     setShowProjectForm(true);
+    setShowProjectDetail(false);
   };
 
   const handleDeleteProject = async (id: string) => {
     try {
       const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
       if (response.ok) {
+        setShowProjectDetail(false);
+        setViewingProject(undefined);
         loadData();
       }
     } catch (error) {
@@ -109,7 +122,9 @@ export default function PlanningMapPage() {
 
       if (response.ok) {
         setShowProjectForm(false);
+        setShowProjectDetail(false);
         setEditingProject(undefined);
+        setViewingProject(undefined);
         loadData();
       }
     } catch (error) {
@@ -122,15 +137,23 @@ export default function PlanningMapPage() {
     setShowOperationForm(true);
   };
 
+  const handleViewOperation = (operation: IOperation) => {
+    setViewingOperation(operation);
+    setShowOperationDetail(true);
+  };
+
   const handleEditOperation = (operation: IOperation) => {
     setEditingOperation(operation);
     setShowOperationForm(true);
+    setShowOperationDetail(false);
   };
 
   const handleDeleteOperation = async (id: string) => {
     try {
       const response = await fetch(`/api/operations/${id}`, { method: 'DELETE' });
       if (response.ok) {
+        setShowOperationDetail(false);
+        setViewingOperation(undefined);
         loadData();
       }
     } catch (error) {
@@ -151,7 +174,9 @@ export default function PlanningMapPage() {
 
       if (response.ok) {
         setShowOperationForm(false);
+        setShowOperationDetail(false);
         setEditingOperation(undefined);
+        setViewingOperation(undefined);
         loadData();
       }
     } catch (error) {
@@ -162,67 +187,48 @@ export default function PlanningMapPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+        <div className="text-text-secondary">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4">
+    <div className="min-h-screen bg-background px-[100px] max-md:px-4">
       <div className="w-full mx-auto">
         <div className="mb-6">
           <div className="flex items-center gap-4 mb-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Planning</h1>
-            <div className="flex gap-2">
-              <Button onClick={handleCreateProject}>+ New Project</Button>
-              <Button onClick={handleCreateOperation} variant="secondary">+ New Operation</Button>
-            </div>
+            <h1 className="text-3xl font-bold text-text-primary">Planning</h1>
+            {isManagerOrAdmin && (
+              <div className="flex gap-2">
+                <Button onClick={handleCreateProject}>+ New Project</Button>
+                <Button onClick={handleCreateOperation} variant="secondary">+ New Operation</Button>
+              </div>
+            )}
           </div>
           <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Calendar View</h2>
-              {currentUserEmployeeName && (
-                <Toggle
-                  label="Show only my assignments"
-                  checked={showOnlyAssigned}
-                  onChange={setShowOnlyAssigned}
-                />
-              )}
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-text-primary">Calendar View</h2>
             </div>
-                    <CalendarView
-                      projects={showOnlyAssigned && currentUserEmployeeName 
-                        ? projects.filter(p => 
-                            p.assignedTo === currentUserEmployeeName || 
-                            p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
-                          )
-                        : projects}
-                      operations={showOnlyAssigned && currentUserEmployeeName
-                        ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
-                        : operations}
-                      timeframe={timeframe}
-                      currentDate={currentDate}
-                      onProjectClick={handleEditProject}
-                      onOperationClick={handleEditOperation}
-                      onDateChange={setCurrentDate}
-                    />
+            <CalendarView
+              projects={projects}
+              operations={operations}
+              timeframe={timeframe}
+              currentDate={currentDate}
+              onProjectClick={handleViewProject}
+              onOperationClick={handleViewOperation}
+              onDateChange={setCurrentDate}
+            />
           </div>
 
           <div>
             <EmployeeSidebar
               employees={employees}
-              projects={showOnlyAssigned && currentUserEmployeeName 
-                ? projects.filter(p => 
-                    p.assignedTo === currentUserEmployeeName || 
-                    p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
-                  )
-                : projects}
-              operations={showOnlyAssigned && currentUserEmployeeName
-                ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
-                : operations}
+              projects={projects}
+              operations={operations}
               timeframe={timeframe}
               currentDate={currentDate}
             />
@@ -240,6 +246,7 @@ export default function PlanningMapPage() {
           <ProjectForm
             project={editingProject}
             timeframeType={timeframe}
+            userRole={currentUserRole}
             onSubmit={handleSubmitProject}
             onCancel={() => {
               setShowProjectForm(false);
@@ -271,6 +278,50 @@ export default function PlanningMapPage() {
               setEditingOperation(undefined);
             }}
           />
+        </Modal>
+
+        <Modal
+          isOpen={showProjectDetail}
+          onClose={() => {
+            setShowProjectDetail(false);
+            setViewingProject(undefined);
+          }}
+          title="Project Details"
+          maxWidth="4xl"
+        >
+          {viewingProject && (
+            <ProjectDetailView
+              project={viewingProject}
+              isManagerOrAdmin={isManagerOrAdmin}
+              onEdit={() => handleEditProject(viewingProject)}
+              onDelete={() => handleDeleteProject(viewingProject._id.toString())}
+              onClose={() => {
+                setShowProjectDetail(false);
+                setViewingProject(undefined);
+              }}
+            />
+          )}
+        </Modal>
+
+        <Modal
+          isOpen={showOperationDetail}
+          onClose={() => {
+            setShowOperationDetail(false);
+            setViewingOperation(undefined);
+          }}
+          title="Operation Details"
+        >
+          {viewingOperation && (
+            <OperationDetailView
+              operation={viewingOperation}
+              onEdit={() => handleEditOperation(viewingOperation)}
+              onDelete={() => handleDeleteOperation(viewingOperation._id.toString())}
+              onClose={() => {
+                setShowOperationDetail(false);
+                setViewingOperation(undefined);
+              }}
+            />
+          )}
         </Modal>
       </div>
     </div>

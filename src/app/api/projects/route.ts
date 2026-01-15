@@ -12,10 +12,15 @@ export async function GET(request: NextRequest) {
 
     // Get user's organizationId
     const User = (await import('@/lib/models/User')).default;
+    const Employee = (await import('@/lib/models/Employee')).default;
     const user = await User.findById(session.userId);
     if (!user || !user.organizationId) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
+
+    // Check if user is a Manager or Administrator
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
 
     // Find all users in the same organization
     const orgUsers = await User.find({ organizationId: user.organizationId });
@@ -29,6 +34,15 @@ export async function GET(request: NextRequest) {
     const query: any = { userId: { $in: orgUserIds } };
     if (status) {
       query.status = status;
+    }
+
+    // If user is not a Manager or Administrator, filter to only assigned projects
+    if (!isManagerOrAdmin && currentUserEmployee) {
+      const employeeName = currentUserEmployee.name;
+      query.$or = [
+        { assignedTo: employeeName },
+        { 'stages.assignedTo': employeeName }
+      ];
     }
 
     const projects = await Project.find(query).sort({ startDate: 1 });
@@ -45,6 +59,23 @@ export async function POST(request: NextRequest) {
     const session = await requireAuth(request);
     if (session instanceof NextResponse) return session;
 
+    await connectDB();
+
+    // Check if user is a Manager or Administrator
+    const User = (await import('@/lib/models/User')).default;
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+
+    if (!isManagerOrAdmin) {
+      return NextResponse.json({ error: 'Only Managers and Administrators can create projects' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
 
@@ -54,8 +85,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    await connectDB();
 
     const projectData: any = {
       name,

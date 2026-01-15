@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
+import OrganizationSetupCheck from "@/components/OrganizationSetupCheck";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +17,57 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Company Manager",
-  description: "Plan and manage your company's work and assets",
+  title: {
+    default: "Nucleas - Plan and Manage Your Company's Work and Assets",
+    template: "%s | Nucleas",
+  },
+  description: "Plan and manage your company's work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
+  keywords: ["project management", "planning map", "team collaboration", "asset management", "operations tracking", "company planning"],
+  authors: [{ name: "Nucleas" }],
+  creator: "Nucleas",
+  publisher: "Nucleas",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://nucleas.app'),
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://nucleas.app',
+    siteName: 'Nucleas',
+    title: "Nucleas - Plan and Manage Your Company's Work and Assets",
+    description: "Plan and manage your company's work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
+    images: [
+      {
+        url: '/images/Nucleas.png',
+        width: 1200,
+        height: 630,
+        alt: 'Nucleas Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Nucleas - Plan and Manage Your Company's Work and Assets",
+    description: "Plan and manage your company's work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
+    images: ['/images/Nucleas.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 };
 
 export default function RootLayout({
@@ -26,10 +78,28 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
-        <Navigation />
-        {children}
+        {/* Google tag (gtag.js) */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-C71LD7T8PT"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-C71LD7T8PT');
+          `}
+        </Script>
+        <OrganizationSetupCheck>
+          <Navigation />
+          <main className="flex-1">
+            {children}
+          </main>
+          <Footer />
+        </OrganizationSetupCheck>
       </body>
     </html>
   );

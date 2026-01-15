@@ -7,19 +7,18 @@ import { IEmployee } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
-import CommentThread from '@/components/comments/CommentThread';
 
 interface ProjectFormProps {
   project?: IProject;
   timeframeType: TimeframeType;
   onSubmit: (data: Partial<IProject>) => void;
   onCancel: () => void;
+  userRole?: 'Administrator' | 'Manager' | 'User';
 }
 
 export default function ProjectForm({ project, timeframeType, onSubmit, onCancel }: ProjectFormProps) {
   const router = useRouter();
   const [name, setName] = useState(project?.name || '');
-  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [description, setDescription] = useState(project?.description || '');
   const [url, setUrl] = useState(project?.url || '');
   const [startDate, setStartDate] = useState(
@@ -35,6 +34,8 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const [stages, setStages] = useState<IProjectStage[]>(project?.stages || []);
   const [showStages, setShowStages] = useState(false);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
+  const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
+  const isRegularUser = userRole === 'User';
 
   useEffect(() => {
     // Fetch employees for the dropdown
@@ -51,19 +52,6 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     };
     fetchEmployees();
 
-    // Fetch current user ID
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await fetch('/api/auth/me');
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentUserId(data.id);
-        }
-      } catch (error) {
-        console.error('Error fetching current user:', error);
-      }
-    };
-    fetchCurrentUser();
   }, []);
 
   useEffect(() => {
@@ -149,7 +137,6 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     { value: '#3b82f6', label: 'Blue' },
     { value: '#10b981', label: 'Green' },
     { value: '#f59e0b', label: 'Amber' },
-    { value: '#ef4444', label: 'Red' },
     { value: '#8b5cf6', label: 'Purple' },
     { value: '#ec4899', label: 'Pink' },
     { value: '#06b6d4', label: 'Cyan' },
@@ -163,11 +150,13 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         value={name}
         onChange={(e) => setName(e.target.value)}
         required
+        disabled={isRegularUser}
       />
       <Input
         label="Description (optional)"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
+        disabled={isRegularUser}
       />
       <Input
         label="URL (optional)"
@@ -175,14 +164,16 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="https://example.com"
+        disabled={isRegularUser}
       />
       <div className="grid grid-cols-2 gap-4">
         <Input
-          label="Start Date"
+          label="Start Date or Single Date"
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
           required
+          disabled={isRegularUser}
         />
         <Input
           label="End Date"
@@ -190,6 +181,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
           required
+          disabled={isRegularUser}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -201,11 +193,13 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           value={estimatedHours}
           onChange={(e) => setEstimatedHours(e.target.value)}
           placeholder="e.g., 40"
+          disabled={isRegularUser}
         />
         <Select
           label="Assigned To (optional)"
           value={assignedTo}
           onChange={(e) => setAssignedTo(e.target.value)}
+          disabled={isRegularUser}
           options={[
             { value: '', label: 'None' },
             ...employees.map(emp => ({ value: emp.name, label: emp.name }))
@@ -217,47 +211,58 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           label="Color"
           value={color}
           onChange={(e) => setColor(e.target.value)}
+          disabled={isRegularUser}
           options={colorOptions}
         />
         <Select
           label="Status"
           value={status}
           onChange={(e) => setStatus(e.target.value as ProjectStatus)}
-          options={[
-            { value: 'planning', label: 'Planning' },
-            { value: 'active', label: 'Active' },
-            { value: 'complete', label: 'Complete' },
-          ]}
+          disabled={isRegularUser && project?.status !== 'active'}
+          options={
+            isRegularUser && project?.status === 'active'
+              ? [
+                  { value: 'active', label: 'Active' },
+                  { value: 'in-review', label: 'In Review' },
+                ]
+              : [
+                  { value: 'planning', label: 'Planning' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'in-review', label: 'In Review' },
+                  { value: 'complete', label: 'Complete' },
+                ]
+          }
         />
       </div>
 
-      {/* Stages Section */}
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-        <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Stages (optional)
-          </label>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowStages(!showStages)}
-            >
-              {showStages ? 'Hide' : 'Show'} Stages
-            </Button>
-            {showStages && (
+      {/* Stages Section - Only for admins/managers */}
+      {isManagerOrAdmin && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Stages (optional)
+            </label>
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={addStage}
+                onClick={() => setShowStages(!showStages)}
               >
-                + Add Stage
+                {showStages ? 'Hide' : 'Show'} Stages
               </Button>
-            )}
+              {showStages && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={addStage}
+                >
+                  + Add Stage
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
 
         {showStages && stages.length > 0 && (
           <div className="space-y-3">
@@ -327,6 +332,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   options={[
                     { value: 'planning', label: 'Planning' },
                     { value: 'active', label: 'Active' },
+                    { value: 'in-review', label: 'In Review' },
                     { value: 'complete', label: 'Complete' },
                   ]}
                 />
@@ -335,41 +341,11 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           </div>
         )}
 
-        {showStages && stages.length === 0 && (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No stages added. Click "Add Stage" to create project phases.
-          </p>
-        )}
-      </div>
-
-      {/* Comments Section */}
-      {project && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <CommentThread
-            entityType="project"
-            entityId={project._id.toString()}
-            currentUserId={currentUserId}
-          />
-        </div>
-      )}
-
-      {/* Stage Comments */}
-      {showStages && stages.length > 0 && project && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Stage Comments</h4>
-          <div className="space-y-4">
-            {stages.map((stage, index) => (
-              <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                <h5 className="font-medium text-gray-900 dark:text-white mb-2">Stage {index + 1}: {stage.name}</h5>
-                <CommentThread
-                  entityType="projectStage"
-                  entityId={project._id.toString()}
-                  stageIndex={index}
-                  currentUserId={currentUserId}
-                />
-              </div>
-            ))}
-          </div>
+          {showStages && stages.length === 0 && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No stages added. Click "Add Stage" to create project phases.
+            </p>
+          )}
         </div>
       )}
 

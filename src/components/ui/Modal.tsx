@@ -7,9 +7,10 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, maxWidth = '2xl' }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -29,15 +30,23 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className={`bg-background-card rounded-lg shadow-xl w-full mx-4 max-h-[90vh] overflow-y-auto ${
+          maxWidth === 'sm' ? 'max-w-sm' :
+          maxWidth === 'md' ? 'max-w-md' :
+          maxWidth === 'lg' ? 'max-w-lg' :
+          maxWidth === 'xl' ? 'max-w-xl' :
+          maxWidth === '2xl' ? 'max-w-2xl' :
+          maxWidth === '4xl' ? 'max-w-4xl' :
+          'max-w-2xl'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
+          <div className="flex items-center justify-between p-6 border-b border-border">
+            <h2 className="text-xl font-semibold text-text-primary">{title}</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="text-text-secondary hover:text-text-primary transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
