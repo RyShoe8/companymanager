@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       let existingOrgAdmin: IUser | null = null;
 
       if (emailDomain) {
-        // Find organization with matching domain
+        // First, try to find organization with matching domain
         const existingOrganization = await Organization.findOne({ domain: emailDomain });
         
         if (existingOrganization) {
@@ -115,6 +115,19 @@ export async function POST(request: NextRequest) {
           if (existingOrgAdmin && existingOrgAdmin.organizationId) {
             // Join existing organization
             organizationId = existingOrgAdmin.organizationId;
+            isJoiningExistingOrg = true;
+          }
+        } else {
+          // If no organization with domain found, check for users with same domain who completed setup
+          // This handles cases where domain wasn't set or second user signs up before domain is set
+          const existingUserWithDomain = await User.findOne({
+            email: { $regex: `@${emailDomain}$`, $options: 'i' },
+            organizationSetupComplete: true,
+          });
+          
+          if (existingUserWithDomain && existingUserWithDomain.organizationId) {
+            // Join the organization of the first user who completed setup
+            organizationId = existingUserWithDomain.organizationId;
             isJoiningExistingOrg = true;
           }
         }
@@ -184,14 +197,17 @@ export async function POST(request: NextRequest) {
     // Create session
     await createSession(user._id.toString(), user.email);
 
+    // Refresh user to ensure we have the latest data (in case of any middleware updates)
+    const refreshedUser = await User.findById(user._id);
+
     return NextResponse.json(
       {
         message: invitationToken ? 'Account created successfully. Welcome to the team!' : 'User created successfully',
         user: {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          organizationSetupComplete: user.organizationSetupComplete,
+          id: refreshedUser!._id.toString(),
+          email: refreshedUser!.email,
+          name: refreshedUser!.name,
+          organizationSetupComplete: refreshedUser!.organizationSetupComplete,
         },
       },
       { status: 201 }
