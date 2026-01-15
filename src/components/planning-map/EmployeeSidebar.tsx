@@ -385,6 +385,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         const stageHoursInRange = project.stages
           .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete')
           .reduce((sum, stage) => {
+            if (!stage.estimatedHours) return sum;
             const stageStart = new Date(stage.startDate);
             const stageEnd = new Date(stage.endDate);
             return sum + calculateHoursForDateRange(
