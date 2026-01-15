@@ -1,7 +1,10 @@
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 
-const secretKey = process.env.NEXTAUTH_SECRET || 'fallback-secret-key-change-in-production';
+const secretKey = process.env.NEXTAUTH_SECRET;
+if (!secretKey) {
+  throw new Error('NEXTAUTH_SECRET environment variable is required');
+}
 const key = new TextEncoder().encode(secretKey);
 
 export interface SessionPayload {

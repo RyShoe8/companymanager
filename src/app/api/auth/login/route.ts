@@ -4,14 +4,33 @@ import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { createSession } from '@/lib/auth/session';
+import { isValidEmail, sanitizeString } from '@/lib/utils/security';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    let { email, password } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+
+    // Sanitize inputs
+    email = sanitizeString(email, 254);
+    password = password.trim();
+
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    }
+
+    // Validate password length to prevent DoS
+    if (password.length > 128) {
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
     await connectDB();

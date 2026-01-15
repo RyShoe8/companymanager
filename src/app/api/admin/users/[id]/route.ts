@@ -8,6 +8,7 @@ import Operation from '@/lib/models/Operation';
 import Asset from '@/lib/models/Asset';
 import Invitation from '@/lib/models/Invitation';
 import Organization from '@/lib/models/Organization';
+import { isValidObjectId } from '@/lib/utils/security';
 
 /**
  * Update a user's admin status (admin only)
@@ -30,8 +31,19 @@ export async function PATCH(
     }
 
     const { id: userId } = await params;
+    
+    // Validate ObjectId format
+    if (!isValidObjectId(userId)) {
+      return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+    }
+
     const body = await request.json();
     const { isAdmin } = body;
+
+    // Validate isAdmin is boolean
+    if (typeof isAdmin !== 'boolean') {
+      return NextResponse.json({ error: 'Invalid admin status' }, { status: 400 });
+    }
 
     // Prevent changing your own admin status
     if (userId === session.userId) {
@@ -81,6 +93,11 @@ export async function DELETE(
     }
 
     const { id: userId } = await params;
+
+    // Validate ObjectId format
+    if (!isValidObjectId(userId)) {
+      return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+    }
 
     // Prevent deleting yourself
     if (userId === session.userId) {

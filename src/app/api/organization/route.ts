@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
 import Organization from '@/lib/models/Organization';
+import { sanitizeString, isValidObjectId } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,10 +55,23 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, domain } = body;
+    let { name, domain } = body;
 
-    if (!name || !name.trim()) {
+    // Sanitize inputs
+    name = sanitizeString(name, 100);
+    domain = domain ? sanitizeString(domain, 255) : undefined;
+
+    if (!name || name.length === 0) {
       return NextResponse.json({ error: 'Organization name is required' }, { status: 400 });
+    }
+
+    // Validate domain format if provided
+    if (domain && domain.length > 0) {
+      // Basic domain validation (no protocol, no path)
+      const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+      if (!domainRegex.test(domain)) {
+        return NextResponse.json({ error: 'Invalid domain format' }, { status: 400 });
+      }
     }
 
     await connectDB();

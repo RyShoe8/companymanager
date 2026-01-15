@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
+import { escapeRegex, sanitizeString } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +17,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
     }
 
+    // Sanitize and limit query length
+    const sanitizedQuery = sanitizeString(query, 100);
+    if (sanitizedQuery.length === 0) {
+      return NextResponse.json({ error: 'Invalid search query' }, { status: 400 });
+    }
+
+    // Escape regex special characters to prevent NoSQL injection
+    const escapedQuery = escapeRegex(sanitizedQuery);
+
     await connectDB();
 
     // Get user's organizationId
@@ -28,13 +38,13 @@ export async function GET(request: NextRequest) {
     const orgUsers = await User.find({ organizationId: user.organizationId });
     const orgUserIds = orgUsers.map(u => u._id);
 
-    // Search in name, description, and tags
+    // Search in name, description, and tags with escaped query
     const assets = await Asset.find({
       userId: { $in: orgUserIds },
       $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } },
-        { tags: { $in: [new RegExp(query, 'i')] } },
+        { name: { $regex: escapedQuery, $options: 'i' } },
+        { description: { $regex: escapedQuery, $options: 'i' } },
+        { tags: { $in: [new RegExp(escapedQuery, 'i')] } },
       ],
     }).sort({ createdAt: -1 });
 

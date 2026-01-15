@@ -5,14 +5,43 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import { createSession } from '@/lib/auth/session';
+import { isValidEmail, sanitizeString, isValidObjectId } from '@/lib/utils/security';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name, invitationToken } = body;
+    let { email, password, name, invitationToken } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+
+    // Sanitize and validate inputs
+    email = sanitizeString(email, 254);
+    password = password.trim();
+    name = name ? sanitizeString(name, 100) : undefined;
+
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+    }
+
+    if (password.length > 128) {
+      return NextResponse.json({ error: 'Password is too long' }, { status: 400 });
+    }
+
+    // Validate invitation token format if provided
+    if (invitationToken && !isValidObjectId(invitationToken) && invitationToken.length > 100) {
+      return NextResponse.json({ error: 'Invalid invitation token' }, { status: 400 });
     }
 
     await connectDB();

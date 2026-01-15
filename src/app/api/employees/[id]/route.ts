@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
 import { deleteBrevoContact } from '@/lib/services/email';
+import { isValidObjectId } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -11,6 +12,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     await connectDB();
     const { id } = await params;
+
+    // Validate ObjectId format
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid employee ID' }, { status: 400 });
+    }
 
     // Get user's organizationId
     const User = (await import('@/lib/models/User')).default;
@@ -37,10 +43,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, role, jobTitle, weeklyHours, employeeType, email } = body;
+    let { name, role, jobTitle, weeklyHours, employeeType, email } = body;
 
     await connectDB();
     const { id } = await params;
+
+    // Validate ObjectId format
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid employee ID' }, { status: 400 });
+    }
 
     // Get user's organizationId and check if user is Administrator
     const User = (await import('@/lib/models/User')).default;
@@ -60,12 +71,43 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    if (name !== undefined) employee.name = name;
-    if (role !== undefined) employee.role = role;
-    if (jobTitle !== undefined) employee.jobTitle = jobTitle;
-    if (weeklyHours !== undefined) employee.weeklyHours = parseFloat(weeklyHours);
-    if (employeeType !== undefined) employee.employeeType = employeeType;
-    if (email !== undefined) employee.email = email;
+    // Validate and sanitize inputs
+    if (name !== undefined) {
+      name = sanitizeString(name, 100);
+      if (!name) {
+        return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
+      }
+      employee.name = name;
+    }
+    if (role !== undefined) {
+      const validRoles = ['Administrator', 'Manager', 'User'];
+      if (!validRoles.includes(role)) {
+        return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+      }
+      employee.role = role;
+    }
+    if (jobTitle !== undefined) employee.jobTitle = sanitizeString(jobTitle, 100);
+    if (weeklyHours !== undefined) {
+      const hours = parseFloat(weeklyHours);
+      if (isNaN(hours) || hours < 0 || hours > 168) {
+        return NextResponse.json({ error: 'Invalid weekly hours (0-168)' }, { status: 400 });
+      }
+      employee.weeklyHours = hours;
+    }
+    if (employeeType !== undefined) {
+      const validTypes = ['full-time', 'part-time', 'contractor'];
+      if (!validTypes.includes(employeeType)) {
+        return NextResponse.json({ error: 'Invalid employee type' }, { status: 400 });
+      }
+      employee.employeeType = employeeType;
+    }
+    if (email !== undefined) {
+      email = sanitizeString(email, 254);
+      if (email && !isValidEmail(email)) {
+        return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+      }
+      employee.email = email || undefined;
+    }
 
     await employee.save();
 

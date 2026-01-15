@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
+import { sanitizeString } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,10 +76,45 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, recurrenceType, status, assignedTo, estimatedHours, startDate, endDate } = body;
+    let { name, description, url, recurrenceType, status, assignedTo, estimatedHours, startDate, endDate } = body;
+
+    // Sanitize string inputs
+    name = sanitizeString(name, 200);
+    description = description ? sanitizeString(description, 2000) : undefined;
+    url = url ? sanitizeString(url, 500) : undefined;
+    assignedTo = assignedTo ? sanitizeString(assignedTo, 100) : undefined;
 
     if (!name || !recurrenceType) {
       return NextResponse.json({ error: 'Name and recurrenceType are required' }, { status: 400 });
+    }
+
+    // Validate recurrenceType
+    const validRecurrenceTypes = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
+    if (!validRecurrenceTypes.includes(recurrenceType)) {
+      return NextResponse.json({ error: 'Invalid recurrenceType' }, { status: 400 });
+    }
+
+    // Validate status
+    const validStatuses = ['planning', 'active', 'in-review', 'completed', 'cancelled'];
+    if (status && !validStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
+
+    // Validate dates if provided
+    if (startDate) {
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        return NextResponse.json({ error: 'Invalid start date format' }, { status: 400 });
+      }
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      if (isNaN(end.getTime())) {
+        return NextResponse.json({ error: 'Invalid end date format' }, { status: 400 });
+      }
+      if (startDate && new Date(startDate) > end) {
+        return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
+      }
     }
 
     const operationData: any = {

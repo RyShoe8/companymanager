@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
+import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -11,6 +12,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     await connectDB();
     const { id } = await params;
+
+    // Validate ObjectId format
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid asset ID' }, { status: 400 });
+    }
 
     // Get user's organizationId
     const user = await User.findById(session.userId);
@@ -40,10 +46,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, type, url, description, category, tags, linkedProjectId, linkedOperationId } = body;
+    let { name, type, url, description, category, tags, linkedProjectId, linkedOperationId } = body;
 
     await connectDB();
     const { id } = await params;
+
+    // Validate ObjectId format
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid asset ID' }, { status: 400 });
+    }
+
+    // Validate linked IDs if provided
+    if (linkedProjectId && !isValidObjectId(linkedProjectId)) {
+      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
+    }
+    if (linkedOperationId && !isValidObjectId(linkedOperationId)) {
+      return NextResponse.json({ error: 'Invalid operation ID' }, { status: 400 });
+    }
+
+    // Validate ObjectId format
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid asset ID' }, { status: 400 });
+    }
 
     // Get user's organizationId
     const user = await User.findById(session.userId);
@@ -60,10 +84,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
-    if (name !== undefined) asset.name = name;
-    if (type !== undefined) asset.type = type;
-    if (url !== undefined) asset.url = url;
-    if (description !== undefined) asset.description = description;
+    // Sanitize string inputs
+    if (name !== undefined) asset.name = sanitizeString(name, 200);
+    if (type !== undefined) asset.type = sanitizeString(type, 50);
+    if (url !== undefined) asset.url = sanitizeString(url, 500);
+    if (description !== undefined) asset.description = sanitizeString(description, 2000);
     if (category !== undefined) asset.category = category;
     if (tags !== undefined) asset.tags = tags;
     if (linkedProjectId !== undefined) asset.linkedProjectId = linkedProjectId;
@@ -85,6 +110,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     await connectDB();
     const { id } = await params;
+
+    // Validate ObjectId format
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid asset ID' }, { status: 400 });
+    }
 
     // Get user's organizationId
     const user = await User.findById(session.userId);
