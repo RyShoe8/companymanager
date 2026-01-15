@@ -28,7 +28,7 @@ export default function OperationsPage() {
     setLoading(true);
     try {
       const [operationsRes, assetsRes, employeesRes] = await Promise.all([
-        fetch('/api/operations?status=active'),
+        fetch('/api/operations'),
         fetch('/api/assets'),
         fetch('/api/employees'),
       ]);
