@@ -49,10 +49,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     operations.forEach((operation) => {
       if (!operation.startDate) return; // Skip operations without start date
       
-      // Parse date string to avoid timezone issues - extract YYYY-MM-DD and create local date
-      const startDateStr = typeof operation.startDate === 'string' 
-        ? operation.startDate.split('T')[0] 
-        : operation.startDate.toISOString().split('T')[0];
+      // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+      const startDateObj = new Date(operation.startDate);
+      const startDateStr = startDateObj.toISOString().split('T')[0];
       const [year, month, day] = startDateStr.split('-').map(Number);
       const operationStart = new Date(year, month - 1, day);
       operationStart.setHours(0, 0, 0, 0);
@@ -60,10 +59,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // Calculate duration (default to 1 day if no endDate)
       let durationDays: number;
       if (operation.endDate) {
-        // Parse end date string to avoid timezone issues
-        const endDateStr = typeof operation.endDate === 'string' 
-          ? operation.endDate.split('T')[0] 
-          : operation.endDate.toISOString().split('T')[0];
+        // Parse end date to avoid timezone issues
+        const endDateObj = new Date(operation.endDate);
+        const endDateStr = endDateObj.toISOString().split('T')[0];
         const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
         const operationEnd = new Date(endYear, endMonth - 1, endDay);
         operationEnd.setHours(23, 59, 59, 999);
