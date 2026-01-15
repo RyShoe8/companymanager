@@ -127,9 +127,9 @@ export default function Navigation() {
                   <Image
                     src="/images/Nucleas.png"
                     alt="Nucleas Logo"
-                    width={32}
-                    height={32}
-                    className="h-8 w-auto border-0 outline-none"
+                    width={48}
+                    height={48}
+                    className="h-8 sm:h-12 w-auto border-0 outline-none"
                     priority
                     unoptimized
                   />
