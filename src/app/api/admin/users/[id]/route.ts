@@ -55,15 +55,21 @@ export async function PATCH(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    user.isAdmin = isAdmin === true;
-    await user.save();
+    // Use updateOne to bypass pre-save hooks that might auto-set isAdmin
+    await User.updateOne(
+      { _id: userId },
+      { $set: { isAdmin: isAdmin === true } }
+    );
+
+    // Fetch updated user to return
+    const updatedUser = await User.findById(userId);
 
     return NextResponse.json({ 
       message: `User ${isAdmin ? 'promoted to' : 'removed from'} admin successfully`,
       user: {
-        id: user._id.toString(),
-        email: user.email,
-        isAdmin: user.isAdmin,
+        id: updatedUser!._id.toString(),
+        email: updatedUser!.email,
+        isAdmin: updatedUser!.isAdmin,
       }
     });
   } catch (error) {
