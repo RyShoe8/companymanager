@@ -6,6 +6,7 @@ export function middleware(request: NextRequest) {
   
   // Allow access to auth pages, setup page, admin page, public pages, and API routes
   if (
+    pathname === '/' ||
     pathname.startsWith('/api/auth') || 
     pathname.startsWith('/api/invitations/') || 
     pathname.startsWith('/api/organization') ||
