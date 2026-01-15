@@ -734,7 +734,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       return (
                         <div key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`} className="text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-700 dark:text-gray-300 truncate flex-1">{operation.name}</span>
+                            <span className="text-gray-700 dark:text-gray-300 truncate flex-1">
+                              {operation.name}
+                              <span className="ml-1 text-gray-400 dark:text-gray-500 text-[10px]">
+                                (ID: {operation._id.toString().slice(-6)})
+                              </span>
+                            </span>
                             {hoursInRange > 0 && (
                               <span className="text-gray-600 dark:text-gray-400 ml-2">{hoursInRange.toFixed(1)}h</span>
                             )}
