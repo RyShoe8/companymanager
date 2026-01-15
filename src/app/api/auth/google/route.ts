@@ -6,7 +6,10 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/google/callback`;
+  
+  // Construct redirect URI from request URL to ensure it uses the correct domain
+  const baseUrl = new URL(request.url).origin;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${baseUrl}/api/auth/google/callback`;
   
   if (!clientId) {
     // Redirect to login page with error message instead of returning JSON
