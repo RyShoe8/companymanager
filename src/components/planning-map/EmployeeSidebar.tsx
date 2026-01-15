@@ -360,6 +360,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     let totalHours = 0;
 
     // Calculate hours from projects
+    // NOTE: Completed projects, stages, and operations are excluded from committed hours
+    // This ensures that marking items as complete frees up employee capacity
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
       if (project.status === 'complete') return;
