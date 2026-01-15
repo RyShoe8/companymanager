@@ -15,6 +15,7 @@ import ProjectDetailView from '@/components/planning-map/ProjectDetailView';
 import OperationDetailView from '@/components/planning-map/OperationDetailView';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import Toggle from '@/components/ui/Toggle';
 
 export default function PlanningMapPage() {
   const router = useRouter();
@@ -34,6 +35,8 @@ export default function PlanningMapPage() {
   const [viewingOperation, setViewingOperation] = useState<IOperation | undefined>();
   const [isManagerOrAdmin, setIsManagerOrAdmin] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
+  const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
+  const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -57,7 +60,7 @@ export default function PlanningMapPage() {
       const operationsData = await operationsRes.json();
       const employeesData = await employeesRes.json();
 
-      // Get current user's role
+      // Get current user's role and employee name
       try {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
@@ -66,6 +69,7 @@ export default function PlanningMapPage() {
           const role = currentEmployee?.role || 'User';
           setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
           setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
+          setCurrentUserEmployeeName(currentEmployee?.name || null);
         }
       } catch (error) {
         console.error('Error loading current user:', error);
