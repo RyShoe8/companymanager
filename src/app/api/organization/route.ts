@@ -22,24 +22,29 @@ export async function GET(request: NextRequest) {
     // Check if user is the organization admin
     const isAdmin = user._id.toString() === user.organizationId;
 
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Only organization administrators can view organization settings' }, { status: 403 });
-    }
+    // Find organization using the admin user's ID (stored in user.organizationId)
+    // For admin users, organizationId equals their own ID
+    // For regular users, organizationId is the admin's ID
+    const adminUserId = user.organizationId;
+    let organization = await Organization.findOne({ userId: adminUserId });
 
-    // Find or create organization
-    let organization = await Organization.findOne({ userId: user._id });
-
-    if (!organization) {
-      // Create default organization
+    // If organization doesn't exist and current user is admin, create it
+    if (!organization && isAdmin) {
       organization = await Organization.create({
         userId: user._id,
         name: user.name || 'My Organization',
       });
     }
 
+    // If still no organization found, return error
+    if (!organization) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+    }
+
     return NextResponse.json({
       name: organization.name,
       domain: organization.domain,
+      isAdmin, // Include admin status so frontend can show/hide edit controls
     });
   } catch (error) {
     console.error('Get organization error:', error);

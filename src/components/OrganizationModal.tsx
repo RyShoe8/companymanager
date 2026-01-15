@@ -14,6 +14,7 @@ export default function OrganizationModal({ onUpdate, onClose }: OrganizationMod
   const [domain, setDomain] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const fetchOrganization = async () => {
@@ -23,6 +24,7 @@ export default function OrganizationModal({ onUpdate, onClose }: OrganizationMod
           const data = await response.json();
           setName(data.name || '');
           setDomain(data.domain || '');
+          setIsAdmin(data.isAdmin || false);
         }
       } catch (error) {
         console.error('Error fetching organization:', error);
@@ -77,33 +79,64 @@ export default function OrganizationModal({ onUpdate, onClose }: OrganizationMod
         </div>
       )}
 
-      <Input
-        label="Organization Name"
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-        placeholder="Enter your organization name"
-      />
+      {!isAdmin && (
+        <div className="bg-primary-light border border-primary/30 text-primary-dark px-4 py-3 rounded-lg">
+          <p className="text-sm font-medium">View Only</p>
+          <p className="text-xs mt-1">Only organization administrators can edit organization settings.</p>
+        </div>
+      )}
 
-      <Input
-        label="Domain (Optional)"
-        type="text"
-        value={domain}
-        onChange={(e) => setDomain(e.target.value)}
-        placeholder="example.com"
-      />
-      <p className="text-sm text-text-secondary">
-        Your organization domain (e.g., example.com). This is optional and can be used for email invitations.
-      </p>
+      {isAdmin ? (
+        <>
+          <Input
+            label="Organization Name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="Enter your organization name"
+          />
+          <Input
+            label="Domain (Optional)"
+            type="text"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="example.com"
+          />
+          <p className="text-sm text-text-secondary">
+            Your organization domain (e.g., example.com). This is optional and can be used for email invitations.
+          </p>
+        </>
+      ) : (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Organization Name
+            </label>
+            <div className="px-3 py-2 border border-border rounded-lg bg-background-card text-text-primary">
+              {name || 'Not set'}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Domain <span className="text-text-secondary font-normal">(Optional)</span>
+            </label>
+            <div className="px-3 py-2 border border-border rounded-lg bg-background-card text-text-primary">
+              {domain || 'Not set'}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="flex gap-2 justify-end pt-4 border-t border-border">
         <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
-          Cancel
+          {isAdmin ? 'Cancel' : 'Close'}
         </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Save Changes'}
-        </Button>
+        {isAdmin && (
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </Button>
+        )}
       </div>
     </form>
   );
