@@ -1,11 +1,17 @@
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 
-const secretKey = process.env.NEXTAUTH_SECRET;
-if (!secretKey) {
-  throw new Error('NEXTAUTH_SECRET environment variable is required');
+function getSecretKey(): string {
+  const secretKey = process.env.NEXTAUTH_SECRET;
+  if (!secretKey) {
+    throw new Error('NEXTAUTH_SECRET environment variable is required');
+  }
+  return secretKey;
 }
-const key = new TextEncoder().encode(secretKey);
+
+function getKey(): Uint8Array {
+  return new TextEncoder().encode(getSecretKey());
+}
 
 export interface SessionPayload {
   userId: string;
@@ -19,12 +25,12 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(key);
+    .sign(getKey());
 }
 
 export async function decrypt(session: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(session, key);
+    const { payload } = await jwtVerify(session, getKey());
     return payload as SessionPayload;
   } catch (error) {
     return null;
