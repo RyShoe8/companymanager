@@ -120,7 +120,7 @@ export default function Navigation() {
                     alt="Nucleas Logo"
                     width={32}
                     height={32}
-                    className="h-8 w-auto"
+                    className="h-8 w-auto border-0 outline-none"
                     priority
                     unoptimized
                   />

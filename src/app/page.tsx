@@ -22,7 +22,7 @@ export default function HomePage() {
                 width={200}
                 height={60}
                 priority
-                className="h-auto"
+                className="h-auto border-0 outline-none"
               />
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-text-primary mb-6">
