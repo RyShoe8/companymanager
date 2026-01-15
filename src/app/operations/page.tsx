@@ -7,7 +7,6 @@ import { IAsset } from '@/lib/models/Asset';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import Toggle from '@/components/ui/Toggle';
 import OperationForm from '@/components/planning-map/OperationForm';
 import { IEmployee } from '@/lib/models/Employee';
 
@@ -19,8 +18,6 @@ export default function OperationsPage() {
   const [showOperationForm, setShowOperationForm] = useState(false);
   const [editingOperation, setEditingOperation] = useState<IOperation | undefined>();
   const [uploadingAsset, setUploadingAsset] = useState<string | null>(null);
-  const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
-  const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
 
   useEffect(() => {
@@ -45,17 +42,6 @@ export default function OperationsPage() {
       const assetsData = await assetsRes.json();
       const employeesData = await employeesRes.json();
 
-      // Get current user's employee name
-      try {
-        const userResponse = await fetch('/api/auth/me');
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          setCurrentUserEmployeeName(currentEmployee?.name || null);
-        }
-      } catch (error) {
-        console.error('Error loading current user:', error);
-      }
 
       setOperations(operationsData);
       setAssets(assetsData);
@@ -162,23 +148,11 @@ export default function OperationsPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Operations</h1>
-            {currentUserEmployeeName && (
-              <Toggle
-                label="Show only my assignments"
-                checked={showOnlyAssigned}
-                onChange={setShowOnlyAssigned}
-              />
-            )}
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Operations</h1>
           <Button onClick={handleCreateOperation}>+ New Operation</Button>
         </div>
 
-        {(showOnlyAssigned && currentUserEmployeeName
-          ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
-          : operations
-        ).length === 0 ? (
+        {operations.length === 0 ? (
           <Card className="p-8 text-center">
             <p className="text-gray-600 dark:text-gray-400 mb-4">No active operations found.</p>
             <Button onClick={handleCreateOperation}>Create Your First Operation</Button>

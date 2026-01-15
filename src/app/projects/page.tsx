@@ -7,7 +7,6 @@ import { IAsset } from '@/lib/models/Asset';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import Toggle from '@/components/ui/Toggle';
 import ProjectForm from '@/components/planning-map/ProjectForm';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { IEmployee } from '@/lib/models/Employee';
@@ -20,8 +19,6 @@ export default function ProjectsPage() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<IProject | undefined>();
   const [uploadingAsset, setUploadingAsset] = useState<{ projectId: string; stageIndex?: number } | null>(null);
-  const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
-  const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
   const [employees, setEmployees] = useState<IEmployee[]>([]);
 
@@ -47,13 +44,12 @@ export default function ProjectsPage() {
       const assetsData = await assetsRes.json();
       const employeesData = await employeesRes.json();
 
-      // Get current user's employee name and role
+      // Get current user's role
       try {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
           const userData = await userResponse.json();
           const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          setCurrentUserEmployeeName(currentEmployee?.name || null);
           const role = currentEmployee?.role || 'User';
           setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
         }
@@ -174,26 +170,11 @@ export default function ProjectsPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Projects</h1>
-            {currentUserEmployeeName && (
-              <Toggle
-                label="Show only my assignments"
-                checked={showOnlyAssigned}
-                onChange={setShowOnlyAssigned}
-              />
-            )}
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Projects</h1>
           <Button onClick={handleCreateProject}>+ New Project</Button>
         </div>
 
-        {(showOnlyAssigned && currentUserEmployeeName
-          ? projects.filter(p => 
-              p.assignedTo === currentUserEmployeeName || 
-              p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
-            )
-          : projects
-        ).length === 0 ? (
+        {projects.length === 0 ? (
           <Card className="p-8 text-center">
             <p className="text-gray-600 dark:text-gray-400 mb-4">No active projects found.</p>
             <Button onClick={handleCreateProject}>Create Your First Project</Button>
