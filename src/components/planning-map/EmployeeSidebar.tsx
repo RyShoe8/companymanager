@@ -464,6 +464,104 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return Math.round(Math.max(0, available - committed) * 10) / 10; // Round to 1 decimal
   };
 
+  // Calculate completed hours for an employee (only items with status 'complete')
+  const getCompletedHours = (employee: IEmployee) => {
+    const employeeProjects = getProjectsForEmployee(employee.name);
+    const employeeOperations = getOperationsForEmployee(employee.name);
+    let totalHours = 0;
+
+    // Calculate hours from completed projects
+    employeeProjects.forEach((project) => {
+      // Only count completed projects
+      if (project.status !== 'complete') return;
+      
+      const projectStart = new Date(project.startDate);
+      const projectEnd = new Date(project.endDate);
+      
+      // Calculate total stage hours assigned to this employee (completed stages only)
+      let employeeStageHours = 0;
+      if (project.stages && project.stages.length > 0) {
+        project.stages.forEach((stage) => {
+          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'complete') {
+            employeeStageHours += stage.estimatedHours;
+          }
+        });
+      }
+      
+      // If employee has completed stages assigned, count those stage hours
+      if (employeeStageHours > 0 && project.stages) {
+        const stageHoursInRange = project.stages
+          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'complete')
+          .reduce((sum, stage) => {
+            if (!stage.estimatedHours) return sum;
+            const stageStart = new Date(stage.startDate);
+            const stageEnd = new Date(stage.endDate);
+            return sum + calculateHoursForDateRange(
+              startDate,
+              endDate,
+              stageStart,
+              stageEnd,
+              stage.estimatedHours
+            );
+          }, 0);
+        totalHours += stageHoursInRange;
+      }
+      
+      // If project is assigned to this employee and completed, count remaining hours
+      if (project.assignedTo === employee.name && project.estimatedHours) {
+        // Calculate total hours assigned to other employees via completed stages
+        let otherEmployeeStageHours = 0;
+        if (project.stages && project.stages.length > 0) {
+          project.stages.forEach((stage) => {
+            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status === 'complete') {
+              otherEmployeeStageHours += stage.estimatedHours;
+            }
+          });
+        }
+        
+        // Project hours minus stages assigned to others
+        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeStageHours);
+        
+        if (remainingProjectHours > 0) {
+          const hours = calculateHoursForDateRange(
+            startDate,
+            endDate,
+            projectStart,
+            projectEnd,
+            remainingProjectHours
+          );
+          totalHours += hours;
+        }
+      }
+    });
+
+    // Calculate hours from completed operations
+    employeeOperations.forEach((instance) => {
+      const operation = instance.operation;
+      // Only count completed operations
+      if (operation.status !== 'complete') return;
+      
+      if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
+        // Check if the instance overlaps with the timeframe
+        const instanceStart = normalizeToStartOfDay(instance.startDate);
+        const instanceEnd = normalizeToEndOfDay(instance.endDate);
+        const rangeStart = normalizeToStartOfDay(startDate);
+        const rangeEnd = normalizeToEndOfDay(endDate);
+        
+        const hours = typeof operation.estimatedHours === 'number' 
+          ? operation.estimatedHours 
+          : parseFloat(operation.estimatedHours);
+        
+        // If instance overlaps with timeframe, add full hours
+        if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+          totalHours += hours;
+        }
+      }
+    });
+
+    return Math.round(totalHours * 10) / 10;
+  };
+
   if (employees.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -587,6 +685,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return totals;
   }, { totalAvailable: 0, totalCommitted: 0 });
 
+  // Calculate team completed hours
+  const teamCompleted = employees.reduce((total, employee) => {
+    return total + getCompletedHours(employee);
+  }, 0);
+  const teamCompletedRounded = Math.round(teamCompleted * 10) / 10;
+
   const teamAvailable = Math.round(teamTotals.totalAvailable * 10) / 10;
   const teamCommitted = Math.round(teamTotals.totalCommitted * 10) / 10;
   const teamRemaining = Math.round((teamAvailable - teamCommitted) * 10) / 10;
@@ -605,6 +709,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             <span className="font-medium text-orange-600 dark:text-orange-400">{teamCommitted}h</span>
           </div>
           <div className="flex items-center gap-2">
+            <span className="text-gray-600 dark:text-gray-400">Completed:</span>
+            <span className="font-medium text-green-600 dark:text-green-400">{teamCompletedRounded}h</span>
+          </div>
+          <div className="flex items-center gap-2">
             <span className="text-gray-600 dark:text-gray-400">Remaining:</span>
             <span className={`font-medium ${teamRemaining > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
               {teamRemaining}h
@@ -615,6 +723,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       {employees.map((employee) => {
         const employeeProjects = getProjectsForEmployee(employee.name);
         const committedHours = getCommittedHours(employee);
+        const completedHours = getCompletedHours(employee);
         const availableHours = getAvailableHours(employee);
         const totalHours = totalAvailableHours(employee);
         const utilizationPercent = totalHours > 0 ? Math.round((committedHours / totalHours) * 100) : 0;
@@ -694,6 +803,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Committed:</span>
                     <span className="font-medium text-orange-600 dark:text-orange-400">{committedHours}h</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Completed:</span>
+                    <span className="font-medium text-green-600 dark:text-green-400">{completedHours}h</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Remaining:</span>
