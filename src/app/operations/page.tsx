@@ -167,6 +167,9 @@ export default function OperationsPage() {
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                         {operation.name}
+                        <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
+                          (ID: {operation._id.toString().slice(-6)})
+                        </span>
                       </h2>
                       {operation.description && (
                         <p className="text-gray-600 dark:text-gray-400 mb-2">{operation.description}</p>
