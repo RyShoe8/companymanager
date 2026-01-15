@@ -156,7 +156,7 @@ export default function OperationsPage() {
 
         {operations.length === 0 ? (
           <Card className="p-8 text-center">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">No active operations found.</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">No operations found.</p>
             <Button onClick={handleCreateOperation}>Create Your First Operation</Button>
           </Card>
         ) : (
