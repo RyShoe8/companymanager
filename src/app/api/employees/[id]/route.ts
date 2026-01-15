@@ -3,7 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
 import { deleteBrevoContact } from '@/lib/services/email';
-import { isValidObjectId } from '@/lib/utils/security';
+import { isValidObjectId, sanitizeString, isValidEmail } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
