@@ -42,6 +42,8 @@ export default function OperationsPage() {
       const assetsData = await assetsRes.json();
       const employeesData = await employeesRes.json();
 
+      // Debug: Log operations to see if duplicates are being returned
+      console.log('Operations loaded:', operationsData.length, operationsData.map((op: IOperation) => ({ id: op._id, name: op.name })));
 
       setOperations(operationsData);
       setAssets(assetsData);
