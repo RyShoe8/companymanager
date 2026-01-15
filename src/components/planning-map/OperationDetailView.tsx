@@ -15,7 +15,7 @@ interface OperationDetailViewProps {
   onClose: () => void;
 }
 
-export default function OperationDetailView({ operation, onEdit, onDelete, onClose, renderHeaderActions }: OperationDetailViewProps) {
+export default function OperationDetailView({ operation, onEdit, onDelete, onClose }: OperationDetailViewProps) {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
 
