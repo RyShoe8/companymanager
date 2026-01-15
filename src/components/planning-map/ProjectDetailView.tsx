@@ -73,56 +73,57 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   return (
     <div className="space-y-6 max-h-[80vh] overflow-y-auto">
       {/* Project Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-3">
-            <div
-              className="w-6 h-6 rounded"
-              style={{ backgroundColor: project.color }}
-            />
-            <h2 className="text-2xl font-bold text-text-primary">{project.name}</h2>
-            <span className={`text-sm px-3 py-1 rounded ${
-              project.status === 'active' ? 'bg-success-light text-success-dark' :
-              project.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
-              project.status === 'complete' ? 'bg-border text-text-secondary' :
-              'bg-primary-light text-primary-dark'
-            }`}>
-              {project.status}
-            </span>
-          </div>
-          {project.description && (
-            <p className="text-text-secondary mb-4">{project.description}</p>
-          )}
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <div
+            className="w-6 h-6 rounded"
+            style={{ backgroundColor: project.color }}
+          />
+          <h2 className="text-2xl font-bold text-text-primary">{project.name}</h2>
+          <span className={`text-sm px-3 py-1 rounded ${
+            project.status === 'active' ? 'bg-success-light text-success-dark' :
+            project.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
+            project.status === 'complete' ? 'bg-border text-text-secondary' :
+            'bg-primary-light text-primary-dark'
+          }`}>
+            {project.status}
+          </span>
         </div>
-        <div className="flex gap-2">
-          {isManagerOrAdmin && onEdit && (
-            <Button variant="secondary" size="sm" onClick={onEdit}>
-              Edit
-            </Button>
-          )}
-          {!isManagerOrAdmin && project.status === 'active' && (
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              onClick={() => handleStatusChange('in-review')}
-              disabled={isUpdatingStatus}
-            >
-              {isUpdatingStatus ? 'Updating...' : 'Mark as In Review'}
-            </Button>
-          )}
-          {isManagerOrAdmin && onDelete && (
-            <Button variant="danger" size="sm" onClick={handleDelete}>
-              Delete
-            </Button>
-          )}
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            Close
-          </Button>
-        </div>
+        {project.description && (
+          <p className="text-text-secondary mb-4">{project.description}</p>
+        )}
       </div>
 
       {/* Project Details */}
       <Card className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-text-primary">Project Details</h3>
+          <div className="flex gap-2">
+            {isManagerOrAdmin && onEdit && (
+              <Button variant="secondary" size="sm" onClick={onEdit}>
+                Edit
+              </Button>
+            )}
+            {!isManagerOrAdmin && project.status === 'active' && (
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => handleStatusChange('in-review')}
+                disabled={isUpdatingStatus}
+              >
+                {isUpdatingStatus ? 'Updating...' : 'Mark as In Review'}
+              </Button>
+            )}
+            {isManagerOrAdmin && onDelete && (
+              <Button variant="danger" size="sm" onClick={handleDelete}>
+                Delete
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-text-secondary">Start Date</label>
