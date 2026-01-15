@@ -187,6 +187,7 @@ export async function POST(request: NextRequest) {
             invitationLink,
             role,
             expiresInDays: 7,
+            baseUrl, // Pass baseUrl so logo uses the same domain
           });
         } catch (emailError: any) {
           console.error('Failed to send invitation email:', emailError?.message || emailError);

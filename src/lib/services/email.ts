@@ -37,6 +37,7 @@ export interface InvitationEmailData {
   invitationLink: string;
   role: string;
   expiresInDays: number;
+  baseUrl?: string; // Optional base URL for logo image
 }
 
 /**
@@ -60,18 +61,21 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
     name: process.env.BREVO_SENDER_NAME || 'Nucleas',
   };
 
-  // Get base URL for logo image
-  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
-  if (!baseUrl) {
-    if (process.env.VERCEL_URL) {
-      const vercelUrl = process.env.VERCEL_URL;
-      baseUrl = vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
-    } else {
-      baseUrl = 'http://localhost:3000';
+  // Get base URL for logo image - use provided baseUrl or determine from environment
+  let logoBaseUrl = data.baseUrl;
+  if (!logoBaseUrl) {
+    logoBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
+    if (!logoBaseUrl) {
+      if (process.env.VERCEL_URL) {
+        const vercelUrl = process.env.VERCEL_URL;
+        logoBaseUrl = vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
+      } else {
+        logoBaseUrl = 'http://localhost:3000';
+      }
     }
   }
-  baseUrl = baseUrl.replace(/\/$/, '');
-  const logoUrl = `${baseUrl}/images/Nucleas.png`;
+  logoBaseUrl = logoBaseUrl.replace(/\/$/, '');
+  const logoUrl = `${logoBaseUrl}/images/Nucleas.png`;
 
   // HTML email template with Nucleas branding
   sendSmtpEmail.htmlContent = `
