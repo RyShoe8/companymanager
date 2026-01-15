@@ -122,7 +122,13 @@ export async function DELETE(
 
     // Delete related data
     await Promise.all([
-      Employee.deleteMany({ userId: user._id }),
+      // Delete employees linked by userId or email
+      Employee.deleteMany({
+        $or: [
+          { userId: user._id }, // Employees linked by user ID
+          { email: user.email.toLowerCase() }, // Employees linked by email
+        ],
+      }),
       Project.deleteMany({ userId: user._id }),
       Operation.deleteMany({ userId: user._id }),
       Asset.deleteMany({ userId: user._id }),
