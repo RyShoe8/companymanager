@@ -497,7 +497,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       }
       
       // If employee has stages assigned, count those stage hours
-      if (employeeStageHours > 0 && project.estimatedHours) {
+      if (employeeStageHours > 0 && project.estimatedHours && project.stages) {
         // Calculate the proportion of stage hours in the timeframe
         const stageHoursInRange = project.stages
           .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete')
