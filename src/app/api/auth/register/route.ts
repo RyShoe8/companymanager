@@ -102,7 +102,6 @@ export async function POST(request: NextRequest) {
     } else {
       // No invitation - check if there's an existing organization with matching domain
       const emailDomain = email.split('@')[1]?.toLowerCase();
-      let existingOrgAdmin: IUser | null = null;
 
       if (emailDomain) {
         // First, try to find organization with matching domain
@@ -110,7 +109,7 @@ export async function POST(request: NextRequest) {
         
         if (existingOrganization) {
           // Find the admin user for this organization
-          existingOrgAdmin = await User.findById(existingOrganization.userId);
+          const existingOrgAdmin = await User.findById(existingOrganization.userId);
           
           if (existingOrgAdmin && existingOrgAdmin.organizationId) {
             // Join existing organization
@@ -118,17 +117,24 @@ export async function POST(request: NextRequest) {
             isJoiningExistingOrg = true;
           }
         } else {
-          // If no organization with domain found, check for users with same domain who completed setup
+          // If no organization with domain found, check for ANY user with same domain
           // This handles cases where domain wasn't set or second user signs up before domain is set
           const existingUserWithDomain = await User.findOne({
             email: { $regex: `@${emailDomain}$`, $options: 'i' },
-            organizationSetupComplete: true,
           });
           
           if (existingUserWithDomain && existingUserWithDomain.organizationId) {
-            // Join the organization of the first user who completed setup
+            // Join the organization of the first user found with same domain
             organizationId = existingUserWithDomain.organizationId;
             isJoiningExistingOrg = true;
+            
+            // Check if the organization admin has completed setup
+            const orgAdminId = existingUserWithDomain.organizationId;
+            const orgAdmin = await User.findById(orgAdminId);
+            if (orgAdmin && orgAdmin.organizationSetupComplete) {
+              // Organization is already set up, so new user doesn't need to set it up
+              isJoiningExistingOrg = true;
+            }
           }
         }
       }
@@ -144,13 +150,22 @@ export async function POST(request: NextRequest) {
       organizationId = `temp-${Date.now()}`;
     }
 
+    // Determine if organization setup is complete
+    // If joining existing org, check if the org admin has completed setup
+    let orgSetupComplete = !!invitationToken;
+    if (isJoiningExistingOrg && organizationId) {
+      const orgAdminId = organizationId;
+      const orgAdmin = await User.findById(orgAdminId);
+      orgSetupComplete = orgAdmin ? !!orgAdmin.organizationSetupComplete : false;
+    }
+
     // Create user (email is already lowercased above)
     const user = await User.create({
       email,
       password: hashedPassword,
       name,
       organizationId,
-      organizationSetupComplete: !!invitationToken || isJoiningExistingOrg, // If invited or joining existing org, setup is complete
+      organizationSetupComplete: orgSetupComplete,
     });
 
     // If no invitation and not joining existing org, set organizationId to user's own ID (they are the organization admin)
