@@ -125,7 +125,7 @@ export default function Navigation() {
               <div className="flex-shrink-0 flex items-center">
                 <Link href="/planning-map" className="flex items-center gap-2 sm:gap-3">
                   <Image
-                    src="/images/Nucleas.png"
+                    src="/images/icon.png"
                     alt="Nucleas Logo"
                     width={48}
                     height={48}
