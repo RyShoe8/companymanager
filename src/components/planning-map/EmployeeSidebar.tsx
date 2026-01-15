@@ -774,21 +774,22 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         stage.assignedTo === employee.name && stage.status !== 'complete'
                       ) || [];
                       
-                      // Calculate project-level hours (remaining after stage assignments)
+                      // Calculate project-level hours (remaining after ALL stage assignments)
+                      // If employee is assigned to project, they get remaining hours after all stages are assigned
                       let totalProjectHours = 0;
                       if (isAssignedToProject && project.estimatedHours) {
-                        // Calculate total hours assigned to other employees via stages
-                        let otherEmployeeStageHours = 0;
+                        // Calculate total hours assigned via stages (to anyone, including this employee)
+                        let totalStageHours = 0;
                         if (project.stages && project.stages.length > 0) {
                           project.stages.forEach((stage) => {
-                            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'complete') {
-                              otherEmployeeStageHours += stage.estimatedHours;
+                            if (stage.assignedTo && stage.estimatedHours && stage.status !== 'complete') {
+                              totalStageHours += stage.estimatedHours;
                             }
                           });
                         }
                         
-                        // Project hours minus stages assigned to others
-                        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeStageHours);
+                        // Project hours minus ALL stage hours (stages are shown separately)
+                        const remainingProjectHours = Math.max(0, project.estimatedHours - totalStageHours);
                         
                         if (remainingProjectHours > 0) {
                           totalProjectHours = calculateHoursForDateRange(
