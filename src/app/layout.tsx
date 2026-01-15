@@ -98,6 +98,12 @@ export default function RootLayout({
           src="//cdn.cookie-script.com/s/59ce82450accfaf4f6d3d94203a5d496.js"
           strategy="afterInteractive"
         />
+        {/* Ahrefs Analytics */}
+        <Script
+          src="https://analytics.ahrefs.com/analytics.js"
+          data-key="D3V+ZYBYBWGuq2N1WcMRgg"
+          strategy="afterInteractive"
+        />
         <OrganizationSetupCheck>
           <Navigation />
           <main className="flex-1">
