@@ -159,10 +159,7 @@ export default function OperationsPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {(showOnlyAssigned && currentUserEmployeeName
-              ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
-              : operations
-            ).map((operation) => {
+            {operations.map((operation) => {
               const operationAssets = getOperationAssets(operation._id.toString());
               return (
                 <Card key={operation._id.toString()} className="p-6">

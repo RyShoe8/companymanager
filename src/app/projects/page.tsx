@@ -181,13 +181,7 @@ export default function ProjectsPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {(showOnlyAssigned && currentUserEmployeeName
-              ? projects.filter(p => 
-                  p.assignedTo === currentUserEmployeeName || 
-                  p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
-                )
-              : projects
-            ).map((project) => {
+            {projects.map((project) => {
               const projectAssets = getProjectAssets(project._id.toString());
               return (
                 <Card key={project._id.toString()} className="p-6">
