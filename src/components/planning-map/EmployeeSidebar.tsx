@@ -824,10 +824,13 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       // Only show if there are project hours or stage hours
                       if (totalProjectHours === 0 && stageHoursList.length === 0) return null;
                       
+                      // Show project name if employee is assigned to project OR has stages assigned
+                      const showProjectName = isAssignedToProject || stageHoursList.length > 0;
+                      
                       return (
                         <div key={project._id.toString()} className="space-y-1">
-                          {/* Project */}
-                          {(isAssignedToProject && totalProjectHours > 0) && (
+                          {/* Project Name and Hours */}
+                          {showProjectName && (
                             <div
                               className="text-xs p-1.5 rounded"
                               style={{ backgroundColor: project.color + '20' }}
@@ -835,9 +838,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                               <div className="font-medium text-gray-900 dark:text-white truncate">
                                 {project.name}
                               </div>
-                              <div className="text-gray-600 dark:text-gray-400">
-                                {totalProjectHours}h
-                              </div>
+                              {totalProjectHours > 0 && (
+                                <div className="text-gray-600 dark:text-gray-400">
+                                  {totalProjectHours}h
+                                </div>
+                              )}
                             </div>
                           )}
                           
