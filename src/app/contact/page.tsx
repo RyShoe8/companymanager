@@ -94,11 +94,12 @@ function ContactForm() {
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 required
-              >
-                <option value="Bug">Bug Report</option>
-                <option value="Feature Request">Feature Request</option>
-                <option value="Other">Other</option>
-              </Select>
+                options={[
+                  { value: 'Bug', label: 'Bug Report' },
+                  { value: 'Feature Request', label: 'Feature Request' },
+                  { value: 'Other', label: 'Other' },
+                ]}
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
