@@ -22,6 +22,7 @@ export default function ProjectsPage() {
   const [uploadingAsset, setUploadingAsset] = useState<{ projectId: string; stageIndex?: number } | null>(null);
   const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
   const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
   const [employees, setEmployees] = useState<IEmployee[]>([]);
 
   useEffect(() => {
@@ -46,13 +47,15 @@ export default function ProjectsPage() {
       const assetsData = await assetsRes.json();
       const employeesData = await employeesRes.json();
 
-      // Get current user's employee name
+      // Get current user's employee name and role
       try {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
           const userData = await userResponse.json();
           const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
           setCurrentUserEmployeeName(currentEmployee?.name || null);
+          const role = currentEmployee?.role || 'User';
+          setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
         }
       } catch (error) {
         console.error('Error loading current user:', error);
@@ -324,6 +327,7 @@ export default function ProjectsPage() {
             timeframeType="monthly"
             onSubmit={handleSubmitProject}
             onCancel={() => setShowProjectForm(false)}
+            userRole={currentUserRole}
           />
         </Modal>
 

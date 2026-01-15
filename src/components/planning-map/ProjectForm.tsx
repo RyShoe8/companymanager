@@ -16,7 +16,7 @@ interface ProjectFormProps {
   userRole?: 'Administrator' | 'Manager' | 'User';
 }
 
-export default function ProjectForm({ project, timeframeType, onSubmit, onCancel }: ProjectFormProps) {
+export default function ProjectForm({ project, timeframeType, onSubmit, onCancel, userRole }: ProjectFormProps) {
   const router = useRouter();
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');

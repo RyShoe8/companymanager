@@ -63,7 +63,9 @@ export default function PlanningMapPage() {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          setIsManagerOrAdmin(currentEmployee ? (currentEmployee.role === 'Manager' || currentEmployee.role === 'Administrator') : false);
+          const role = currentEmployee?.role || 'User';
+          setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
+          setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
         }
       } catch (error) {
         console.error('Error loading current user:', error);
