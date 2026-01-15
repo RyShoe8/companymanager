@@ -190,6 +190,21 @@ export default function PlanningMapPage() {
     }
   };
 
+  // Filter projects and operations based on toggle
+  const filteredProjects = showOnlyMyAssignments && currentUserEmployeeName
+    ? projects.filter((project) => {
+        // Show if assigned to user
+        if (project.assignedTo === currentUserEmployeeName) return true;
+        // Show if any stage is assigned to user
+        if (project.stages && project.stages.some(stage => stage.assignedTo === currentUserEmployeeName)) return true;
+        return false;
+      })
+    : projects;
+
+  const filteredOperations = showOnlyMyAssignments && currentUserEmployeeName
+    ? operations.filter((operation) => operation.assignedTo === currentUserEmployeeName)
+    : operations;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -211,7 +226,15 @@ export default function PlanningMapPage() {
               </div>
             )}
           </div>
-          <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+            <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
+            <Toggle
+              label="Show only my assignments"
+              checked={showOnlyMyAssignments}
+              onChange={setShowOnlyMyAssignments}
+              className="ml-auto"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -220,8 +243,8 @@ export default function PlanningMapPage() {
               <h2 className="text-xl font-semibold text-text-primary">Calendar View</h2>
             </div>
             <CalendarView
-              projects={projects}
-              operations={operations}
+              projects={filteredProjects}
+              operations={filteredOperations}
               timeframe={timeframe}
               currentDate={currentDate}
               onProjectClick={handleViewProject}
@@ -233,8 +256,8 @@ export default function PlanningMapPage() {
           <div>
             <EmployeeSidebar
               employees={employees}
-              projects={projects}
-              operations={operations}
+              projects={filteredProjects}
+              operations={filteredOperations}
               timeframe={timeframe}
               currentDate={currentDate}
             />
