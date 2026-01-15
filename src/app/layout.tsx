@@ -93,6 +93,11 @@ export default function RootLayout({
             gtag('config', 'G-C71LD7T8PT');
           `}
         </Script>
+        {/* Cookie Management Platform */}
+        <Script
+          src="//cdn.cookie-script.com/s/59ce82450accfaf4f6d3d94203a5d496.js"
+          strategy="afterInteractive"
+        />
         <OrganizationSetupCheck>
           <Navigation />
           <main className="flex-1">
