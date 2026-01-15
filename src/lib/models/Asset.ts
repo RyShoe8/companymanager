@@ -1,12 +1,13 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type AssetType = 'spreadsheet' | 'document' | 'tool' | 'folder' | 'link' | 'screenshot' | 'other';
+export type AssetType = 'spreadsheet' | 'document' | 'tool' | 'folder' | 'link' | 'screenshot' | 'file' | 'text' | 'other';
 
 export interface IAsset extends Document {
   name: string;
   type: AssetType;
   url?: string;
-  fileUrl?: string; // For uploaded files (screenshots, etc.)
+  fileUrl?: string; // For uploaded files
+  textContent?: string; // For text assets
   description?: string;
   category?: string;
   tags: string[];
@@ -27,7 +28,7 @@ const AssetSchema: Schema = new Schema(
     },
     type: {
       type: String,
-      enum: ['spreadsheet', 'document', 'tool', 'folder', 'link', 'screenshot', 'other'],
+      enum: ['spreadsheet', 'document', 'tool', 'folder', 'link', 'screenshot', 'file', 'text', 'other'],
       required: true,
     },
     url: {
@@ -35,6 +36,10 @@ const AssetSchema: Schema = new Schema(
       trim: true,
     },
     fileUrl: {
+      type: String,
+      trim: true,
+    },
+    textContent: {
       type: String,
       trim: true,
     },

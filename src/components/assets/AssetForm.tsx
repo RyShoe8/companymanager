@@ -10,7 +10,7 @@ interface AssetFormProps {
   asset?: IAsset;
   projects?: Array<{ _id: string; name: string }>;
   operations?: Array<{ _id: string; name: string }>;
-  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string }) => void;
+  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; file?: File }) => void;
   onCancel: () => void;
 }
 
@@ -18,33 +18,65 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
   const [name, setName] = useState(asset?.name || '');
   const [type, setType] = useState<AssetType>(asset?.type || 'link');
   const [url, setUrl] = useState(asset?.url || '');
+  const [file, setFile] = useState<File | null>(null);
+  const [textContent, setTextContent] = useState(asset?.textContent || '');
   const [description, setDescription] = useState(asset?.description || '');
   const [category, setCategory] = useState(asset?.category || '');
   const [tags, setTags] = useState(asset?.tags?.join(', ') || '');
   const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || '');
   const [linkedOperationId, setLinkedOperationId] = useState(asset?.linkedOperationId?.toString() || '');
 
+  // Reset file and textContent when type changes
+  useEffect(() => {
+    if (type !== 'file') {
+      setFile(null);
+    }
+    if (type !== 'text') {
+      setTextContent('');
+    }
+    if (type === 'text' || type === 'file') {
+      setUrl('');
+    }
+  }, [type]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const tagArray = tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
-    onSubmit({
+    
+    const submitData: any = {
       name,
       type,
-      url: url || undefined,
       description: description || undefined,
       category: category || undefined,
       tags: tagArray,
       linkedProjectId: linkedProjectId || undefined,
       linkedOperationId: linkedOperationId || undefined,
-    });
+    };
+
+    // Add content based on type
+    if (type === 'text') {
+      submitData.textContent = textContent || undefined;
+    } else if (type === 'file') {
+      if (file) {
+        submitData.file = file;
+      }
+    } else {
+      // For link and other types, allow URL
+      submitData.url = url || undefined;
+    }
+
+    onSubmit(submitData);
   };
 
   const typeOptions: { value: AssetType; label: string }[] = [
+    { value: 'link', label: 'Link' },
+    { value: 'file', label: 'File Upload' },
+    { value: 'text', label: 'Text' },
     { value: 'spreadsheet', label: 'Spreadsheet' },
     { value: 'document', label: 'Document' },
     { value: 'tool', label: 'Tool' },
     { value: 'folder', label: 'Folder' },
-    { value: 'link', label: 'Link' },
+    { value: 'screenshot', label: 'Screenshot' },
     { value: 'other', label: 'Other' },
   ];
 
@@ -57,6 +89,10 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
     { value: '', label: 'None' },
     ...operations.map((o) => ({ value: o._id.toString(), label: o.name })),
   ];
+
+  const showUrlInput = type !== 'file' && type !== 'text';
+  const showFileInput = type === 'file';
+  const showTextInput = type === 'text';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -73,13 +109,51 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
         options={typeOptions}
         required
       />
-      <Input
-        label="URL (optional)"
-        type="url"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://..."
-      />
+      
+      {showUrlInput && (
+        <Input
+          label="URL (optional)"
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://..."
+        />
+      )}
+
+      {showFileInput && (
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-2">
+            File {asset?.fileUrl ? '(current file will be replaced)' : ''}
+          </label>
+          <input
+            type="file"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="w-full px-3 py-2 border border-border rounded-lg bg-background text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            required={!asset?.fileUrl}
+          />
+          {file && (
+            <p className="mt-1 text-sm text-text-secondary">
+              Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+            </p>
+          )}
+        </div>
+      )}
+
+      {showTextInput && (
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-2">
+            Text Content
+          </label>
+          <textarea
+            value={textContent}
+            onChange={(e) => setTextContent(e.target.value)}
+            rows={10}
+            className="w-full px-3 py-2 border border-border rounded-lg bg-background text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
+            placeholder="Enter your text content here..."
+          />
+        </div>
+      )}
+
       <Input
         label="Description (optional)"
         value={description}

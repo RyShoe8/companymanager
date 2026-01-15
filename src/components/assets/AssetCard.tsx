@@ -23,6 +23,9 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
     tool: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     folder: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
     link: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
+    file: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+    text: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
+    screenshot: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
     other: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
   };
 
@@ -50,10 +53,37 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 break-all"
             >
               {asset.url}
             </a>
+          )}
+          {asset.fileUrl && (
+            <a
+              href={asset.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download File
+            </a>
+          )}
+          {asset.textContent && (
+            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">
+                {asset.textContent}
+              </p>
+              {asset.textContent.length > 150 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {asset.textContent.length} characters
+                </p>
+              )}
+            </div>
           )}
           {asset.tags && asset.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">

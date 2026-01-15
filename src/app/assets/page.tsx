@@ -135,24 +135,61 @@ function AssetsPageContent() {
     }
   };
 
-  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string }) => {
+  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; file?: File }) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      let response: Response;
+
+      // If there's a file, use FormData and the upload endpoint
+      if (data.file) {
+        const formData = new FormData();
+        formData.append('file', data.file);
+        formData.append('name', data.name || '');
+        if (data.description) formData.append('description', data.description);
+        if (data.category) formData.append('category', data.category);
+        if (data.tags && data.tags.length > 0) formData.append('tags', data.tags.join(','));
+        if (data.linkedProjectId) formData.append('linkedProjectId', data.linkedProjectId);
+        if (data.linkedOperationId) formData.append('linkedOperationId', data.linkedOperationId);
+
+        // Use upload endpoint for new assets with files
+        if (!editingAsset) {
+          response = await fetch('/api/assets/upload', {
+            method: 'POST',
+            body: formData,
+          });
+        } else {
+          // For updates with files, we'll need to handle this differently
+          // For now, use the regular endpoint
+          const { file, ...restData } = data;
+          response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(restData),
+          });
+        }
+      } else {
+        // Use JSON for text content, URLs, and updates without files
+        response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      }
 
       if (response.ok) {
         setShowAssetForm(false);
         setEditingAsset(undefined);
         loadData();
+      } else {
+        const errorData = await response.json();
+        console.error('Error saving asset:', errorData.error || 'Unknown error');
+        alert(errorData.error || 'Failed to save asset');
       }
     } catch (error) {
       console.error('Error saving asset:', error);
+      alert('Failed to save asset. Please try again.');
     }
   };
 

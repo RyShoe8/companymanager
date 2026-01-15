@@ -23,11 +23,14 @@ export default function AssetFilters({
 }: AssetFiltersProps) {
   const typeOptions = [
     { value: '', label: 'All Types' },
+    { value: 'link', label: 'Link' },
+    { value: 'file', label: 'File Upload' },
+    { value: 'text', label: 'Text' },
     { value: 'spreadsheet', label: 'Spreadsheet' },
     { value: 'document', label: 'Document' },
     { value: 'tool', label: 'Tool' },
     { value: 'folder', label: 'Folder' },
-    { value: 'link', label: 'Link' },
+    { value: 'screenshot', label: 'Screenshot' },
     { value: 'other', label: 'Other' },
   ];
 

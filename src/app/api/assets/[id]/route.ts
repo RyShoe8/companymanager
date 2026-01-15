@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, type, url, description, category, tags, linkedProjectId, linkedOperationId } = body;
+    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedOperationId } = body;
 
     await connectDB();
     const { id } = await params;
@@ -87,13 +87,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Sanitize string inputs
     if (name !== undefined) asset.name = sanitizeString(name, 200);
     if (type !== undefined) {
-      const validTypes: AssetType[] = ['spreadsheet', 'document', 'tool', 'folder', 'link', 'screenshot', 'other'];
+      const validTypes: AssetType[] = ['spreadsheet', 'document', 'tool', 'folder', 'link', 'screenshot', 'file', 'text', 'other'];
       if (!validTypes.includes(type as AssetType)) {
         return NextResponse.json({ error: 'Invalid asset type' }, { status: 400 });
       }
       asset.type = type as AssetType;
     }
     if (url !== undefined) asset.url = sanitizeString(url, 500);
+    if (textContent !== undefined) asset.textContent = sanitizeString(textContent, 50000); // Allow up to 50KB of text
     if (description !== undefined) asset.description = sanitizeString(description, 2000);
     if (category !== undefined) asset.category = sanitizeString(category, 100);
     if (tags !== undefined) {

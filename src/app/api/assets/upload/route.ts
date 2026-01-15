@@ -13,6 +13,8 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File;
     let name = formData.get('name') as string;
     let description = formData.get('description') as string | null;
+    let category = formData.get('category') as string | null;
+    let tags = formData.get('tags') as string | null;
     const linkedProjectId = formData.get('linkedProjectId') as string | null;
     const linkedProjectStageIndex = formData.get('linkedProjectStageIndex') as string | null;
     const linkedOperationId = formData.get('linkedOperationId') as string | null;
@@ -33,6 +35,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
     description = description ? sanitizeString(description, 2000) : null;
+    category = category ? sanitizeString(category, 100) : null;
+    
+    // Parse tags
+    let tagArray: string[] = [];
+    if (tags) {
+      tagArray = tags.split(',').map((t) => sanitizeString(t.trim(), 50)).filter((t) => t.length > 0);
+    }
 
     // Validate ObjectIds if provided
     if (linkedProjectId && !isValidObjectId(linkedProjectId)) {
@@ -62,9 +71,11 @@ export async function POST(request: NextRequest) {
 
     const assetData: any = {
       name,
-      type: 'screenshot',
+      type: 'file',
       fileUrl,
       description: description || undefined,
+      category: category || undefined,
+      tags: tagArray,
       userId: session.userId,
     };
 
