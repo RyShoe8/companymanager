@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/mongodb';
-import User from '@/lib/models/User';
+import User, { IUser } from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import Organization from '@/lib/models/Organization';
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     } else {
       // No invitation - check if there's an existing organization with matching domain
       const emailDomain = email.split('@')[1]?.toLowerCase();
-      let existingOrgAdmin: typeof User | null = null;
+      let existingOrgAdmin: IUser | null = null;
 
       if (emailDomain) {
         // Find organization with matching domain
