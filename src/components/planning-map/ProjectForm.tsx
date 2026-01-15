@@ -103,6 +103,20 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate that stage hours don't exceed project hours
+    if (estimatedHours && stages.length > 0) {
+      const projectHours = parseFloat(estimatedHours);
+      const totalStageHours = stages.reduce((sum, stage) => {
+        return sum + (stage.estimatedHours || 0);
+      }, 0);
+      
+      if (totalStageHours > projectHours) {
+        alert(`Total stage hours (${totalStageHours}h) cannot exceed project hours (${projectHours}h)`);
+        return;
+      }
+    }
+    
     const submitData: Partial<IProject> = {
       name,
       description,

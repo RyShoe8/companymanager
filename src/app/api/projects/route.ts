@@ -136,6 +136,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (stages && Array.isArray(stages)) {
+      // Validate that stage hours don't exceed project hours
+      if (estimatedHours !== undefined) {
+        const totalStageHours = stages.reduce((sum: number, stage: any) => {
+          return sum + (stage.estimatedHours || 0);
+        }, 0);
+        
+        if (totalStageHours > estimatedHours) {
+          return NextResponse.json(
+            { error: `Total stage hours (${totalStageHours}h) cannot exceed project hours (${estimatedHours}h)` },
+            { status: 400 }
+          );
+        }
+      }
+      
       projectData.stages = stages.map((stage: any) => ({
         ...stage,
         startDate: new Date(stage.startDate),

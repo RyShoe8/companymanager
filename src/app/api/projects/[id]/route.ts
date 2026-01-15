@@ -110,6 +110,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     if (stages !== undefined) {
       if (Array.isArray(stages)) {
+        // Validate that stage hours don't exceed project hours
+        const projectHours = project.estimatedHours !== undefined ? project.estimatedHours : (estimatedHours !== undefined ? estimatedHours : undefined);
+        if (projectHours !== undefined) {
+          const totalStageHours = stages.reduce((sum: number, stage: any) => {
+            return sum + (stage.estimatedHours || 0);
+          }, 0);
+          
+          if (totalStageHours > projectHours) {
+            return NextResponse.json(
+              { error: `Total stage hours (${totalStageHours}h) cannot exceed project hours (${projectHours}h)` },
+              { status: 400 }
+            );
+          }
+        }
+        
         project.stages = stages.map((stage: any) => ({
           name: stage.name,
           description: stage.description || undefined,

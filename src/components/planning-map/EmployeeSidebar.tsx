@@ -360,7 +360,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     let totalHours = 0;
 
     // Calculate hours from projects
-    // NOTE: Completed projects, stages, and operations are excluded from committed hours
+    // NOTE: Completed projects and operations are excluded from committed hours
+    // Stages are NOT counted separately - only the project's total hours count
     // This ensures that marking items as complete frees up employee capacity
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
@@ -369,7 +370,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
       
-      // Check if whole project is assigned
+      // Only count project-level hours, not individual stage hours
+      // Stages are just breakdowns of the project, not separate commitments
       if (project.assignedTo === employee.name && project.estimatedHours) {
         const hours = calculateHoursForDateRange(
           startDate,
@@ -379,24 +381,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           project.estimatedHours
         );
         totalHours += hours;
-      }
-      
-      // Check stages assigned to this employee (only if stage is not complete)
-      if (project.stages) {
-        project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete') {
-            const stageStart = new Date(stage.startDate);
-            const stageEnd = new Date(stage.endDate);
-            const hours = calculateHoursForDateRange(
-              startDate,
-              endDate,
-              stageStart,
-              stageEnd,
-              stage.estimatedHours
-            );
-            totalHours += hours;
-          }
-        });
       }
     });
 
@@ -447,6 +431,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     let committedHours = 0;
 
     // Calculate hours from projects
+    // NOTE: Only project-level hours count, not individual stage hours
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
       if (project.status === 'complete') return;
@@ -454,6 +439,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
       
+      // Only count project-level hours, not individual stage hours
       if (project.assignedTo === employee.name && project.estimatedHours) {
         const hours = calculateHoursForDateRange(
           startDate,
@@ -463,22 +449,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           project.estimatedHours
         );
         committedHours += hours;
-      }
-      if (project.stages) {
-        project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete') {
-            const stageStart = new Date(stage.startDate);
-            const stageEnd = new Date(stage.endDate);
-            const hours = calculateHoursForDateRange(
-              startDate,
-              endDate,
-              stageStart,
-              stageEnd,
-              stage.estimatedHours
-            );
-            committedHours += hours;
-          }
-        });
       }
     });
 
@@ -691,36 +661,19 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                     
                     let totalProjectHours = 0;
                     
-                    // Calculate hours for the whole project if assigned
+                    // Only show project-level hours, not individual stage hours
+                    // Stages are just breakdowns of the project
                     if (project.assignedTo === employee.name && project.estimatedHours) {
-                      totalProjectHours += calculateHoursForDateRange(
+                      totalProjectHours = calculateHoursForDateRange(
                         startDate,
                         endDate,
                         projectStart,
                         projectEnd,
                         project.estimatedHours
                       );
+                      // Round to 1 decimal
+                      totalProjectHours = Math.round(totalProjectHours * 10) / 10;
                     }
-                    
-                    // Calculate hours for stages assigned to this employee
-                    if (project.stages) {
-                      project.stages.forEach((stage) => {
-                        if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete') {
-                          const stageStart = new Date(stage.startDate);
-                          const stageEnd = new Date(stage.endDate);
-                          totalProjectHours += calculateHoursForDateRange(
-                            startDate,
-                            endDate,
-                            stageStart,
-                            stageEnd,
-                            stage.estimatedHours
-                          );
-                        }
-                      });
-                    }
-                    
-                    // Round to 1 decimal
-                    totalProjectHours = Math.round(totalProjectHours * 10) / 10;
 
                     return (
                       <div
