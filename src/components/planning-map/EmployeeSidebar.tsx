@@ -649,13 +649,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                     {activeOps.map((instance, idx) => {
                       const operation = instance.operation;
                       const hours = operation.estimatedHours || 0;
-                      const hoursInRange = calculateHoursForDateRange(
-                        startDate,
-                        endDate,
-                        instance.startDate,
-                        instance.endDate,
-                        hours
-                      );
+                      // For operations, check if instance overlaps with timeframe
+                      const instanceStart = normalizeToStartOfDay(instance.startDate);
+                      const instanceEnd = normalizeToEndOfDay(instance.endDate);
+                      const rangeStart = normalizeToStartOfDay(startDate);
+                      const rangeEnd = normalizeToEndOfDay(endDate);
+                      const hoursInRange = (instanceStart <= rangeEnd && instanceEnd >= rangeStart) ? hours : 0;
                       
                       return (
                         <div key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`} className="text-xs">
