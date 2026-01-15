@@ -290,6 +290,54 @@ export default function PlanningMapPage() {
           }}
           title="Project Details"
           maxWidth="4xl"
+          headerActions={
+            viewingProject ? (
+              <>
+                {isManagerOrAdmin && (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={() => handleEditProject(viewingProject)}>
+                      Edit
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => {
+                      if (confirm('Are you sure you want to delete this project?')) {
+                        handleDeleteProject(viewingProject._id.toString());
+                      }
+                    }}>
+                      Delete
+                    </Button>
+                  </>
+                )}
+                {!isManagerOrAdmin && viewingProject.status === 'active' && (
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`/api/projects/${viewingProject._id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ status: 'in-review' }),
+                        });
+                        if (response.ok) {
+                          window.location.reload();
+                        }
+                      } catch (error) {
+                        console.error('Error updating status:', error);
+                      }
+                    }}
+                  >
+                    Mark as In Review
+                  </Button>
+                )}
+                <Button variant="secondary" size="sm" onClick={() => {
+                  setShowProjectDetail(false);
+                  setViewingProject(undefined);
+                }}>
+                  Close
+                </Button>
+              </>
+            ) : undefined
+          }
         >
           {viewingProject && (
             <ProjectDetailView

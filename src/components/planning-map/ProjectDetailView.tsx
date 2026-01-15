@@ -96,34 +96,6 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
 
       {/* Project Details */}
       <Card className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-text-primary">Project Details</h3>
-          <div className="flex gap-2">
-            {isManagerOrAdmin && onEdit && (
-              <Button variant="secondary" size="sm" onClick={onEdit}>
-                Edit
-              </Button>
-            )}
-            {!isManagerOrAdmin && project.status === 'active' && (
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={() => handleStatusChange('in-review')}
-                disabled={isUpdatingStatus}
-              >
-                {isUpdatingStatus ? 'Updating...' : 'Mark as In Review'}
-              </Button>
-            )}
-            {isManagerOrAdmin && onDelete && (
-              <Button variant="danger" size="sm" onClick={handleDelete}>
-                Delete
-              </Button>
-            )}
-            <Button variant="secondary" size="sm" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-text-secondary">Start Date</label>
