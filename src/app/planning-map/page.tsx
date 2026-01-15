@@ -214,7 +214,7 @@ export default function PlanningMapPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="w-full mx-auto">
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">

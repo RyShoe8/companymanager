@@ -34,7 +34,7 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-semibold text-gray-900 dark:text-white">{asset.name}</h3>
+            <h3 className="font-semibold text-text-primary text-lg">{asset.name || 'Untitled Asset'}</h3>
             <span className={`text-xs px-2 py-1 rounded ${typeColors[asset.type] || typeColors.other}`}>
               {asset.type}
             </span>
