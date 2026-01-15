@@ -406,15 +406,17 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       
       if (operation.estimatedHours) {
         // For operations, the hours are for each instance (not spread across duration)
-        // So if an operation is 2 hours and recurs weekly, each week gets 2 hours
-        const hours = calculateHoursForDateRange(
-          startDate,
-          endDate,
-          instance.startDate,
-          instance.endDate,
-          operation.estimatedHours
-        );
-        totalHours += hours;
+        // So if an operation is 0.25h (15 min) and recurs weekly, each week gets 0.25h
+        // Check if the instance overlaps with the timeframe
+        const instanceStart = normalizeToStartOfDay(instance.startDate);
+        const instanceEnd = normalizeToEndOfDay(instance.endDate);
+        const rangeStart = normalizeToStartOfDay(startDate);
+        const rangeEnd = normalizeToEndOfDay(endDate);
+        
+        // If instance overlaps with timeframe, add full hours
+        if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+          totalHours += operation.estimatedHours;
+        }
       }
     });
 
@@ -485,14 +487,17 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (operation.status === 'complete') return;
       
       if (operation.estimatedHours) {
-        const hours = calculateHoursForDateRange(
-          startDate,
-          endDate,
-          instance.startDate,
-          instance.endDate,
-          operation.estimatedHours
-        );
-        committedHours += hours;
+        // For operations, the hours are for each instance (not spread across duration)
+        // Check if the instance overlaps with the timeframe
+        const instanceStart = normalizeToStartOfDay(instance.startDate);
+        const instanceEnd = normalizeToEndOfDay(instance.endDate);
+        const rangeStart = normalizeToStartOfDay(startDate);
+        const rangeEnd = normalizeToEndOfDay(endDate);
+        
+        // If instance overlaps with timeframe, add full hours
+        if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+          committedHours += operation.estimatedHours;
+        }
       }
     });
 
