@@ -390,7 +390,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // Skip completed operations - they don't count toward committed hours
       if (operation.status === 'complete') return;
       
-      if (operation.estimatedHours) {
+      if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // For operations, the hours are for each instance (not spread across duration)
         // So if an operation is 0.25h (15 min) and recurs weekly, each week gets 0.25h
         // Check if the instance overlaps with the timeframe
@@ -400,13 +400,19 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         const rangeEnd = normalizeToEndOfDay(endDate);
         
         // If instance overlaps with timeframe, add full hours
-        if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
-          totalHours += operation.estimatedHours;
+        // Ensure we're using a number, not a string
+        const hours = typeof operation.estimatedHours === 'number' 
+          ? operation.estimatedHours 
+          : parseFloat(operation.estimatedHours);
+        
+        if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+          totalHours += hours;
         }
       }
     });
 
-    return Math.round(totalHours * 10) / 10; // Round to 1 decimal
+    // Round to 2 decimal places to avoid floating point precision issues, then round to 1 decimal for display
+    return Math.round(totalHours * 100) / 100;
   };
 
   const getAvailableHours = (employee: IEmployee) => {
@@ -458,7 +464,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // Skip completed operations - they don't count toward committed hours
       if (operation.status === 'complete') return;
       
-      if (operation.estimatedHours) {
+      if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // For operations, the hours are for each instance (not spread across duration)
         // Check if the instance overlaps with the timeframe
         const instanceStart = normalizeToStartOfDay(instance.startDate);
@@ -466,9 +472,14 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         const rangeStart = normalizeToStartOfDay(startDate);
         const rangeEnd = normalizeToEndOfDay(endDate);
         
+        // Ensure we're using a number, not a string
+        const hours = typeof operation.estimatedHours === 'number' 
+          ? operation.estimatedHours 
+          : parseFloat(operation.estimatedHours);
+        
         // If instance overlaps with timeframe, add full hours
-        if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
-          committedHours += operation.estimatedHours;
+        if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+          committedHours += hours;
         }
       }
     });
