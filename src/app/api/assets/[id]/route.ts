@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import Asset from '@/lib/models/Asset';
+import Asset, { AssetType } from '@/lib/models/Asset';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
@@ -86,11 +86,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Sanitize string inputs
     if (name !== undefined) asset.name = sanitizeString(name, 200);
-    if (type !== undefined) asset.type = sanitizeString(type, 50);
+    if (type !== undefined) {
+      const validTypes: AssetType[] = ['spreadsheet', 'document', 'tool', 'folder', 'link', 'screenshot', 'other'];
+      if (!validTypes.includes(type as AssetType)) {
+        return NextResponse.json({ error: 'Invalid asset type' }, { status: 400 });
+      }
+      asset.type = type as AssetType;
+    }
     if (url !== undefined) asset.url = sanitizeString(url, 500);
     if (description !== undefined) asset.description = sanitizeString(description, 2000);
-    if (category !== undefined) asset.category = category;
-    if (tags !== undefined) asset.tags = tags;
+    if (category !== undefined) asset.category = sanitizeString(category, 100);
+    if (tags !== undefined) {
+      // Validate tags is an array and sanitize each tag
+      if (!Array.isArray(tags)) {
+        return NextResponse.json({ error: 'Tags must be an array' }, { status: 400 });
+      }
+      asset.tags = tags.map((tag: any) => sanitizeString(String(tag), 50)).filter((tag: string) => tag.length > 0);
+    }
     if (linkedProjectId !== undefined) asset.linkedProjectId = linkedProjectId;
     if (linkedOperationId !== undefined) asset.linkedOperationId = linkedOperationId;
 
