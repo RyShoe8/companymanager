@@ -10,13 +10,14 @@ interface CommentThreadProps {
   entityId: string;
   stageIndex?: number;
   currentUserId?: string;
+  showHeading?: boolean;
 }
 
 interface CommentWithReplies extends IComment {
   replies?: CommentWithReplies[];
 }
 
-export default function CommentThread({ entityType, entityId, stageIndex, currentUserId }: CommentThreadProps) {
+export default function CommentThread({ entityType, entityId, stageIndex, currentUserId, showHeading = true }: CommentThreadProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -198,7 +199,9 @@ export default function CommentThread({ entityType, entityId, stageIndex, curren
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Comments</h4>
+        {showHeading && (
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Comments</h4>
+        )}
         {comments.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">No comments yet. Be the first to comment!</p>
         ) : (

@@ -158,13 +158,14 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         </div>
       </Card>
 
-      {/* Project Comments */}
+      {/* Comments */}
       <div className="border-t border-border pt-4">
-        <h3 className="text-lg font-semibold text-text-primary mb-4">Project Comments</h3>
+        <h3 className="text-lg font-semibold text-text-primary mb-4">Comments</h3>
         <CommentThread
           entityType="project"
           entityId={project._id.toString()}
           currentUserId={currentUserId}
+          showHeading={false}
         />
       </div>
 
@@ -215,14 +216,15 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                 </div>
               </div>
               
-              {/* Stage Comments */}
+              {/* Comments */}
               <div className="border-t border-border pt-4 mt-4">
-                <h5 className="text-sm font-semibold text-text-primary mb-3">Stage Comments</h5>
+                <h5 className="text-sm font-semibold text-text-primary mb-3">Comments</h5>
                 <CommentThread
                   entityType="projectStage"
                   entityId={project._id.toString()}
                   stageIndex={index}
                   currentUserId={currentUserId}
+                  showHeading={false}
                 />
               </div>
             </Card>
