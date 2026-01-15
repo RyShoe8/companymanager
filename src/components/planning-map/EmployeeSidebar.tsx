@@ -750,54 +750,113 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               );
             })()}
 
-            {/* Assigned Projects - Only show when expanded */}
-            {isExpanded && employeeProjects.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Projects:</p>
-                <div className="space-y-1">
-                  {employeeProjects.map((project) => {
-                    // Skip completed projects in the display
-                    if (project.status === 'complete') return null;
-                    
-                    const projectStart = new Date(project.startDate);
-                    const projectEnd = new Date(project.endDate);
-                    
-                    let totalProjectHours = 0;
-                    
-                    // Only show project-level hours, not individual stage hours
-                    // Stages are just breakdowns of the project
-                    if (project.assignedTo === employee.name && project.estimatedHours) {
-                      totalProjectHours = calculateHoursForDateRange(
-                        startDate,
-                        endDate,
-                        projectStart,
-                        projectEnd,
-                        project.estimatedHours
-                      );
-                      // Round to 1 decimal
-                      totalProjectHours = Math.round(totalProjectHours * 10) / 10;
-                    }
-
-                    return (
-                      <div
-                        key={project._id.toString()}
-                        className="text-xs p-1.5 rounded"
-                        style={{ backgroundColor: project.color + '20' }}
-                      >
-                        <div className="font-medium text-gray-900 dark:text-white truncate">
-                          {project.name}
+            {/* Assigned Projects and Stages - Only show when expanded */}
+            {isExpanded && employeeProjects.length > 0 && (() => {
+              const projectsToShow = employeeProjects.filter(p => p.status !== 'complete');
+              if (projectsToShow.length === 0) return null;
+              
+              return (
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Projects:</p>
+                  <div className="space-y-1">
+                    {projectsToShow.map((project) => {
+                      const projectStart = new Date(project.startDate);
+                      const projectEnd = new Date(project.endDate);
+                      
+                      // Check if employee is assigned to project or any stages
+                      const isAssignedToProject = project.assignedTo === employee.name;
+                      const assignedStages = project.stages?.filter(stage => 
+                        stage.assignedTo === employee.name && stage.status !== 'complete'
+                      ) || [];
+                      
+                      // Calculate project-level hours (remaining after stage assignments)
+                      let totalProjectHours = 0;
+                      if (isAssignedToProject && project.estimatedHours) {
+                        // Calculate total hours assigned to other employees via stages
+                        let otherEmployeeStageHours = 0;
+                        if (project.stages && project.stages.length > 0) {
+                          project.stages.forEach((stage) => {
+                            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'complete') {
+                              otherEmployeeStageHours += stage.estimatedHours;
+                            }
+                          });
+                        }
+                        
+                        // Project hours minus stages assigned to others
+                        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeStageHours);
+                        
+                        if (remainingProjectHours > 0) {
+                          totalProjectHours = calculateHoursForDateRange(
+                            startDate,
+                            endDate,
+                            projectStart,
+                            projectEnd,
+                            remainingProjectHours
+                          );
+                          totalProjectHours = Math.round(totalProjectHours * 10) / 10;
+                        }
+                      }
+                      
+                      // Calculate stage hours
+                      const stageHoursList = assignedStages.map(stage => {
+                        if (!stage.estimatedHours) return null;
+                        const stageStart = new Date(stage.startDate);
+                        const stageEnd = new Date(stage.endDate);
+                        const hours = calculateHoursForDateRange(
+                          startDate,
+                          endDate,
+                          stageStart,
+                          stageEnd,
+                          stage.estimatedHours
+                        );
+                        return {
+                          name: stage.name,
+                          hours: Math.round(hours * 10) / 10
+                        };
+                      }).filter(Boolean) as Array<{ name: string; hours: number }>;
+                      
+                      // Only show if there are project hours or stage hours
+                      if (totalProjectHours === 0 && stageHoursList.length === 0) return null;
+                      
+                      return (
+                        <div key={project._id.toString()} className="space-y-1">
+                          {/* Project */}
+                          {(isAssignedToProject && totalProjectHours > 0) && (
+                            <div
+                              className="text-xs p-1.5 rounded"
+                              style={{ backgroundColor: project.color + '20' }}
+                            >
+                              <div className="font-medium text-gray-900 dark:text-white truncate">
+                                {project.name}
+                              </div>
+                              <div className="text-gray-600 dark:text-gray-400">
+                                {totalProjectHours}h
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Stages */}
+                          {stageHoursList.map((stageInfo, idx) => (
+                            <div
+                              key={`stage-${project._id.toString()}-${idx}`}
+                              className="text-xs p-1.5 rounded ml-3"
+                              style={{ backgroundColor: project.color + '15' }}
+                            >
+                              <div className="text-gray-700 dark:text-gray-300 truncate">
+                                • {stageInfo.name}
+                              </div>
+                              <div className="text-gray-600 dark:text-gray-400">
+                                {stageInfo.hours}h
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        {totalProjectHours > 0 && (
-                          <div className="text-gray-600 dark:text-gray-400">
-                            {totalProjectHours}h
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </Card>
         );
       })}
