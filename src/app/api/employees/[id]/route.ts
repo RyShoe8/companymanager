@@ -71,12 +71,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
+    // Store old name before updating (needed to update assignments)
+    const oldName = employee.name;
+    let newName: string | undefined = undefined;
+
     // Validate and sanitize inputs
     if (name !== undefined) {
       name = sanitizeString(name, 100);
       if (!name) {
         return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 });
       }
+      newName = name;
       employee.name = name;
     }
     if (role !== undefined) {
@@ -110,6 +115,31 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await employee.save();
+
+    // If name changed, update all assignments in projects and operations
+    if (newName && newName !== oldName) {
+      const Project = (await import('@/lib/models/Project')).default;
+      const Operation = (await import('@/lib/models/Operation')).default;
+
+      // Update project assignments
+      await Project.updateMany(
+        { userId: session.userId, assignedTo: oldName },
+        { $set: { assignedTo: newName } }
+      );
+
+      // Update project stage assignments
+      await Project.updateMany(
+        { userId: session.userId, 'stages.assignedTo': oldName },
+        { $set: { 'stages.$[stage].assignedTo': newName } },
+        { arrayFilters: [{ 'stage.assignedTo': oldName }] }
+      );
+
+      // Update operation assignments
+      await Operation.updateMany(
+        { userId: session.userId, assignedTo: oldName },
+        { $set: { assignedTo: newName } }
+      );
+    }
 
     return NextResponse.json(employee);
   } catch (error) {
