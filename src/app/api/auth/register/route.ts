@@ -4,6 +4,7 @@ import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
+import Organization from '@/lib/models/Organization';
 import { createSession } from '@/lib/auth/session';
 import { isValidEmail, sanitizeString, isValidObjectId } from '@/lib/utils/security';
 
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
 
     let organizationId: string;
     let employeeId: string | undefined;
+    let isJoiningExistingOrg = false;
 
     // If invitation token is provided, validate it and use the invitation's organization
     if (invitationToken) {
@@ -98,8 +100,30 @@ export async function POST(request: NextRequest) {
       invitation.status = 'accepted';
       await invitation.save();
     } else {
-      // No invitation - create new organization (user is admin)
-      organizationId = `temp-${Date.now()}`;
+      // No invitation - check if there's an existing organization with matching domain
+      const emailDomain = email.split('@')[1]?.toLowerCase();
+      let existingOrgAdmin: typeof User | null = null;
+
+      if (emailDomain) {
+        // Find organization with matching domain
+        const existingOrganization = await Organization.findOne({ domain: emailDomain });
+        
+        if (existingOrganization) {
+          // Find the admin user for this organization
+          existingOrgAdmin = await User.findById(existingOrganization.userId);
+          
+          if (existingOrgAdmin && existingOrgAdmin.organizationId) {
+            // Join existing organization
+            organizationId = existingOrgAdmin.organizationId;
+            isJoiningExistingOrg = true;
+          }
+        }
+      }
+
+      // If no existing organization found, create new one (user will be admin)
+      if (!organizationId) {
+        organizationId = `temp-${Date.now()}`;
+      }
     }
 
     // Create user (email is already lowercased above)
@@ -108,11 +132,11 @@ export async function POST(request: NextRequest) {
       password: hashedPassword,
       name,
       organizationId,
-      organizationSetupComplete: !!invitationToken, // If invited, org is already set up
+      organizationSetupComplete: !!invitationToken || isJoiningExistingOrg, // If invited or joining existing org, setup is complete
     });
 
-    // If no invitation, set organizationId to user's own ID (they are the organization admin)
-    if (!invitationToken) {
+    // If no invitation and not joining existing org, set organizationId to user's own ID (they are the organization admin)
+    if (!invitationToken && !isJoiningExistingOrg) {
       user.organizationId = user._id.toString();
       await user.save();
       organizationId = user._id.toString();
@@ -130,6 +154,16 @@ export async function POST(request: NextRequest) {
         }
         await employee.save();
       }
+    } else if (isJoiningExistingOrg) {
+      // Create employee record for user joining existing organization
+      await Employee.create({
+        name: name || email.split('@')[0],
+        role: 'User',
+        weeklyHours: 0,
+        employeeType: 'full-time',
+        userId: user._id,
+        organizationId: organizationId,
+      });
     } else {
       // Create admin employee record for the user (new organization)
       await Employee.create({
