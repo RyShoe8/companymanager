@@ -190,13 +190,12 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
               
               {/* Comments */}
               <div className="border-t border-border pt-4 mt-4">
-                <h5 className="text-sm font-semibold text-text-primary mb-3">Comments</h5>
                 <CommentThread
                   entityType="projectStage"
                   entityId={project._id.toString()}
                   stageIndex={index}
                   currentUserId={currentUserId}
-                  showHeading={false}
+                  showHeading={true}
                 />
               </div>
             </Card>
