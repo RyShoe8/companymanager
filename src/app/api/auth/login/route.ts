@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    // Lowercase email to match database storage (User model has lowercase: true)
+    email = email.toLowerCase();
+
     await connectDB();
 
     // Find user

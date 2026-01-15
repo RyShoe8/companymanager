@@ -44,10 +44,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid invitation token' }, { status: 400 });
     }
 
+    // Lowercase email to match database storage (User model has lowercase: true)
+    email = email.toLowerCase();
+
     await connectDB();
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return NextResponse.json({ error: 'User already exists' }, { status: 400 });
     }
@@ -99,9 +102,9 @@ export async function POST(request: NextRequest) {
       organizationId = `temp-${Date.now()}`;
     }
 
-    // Create user
+    // Create user (email is already lowercased above)
     const user = await User.create({
-      email: email.toLowerCase(),
+      email,
       password: hashedPassword,
       name,
       organizationId,
