@@ -189,10 +189,10 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           label="Estimated Hours (optional)"
           type="number"
           min="0"
-          step="0.5"
+          step="0.01"
           value={estimatedHours}
           onChange={(e) => setEstimatedHours(e.target.value)}
-          placeholder="e.g., 40"
+          placeholder="e.g., 40 or 0.25 (15 min)"
           disabled={isRegularUser}
         />
         <Select
@@ -311,9 +311,10 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     label="Estimated Hours (optional)"
                     type="number"
                     min="0"
-                    step="0.5"
+                    step="0.01"
                     value={stage.estimatedHours?.toString() || ''}
                     onChange={(e) => updateStage(index, 'estimatedHours', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    placeholder="e.g., 0.25 (15 min)"
                   />
                   <Select
                     label="Assigned To (optional)"

@@ -137,10 +137,10 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
           label="Estimated Hours (optional)"
           type="number"
           min="0"
-          step="0.5"
+          step="0.01"
           value={estimatedHours}
           onChange={(e) => setEstimatedHours(e.target.value)}
-          placeholder="e.g., 8"
+          placeholder="e.g., 8 or 0.25 (15 min)"
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
