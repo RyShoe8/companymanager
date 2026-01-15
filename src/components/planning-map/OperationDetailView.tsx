@@ -15,7 +15,7 @@ interface OperationDetailViewProps {
   onClose: () => void;
 }
 
-export default function OperationDetailView({ operation, onEdit, onDelete, onClose }: OperationDetailViewProps) {
+export default function OperationDetailView({ operation, onEdit, onDelete, onClose, renderHeaderActions }: OperationDetailViewProps) {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
 
@@ -43,46 +43,28 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
   return (
     <div className="space-y-6 max-h-[80vh] overflow-y-auto">
       {/* Operation Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-2xl font-bold text-text-primary">{operation.name}</h2>
-            <span className="text-sm px-3 py-1 rounded bg-accent-light text-accent-dark">
-              {operation.recurrenceType}
-            </span>
-            <span className={`text-sm px-3 py-1 rounded ${
-              operation.status === 'active' ? 'bg-success-light text-success-dark' :
-              operation.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
-              operation.status === 'complete' ? 'bg-border text-text-secondary' :
-              'bg-accent-light text-accent-dark'
-            }`}>
-              {operation.status}
-            </span>
-          </div>
-          {operation.description && (
-            <p className="text-text-secondary mb-4">{operation.description}</p>
-          )}
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-2xl font-bold text-text-primary">{operation.name}</h2>
+          <span className="text-sm px-3 py-1 rounded bg-accent-light text-accent-dark">
+            {operation.recurrenceType}
+          </span>
+          <span className={`text-sm px-3 py-1 rounded ${
+            operation.status === 'active' ? 'bg-success-light text-success-dark' :
+            operation.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
+            operation.status === 'complete' ? 'bg-border text-text-secondary' :
+            'bg-accent-light text-accent-dark'
+          }`}>
+            {operation.status}
+          </span>
         </div>
-        <div className="flex gap-2">
-          {onEdit && (
-            <Button variant="secondary" size="sm" onClick={onEdit}>
-              Edit
-            </Button>
-          )}
-          {onDelete && (
-            <Button variant="danger" size="sm" onClick={handleDelete}>
-              Delete
-            </Button>
-          )}
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            Close
-          </Button>
-        </div>
+        {operation.description && (
+          <p className="text-text-secondary mb-4">{operation.description}</p>
+        )}
       </div>
 
       {/* Operation Details */}
       <Card className="p-4">
-        <h3 className="text-lg font-semibold text-text-primary mb-4">Operation Details</h3>
         <div className="grid grid-cols-2 gap-4">
           {operation.startDate && (
             <div>

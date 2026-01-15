@@ -312,6 +312,32 @@ export default function PlanningMapPage() {
             setViewingOperation(undefined);
           }}
           title="Operation Details"
+          headerActions={
+            viewingOperation ? (
+              <>
+                {isManagerOrAdmin && (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={() => handleEditOperation(viewingOperation)}>
+                      Edit
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => {
+                      if (confirm('Are you sure you want to delete this operation?')) {
+                        handleDeleteOperation(viewingOperation._id.toString());
+                      }
+                    }}>
+                      Delete
+                    </Button>
+                  </>
+                )}
+                <Button variant="secondary" size="sm" onClick={() => {
+                  setShowOperationDetail(false);
+                  setViewingOperation(undefined);
+                }}>
+                  Close
+                </Button>
+              </>
+            ) : undefined
+          }
         >
           {viewingOperation && (
             <OperationDetailView
