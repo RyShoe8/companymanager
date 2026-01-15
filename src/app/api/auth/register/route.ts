@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let organizationId: string;
+    let organizationId: string | undefined;
     let employeeId: string | undefined;
     let isJoiningExistingOrg = false;
 
@@ -124,6 +124,11 @@ export async function POST(request: NextRequest) {
       if (!organizationId) {
         organizationId = `temp-${Date.now()}`;
       }
+    }
+
+    // Ensure organizationId is set (TypeScript guard)
+    if (!organizationId) {
+      organizationId = `temp-${Date.now()}`;
     }
 
     // Create user (email is already lowercased above)
