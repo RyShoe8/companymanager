@@ -67,10 +67,15 @@ const UserSchema: Schema = new Schema(
 );
 
 // Set admin users - check before save to avoid infinite loops
-UserSchema.pre('save', async function() {
+UserSchema.pre('save', async function(this: IUser) {
   const adminEmails = ['ryanschumacher@themediashop.co', 'kellymcguire@themediashop.co'];
   if (adminEmails.includes(this.email.toLowerCase()) && !this.isAdmin) {
     this.isAdmin = true;
+  }
+  
+  // Auto-complete organization setup if user has organizationId but flag is false
+  if (this.organizationId && !this.organizationSetupComplete) {
+    this.organizationSetupComplete = true;
   }
 });
 
