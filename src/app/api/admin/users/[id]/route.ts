@@ -126,7 +126,13 @@ export async function DELETE(
       Project.deleteMany({ userId: user._id }),
       Operation.deleteMany({ userId: user._id }),
       Asset.deleteMany({ userId: user._id }),
-      Invitation.deleteMany({ organizationId: user.organizationId }),
+      // Delete invitations sent by this user or sent to this user's email
+      Invitation.deleteMany({
+        $or: [
+          { invitedBy: user._id }, // Invitations sent by this user
+          { email: user.email.toLowerCase() }, // Invitations sent to this user
+        ],
+      }),
     ]);
 
     // Delete organization if user is the admin
