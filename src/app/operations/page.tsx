@@ -150,7 +150,7 @@ export default function OperationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
+      <div className="min-h-screen bg-gray-900 px-[100px] max-md:px-4 py-8">
         <div className="max-w-7xl mx-auto">
           <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>

@@ -90,23 +90,57 @@ export async function POST(request: NextRequest) {
       // Link existing employee record to the new user
       const employee = await Employee.findById(employeeId);
       if (employee) {
+        // Check if employee already has a userId (prevent duplicates)
+        if (employee.userId) {
+          return NextResponse.json(
+            { error: 'This invitation has already been accepted' },
+            { status: 400 }
+          );
+        }
         employee.userId = user._id;
         // Update name if provided
         if (name) {
           employee.name = name;
         }
         await employee.save();
+      } else {
+        // Employee record not found - check if one exists by email/organization
+        const existingEmployee = await Employee.findOne({
+          email: email.toLowerCase(),
+          organizationId: organizationId,
+        });
+        if (existingEmployee) {
+          if (existingEmployee.userId) {
+            return NextResponse.json(
+              { error: 'An employee record already exists for this email' },
+              { status: 400 }
+            );
+          }
+          // Link existing employee
+          existingEmployee.userId = user._id;
+          if (name) {
+            existingEmployee.name = name;
+          }
+          await existingEmployee.save();
+        }
       }
-    } else {
+    } else if (!invitationToken) {
       // Create admin employee record for the user (new organization)
-      await Employee.create({
-        name: name || email.split('@')[0],
-        role: 'Administrator',
-        weeklyHours: 40,
-        employeeType: 'full-time',
-        userId: user._id,
+      // Check if employee already exists
+      const existingEmployee = await Employee.findOne({
+        email: email.toLowerCase(),
         organizationId: user._id.toString(),
       });
+      if (!existingEmployee) {
+        await Employee.create({
+          name: name || email.split('@')[0],
+          role: 'Administrator',
+          weeklyHours: 40,
+          employeeType: 'full-time',
+          userId: user._id,
+          organizationId: user._id.toString(),
+        });
+      }
     }
 
     // Create session

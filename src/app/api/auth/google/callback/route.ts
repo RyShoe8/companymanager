@@ -198,30 +198,63 @@ export async function GET(request: NextRequest) {
       if (invitationToken && employeeId) {
         const employee = await Employee.findById(employeeId);
         if (employee) {
+          // Check if employee already has a userId (prevent duplicates)
+          if (employee.userId) {
+            return NextResponse.redirect(new URL('/login?error=invitation_already_accepted', request.url));
+          }
           employee.userId = user._id;
           if (name) employee.name = name;
           await employee.save();
+        } else {
+          // Employee record not found - check if one exists by email/organization
+          const existingEmployee = await Employee.findOne({
+            email: email.toLowerCase(),
+            organizationId: organizationId,
+          });
+          if (existingEmployee) {
+            if (existingEmployee.userId) {
+              return NextResponse.redirect(new URL('/login?error=invitation_already_accepted', request.url));
+            }
+            // Link existing employee
+            existingEmployee.userId = user._id;
+            if (name) {
+              existingEmployee.name = name;
+            }
+            await existingEmployee.save();
+          }
         }
       } else if (isJoiningExistingOrg) {
-        // Create employee record for user joining existing organization
-        await Employee.create({
-          name: name || email.split('@')[0],
-          role: 'User',
-          weeklyHours: 0,
-          employeeType: 'full-time',
-          userId: user._id,
+        // Check if employee already exists before creating
+        const existingEmployee = await Employee.findOne({
+          email: email.toLowerCase(),
           organizationId: organizationId,
         });
+        if (!existingEmployee) {
+          await Employee.create({
+            name: name || email.split('@')[0],
+            role: 'User',
+            weeklyHours: 0,
+            employeeType: 'full-time',
+            userId: user._id,
+            organizationId: organizationId,
+          });
+        }
       } else if (!invitationToken) {
-        // Create admin employee record for new organization
-        await Employee.create({
-          name: name || email.split('@')[0],
-          role: 'Administrator',
-          weeklyHours: 0,
-          employeeType: 'full-time',
-          userId: user._id,
+        // Check if employee already exists before creating
+        const existingEmployee = await Employee.findOne({
+          email: email.toLowerCase(),
           organizationId: user._id.toString(),
         });
+        if (!existingEmployee) {
+          await Employee.create({
+            name: name || email.split('@')[0],
+            role: 'Administrator',
+            weeklyHours: 0,
+            employeeType: 'full-time',
+            userId: user._id,
+            organizationId: user._id.toString(),
+          });
+        }
       }
     } else {
       // Existing user - update Google info if needed

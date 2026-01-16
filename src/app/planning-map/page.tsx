@@ -214,7 +214,7 @@ export default function PlanningMapPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px]">
+    <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px]">
       <div className="w-full mx-auto pt-[30px] pb-8">
         {/* Header with Planning, Timeframe Selector, and Buttons */}
         <div className="mb-1">
