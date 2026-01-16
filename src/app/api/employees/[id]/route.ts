@@ -178,6 +178,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const employeeName = employee.name;
     const employeeEmail = employee.email;
 
+    // Delete associated invitations
+    const Invitation = (await import('@/lib/models/Invitation')).default;
+    await Invitation.deleteMany({
+      $or: [
+        { employeeId: id },
+        ...(employeeEmail ? [{ email: employeeEmail.toLowerCase() }] : []),
+      ],
+      organizationId: user.organizationId,
+    });
+
     // Delete the employee from the database
     await Employee.deleteOne({ _id: id, organizationId: user.organizationId });
 

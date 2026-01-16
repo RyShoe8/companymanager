@@ -49,7 +49,7 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
 
   const sendSmtpEmail = new brevo.SendSmtpEmail();
   
-  sendSmtpEmail.subject = `You've been invited to join ${data.organizationName || 'Company Manager'}`;
+  sendSmtpEmail.subject = `You've been invited to join ${data.organizationName || 'Nucleas'}`;
   sendSmtpEmail.to = [{ email: data.recipientEmail, name: data.recipientName || data.recipientEmail }];
   
   // Brevo requires a sender email - it must be set explicitly
@@ -60,9 +60,13 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
     throw new Error(errorMsg);
   }
   
+  // Get base URL for logo - try to construct from invitation link or use default
+  const baseUrl = data.invitationLink.split('/invite/')[0] || 'https://nucleas.app';
+  const logoUrl = `${baseUrl}/images/icon.png`;
+  
   sendSmtpEmail.sender = {
     email: senderEmail,
-    name: process.env.BREVO_SENDER_NAME || 'Company Manager',
+    name: process.env.BREVO_SENDER_NAME || 'Nucleas',
   };
 
   // HTML email template
@@ -72,32 +76,35 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Invitation to Company Manager</title>
+      <title>Invitation to Nucleas</title>
     </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: #3b82f6; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0;">Company Manager</h1>
-      </div>
-      <div style="background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
-        <h2 style="color: #1f2937; margin-top: 0;">You've been invited!</h2>
-        <p>Hi ${data.recipientName || 'there'},</p>
-        <p><strong>${data.inviterName}</strong> has invited you to join <strong>${data.organizationName || 'their organization'}</strong> as a <strong>${data.role}</strong>.</p>
-        <p style="margin: 30px 0;">
-          <a href="${data.invitationLink}" 
-             style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-            Accept Invitation
-          </a>
-        </p>
-        <p style="color: #6b7280; font-size: 14px;">
-          This invitation will expire in ${data.expiresInDays} day${data.expiresInDays !== 1 ? 's' : ''}.
-        </p>
-        <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-          If the button doesn't work, copy and paste this link into your browser:<br>
-          <a href="${data.invitationLink}" style="color: #3b82f6; word-break: break-all;">${data.invitationLink}</a>
-        </p>
-        <p style="color: #6b7280; font-size: 12px; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-          If you didn't expect this invitation, you can safely ignore this email.
-        </p>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f3f4f6;">
+      <div style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="background-color: #3b82f6; color: white; padding: 30px; text-align: center;">
+          <img src="${logoUrl}" alt="Nucleas" style="height: 48px; width: auto; margin-bottom: 10px;" onerror="this.style.display='none';">
+          <h1 style="margin: 10px 0 0 0; font-size: 28px; font-weight: bold;">Nucleas</h1>
+        </div>
+        <div style="background-color: #ffffff; padding: 40px;">
+          <h2 style="color: #1f2937; margin-top: 0; font-size: 24px; font-weight: 600;">You've been invited!</h2>
+          <p style="color: #4b5563; font-size: 16px; margin: 20px 0;">Hi ${data.recipientName || 'there'},</p>
+          <p style="color: #4b5563; font-size: 16px; margin: 20px 0;"><strong>${data.inviterName}</strong> has invited you to join <strong>${data.organizationName || 'their organization'}</strong> as a <strong>${data.role}</strong>.</p>
+          <div style="margin: 40px 0; text-align: center;">
+            <a href="${data.invitationLink}" 
+               style="background-color: #3b82f6; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3); transition: background-color 0.2s;">
+              Accept Invitation
+            </a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px; margin: 20px 0;">
+            This invitation will expire in ${data.expiresInDays} day${data.expiresInDays !== 1 ? 's' : ''}.
+          </p>
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            If the button doesn't work, copy and paste this link into your browser:<br>
+            <a href="${data.invitationLink}" style="color: #3b82f6; word-break: break-all; text-decoration: underline;">${data.invitationLink}</a>
+          </p>
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            If you didn't expect this invitation, you can safely ignore this email.
+          </p>
+        </div>
       </div>
     </body>
     </html>
@@ -105,7 +112,7 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
 
   // Plain text version
   sendSmtpEmail.textContent = `
-You've been invited to join ${data.organizationName || 'Company Manager'}!
+You've been invited to join ${data.organizationName || 'Nucleas'}!
 
 Hi ${data.recipientName || 'there'},
 
@@ -226,7 +233,7 @@ export async function sendEmail(data: SendEmailData): Promise<void> {
   
   sendSmtpEmail.sender = {
     email: senderEmail,
-    name: process.env.BREVO_SENDER_NAME || 'Company Manager',
+    name: process.env.BREVO_SENDER_NAME || 'Nucleas',
   };
 
   sendSmtpEmail.htmlContent = data.html;
