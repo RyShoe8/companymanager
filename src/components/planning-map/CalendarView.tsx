@@ -377,11 +377,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                             <span className="text-text-secondary">
                               <strong>Recurrence:</strong> {operation.recurrenceType}
                             </span>
-                            {totalDays > 1 && (
-                              <span className="text-text-secondary">
-                                <strong>Duration:</strong> {totalDays} day{totalDays !== 1 ? 's' : ''}
-                              </span>
-                            )}
+                            <span className="text-text-secondary">
+                              <strong>Dates:</strong> {formatDate(instance.startDate)} - {formatDate(instance.endDate)}
+                            </span>
                           </div>
                           
                           {operation.estimatedHours && (

@@ -260,6 +260,14 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     });
   };
 
+  // Get operations directly from operations array (not just instances) for display
+  // This includes operations without startDate which won't appear in operationInstances
+  const getOperationsForEmployeeDirect = (employeeName: string) => {
+    return operations.filter((operation) => {
+      return operation.assignedTo === employeeName;
+    });
+  };
+
   // Helper function to normalize date to start of day
   const normalizeToStartOfDay = (date: Date): Date => {
     const normalized = new Date(date);
@@ -357,6 +365,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
   const getCommittedHours = (employee: IEmployee) => {
     const employeeProjects = getProjectsForEmployee(employee.name);
     const employeeOperations = getOperationsForEmployee(employee.name);
+    // Also get operations without startDate for hours calculation
+    const directOps = getOperationsForEmployeeDirect(employee.name);
+    const opsWithoutDate = directOps.filter(op => !op.startDate && op.status !== 'complete');
     let totalHours = 0;
 
     // Calculate hours from projects
@@ -449,6 +460,19 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           : parseFloat(operation.estimatedHours);
         
         if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+          totalHours += hours;
+        }
+      }
+    });
+
+    // Add hours from operations without startDate (they represent committed hours even without dates)
+    opsWithoutDate.forEach((operation) => {
+      if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
+        const hours = typeof operation.estimatedHours === 'number' 
+          ? operation.estimatedHours 
+          : parseFloat(operation.estimatedHours);
+        
+        if (!isNaN(hours)) {
           totalHours += hours;
         }
       }
@@ -820,8 +844,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
             {/* Assigned Operations - Only show when expanded */}
             {isExpanded && (() => {
+              // Get operations directly from array (includes those without startDate)
+              const directOps = getOperationsForEmployeeDirect(employee.name);
+              const activeOps = directOps.filter(op => op.status !== 'complete');
+              
+              // Also get instances for operations with startDate to show date info
               const employeeOps = getOperationsForEmployee(employee.name);
-              const activeOps = employeeOps.filter(instance => instance.operation.status !== 'complete');
+              const instanceMap = new Map();
+              employeeOps.forEach(instance => {
+                instanceMap.set(instance.operation._id.toString(), instance);
+              });
               
               if (activeOps.length === 0) return null;
               
@@ -829,36 +861,43 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Operations:</p>
                   <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                    {activeOps.map((instance, idx) => {
-                      const operation = instance.operation;
+                    {activeOps.map((operation, idx) => {
+                      const instance = instanceMap.get(operation._id.toString());
                       // Ensure we're using a number, not a string
                       const hours = operation.estimatedHours !== undefined && operation.estimatedHours !== null
                         ? (typeof operation.estimatedHours === 'number' 
                             ? operation.estimatedHours 
                             : parseFloat(operation.estimatedHours))
                         : 0;
-                      // For operations, check if instance overlaps with timeframe
-                      const instanceStart = normalizeToStartOfDay(instance.startDate);
-                      const instanceEnd = normalizeToEndOfDay(instance.endDate);
-                      const rangeStart = normalizeToStartOfDay(startDate);
-                      const rangeEnd = normalizeToEndOfDay(endDate);
-                      const hoursInRange = (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) ? hours : 0;
+                      
+                      // For operations with instances, check if instance overlaps with timeframe
+                      let hoursInRange = 0;
+                      if (instance) {
+                        const instanceStart = normalizeToStartOfDay(instance.startDate);
+                        const instanceEnd = normalizeToEndOfDay(instance.endDate);
+                        const rangeStart = normalizeToStartOfDay(startDate);
+                        const rangeEnd = normalizeToEndOfDay(endDate);
+                        hoursInRange = (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) ? hours : 0;
+                      } else if (!isNaN(hours)) {
+                        // For operations without startDate, show hours if they have estimatedHours
+                        hoursInRange = hours;
+                      }
                       
                       return (
-                        <div key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`} className="text-xs">
+                        <div key={`operation-${operation._id.toString()}-${idx}`} className="text-xs">
                           <div className="flex items-center justify-between">
                             <span className="text-gray-700 dark:text-gray-300 truncate flex-1">
                               {operation.name}
-                              <span className="ml-1 text-gray-400 dark:text-gray-500 text-[10px]">
-                                (ID: {operation._id.toString().slice(-6)})
-                              </span>
                             </span>
                             {hoursInRange > 0 && (
                               <span className="text-gray-600 dark:text-gray-400 ml-2">{hoursInRange.toFixed(1)}h</span>
                             )}
                           </div>
                           <div className="text-gray-500 dark:text-gray-500 text-[10px] mt-0.5">
-                            {operation.recurrenceType} • {instance.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {operation.recurrenceType}
+                            {instance && ` • ${instance.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                            {!instance && operation.startDate && ` • ${new Date(operation.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                            {!instance && !operation.startDate && ' • No date set'}
                           </div>
                         </div>
                       );
