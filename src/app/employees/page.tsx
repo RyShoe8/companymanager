@@ -132,31 +132,31 @@ export default function EmployeesPage() {
               <Card key={employee._id.toString()} className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-white mb-1">{employee.name}</h3>
+                    <h3 className="font-semibold text-gray-900 mb-1">{employee.name}</h3>
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-xs px-2 py-1 rounded ${
-                        employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                        'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                        employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
                       }`}>
                         {employee.role}
                       </span>
                       <span className={`text-xs px-2 py-1 rounded ${
-                        employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                        employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                        'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                        employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800' :
+                        employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800' :
+                        'bg-purple-100 text-purple-800'
                       }`}>
                         {employee.employeeType === 'full-time' ? 'Full-Time' :
                          employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
                       </span>
                     </div>
                     {employee.jobTitle && (
-                      <p className="text-sm text-gray-300 mb-1">{employee.jobTitle}</p>
+                      <p className="text-sm text-gray-600 mb-1">{employee.jobTitle}</p>
                     )}
-                    <p className="text-sm text-gray-300">
+                    <p className="text-sm text-gray-600">
                       {employee.weeklyHours} hours/week
                     </p>
                     {employee.email && (
-                      <p className="text-xs text-gray-400 mt-1">{employee.email}</p>
+                      <p className="text-xs text-gray-500 mt-1">{employee.email}</p>
                     )}
                   </div>
                   {currentUserEmployee?.role === 'Administrator' && (

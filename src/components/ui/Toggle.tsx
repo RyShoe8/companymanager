@@ -10,7 +10,7 @@ interface ToggleProps {
 export default function Toggle({ label, checked, onChange, className = '' }: ToggleProps) {
   return (
     <label className={`flex items-center gap-2 cursor-pointer ${className}`}>
-      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+      <span className="text-sm text-white">{label}</span>
       <div className="relative inline-flex items-center">
         <input
           type="checkbox"
