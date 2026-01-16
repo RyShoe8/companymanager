@@ -32,7 +32,7 @@ export default function ProjectsPage() {
     setLoading(true);
     try {
       const [projectsRes, assetsRes, employeesRes] = await Promise.all([
-        fetch('/api/projects?status=active'),
+        fetch('/api/projects'),
         fetch('/api/assets'),
         fetch('/api/employees'),
       ]);
