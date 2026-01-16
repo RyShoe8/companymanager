@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 
@@ -30,8 +31,19 @@ export default function Navigation() {
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/planning-map" className="text-xl font-bold text-gray-900 dark:text-white">
-                Company Manager
+              <Link href="/planning-map" className="flex items-center gap-3">
+                <Image
+                  src="/images/icon.png"
+                  alt="Nucleas Logo"
+                  width={32}
+                  height={32}
+                  className="h-8 w-auto"
+                  priority
+                  unoptimized
+                />
+                <span className="text-xl font-bold text-gray-900 dark:text-white">
+                  Nucleas
+                </span>
               </Link>
             </div>
             <div className="ml-6 flex space-x-8">
