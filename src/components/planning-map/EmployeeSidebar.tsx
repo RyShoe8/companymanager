@@ -866,15 +866,26 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
             {/* Assigned Operations - Only show when expanded */}
             {isExpanded && (() => {
-              // Get operations directly from array (includes those without startDate)
-              const directOps = getOperationsForEmployeeDirect(employee.name);
-              const activeOps = directOps.filter(op => op.status !== 'complete');
-              
-              // Also get instances for operations with startDate to show date info
+              // Get instances for operations with startDate - these are already filtered by timeframe
               const employeeOps = getOperationsForEmployee(employee.name);
               const instanceMap = new Map();
               employeeOps.forEach(instance => {
                 instanceMap.set(instance.operation._id.toString(), instance);
+              });
+              
+              // Get operations directly from array (includes those without startDate)
+              // Only show operations that either:
+              // 1. Have an instance in the current timeframe (from instanceMap)
+              // 2. Don't have a startDate (ongoing commitments)
+              const directOps = getOperationsForEmployeeDirect(employee.name);
+              const activeOps = directOps.filter(op => {
+                if (op.status === 'complete') return false;
+                // Show if it has an instance in the current timeframe
+                if (instanceMap.has(op._id.toString())) return true;
+                // Show if it doesn't have a startDate (ongoing commitment)
+                if (!op.startDate) return true;
+                // Otherwise, don't show it (it's not in the current timeframe)
+                return false;
               });
               
               if (activeOps.length === 0) return null;

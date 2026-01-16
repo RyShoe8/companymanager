@@ -215,9 +215,9 @@ export default function PlanningMapPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px]">
-      <div className="w-full mx-auto pt-[50px] pb-8">
+      <div className="w-full mx-auto pt-[42px] pb-8">
         {/* Header with Planning, Timeframe Selector, and Buttons */}
-        <div className="mb-6">
+        <div className="mb-2">
           <div className="flex flex-row items-center gap-4">
             <h1 className="text-2xl sm:text-3xl font-bold text-text-primary whitespace-nowrap">Planning</h1>
             <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
