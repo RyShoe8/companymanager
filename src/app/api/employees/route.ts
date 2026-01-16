@@ -20,7 +20,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const employees = await Employee.find({ organizationId: user.organizationId }).sort({ name: 1 });
+    // Only return employees that have been accepted (have a userId)
+    // Employees without userId are pending invitations and shouldn't appear in utilization
+    const employees = await Employee.find({ 
+      organizationId: user.organizationId,
+      userId: { $exists: true, $ne: null }
+    }).sort({ name: 1 });
 
     return NextResponse.json(employees);
   } catch (error) {

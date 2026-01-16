@@ -161,18 +161,18 @@ export default function ProjectsPage() {
     return (
       <div className="min-h-screen bg-gray-900 px-[100px] max-md:px-4 py-8">
         <div className="max-w-7xl mx-auto">
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+          <p className="text-gray-300">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
+    <div className="min-h-screen bg-gray-900 px-[100px] max-md:px-4 py-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Projects</h1>
+            <h1 className="text-3xl font-bold text-white">Projects</h1>
             {currentUserEmployeeName && (
               <Toggle
                 label="Show only my assignments"
@@ -192,7 +192,7 @@ export default function ProjectsPage() {
           : projects
         ).length === 0 ? (
           <Card className="p-8 text-center">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">No active projects found.</p>
+            <p className="text-gray-300 mb-4">No active projects found.</p>
             <Button onClick={handleCreateProject}>Create Your First Project</Button>
           </Card>
         ) : (

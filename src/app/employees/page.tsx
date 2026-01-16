@@ -106,7 +106,7 @@ export default function EmployeesPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+        <div className="text-gray-300">Loading...</div>
       </div>
     );
   }
@@ -115,7 +115,7 @@ export default function EmployeesPage() {
     <div className="min-h-screen bg-gray-900 p-6">
       <div className="w-full mx-auto px-[100px] max-md:px-4">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Employees</h1>
+          <h1 className="text-3xl font-bold text-white">Employees</h1>
           {currentUserEmployee?.role === 'Administrator' && (
             <Button onClick={handleCreateEmployee}>+ New Employee</Button>
           )}
@@ -123,7 +123,7 @@ export default function EmployeesPage() {
 
         {employees.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">No employees yet. Create your first employee!</p>
+            <p className="text-gray-300 mb-4">No employees yet. Create your first employee!</p>
             <Button onClick={handleCreateEmployee}>Create Employee</Button>
           </div>
         ) : (
@@ -132,7 +132,7 @@ export default function EmployeesPage() {
               <Card key={employee._id.toString()} className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{employee.name}</h3>
+                    <h3 className="font-semibold text-white mb-1">{employee.name}</h3>
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-xs px-2 py-1 rounded ${
                         employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
@@ -150,13 +150,13 @@ export default function EmployeesPage() {
                       </span>
                     </div>
                     {employee.jobTitle && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{employee.jobTitle}</p>
+                      <p className="text-sm text-gray-300 mb-1">{employee.jobTitle}</p>
                     )}
-                    <p className="text-sm text-gray-500 dark:text-gray-500">
+                    <p className="text-sm text-gray-300">
                       {employee.weeklyHours} hours/week
                     </p>
                     {employee.email && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{employee.email}</p>
+                      <p className="text-xs text-gray-400 mt-1">{employee.email}</p>
                     )}
                   </div>
                   {currentUserEmployee?.role === 'Administrator' && (

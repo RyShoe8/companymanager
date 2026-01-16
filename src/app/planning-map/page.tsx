@@ -219,7 +219,7 @@ export default function PlanningMapPage() {
         {/* Header with Planning, Timeframe Selector, and Buttons */}
         <div className="mb-1">
           <div className="flex flex-row items-center gap-4">
-            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary whitespace-nowrap">Planning</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white whitespace-nowrap">Planning</h1>
             <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
             {isManagerOrAdmin && (
               <div className="flex gap-2">
@@ -234,7 +234,7 @@ export default function PlanningMapPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-text-primary">Calendar View</h2>
+              <h2 className="text-xl font-semibold text-white">Calendar View</h2>
               <Toggle
                 label="Show only my assignments"
                 checked={showOnlyMyAssignments}
