@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate timeframeType
-    const validTimeframeTypes = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
+    const validTimeframeTypes = ['today', 'weekly', 'monthly', 'quarterly', 'yearly'];
     if (!validTimeframeTypes.includes(timeframeType)) {
       return NextResponse.json({ error: 'Invalid timeframeType' }, { status: 400 });
     }
