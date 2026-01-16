@@ -195,3 +195,50 @@ export async function deleteBrevoContact(email: string): Promise<void> {
     }
   }
 }
+
+export interface SendEmailData {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+}
+
+/**
+ * Send a generic email via Brevo
+ */
+export async function sendEmail(data: SendEmailData): Promise<void> {
+  if (!apiInstance) {
+    throw new Error('Brevo API is not configured. Please set BREVO_API_KEY environment variable.');
+  }
+
+  const sendSmtpEmail = new brevo.SendSmtpEmail();
+  
+  sendSmtpEmail.subject = data.subject;
+  sendSmtpEmail.to = [{ email: data.to }];
+  
+  // Brevo requires a sender email - it must be set explicitly
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  if (!senderEmail) {
+    const errorMsg = 'BREVO_SENDER_EMAIL is required but not set. Please add BREVO_SENDER_EMAIL to your .env.local file with a verified sender email from your Brevo account.';
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  sendSmtpEmail.sender = {
+    email: senderEmail,
+    name: process.env.BREVO_SENDER_NAME || 'Company Manager',
+  };
+
+  sendSmtpEmail.htmlContent = data.html;
+  
+  if (data.text) {
+    sendSmtpEmail.textContent = data.text;
+  }
+
+  try {
+    await apiInstance.sendTransacEmail(sendSmtpEmail);
+  } catch (error: any) {
+    console.error('Error sending email:', error?.message || error);
+    throw error;
+  }
+}
