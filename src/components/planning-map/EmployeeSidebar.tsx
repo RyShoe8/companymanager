@@ -788,19 +788,19 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                     className="flex items-center gap-2 flex-1 text-left hover:opacity-80 transition-opacity"
                   >
                     <svg
-                      className={`w-4 h-4 text-gray-300 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                      className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    <h4 className="font-semibold text-white">{employee.name}</h4>
+                    <h4 className="font-semibold text-gray-900">{employee.name}</h4>
                   </button>
                   <span className={`text-xs px-1.5 py-0.5 rounded ${
-                    employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                    employee.role === 'Manager' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                    employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
+                    employee.role === 'Manager' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
                   }`}>
                     {employee.role}
                   </span>
@@ -809,7 +809,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               
               {/* Utilization Bar - Always visible */}
               <div className="mb-2">
-                <div className="flex justify-between text-xs text-gray-300 mb-1">
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
                   <span>Utilization</span>
                   <span>{utilizationPercent}%</span>
                 </div>
@@ -830,12 +830,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             {isExpanded && (
               <>
                 {employee.jobTitle && (
-                  <p className="text-sm text-gray-300 mb-2">{employee.jobTitle}</p>
+                  <p className="text-sm text-gray-600 mb-2">{employee.jobTitle}</p>
                 )}
                 <span className={`text-xs px-2 py-0.5 rounded inline-block mb-3 ${
-                  employee.employeeType === 'full-time' ? 'bg-blue-900 text-blue-200' :
-                  employee.employeeType === 'part-time' ? 'bg-green-900 text-green-200' :
-                  'bg-purple-900 text-purple-200'
+                  employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800' :
+                  employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800' :
+                  'bg-purple-100 text-purple-800'
                 }`}>
                   {employee.employeeType === 'full-time' ? 'Full-Time' :
                    employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
@@ -843,20 +843,20 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-300">Available:</span>
-                    <span className="font-medium text-white">{totalHours}h</span>
+                    <span className="text-gray-600">Available:</span>
+                    <span className="font-medium text-gray-900">{totalHours}h</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-300">Committed:</span>
-                    <span className="font-medium text-orange-400">{committedHours}h</span>
+                    <span className="text-gray-600">Committed:</span>
+                    <span className="font-medium text-orange-600">{committedHours}h</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-300">Completed:</span>
-                    <span className="font-medium text-green-400">{completedHours}h</span>
+                    <span className="text-gray-600">Completed:</span>
+                    <span className="font-medium text-green-600">{completedHours}h</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-300">Remaining:</span>
-                    <span className={`font-medium ${availableHours > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className="text-gray-600">Remaining:</span>
+                    <span className={`font-medium ${availableHours > 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {availableHours}h
                     </span>
                   </div>
@@ -891,8 +891,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               if (activeOps.length === 0) return null;
               
               return (
-                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Operations:</p>
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Assigned Operations:</p>
                   <div className="space-y-1 max-h-[200px] overflow-y-auto">
                     {activeOps.map((operation, idx) => {
                       const instance = instanceMap.get(operation._id.toString());
@@ -919,11 +919,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       return (
                         <div key={`operation-${operation._id.toString()}-${idx}`} className="text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-700 dark:text-gray-300 truncate flex-1">
+                            <span className="text-gray-700 truncate flex-1">
                               {operation.name}
                             </span>
                             {hoursInRange > 0 && (
-                              <span className="text-gray-600 dark:text-gray-400 ml-2">{hoursInRange.toFixed(1)}h</span>
+                              <span className="text-gray-600 ml-2">{hoursInRange.toFixed(1)}h</span>
                             )}
                           </div>
                           <div className="text-gray-500 dark:text-gray-500 text-[10px] mt-0.5">
@@ -947,7 +947,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               
               return (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Projects:</p>
+                  <p className="text-xs font-medium text-gray-700 mb-2">Assigned Projects:</p>
                   <div className="space-y-1 max-h-[300px] overflow-y-auto">
                     {projectsToShow.map((project) => {
                       const projectStart = new Date(project.startDate);
@@ -1020,11 +1020,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                               className="text-xs p-1.5 rounded"
                               style={{ backgroundColor: project.color + '20' }}
                             >
-                              <div className="font-medium text-gray-900 dark:text-white truncate">
+                              <div className="font-medium text-gray-900 truncate">
                                 {project.name}
                               </div>
                               {totalProjectHours > 0 && (
-                                <div className="text-gray-600 dark:text-gray-400">
+                                <div className="text-gray-600">
                                   {totalProjectHours}h
                                 </div>
                               )}
@@ -1038,10 +1038,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                               className="text-xs p-1.5 rounded ml-3"
                               style={{ backgroundColor: project.color + '15' }}
                             >
-                              <div className="text-gray-700 dark:text-gray-300 truncate">
+                              <div className="text-gray-700 truncate">
                                 • {stageInfo.name}
                               </div>
-                              <div className="text-gray-600 dark:text-gray-400">
+                              <div className="text-gray-600">
                                 {stageInfo.hours}h
                               </div>
                             </div>
