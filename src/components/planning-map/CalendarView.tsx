@@ -209,8 +209,17 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       else if (operation.recurrenceType === 'none') {
         const instanceStart = new Date(operationStart);
         instanceStart.setHours(0, 0, 0, 0);
-        const instanceEnd = new Date(instanceStart);
-        instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+        let instanceEnd: Date;
+        if (operation.endDate) {
+          // Use the operation's actual endDate
+          const endDateObj = new Date(operation.endDate);
+          const endDateStr = endDateObj.toISOString().split('T')[0];
+          const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+          instanceEnd = new Date(endYear, endMonth - 1, endDay);
+        } else {
+          // No endDate means single day operation
+          instanceEnd = new Date(operationStart);
+        }
         instanceEnd.setHours(23, 59, 59, 999);
         
         // Only add if it overlaps with the view range
