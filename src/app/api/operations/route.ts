@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
-    // Check if user is a Manager or Administrator
+    // Get current user's employee record and role
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const userRole = currentUserEmployee?.role || 'User';
 
     // Find all users in the same organization
     const orgUsers = await User.find({ organizationId: user.organizationId });
@@ -39,9 +39,23 @@ export async function GET(request: NextRequest) {
       query.status = status;
     }
 
-    // If user is not a Manager or Administrator, filter to only assigned operations
-    if (!isManagerOrAdmin && currentUserEmployee) {
-      query.assignedTo = currentUserEmployee.name;
+    // Role-based filtering:
+    // - Administrators: see all operations (no additional filter)
+    // - Managers: see only operations they created (filter by userId)
+    // - Users: see only operations they're assigned to
+    if (userRole === 'Administrator') {
+      // Administrators see all operations - no additional filtering needed
+    } else if (userRole === 'Manager') {
+      // Managers see only operations they created
+      query.userId = session.userId;
+    } else {
+      // Users see only operations they're assigned to
+      if (currentUserEmployee) {
+        query.assignedTo = currentUserEmployee.name;
+      } else {
+        // If no employee record, return empty array
+        query._id = { $exists: false };
+      }
     }
 
     const operations = await Operation.find(query).sort({ createdAt: -1 });

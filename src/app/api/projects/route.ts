@@ -18,9 +18,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
-    // Check if user is a Manager or Administrator
+    // Get current user's employee record and role
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const userRole = currentUserEmployee?.role || 'User';
 
     // Find all users in the same organization
     const orgUsers = await User.find({ organizationId: user.organizationId });
@@ -36,13 +36,27 @@ export async function GET(request: NextRequest) {
       query.status = status;
     }
 
-    // If user is not a Manager or Administrator, filter to only assigned projects
-    if (!isManagerOrAdmin && currentUserEmployee) {
-      const employeeName = currentUserEmployee.name;
-      query.$or = [
-        { assignedTo: employeeName },
-        { 'stages.assignedTo': employeeName }
-      ];
+    // Role-based filtering:
+    // - Administrators: see all projects (no additional filter)
+    // - Managers: see only projects they created (filter by userId)
+    // - Users: see only projects they're assigned to
+    if (userRole === 'Administrator') {
+      // Administrators see all projects - no additional filtering needed
+    } else if (userRole === 'Manager') {
+      // Managers see only projects they created
+      query.userId = session.userId;
+    } else {
+      // Users see only projects they're assigned to
+      if (currentUserEmployee) {
+        const employeeName = currentUserEmployee.name;
+        query.$or = [
+          { assignedTo: employeeName },
+          { 'stages.assignedTo': employeeName }
+        ];
+      } else {
+        // If no employee record, return empty array
+        query._id = { $exists: false };
+      }
     }
 
     const projects = await Project.find(query).sort({ startDate: 1 });
