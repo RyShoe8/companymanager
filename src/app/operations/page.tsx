@@ -7,6 +7,7 @@ import { IAsset } from '@/lib/models/Asset';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import Toggle from '@/components/ui/Toggle';
 import OperationForm from '@/components/planning-map/OperationForm';
 import { IEmployee } from '@/lib/models/Employee';
 
@@ -18,6 +19,8 @@ export default function OperationsPage() {
   const [showOperationForm, setShowOperationForm] = useState(false);
   const [editingOperation, setEditingOperation] = useState<IOperation | undefined>();
   const [uploadingAsset, setUploadingAsset] = useState<string | null>(null);
+  const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
+  const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
 
   useEffect(() => {
@@ -28,7 +31,7 @@ export default function OperationsPage() {
     setLoading(true);
     try {
       const [operationsRes, assetsRes, employeesRes] = await Promise.all([
-        fetch('/api/operations'),
+        fetch('/api/operations?status=active'),
         fetch('/api/assets'),
         fetch('/api/employees'),
       ]);
@@ -42,8 +45,17 @@ export default function OperationsPage() {
       const assetsData = await assetsRes.json();
       const employeesData = await employeesRes.json();
 
-      // Debug: Log operations to see if duplicates are being returned
-      console.log('Operations loaded:', operationsData.length, operationsData.map((op: IOperation) => ({ id: op._id, name: op.name })));
+      // Get current user's employee name
+      try {
+        const userResponse = await fetch('/api/auth/me');
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+          setCurrentUserEmployeeName(currentEmployee?.name || null);
+        }
+      } catch (error) {
+        console.error('Error loading current user:', error);
+      }
 
       setOperations(operationsData);
       setAssets(assetsData);
@@ -138,7 +150,7 @@ export default function OperationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
         <div className="max-w-7xl mx-auto">
           <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
@@ -147,21 +159,36 @@ export default function OperationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-[100px] max-md:px-4 py-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Operations</h1>
-          <Button onClick={handleCreateOperation} className="w-full sm:w-auto">+ New Operation</Button>
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Operations</h1>
+            {currentUserEmployeeName && (
+              <Toggle
+                label="Show only my assignments"
+                checked={showOnlyAssigned}
+                onChange={setShowOnlyAssigned}
+              />
+            )}
+          </div>
+          <Button onClick={handleCreateOperation}>+ New Operation</Button>
         </div>
 
-        {operations.length === 0 ? (
+        {(showOnlyAssigned && currentUserEmployeeName
+          ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
+          : operations
+        ).length === 0 ? (
           <Card className="p-8 text-center">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">No operations found.</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">No active operations found.</p>
             <Button onClick={handleCreateOperation}>Create Your First Operation</Button>
           </Card>
         ) : (
           <div className="space-y-4">
-            {operations.map((operation) => {
+            {(showOnlyAssigned && currentUserEmployeeName
+              ? operations.filter(o => o.assignedTo === currentUserEmployeeName)
+              : operations
+            ).map((operation) => {
               const operationAssets = getOperationAssets(operation._id.toString());
               return (
                 <Card key={operation._id.toString()} className="p-6">
@@ -169,9 +196,6 @@ export default function OperationsPage() {
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                         {operation.name}
-                        <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
-                          (ID: {operation._id.toString().slice(-6)})
-                        </span>
                       </h2>
                       {operation.description && (
                         <p className="text-gray-600 dark:text-gray-400 mb-2">{operation.description}</p>

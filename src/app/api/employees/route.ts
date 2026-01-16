@@ -170,8 +170,13 @@ export async function POST(request: NextRequest) {
       // Send invitation email (only if we have a token)
       if (invitation && invitation.token) {
         try {
-          // Get base URL from request URL to ensure it uses the correct domain
-          const baseUrl = new URL(request.url).origin;
+          // Get base URL from request headers or environment
+          const origin = request.headers.get('origin') || request.headers.get('host');
+          let baseUrl: string | undefined;
+          if (origin) {
+            // If origin is a full URL, use it; otherwise construct from host
+            baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
+          }
           const { getInvitationLink } = await import('@/lib/utils/invitation');
           const invitationLink = getInvitationLink(invitation.token, baseUrl);
           await sendInvitationEmail({
@@ -182,7 +187,6 @@ export async function POST(request: NextRequest) {
             invitationLink,
             role,
             expiresInDays: 7,
-            baseUrl, // Pass baseUrl so logo uses the same domain
           });
         } catch (emailError: any) {
           console.error('Failed to send invitation email:', emailError?.message || emailError);

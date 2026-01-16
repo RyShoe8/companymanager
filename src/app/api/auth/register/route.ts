@@ -1,57 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/mongodb';
-import User, { IUser } from '@/lib/models/User';
+import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
-import Organization from '@/lib/models/Organization';
 import { createSession } from '@/lib/auth/session';
-import { isValidEmail, sanitizeString, isValidObjectId } from '@/lib/utils/security';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    let { email, password, name, invitationToken } = body;
+    const { email, password, name, invitationToken } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
-
-    // Sanitize and validate inputs
-    email = sanitizeString(email, 254);
-    password = password.trim();
-    name = name ? sanitizeString(name, 100) : undefined;
-
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
-    }
-
-    // Validate email format
-    if (!isValidEmail(email)) {
-      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
-    }
-
-    if (password.length > 128) {
-      return NextResponse.json({ error: 'Password is too long' }, { status: 400 });
-    }
-
-    // Validate invitation token format if provided
-    if (invitationToken && !isValidObjectId(invitationToken) && invitationToken.length > 100) {
-      return NextResponse.json({ error: 'Invalid invitation token' }, { status: 400 });
-    }
-
-    // Lowercase email to match database storage (User model has lowercase: true)
-    email = email.toLowerCase();
 
     await connectDB();
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return NextResponse.json({ error: 'User already exists' }, { status: 400 });
     }
@@ -59,9 +26,8 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let organizationId: string | undefined;
+    let organizationId: string;
     let employeeId: string | undefined;
-    let isJoiningExistingOrg = false;
 
     // If invitation token is provided, validate it and use the invitation's organization
     if (invitationToken) {
@@ -100,76 +66,20 @@ export async function POST(request: NextRequest) {
       invitation.status = 'accepted';
       await invitation.save();
     } else {
-      // No invitation - check if there's an existing organization with matching domain
-      const emailDomain = email.split('@')[1]?.toLowerCase();
-
-      if (emailDomain) {
-        // First, try to find organization with matching domain
-        const existingOrganization = await Organization.findOne({ domain: emailDomain });
-        
-        if (existingOrganization) {
-          // Find the admin user for this organization
-          const existingOrgAdmin = await User.findById(existingOrganization.userId);
-          
-          if (existingOrgAdmin && existingOrgAdmin.organizationId) {
-            // Join existing organization
-            organizationId = existingOrgAdmin.organizationId;
-            isJoiningExistingOrg = true;
-          }
-        } else {
-          // If no organization with domain found, check for ANY user with same domain
-          // This handles cases where domain wasn't set or second user signs up before domain is set
-          const existingUserWithDomain = await User.findOne({
-            email: { $regex: `@${emailDomain}$`, $options: 'i' },
-          });
-          
-          if (existingUserWithDomain && existingUserWithDomain.organizationId) {
-            // Join the organization of the first user found with same domain
-            organizationId = existingUserWithDomain.organizationId;
-            isJoiningExistingOrg = true;
-            
-            // Check if the organization admin has completed setup
-            const orgAdminId = existingUserWithDomain.organizationId;
-            const orgAdmin = await User.findById(orgAdminId);
-            if (orgAdmin && orgAdmin.organizationSetupComplete) {
-              // Organization is already set up, so new user doesn't need to set it up
-              isJoiningExistingOrg = true;
-            }
-          }
-        }
-      }
-
-      // If no existing organization found, create new one (user will be admin)
-      if (!organizationId) {
-        organizationId = `temp-${Date.now()}`;
-      }
-    }
-
-    // Ensure organizationId is set (TypeScript guard)
-    if (!organizationId) {
+      // No invitation - create new organization (user is admin)
       organizationId = `temp-${Date.now()}`;
     }
 
-    // Determine if organization setup is complete
-    // If joining existing org, check if the org admin has completed setup
-    let orgSetupComplete = !!invitationToken;
-    if (isJoiningExistingOrg && organizationId) {
-      const orgAdminId = organizationId;
-      const orgAdmin = await User.findById(orgAdminId);
-      orgSetupComplete = orgAdmin ? !!orgAdmin.organizationSetupComplete : false;
-    }
-
-    // Create user (email is already lowercased above)
+    // Create user
     const user = await User.create({
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       name,
       organizationId,
-      organizationSetupComplete: orgSetupComplete,
     });
 
-    // If no invitation and not joining existing org, set organizationId to user's own ID (they are the organization admin)
-    if (!invitationToken && !isJoiningExistingOrg) {
+    // If no invitation, set organizationId to user's own ID (they are the organization admin)
+    if (!invitationToken) {
       user.organizationId = user._id.toString();
       await user.save();
       organizationId = user._id.toString();
@@ -187,22 +97,12 @@ export async function POST(request: NextRequest) {
         }
         await employee.save();
       }
-    } else if (isJoiningExistingOrg) {
-      // Create employee record for user joining existing organization
-      await Employee.create({
-        name: name || email.split('@')[0],
-        role: 'User',
-        weeklyHours: 0,
-        employeeType: 'full-time',
-        userId: user._id,
-        organizationId: organizationId,
-      });
     } else {
       // Create admin employee record for the user (new organization)
       await Employee.create({
         name: name || email.split('@')[0],
         role: 'Administrator',
-        weeklyHours: 0,
+        weeklyHours: 40,
         employeeType: 'full-time',
         userId: user._id,
         organizationId: user._id.toString(),
@@ -212,17 +112,13 @@ export async function POST(request: NextRequest) {
     // Create session
     await createSession(user._id.toString(), user.email);
 
-    // Refresh user to ensure we have the latest data (in case of any middleware updates)
-    const refreshedUser = await User.findById(user._id);
-
     return NextResponse.json(
       {
         message: invitationToken ? 'Account created successfully. Welcome to the team!' : 'User created successfully',
         user: {
-          id: refreshedUser!._id.toString(),
-          email: refreshedUser!.email,
-          name: refreshedUser!.name,
-          organizationSetupComplete: refreshedUser!.organizationSetupComplete,
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
         },
       },
       { status: 201 }

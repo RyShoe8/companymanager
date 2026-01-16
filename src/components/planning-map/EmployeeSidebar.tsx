@@ -828,7 +828,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               return (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Operations:</p>
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-[200px] overflow-y-auto">
                     {activeOps.map((instance, idx) => {
                       const operation = instance.operation;
                       // Ensure we're using a number, not a string
@@ -876,7 +876,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               return (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Projects:</p>
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-[300px] overflow-y-auto">
                     {projectsToShow.map((project) => {
                       const projectStart = new Date(project.startDate);
                       const projectEnd = new Date(project.endDate);

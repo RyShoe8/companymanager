@@ -16,7 +16,7 @@ interface ProjectFormProps {
   userRole?: 'Administrator' | 'Manager' | 'User';
 }
 
-export default function ProjectForm({ project, timeframeType, onSubmit, onCancel, userRole }: ProjectFormProps) {
+export default function ProjectForm({ project, timeframeType, onSubmit, onCancel }: ProjectFormProps) {
   const router = useRouter();
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
@@ -103,11 +103,6 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Note: If stages exist, estimatedHours will be auto-calculated from incomplete stages on the backend
-    // So we don't need to validate stage hours against project hours when stages exist
-    // The validation only applies when there are no stages and estimatedHours is manually entered
-    
     const submitData: Partial<IProject> = {
       name,
       description,
@@ -146,14 +141,6 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     { value: '#ec4899', label: 'Pink' },
     { value: '#06b6d4', label: 'Cyan' },
     { value: '#84cc16', label: 'Lime' },
-    { value: '#f97316', label: 'Orange' },
-    { value: '#14b8a6', label: 'Teal' },
-    { value: '#6366f1', label: 'Indigo' },
-    { value: '#a855f7', label: 'Violet' },
-    { value: '#64748b', label: 'Slate' },
-    { value: '#eab308', label: 'Yellow' },
-    { value: '#22c55e', label: 'Emerald' },
-    { value: '#0ea5e9', label: 'Sky' },
   ];
 
   return (
@@ -179,7 +166,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         placeholder="https://example.com"
         disabled={isRegularUser}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Input
           label="Start Date or Single Date"
           type="date"
@@ -197,15 +184,15 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           disabled={isRegularUser}
         />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Input
           label="Estimated Hours (optional)"
           type="number"
           min="0"
-          step="0.01"
+          step="0.5"
           value={estimatedHours}
           onChange={(e) => setEstimatedHours(e.target.value)}
-          placeholder="e.g., 40 or 0.25 (15 min)"
+          placeholder="e.g., 40"
           disabled={isRegularUser}
         />
         <Select
@@ -219,7 +206,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           ]}
         />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Select
           label="Color"
           value={color}
@@ -303,7 +290,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   value={stage.description || ''}
                   onChange={(e) => updateStage(index, 'description', e.target.value)}
                 />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Input
                     label="Start Date"
                     type="date"
@@ -319,15 +306,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     required
                   />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Input
                     label="Estimated Hours (optional)"
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="0.5"
                     value={stage.estimatedHours?.toString() || ''}
                     onChange={(e) => updateStage(index, 'estimatedHours', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    placeholder="e.g., 0.25 (15 min)"
                   />
                   <Select
                     label="Assigned To (optional)"

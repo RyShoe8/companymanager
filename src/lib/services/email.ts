@@ -37,7 +37,6 @@ export interface InvitationEmailData {
   invitationLink: string;
   role: string;
   expiresInDays: number;
-  baseUrl?: string; // Optional base URL for logo image
 }
 
 /**
@@ -50,110 +49,63 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
 
   const sendSmtpEmail = new brevo.SendSmtpEmail();
   
-  sendSmtpEmail.subject = `You've been invited to join ${data.organizationName || 'Nucleas'}`;
+  sendSmtpEmail.subject = `You've been invited to join ${data.organizationName || 'Company Manager'}`;
   sendSmtpEmail.to = [{ email: data.recipientEmail, name: data.recipientName || data.recipientEmail }];
   
-  // Brevo requires a sender email - default to theteam@nucleas.app, but allow override via env
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || 'theteam@nucleas.app';
+  // Brevo requires a sender email - it must be set explicitly
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  if (!senderEmail) {
+    const errorMsg = 'BREVO_SENDER_EMAIL is required but not set. Please add BREVO_SENDER_EMAIL to your .env.local file with a verified sender email from your Brevo account.';
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
   
   sendSmtpEmail.sender = {
     email: senderEmail,
-    name: process.env.BREVO_SENDER_NAME || 'Nucleas',
+    name: process.env.BREVO_SENDER_NAME || 'Company Manager',
   };
 
-  // Get base URL for logo image - use provided baseUrl or determine from environment
-  let logoBaseUrl = data.baseUrl;
-  if (!logoBaseUrl) {
-    logoBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
-    if (!logoBaseUrl) {
-      if (process.env.VERCEL_URL) {
-        const vercelUrl = process.env.VERCEL_URL;
-        logoBaseUrl = vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
-      } else {
-        logoBaseUrl = 'http://localhost:3000';
-      }
-    }
-  }
-  logoBaseUrl = logoBaseUrl.replace(/\/$/, '');
-  const logoUrl = `${logoBaseUrl}/images/Nucleas.png`;
-
-  // HTML email template with Nucleas branding
+  // HTML email template
   sendSmtpEmail.htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Invitation to Nucleas</title>
+      <title>Invitation to Company Manager</title>
     </head>
-    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F7F8FC; line-height: 1.6;">
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #F7F8FC;">
-        <tr>
-          <td align="center" style="padding: 40px 20px;">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #FFFFFF; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <!-- Header with Logo -->
-              <tr>
-                <td style="background-color: #347AF6; padding: 32px 40px; text-align: center;">
-                  <img src="${logoUrl}" alt="Nucleas" style="height: 40px; width: auto; max-width: 200px;" />
-                </td>
-              </tr>
-              
-              <!-- Content -->
-              <tr>
-                <td style="padding: 40px;">
-                  <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600; color: #202637;">You've been invited!</h1>
-                  <p style="margin: 0 0 24px 0; font-size: 16px; color: #202637;">Hi ${data.recipientName || 'there'},</p>
-                  <p style="margin: 0 0 24px 0; font-size: 16px; color: #5E677D; line-height: 1.6;">
-                    <strong style="color: #202637;">${data.inviterName}</strong> has invited you to join <strong style="color: #202637;">${data.organizationName || 'their organization'}</strong> as a <strong style="color: #347AF6;">${data.role}</strong>.
-                  </p>
-                  
-                  <!-- CTA Button -->
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                    <tr>
-                      <td align="center" style="padding: 32px 0;">
-                        <a href="${data.invitationLink}" 
-                           style="background-color: #347AF6; color: #FFFFFF; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; font-size: 16px; transition: background-color 0.2s;">
-                          Accept Invitation
-                        </a>
-                      </td>
-                    </tr>
-                  </table>
-                  
-                  <!-- Expiration Notice -->
-                  <p style="margin: 24px 0 0 0; font-size: 14px; color: #5E677D;">
-                    This invitation will expire in ${data.expiresInDays} day${data.expiresInDays !== 1 ? 's' : ''}.
-                  </p>
-                  
-                  <!-- Alternative Link -->
-                  <p style="margin: 32px 0 0 0; font-size: 14px; color: #5E677D;">
-                    If the button doesn't work, copy and paste this link into your browser:<br>
-                    <a href="${data.invitationLink}" style="color: #347AF6; word-break: break-all; text-decoration: underline;">${data.invitationLink}</a>
-                  </p>
-                </td>
-              </tr>
-              
-              <!-- Footer -->
-              <tr>
-                <td style="padding: 24px 40px; background-color: #F7F8FC; border-top: 1px solid #E1E5EE;">
-                  <p style="margin: 0; font-size: 12px; color: #5E677D; text-align: center;">
-                    If you didn't expect this invitation, you can safely ignore this email.
-                  </p>
-                  <p style="margin: 16px 0 0 0; font-size: 12px; color: #5E677D; text-align: center;">
-                    © ${new Date().getFullYear()} Nucleas. All rights reserved.
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #3b82f6; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0;">Company Manager</h1>
+      </div>
+      <div style="background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
+        <h2 style="color: #1f2937; margin-top: 0;">You've been invited!</h2>
+        <p>Hi ${data.recipientName || 'there'},</p>
+        <p><strong>${data.inviterName}</strong> has invited you to join <strong>${data.organizationName || 'their organization'}</strong> as a <strong>${data.role}</strong>.</p>
+        <p style="margin: 30px 0;">
+          <a href="${data.invitationLink}" 
+             style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Accept Invitation
+          </a>
+        </p>
+        <p style="color: #6b7280; font-size: 14px;">
+          This invitation will expire in ${data.expiresInDays} day${data.expiresInDays !== 1 ? 's' : ''}.
+        </p>
+        <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+          If the button doesn't work, copy and paste this link into your browser:<br>
+          <a href="${data.invitationLink}" style="color: #3b82f6; word-break: break-all;">${data.invitationLink}</a>
+        </p>
+        <p style="color: #6b7280; font-size: 12px; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          If you didn't expect this invitation, you can safely ignore this email.
+        </p>
+      </div>
     </body>
     </html>
   `;
 
   // Plain text version
   sendSmtpEmail.textContent = `
-You've been invited to join ${data.organizationName || 'Nucleas'}!
+You've been invited to join ${data.organizationName || 'Company Manager'}!
 
 Hi ${data.recipientName || 'there'},
 
@@ -241,47 +193,5 @@ export async function deleteBrevoContact(email: string): Promise<void> {
       console.error('Error deleting contact from Brevo:', error);
       // Don't throw - we don't want to fail employee deletion if Brevo fails
     }
-  }
-}
-
-export interface SendEmailData {
-  to: string;
-  subject: string;
-  html: string;
-  text?: string;
-}
-
-/**
- * Send a generic email via Brevo
- */
-export async function sendEmail(data: SendEmailData): Promise<void> {
-  if (!apiInstance) {
-    throw new Error('Brevo API is not configured. Please set BREVO_API_KEY environment variable.');
-  }
-
-  const sendSmtpEmail = new brevo.SendSmtpEmail();
-  
-  sendSmtpEmail.subject = data.subject;
-  sendSmtpEmail.to = [{ email: data.to }];
-  
-  // Brevo requires a sender email - default to theteam@nucleas.app, but allow override via env
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || 'theteam@nucleas.app';
-  
-  sendSmtpEmail.sender = {
-    email: senderEmail,
-    name: process.env.BREVO_SENDER_NAME || 'Nucleas',
-  };
-
-  sendSmtpEmail.htmlContent = data.html;
-  
-  if (data.text) {
-    sendSmtpEmail.textContent = data.text;
-  }
-
-  try {
-    await apiInstance.sendTransacEmail(sendSmtpEmail);
-  } catch (error: any) {
-    console.error('Error sending email:', error?.message || error);
-    throw error;
   }
 }

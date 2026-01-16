@@ -3,7 +3,6 @@ import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
-import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -41,15 +40,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
+    const { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
 
     await connectDB();
     const { id } = await params;
-
-    // Validate ObjectId format
-    if (!isValidObjectId(id)) {
-      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
 
     // Get user's organizationId
     const user = await User.findById(session.userId);
@@ -93,10 +87,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Sanitize string inputs
-    if (name !== undefined) project.name = sanitizeString(name, 200);
-    if (description !== undefined) project.description = sanitizeString(description, 2000);
-    if (url !== undefined) project.url = sanitizeString(url, 500);
+    if (name !== undefined) project.name = name;
+    if (description !== undefined) project.description = description;
+    if (url !== undefined) project.url = url;
     if (startDate !== undefined) project.startDate = new Date(startDate);
     if (endDate !== undefined) project.endDate = new Date(endDate);
     if (timeframeType !== undefined) project.timeframeType = timeframeType;
@@ -119,13 +112,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           assignedTo: stage.assignedTo || undefined,
           status: stage.status || 'planning',
         }));
-        
-        // The pre-save hook will automatically recalculate estimatedHours from incomplete stages
-        // No need to manually calculate here - let the model handle it
       } else {
         project.stages = [];
-        // If stages are removed, keep the manually entered estimatedHours
-        // The pre-save hook will handle this case
       }
     }
 
@@ -145,11 +133,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     await connectDB();
     const { id } = await params;
-
-    // Validate ObjectId format
-    if (!isValidObjectId(id)) {
-      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
 
     // Get user's organizationId
     const user = await User.findById(session.userId);

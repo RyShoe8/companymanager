@@ -124,8 +124,13 @@ export async function POST(request: NextRequest) {
 
     // Send invitation email
     try {
-      // Get base URL from request URL to ensure it uses the correct domain
-      const baseUrl = new URL(request.url).origin;
+      // Get base URL from request headers or environment
+      const origin = request.headers.get('origin') || request.headers.get('host');
+      let baseUrl: string | undefined;
+      if (origin) {
+        // If origin is a full URL, use it; otherwise construct from host
+        baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
+      }
       const invitationLink = getInvitationLink(token, baseUrl);
       await sendInvitationEmail({
         recipientEmail: email.toLowerCase(),
@@ -135,7 +140,6 @@ export async function POST(request: NextRequest) {
         invitationLink,
         role: role || 'User',
         expiresInDays: 7,
-        baseUrl, // Pass baseUrl so logo uses the same domain
       });
     } catch (emailError) {
       console.error('Failed to send invitation email:', emailError);

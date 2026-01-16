@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
-import { sanitizeString } from '@/lib/utils/security';
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,41 +77,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    let { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
-
-    // Sanitize string inputs
-    name = sanitizeString(name, 200);
-    description = description ? sanitizeString(description, 2000) : undefined;
-    url = url ? sanitizeString(url, 500) : undefined;
-    assignedTo = assignedTo ? sanitizeString(assignedTo, 100) : undefined;
+    const { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
 
     if (!name || !startDate || !endDate || !timeframeType) {
       return NextResponse.json(
         { error: 'Name, startDate, endDate, and timeframeType are required' },
         { status: 400 }
       );
-    }
-
-    // Validate timeframeType
-    const validTimeframeTypes = ['today', 'weekly', 'monthly', 'quarterly', 'yearly'];
-    if (!validTimeframeTypes.includes(timeframeType)) {
-      return NextResponse.json({ error: 'Invalid timeframeType' }, { status: 400 });
-    }
-
-    // Validate status
-    const validStatuses = ['planning', 'active', 'in-review', 'completed', 'cancelled'];
-    if (status && !validStatuses.includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-
-    // Validate dates
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
-    }
-    if (start > end) {
-      return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
     }
 
     const projectData: any = {
@@ -141,10 +112,6 @@ export async function POST(request: NextRequest) {
         startDate: new Date(stage.startDate),
         endDate: new Date(stage.endDate),
       }));
-      
-      // The pre-save hook will automatically calculate estimatedHours from incomplete stages
-      // If stages exist with hours, it will override the manual estimatedHours
-      // If no stages have hours, the manual estimatedHours will be kept
     }
 
     const project = await Project.create(projectData);

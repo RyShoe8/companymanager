@@ -61,7 +61,7 @@ const ProjectSchema: Schema = new Schema(
     color: {
       type: String,
       required: true,
-      default: '#347AF6', // Nucleus Blue
+      default: '#3b82f6', // blue-500
     },
     status: {
       type: String,
@@ -120,35 +120,6 @@ const ProjectSchema: Schema = new Schema(
     timestamps: true,
   }
 );
-
-// Helper function to calculate estimated hours from incomplete stages
-function calculateEstimatedHoursFromStages(stages: IProjectStage[]): number | undefined {
-  if (!stages || stages.length === 0) {
-    return undefined;
-  }
-  
-  const totalHours = stages
-    .filter(stage => stage.status !== 'complete')
-    .reduce((sum, stage) => sum + (stage.estimatedHours || 0), 0);
-  
-  return totalHours > 0 ? totalHours : undefined;
-}
-
-// Pre-save hook to automatically calculate estimatedHours from stages
-ProjectSchema.pre('save', function(this: IProject) {
-  // Only recalculate if stages exist and have at least one stage with hours
-  if (this.stages && this.stages.length > 0) {
-    const hasStagesWithHours = this.stages.some(stage => stage.estimatedHours && stage.estimatedHours > 0);
-    
-    if (hasStagesWithHours) {
-      const calculatedHours = calculateEstimatedHoursFromStages(this.stages);
-      // Update estimatedHours based on incomplete stages
-      this.estimatedHours = calculatedHours;
-    }
-    // If stages exist but none have hours, keep the existing estimatedHours (manual entry)
-  }
-  // If no stages exist, keep the existing estimatedHours (manual entry)
-});
 
 const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);
 

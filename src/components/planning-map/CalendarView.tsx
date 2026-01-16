@@ -344,7 +344,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   {todayOperations.map((instance, idx) => {
                     const totalDays = Math.ceil((instance.endDate.getTime() - instance.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                     const operation = instance.operation;
-                    const color = operation.status === 'in-review' ? '#FFAB00' : '#40C9DB'; // Warning for in-review, Teal Cyan (accent) for others
+                    const color = operation.status === 'in-review' ? '#FFAB00' : '#9ca3af'; // Warning for in-review, light grey for others
 
                     return (
                       <div
@@ -666,7 +666,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               const topPosition = baseTop + (stackPositions[idx] * rowHeight);
               const isOperation = pos.type === 'operation';
               const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
-              const baseColor = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
+              const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
               const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
               const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
               const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
@@ -879,7 +879,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   const topPosition = baseTop + (stackPositions[idx] * rowHeight);
                   const isOperation = pos.type === 'operation';
                   const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
-                  const baseColor = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
+                  const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
                   const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
                   const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                   const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
@@ -1111,7 +1111,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         const topPosition = baseTop + (stackPositions[posIdx] * rowHeight);
                         const isOperation = pos.type === 'operation';
                         const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
-                        const baseColor = isOperation ? '#9333ea' : (pos.project?.color || '#3b82f6');
+                        const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
                         const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
                         const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                         
@@ -1186,7 +1186,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   {/* Operations first */}
                   {monthOperationInstances.map((instance) => {
                     const operation = instance.operation;
-                    const operationColor = operation.status === 'in-review' ? '#ef4444' : '#9333ea';
+                    const operationColor = operation.status === 'in-review' ? '#ef4444' : '#9ca3af';
                     return (
                       <div
                         key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`}
