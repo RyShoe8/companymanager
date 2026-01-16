@@ -743,7 +743,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
         </div>
         <div className="divide-y divide-gray-200 dark:divide-gray-700 relative">
           {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 min-h-[150px] relative">
+            <div key={weekIdx} className="grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 min-h-[200px] relative">
               {week.map((day, dayIdx) => {
                 const isCurrentDay = isToday(day);
                 const inViewRange = isInViewRange(day);
@@ -763,7 +763,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       {day.getDate()}
                     </div>
                     {/* Project slots - projects will be rendered as absolute positioned elements */}
-                    <div className="space-y-1 min-h-[120px]" style={{ position: 'relative' }}>
+                    <div className="space-y-1 min-h-[170px]" style={{ position: 'relative' }}>
                       {/* Projects will be rendered here */}
                     </div>
                   </div>
@@ -981,7 +981,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               </div>
               <div className="divide-y divide-gray-200 dark:divide-gray-700 relative">
                 {weeks.map((week, weekIdx) => (
-                  <div key={weekIdx} className="grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 min-h-[100px] relative">
+                  <div key={weekIdx} className="grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 min-h-[130px] relative">
                     {week.map((day, dayIdx) => {
                       const inMonth = day.getMonth() === monthStart.getMonth();
                       const isCurrentDay = isToday(day);
@@ -998,7 +998,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           }`}>
                             {day.getDate()}
                           </div>
-                          <div className="space-y-1 min-h-[80px]" style={{ position: 'relative' }}>
+                          <div className="space-y-1 min-h-[110px]" style={{ position: 'relative' }}>
                             {/* Projects will be rendered as absolute positioned elements */}
                           </div>
                         </div>

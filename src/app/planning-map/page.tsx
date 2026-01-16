@@ -293,13 +293,7 @@ export default function PlanningMapPage() {
         >
           <OperationForm
             operation={editingOperation}
-            recurrenceType={
-              timeframe === 'today' || timeframe === 'quarterly' || timeframe === 'yearly' 
-                ? 'weekly' 
-                : timeframe === 'monthly' 
-                  ? 'monthly' 
-                  : 'weekly'
-            }
+            recurrenceType={editingOperation?.recurrenceType || 'none'}
             onSubmit={handleSubmitOperation}
             onCancel={() => {
               setShowOperationForm(false);
