@@ -276,8 +276,19 @@ export default function CalendarView({ projects, operations, timeframe, currentD
 
   const getProjectsForDay = (day: Date) => {
     return projects.filter((project) => {
-      const projectStart = new Date(project.startDate);
-      const projectEnd = new Date(project.endDate);
+      // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
+      const startDateObj = new Date(project.startDate);
+      const startDateStr = startDateObj.toISOString().split('T')[0];
+      const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+      const projectStart = new Date(startYear, startMonth - 1, startDay);
+      projectStart.setHours(0, 0, 0, 0);
+      
+      const endDateObj = new Date(project.endDate);
+      const endDateStr = endDateObj.toISOString().split('T')[0];
+      const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+      const projectEnd = new Date(endYear, endMonth - 1, endDay);
+      projectEnd.setHours(23, 59, 59, 999);
+      
       const dayStart = new Date(day);
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(day);
@@ -612,11 +623,24 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             
             // Add projects
             Array.from(weekProjects.values()).forEach(project => {
+              // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
+              const startDateObj = new Date(project.startDate);
+              const startDateStr = startDateObj.toISOString().split('T')[0];
+              const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+              const projectStart = new Date(startYear, startMonth - 1, startDay);
+              projectStart.setHours(0, 0, 0, 0);
+              
+              const endDateObj = new Date(project.endDate);
+              const endDateStr = endDateObj.toISOString().split('T')[0];
+              const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+              const projectEnd = new Date(endYear, endMonth - 1, endDay);
+              projectEnd.setHours(23, 59, 59, 999);
+              
               allItems.push({
                 type: 'project',
                 project: project,
-                startDate: new Date(project.startDate),
-                endDate: new Date(project.endDate),
+                startDate: projectStart,
+                endDate: projectEnd,
               });
             });
             
@@ -839,11 +863,24 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 
                 // Add projects
                 Array.from(weekProjects.values()).forEach(project => {
+                  // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
+                  const startDateObj = new Date(project.startDate);
+                  const startDateStr = startDateObj.toISOString().split('T')[0];
+                  const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+                  const projectStart = new Date(startYear, startMonth - 1, startDay);
+                  projectStart.setHours(0, 0, 0, 0);
+                  
+                  const endDateObj = new Date(project.endDate);
+                  const endDateStr = endDateObj.toISOString().split('T')[0];
+                  const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+                  const projectEnd = new Date(endYear, endMonth - 1, endDay);
+                  projectEnd.setHours(23, 59, 59, 999);
+                  
                   allItems.push({
                     type: 'project',
                     project: project,
-                    startDate: new Date(project.startDate),
-                    endDate: new Date(project.endDate),
+                    startDate: projectStart,
+                    endDate: projectEnd,
                   });
                 });
                 
@@ -1088,11 +1125,24 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       
                       // Add projects
                       Array.from(weekProjects.values()).forEach(project => {
+                        // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
+                        const startDateObj = new Date(project.startDate);
+                        const startDateStr = startDateObj.toISOString().split('T')[0];
+                        const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+                        const projectStart = new Date(startYear, startMonth - 1, startDay);
+                        projectStart.setHours(0, 0, 0, 0);
+                        
+                        const endDateObj = new Date(project.endDate);
+                        const endDateStr = endDateObj.toISOString().split('T')[0];
+                        const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+                        const projectEnd = new Date(endYear, endMonth - 1, endDay);
+                        projectEnd.setHours(23, 59, 59, 999);
+                        
                         allItems.push({
                           type: 'project',
                           project: project,
-                          startDate: new Date(project.startDate),
-                          endDate: new Date(project.endDate),
+                          startDate: projectStart,
+                          endDate: projectEnd,
                         });
                       });
                       
