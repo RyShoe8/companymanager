@@ -228,19 +228,18 @@ export default function PlanningMapPage() {
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
             <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
-            <Toggle
-              label="Show only my assignments"
-              checked={showOnlyMyAssignments}
-              onChange={setShowOnlyMyAssignments}
-              className="ml-auto"
-            />
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="mb-4">
+            <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-text-primary">Calendar View</h2>
+              <Toggle
+                label="Show only my assignments"
+                checked={showOnlyMyAssignments}
+                onChange={setShowOnlyMyAssignments}
+              />
             </div>
             <CalendarView
               projects={filteredProjects}

@@ -80,7 +80,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (name !== undefined) operation.name = sanitizeString(name, 200);
     if (description !== undefined) operation.description = sanitizeString(description, 2000);
     if (url !== undefined) operation.url = sanitizeString(url, 500);
-    if (recurrenceType !== undefined) operation.recurrenceType = recurrenceType;
+    if (recurrenceType !== undefined) {
+      // Validate recurrenceType
+      const validRecurrenceTypes = ['none', 'weekly', 'bi-weekly', 'monthly'];
+      if (!validRecurrenceTypes.includes(recurrenceType)) {
+        return NextResponse.json({ error: 'Invalid recurrenceType' }, { status: 400 });
+      }
+      operation.recurrenceType = recurrenceType;
+    }
     if (status !== undefined) operation.status = status;
     if (assignedTo !== undefined) {
       operation.assignedTo = assignedTo === '' ? undefined : assignedTo;

@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type RecurrenceType = 'weekly' | 'bi-weekly' | 'monthly';
+export type RecurrenceType = 'none' | 'weekly' | 'bi-weekly' | 'monthly';
 export type OperationStatus = 'planning' | 'active' | 'in-review' | 'complete';
 
 export interface IOperation extends Document {
@@ -35,8 +35,9 @@ const OperationSchema: Schema = new Schema(
     },
     recurrenceType: {
       type: String,
-      enum: ['weekly', 'bi-weekly', 'monthly'],
+      enum: ['none', 'weekly', 'bi-weekly', 'monthly'],
       required: true,
+      default: 'none',
     },
     status: {
       type: String,

@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate recurrenceType
-    const validRecurrenceTypes = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
+    const validRecurrenceTypes = ['none', 'weekly', 'bi-weekly', 'monthly'];
     if (!validRecurrenceTypes.includes(recurrenceType)) {
       return NextResponse.json({ error: 'Invalid recurrenceType' }, { status: 400 });
     }

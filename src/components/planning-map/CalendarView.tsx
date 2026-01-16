@@ -205,6 +205,19 @@ export default function CalendarView({ projects, operations, timeframe, currentD
           currentDate.setDate(currentDate.getDate() + 14);
         }
       }
+      // For none: show operation only once if it falls within the view range
+      else if (operation.recurrenceType === 'none') {
+        const instanceStart = new Date(operationStart);
+        instanceStart.setHours(0, 0, 0, 0);
+        const instanceEnd = new Date(instanceStart);
+        instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+        instanceEnd.setHours(23, 59, 59, 999);
+        
+        // Only add if it overlaps with the view range
+        if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
+          instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
+        }
+      }
     });
     
     return instances;

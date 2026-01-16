@@ -16,7 +16,7 @@ interface OperationFormProps {
   onCancel: () => void;
 }
 
-export default function OperationForm({ operation, recurrenceType = 'weekly', onSubmit, onCancel }: OperationFormProps) {
+export default function OperationForm({ operation, recurrenceType = 'none', onSubmit, onCancel }: OperationFormProps) {
   const router = useRouter();
   const [name, setName] = useState(operation?.name || '');
   const [description, setDescription] = useState(operation?.description || '');
@@ -128,6 +128,7 @@ export default function OperationForm({ operation, recurrenceType = 'weekly', on
           value={currentRecurrenceType}
           onChange={(e) => setCurrentRecurrenceType(e.target.value as RecurrenceType)}
           options={[
+            { value: 'none', label: 'None' },
             { value: 'weekly', label: 'Weekly' },
             { value: 'bi-weekly', label: 'Bi-weekly' },
             { value: 'monthly', label: 'Monthly' },
