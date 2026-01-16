@@ -449,10 +449,17 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           <p className="text-sm font-semibold text-text-primary mb-2">Stages:</p>
                           <div className="space-y-2">
                             {project.stages.map((stage, idx) => {
+                              // Normalize dates to midnight for accurate date-only comparison
                               const stageStart = new Date(stage.startDate);
+                              stageStart.setHours(0, 0, 0, 0);
                               const stageEnd = new Date(stage.endDate);
+                              stageEnd.setHours(23, 59, 59, 999); // End of day
+                              
+                              const todayNormalized = new Date(today);
+                              todayNormalized.setHours(0, 0, 0, 0);
+                              
                               const stageDays = Math.ceil((stageEnd.getTime() - stageStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                              const isTodayInStage = today >= stageStart && today <= stageEnd;
+                              const isTodayInStage = todayNormalized >= stageStart && todayNormalized <= stageEnd;
 
                               if (!isTodayInStage) return null;
 
