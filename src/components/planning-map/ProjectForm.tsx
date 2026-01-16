@@ -146,7 +146,6 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     { value: '#ec4899', label: 'Pink' },
     { value: '#06b6d4', label: 'Cyan' },
     { value: '#84cc16', label: 'Lime' },
-    { value: '#ef4444', label: 'Red' },
     { value: '#f97316', label: 'Orange' },
     { value: '#14b8a6', label: 'Teal' },
     { value: '#6366f1', label: 'Indigo' },

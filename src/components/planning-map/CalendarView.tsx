@@ -445,6 +445,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         <div className="mt-4">
                           <p className="text-sm font-semibold text-text-primary mb-2">Stages:</p>
                           <div className="space-y-2">
+                            {/* Show ALL stages for the project - no filtering by assignment */}
                             {project.stages.map((stage, idx) => {
                               // Normalize dates to midnight for accurate date-only comparison
                               const stageStart = new Date(stage.startDate);
