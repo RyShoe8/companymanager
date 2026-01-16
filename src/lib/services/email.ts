@@ -60,9 +60,24 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
     throw new Error(errorMsg);
   }
   
-  // Get base URL for logo - try to construct from invitation link or use default
-  const baseUrl = data.invitationLink.split('/invite/')[0] || 'https://nucleas.app';
-  const logoUrl = `${baseUrl}/images/icon.png`;
+  // Get base URL for logo - parse from invitation link
+  let logoUrl = 'https://nucleas.app/images/icon.png'; // Default fallback
+  try {
+    const url = new URL(data.invitationLink);
+    logoUrl = `${url.origin}/images/icon.png`;
+  } catch (error) {
+    // If URL parsing fails, use environment variable or default
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!baseUrl && process.env.VERCEL_URL) {
+      baseUrl = process.env.VERCEL_URL.startsWith('http') 
+        ? process.env.VERCEL_URL 
+        : `https://${process.env.VERCEL_URL}`;
+    }
+    if (!baseUrl) {
+      baseUrl = 'https://nucleas.app';
+    }
+    logoUrl = `${baseUrl}/images/icon.png`;
+  }
   
   sendSmtpEmail.sender = {
     email: senderEmail,
