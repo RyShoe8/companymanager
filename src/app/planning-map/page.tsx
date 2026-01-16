@@ -216,21 +216,23 @@ export default function PlanningMapPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="w-full mx-auto">
+        {/* Header with Planning, Timeframe Selector, and Buttons */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Planning</h1>
+            <div className="flex items-center gap-4 flex-wrap">
+              <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Planning</h1>
+              <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
+            </div>
             {isManagerOrAdmin && (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 ml-auto">
                 <Button onClick={handleCreateProject} className="w-full sm:w-auto">+ New Project</Button>
                 <Button onClick={handleCreateOperation} variant="secondary" className="w-full sm:w-auto">+ New Operation</Button>
               </div>
             )}
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-            <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
-          </div>
         </div>
 
+        {/* Two column layout with sidebar on right */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
@@ -252,7 +254,7 @@ export default function PlanningMapPage() {
             />
           </div>
 
-          <div>
+          <div className="lg:col-span-1">
             <EmployeeSidebar
               employees={employees}
               projects={filteredProjects}
