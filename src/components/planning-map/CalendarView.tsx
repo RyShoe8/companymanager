@@ -288,7 +288,10 @@ export default function CalendarView({ projects, operations, timeframe, currentD
   const getViewTitle = () => {
     switch (timeframe) {
       case 'today':
-        return formatDate(startDate);
+        const today = new Date(startDate);
+        const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+        const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        return `${dayName}, ${dateStr}`;
       case 'weekly':
         return `${formatDate(startDate)} - ${formatDate(endDate)}`;
       case 'monthly':
@@ -308,15 +311,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
     const today = new Date(startDate);
     const todayProjects = getProjectsForDay(today);
     const todayOperations = getOperationInstancesForDay(today);
-    const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
-    const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     return (
       <div className="p-8 min-h-[600px]">
-        <div className="mb-6">
-          <h2 className="text-3xl font-bold text-text-primary mb-2">{dayName}</h2>
-          <p className="text-xl text-text-secondary">{dateStr}</p>
-        </div>
 
         {todayProjects.length === 0 && todayOperations.length === 0 ? (
           <div className="text-center py-16 text-text-secondary">
