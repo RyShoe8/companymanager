@@ -377,6 +377,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                             <span className="text-text-secondary">
                               <strong>Recurrence:</strong> {operation.recurrenceType}
                             </span>
+                            {totalDays > 1 && (
+                              <span className="text-text-secondary">
+                                <strong>Duration:</strong> {totalDays} day{totalDays !== 1 ? 's' : ''}
+                              </span>
+                            )}
                           </div>
                           
                           {operation.estimatedHours && (
@@ -672,6 +677,15 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
               const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
               
+              // Calculate duration for operations
+              let durationText = '';
+              if (isOperation) {
+                const opDuration = Math.ceil((pos.operation!.endDate.getTime() - pos.operation!.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                if (opDuration > 1) {
+                  durationText = ` - ${opDuration} day${opDuration !== 1 ? 's' : ''}`;
+                }
+              }
+              
               return (
                 <div
                   key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-weekly` : `${pos.project!._id.toString()}-weekly`}
@@ -687,7 +701,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     overflow: 'hidden',
                     lineHeight: `${rowHeight - 4}px`,
                   }}
-                  title={`${name}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
+                  title={`${name}${durationText}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                 >
                   <div className="font-medium truncate">{name}</div>
                 </div>
@@ -885,6 +899,15 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
                   const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
                   
+                  // Calculate duration for operations
+                  let durationText = '';
+                  if (isOperation) {
+                    const opDuration = Math.ceil((pos.operation!.endDate.getTime() - pos.operation!.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                    if (opDuration > 1) {
+                      durationText = ` - ${opDuration} day${opDuration !== 1 ? 's' : ''}`;
+                    }
+                  }
+                  
                   return (
                     <div
                       key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-${weekIdx}` : `${pos.project!._id.toString()}-${weekIdx}`}
@@ -900,7 +923,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         overflow: 'hidden',
                         lineHeight: `${rowHeight - 2}px`,
                       }}
-                      title={`${name}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
+                      title={`${name}${durationText}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                     >
                       <div className="font-medium truncate">{name}</div>
                     </div>
@@ -1114,6 +1137,17 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
                         const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
                         const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
+                        const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
+                        const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+                        
+                        // Calculate duration for operations
+                        let durationText = '';
+                        if (isOperation) {
+                          const opDuration = Math.ceil((pos.operation!.endDate.getTime() - pos.operation!.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                          if (opDuration > 1) {
+                            durationText = ` - ${opDuration} day${opDuration !== 1 ? 's' : ''}`;
+                          }
+                        }
                         
                         return (
                           <div
@@ -1130,7 +1164,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               overflow: 'hidden',
                               lineHeight: `${rowHeight - 2}px`,
                             }}
-                            title={name}
+                            title={`${name}${durationText}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                           >
                             <div className="font-medium truncate">{name}</div>
                           </div>
@@ -1187,6 +1221,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   {monthOperationInstances.map((instance) => {
                     const operation = instance.operation;
                     const operationColor = operation.status === 'in-review' ? '#ef4444' : '#9ca3af';
+                    const duration = Math.ceil((instance.endDate.getTime() - instance.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                    const durationText = duration > 1 ? ` - ${duration} day${duration !== 1 ? 's' : ''}` : '';
+                    const titleText = `${operation.name}${durationText}${operation.estimatedHours ? ` - ${operation.estimatedHours}h` : ''}${operation.assignedTo ? ` - ${operation.assignedTo}` : ''}`;
                     return (
                       <div
                         key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`}
@@ -1196,7 +1233,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           backgroundColor: operationColor,
                           color: 'white',
                         }}
-                        title={operation.name}
+                        title={titleText}
                       >
                         <div className="font-medium truncate">{operation.name}</div>
                       </div>
