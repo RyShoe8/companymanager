@@ -218,6 +218,28 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           currentDate.setDate(currentDate.getDate() + 14);
         }
       }
+      // For none: show operation only once if it falls within the view range
+      else if (operation.recurrenceType === 'none') {
+        const instanceStart = new Date(operationStart);
+        instanceStart.setHours(0, 0, 0, 0);
+        let instanceEnd: Date;
+        if (operation.endDate) {
+          // Use the operation's endDate
+          const endDateObj = new Date(operation.endDate);
+          const endDateStr = endDateObj.toISOString().split('T')[0];
+          const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+          instanceEnd = new Date(endYear, endMonth - 1, endDay);
+        } else {
+          // No endDate means single day operation
+          instanceEnd = new Date(operationStart);
+        }
+        instanceEnd.setHours(23, 59, 59, 999);
+        
+        // Only add if it overlaps with the view range
+        if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
+          instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
+        }
+      }
     });
     
     return instances;
