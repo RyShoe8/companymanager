@@ -69,13 +69,31 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
           {operation.startDate && (
             <div>
               <label className="text-sm font-medium text-text-secondary">Start Date</label>
-              <p className="text-text-primary">{formatDate(new Date(operation.startDate))}</p>
+              <p className="text-text-primary">
+                {(() => {
+                  // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+                  const startDateObj = new Date(operation.startDate);
+                  const startDateStr = startDateObj.toISOString().split('T')[0];
+                  const [year, month, day] = startDateStr.split('-').map(Number);
+                  const localDate = new Date(year, month - 1, day);
+                  return formatDate(localDate);
+                })()}
+              </p>
             </div>
           )}
           {operation.endDate && (
             <div>
               <label className="text-sm font-medium text-text-secondary">End Date</label>
-              <p className="text-text-primary">{formatDate(new Date(operation.endDate))}</p>
+              <p className="text-text-primary">
+                {(() => {
+                  // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+                  const endDateObj = new Date(operation.endDate);
+                  const endDateStr = endDateObj.toISOString().split('T')[0];
+                  const [year, month, day] = endDateStr.split('-').map(Number);
+                  const localDate = new Date(year, month - 1, day);
+                  return formatDate(localDate);
+                })()}
+              </p>
             </div>
           )}
           {operation.estimatedHours && (

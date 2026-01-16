@@ -99,11 +99,29 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-text-secondary">Start Date</label>
-            <p className="text-text-primary">{formatDate(new Date(project.startDate))}</p>
+            <p className="text-text-primary">
+              {(() => {
+                // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+                const startDateObj = new Date(project.startDate);
+                const startDateStr = startDateObj.toISOString().split('T')[0];
+                const [year, month, day] = startDateStr.split('-').map(Number);
+                const localDate = new Date(year, month - 1, day);
+                return formatDate(localDate);
+              })()}
+            </p>
           </div>
           <div>
             <label className="text-sm font-medium text-text-secondary">End Date</label>
-            <p className="text-text-primary">{formatDate(new Date(project.endDate))}</p>
+            <p className="text-text-primary">
+              {(() => {
+                // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+                const endDateObj = new Date(project.endDate);
+                const endDateStr = endDateObj.toISOString().split('T')[0];
+                const [year, month, day] = endDateStr.split('-').map(Number);
+                const localDate = new Date(year, month - 1, day);
+                return formatDate(localDate);
+              })()}
+            </p>
           </div>
           {project.estimatedHours && (
             <div>

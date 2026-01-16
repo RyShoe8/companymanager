@@ -637,10 +637,15 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               if (startCol === -1) return null;
 
               // Calculate span in days
-              // Check if start and end are on the same calendar day
-              const startDay = displayStart.toDateString();
-              const endDay = displayEnd.toDateString();
-              const daysSpan = startDay === endDay ? 1 : Math.ceil((displayEnd.getTime() - displayStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              // Normalize dates to midnight for accurate day-only comparison
+              const startDayNormalized = new Date(displayStart);
+              startDayNormalized.setHours(0, 0, 0, 0);
+              const endDayNormalized = new Date(displayEnd);
+              endDayNormalized.setHours(0, 0, 0, 0);
+              const startDay = startDayNormalized.toDateString();
+              const endDay = endDayNormalized.toDateString();
+              // For inclusive dates: Jan 19 to Jan 20 = 2 days (19th and 20th)
+              const daysSpan = startDay === endDay ? 1 : Math.floor((endDayNormalized.getTime() - startDayNormalized.getTime()) / (1000 * 60 * 60 * 24)) + 1;
               const span = Math.min(daysSpan, 7 - startCol);
 
               return {
@@ -859,10 +864,15 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   if (startCol === -1) return null;
 
                   // Calculate how many days the item spans in this week
-                  // Check if start and end are on the same calendar day
-                  const startDay = displayStart.toDateString();
-                  const endDay = displayEnd.toDateString();
-                  const daysInWeek = startDay === endDay ? 1 : Math.ceil((displayEnd.getTime() - displayStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  // Normalize dates to midnight for accurate day-only comparison
+                  const startDayNormalized = new Date(displayStart);
+                  startDayNormalized.setHours(0, 0, 0, 0);
+                  const endDayNormalized = new Date(displayEnd);
+                  endDayNormalized.setHours(0, 0, 0, 0);
+                  const startDay = startDayNormalized.toDateString();
+                  const endDay = endDayNormalized.toDateString();
+                  // For inclusive dates: Jan 19 to Jan 20 = 2 days (19th and 20th)
+                  const daysInWeek = startDay === endDay ? 1 : Math.floor((endDayNormalized.getTime() - startDayNormalized.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                   const span = Math.min(daysInWeek, 7 - startCol);
 
                   return {
@@ -1100,10 +1110,15 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         });
                         if (startCol === -1) return null;
 
-                        // Check if start and end are on the same calendar day
-                        const startDay = displayStart.toDateString();
-                        const endDay = displayEnd.toDateString();
-                        const daysInWeek = startDay === endDay ? 1 : Math.ceil((displayEnd.getTime() - displayStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        // Normalize dates to midnight for accurate day-only comparison
+                        const startDayNormalized = new Date(displayStart);
+                        startDayNormalized.setHours(0, 0, 0, 0);
+                        const endDayNormalized = new Date(displayEnd);
+                        endDayNormalized.setHours(0, 0, 0, 0);
+                        const startDay = startDayNormalized.toDateString();
+                        const endDay = endDayNormalized.toDateString();
+                        // For inclusive dates: Jan 19 to Jan 20 = 2 days (19th and 20th)
+                        const daysInWeek = startDay === endDay ? 1 : Math.floor((endDayNormalized.getTime() - startDayNormalized.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                         const span = Math.min(daysInWeek, 7 - startCol);
 
                         return {
