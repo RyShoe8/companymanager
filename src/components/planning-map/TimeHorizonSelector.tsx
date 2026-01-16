@@ -18,7 +18,7 @@ export default function TimeHorizonSelector({ selected, onSelect }: TimeHorizonS
   ];
 
   return (
-    <div className="flex gap-2 mb-6">
+    <div className="flex gap-2">
       {timeframes.map((timeframe) => (
         <Button
           key={timeframe.value}
