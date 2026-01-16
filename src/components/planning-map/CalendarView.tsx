@@ -456,9 +456,13 @@ export default function CalendarView({ projects, operations, timeframe, currentD
 
                               if (!isTodayInStage) return null;
 
+                              // Use a stable key based on stage name and dates instead of array index
+                              // This prevents issues when stages are deleted and indices shift
+                              const stageKey = `${project._id.toString()}-${stage.name}-${stageStart.getTime()}-${stageEnd.getTime()}`;
+
                               return (
                                 <div
-                                  key={idx}
+                                  key={stageKey}
                                   className="p-3 rounded border border-border bg-background-card"
                                 >
                                   <div className="font-medium text-text-primary">{stage.name}</div>
