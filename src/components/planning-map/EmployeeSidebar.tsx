@@ -652,8 +652,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     );
   }
 
-  // Calculate team totals
-  const teamTotals = employees.reduce((totals, employee) => {
+  // Calculate team totals - only include employees with userId (registered users)
+  // This matches the display filter and ensures deleted employees aren't counted
+  const teamTotals = employees.filter(employee => employee.userId != null).reduce((totals, employee) => {
     const employeeProjects = getProjectsForEmployee(employee);
     const employeeOperations = getOperationsForEmployee(employee);
     let committedHours = 0;
@@ -776,8 +777,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return totals;
   }, { totalAvailable: 0, totalCommitted: 0 });
 
-  // Calculate team completed hours
-  const teamCompleted = employees.reduce((total, employee) => {
+  // Calculate team completed hours - only include employees with userId (registered users)
+  const teamCompleted = employees.filter(employee => employee.userId != null).reduce((total, employee) => {
     return total + getCompletedHours(employee);
   }, 0);
   const teamCompletedRounded = Math.round(teamCompleted * 100) / 100;
