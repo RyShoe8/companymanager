@@ -164,12 +164,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     }
   };
 
-  const addOperation = async (e?: React.MouseEvent<HTMLButtonElement>) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    
+  const addOperation = async () => {
     if (!project?._id) {
       alert('Cannot add operation: Project must be saved first.');
       return;
@@ -535,9 +530,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={(e) => {
-                    addOperation(e);
-                  }}
+                  onClick={addOperation}
                 >
                   + Add Operation
                 </Button>
@@ -677,7 +670,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         {showTasks && tasks.length > 0 && (
           <div className="space-y-3">
             {tasks.map((task, index) => (
-              <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2">
+              <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2 bg-white dark:bg-gray-800">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium text-gray-900 dark:text-white">Task {index + 1}</h4>
                   <Button
