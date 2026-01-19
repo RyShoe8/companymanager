@@ -164,6 +164,51 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     }
   };
 
+  const addOperation = async () => {
+    if (!project?._id) {
+      alert('Cannot add operation: Project must be saved first.');
+      return;
+    }
+
+    try {
+      const newOperationData = {
+        name: 'New Operation',
+        description: '',
+        recurrenceType: 'none',
+        status: 'planning',
+        projectId: project._id.toString(),
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+      };
+
+      const response = await fetch('/api/operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newOperationData),
+      });
+
+      if (response.ok) {
+        const newOperation = await response.json();
+        // Refresh operations from server
+        const opsResponse = await fetch('/api/operations');
+        if (opsResponse.ok) {
+          const data = await opsResponse.json();
+          const projectOperations = data.filter((op: IOperation) => 
+            op.projectId?.toString() === project._id.toString()
+          );
+          setOperations(projectOperations);
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to create operation:', errorData.error || 'Unknown error');
+        alert('Failed to create operation. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating operation:', error);
+      alert('Error creating operation. Please try again.');
+    }
+  };
+
   const deleteOperation = async (operationId: string) => {
     if (!confirm('Are you sure you want to delete this operation? This action cannot be undone.')) {
       return;
@@ -476,6 +521,16 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
               >
                 {showOperations ? 'Hide' : 'Show'} Operations
               </Button>
+              {showOperations && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={addOperation}
+                >
+                  + Add Operation
+                </Button>
+              )}
             </div>
           </div>
 
