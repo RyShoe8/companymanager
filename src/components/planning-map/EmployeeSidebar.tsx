@@ -1209,9 +1209,24 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       const hasTaskHours = taskHoursList.some(task => task.hours > 0);
                       const hasOperationHours = operationHoursList.some(op => op.hours > 0);
                       
+                      // Debug logging for project display
+                      console.log(`[DEBUG] Project "${project.name}":`, {
+                        status: project.status,
+                        isAssignedToProject,
+                        assignedTasksCount: assignedTasks.length,
+                        taskHoursListCount: taskHoursList.length,
+                        taskHoursList: taskHoursList.map(t => ({ name: t.name, hours: t.hours })),
+                        hasProjectHours,
+                        hasTaskHours,
+                        hasOperationHours,
+                        totalProjectHours,
+                        finalAssignedOperationsCount: finalAssignedOperations.length
+                      });
+                      
                       // If project is launched, only show if there are operations with hours
                       if (project.status === 'launched') {
                         if (!hasOperationHours && operationHoursList.length === 0) {
+                          console.log(`[DEBUG] Hiding launched project "${project.name}" - no operation hours`);
                           return null;
                         }
                       }
@@ -1219,6 +1234,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       // For non-launched projects, only show if there are hours in the timeframe
                       if (project.status !== 'launched') {
                         if (!hasProjectHours && !hasTaskHours && !hasOperationHours) {
+                          console.log(`[DEBUG] Hiding non-launched project "${project.name}" - no hours (project: ${hasProjectHours}, tasks: ${hasTaskHours}, operations: ${hasOperationHours})`);
                           return null;
                         }
                       }
