@@ -532,8 +532,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
   // Calculate completed hours for an employee (only items with status 'complete')
   const getCompletedHours = (employee: IEmployee) => {
-    const employeeProjects = getProjectsForEmployee(employee.name);
-    const employeeOperations = getOperationsForEmployee(employee.name);
+    const employeeProjects = getProjectsForEmployee(employee);
+    const employeeOperations = getOperationsForEmployee(employee);
     let totalHours = 0;
 
     // Calculate hours from completed projects
@@ -644,8 +644,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
   // Calculate team totals
   const teamTotals = employees.reduce((totals, employee) => {
-    const employeeProjects = getProjectsForEmployee(employee.name);
-    const employeeOperations = getOperationsForEmployee(employee.name);
+    const employeeProjects = getProjectsForEmployee(employee);
+    const employeeOperations = getOperationsForEmployee(employee);
     let committedHours = 0;
 
     // Calculate hours from projects
