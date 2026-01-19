@@ -6,9 +6,12 @@ import { Types } from 'mongoose';
 /**
  * Get organization user IDs for a given user
  * Used across many API routes to filter by organization
+ * Note: organizationId is stored as a string in the User model
  */
-export async function getOrganizationUserIds(userId: Types.ObjectId, organizationId: Types.ObjectId): Promise<Types.ObjectId[]> {
-  const orgUsers = await User.find({ organizationId });
+export async function getOrganizationUserIds(userId: string | Types.ObjectId, organizationId: string | Types.ObjectId): Promise<Types.ObjectId[]> {
+  // organizationId is stored as string in User model, so convert ObjectId to string if needed
+  const orgId = typeof organizationId === 'string' ? organizationId : organizationId.toString();
+  const orgUsers = await User.find({ organizationId: orgId });
   return orgUsers.map(u => u._id);
 }
 
