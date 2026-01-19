@@ -384,17 +384,17 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     
     if (projectDurationWeekdays <= 0) return 0;
     
-    // Calculate hours per weekday
-    const hoursPerWeekday = totalHours / projectDurationWeekdays;
-    
     // Calculate number of weekdays in the overlap
     const overlapWeekdays = countWeekdays(overlapStart, overlapEnd);
     
     // Ensure we have at least 1 weekday
     if (overlapWeekdays < 1) return 0;
     
-    // Return hours for the overlap period (weekdays only)
-    return hoursPerWeekday * overlapWeekdays;
+    // Calculate hours for the overlap period (weekdays only)
+    // Use precise calculation to avoid floating point errors
+    const hoursForOverlap = (totalHours * overlapWeekdays) / projectDurationWeekdays;
+    
+    return hoursForOverlap;
   };
 
   const getCommittedHours = (employee: IEmployee) => {
