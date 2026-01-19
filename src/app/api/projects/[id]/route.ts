@@ -62,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, tasks } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, tasks } = body;
 
     await connectDB();
     const { id } = await params;
@@ -103,7 +103,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
           startDate !== undefined || endDate !== undefined || timeframeType !== undefined || 
           color !== undefined || estimatedHours !== undefined || assignedTo !== undefined || 
-          tasks !== undefined) {
+          assignedToEmployeeId !== undefined || tasks !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
       }
     }
@@ -121,19 +121,68 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (estimatedHours !== undefined) {
       project.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
     }
-    if (assignedTo !== undefined) {
-      project.assignedTo = assignedTo === null || assignedTo === '' ? undefined : assignedTo;
+    // Handle employee assignment - prefer employeeId over name
+    if (assignedToEmployeeId !== undefined) {
+      if (assignedToEmployeeId === null || assignedToEmployeeId === '') {
+        project.assignedToEmployeeId = undefined;
+        project.assignedTo = undefined;
+      } else {
+        project.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
+        // Also set name for backward compatibility
+        const assignedEmployee = await Employee.findById(assignedToEmployeeId);
+        if (assignedEmployee) {
+          project.assignedTo = assignedEmployee.name;
+        }
+      }
+    } else if (assignedTo !== undefined) {
+      // Legacy support: if name provided, try to find employee and set ID
+      if (assignedTo === null || assignedTo === '') {
+        project.assignedTo = undefined;
+        project.assignedToEmployeeId = undefined;
+      } else {
+        const assignedEmployee = await Employee.findOne({ 
+          name: assignedTo, 
+          organizationId: user.organizationId 
+        });
+        if (assignedEmployee) {
+          project.assignedToEmployeeId = assignedEmployee._id;
+        }
+        project.assignedTo = assignedTo;
+      }
     }
+    
     if (tasks !== undefined) {
       if (Array.isArray(tasks)) {
-        project.tasks = tasks.map((task: any) => ({
-          name: task.name,
-          description: task.description || undefined,
-          startDate: new Date(task.startDate),
-          endDate: new Date(task.endDate),
-          estimatedHours: task.estimatedHours || undefined,
-          assignedTo: task.assignedTo || undefined,
-          status: task.status || 'planning',
+        project.tasks = await Promise.all(tasks.map(async (task: any) => {
+          const taskData: any = {
+            name: task.name,
+            description: task.description || undefined,
+            startDate: new Date(task.startDate),
+            endDate: new Date(task.endDate),
+            estimatedHours: task.estimatedHours || undefined,
+            status: task.status || 'planning',
+          };
+          
+          // Handle employee assignment for tasks - prefer employeeId over name
+          if (task.assignedToEmployeeId) {
+            taskData.assignedToEmployeeId = new Types.ObjectId(task.assignedToEmployeeId);
+            const assignedEmployee = await Employee.findById(task.assignedToEmployeeId);
+            if (assignedEmployee) {
+              taskData.assignedTo = assignedEmployee.name;
+            }
+          } else if (task.assignedTo) {
+            // Legacy support: if name provided, try to find employee and set ID
+            const assignedEmployee = await Employee.findOne({ 
+              name: task.assignedTo, 
+              organizationId: user.organizationId 
+            });
+            if (assignedEmployee) {
+              taskData.assignedToEmployeeId = assignedEmployee._id;
+            }
+            taskData.assignedTo = task.assignedTo;
+          }
+          
+          return taskData;
         }));
       } else {
         project.tasks = [];
@@ -154,7 +203,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             description: task.description,
             recurrenceType: 'none' as const,
             status: task.status === 'complete' ? 'complete' : task.status === 'active' ? 'active' : task.status === 'in-review' ? 'in-review' : 'planning',
-            assignedTo: task.assignedTo,
+            assignedTo: task.assignedTo, // Legacy support
+            assignedToEmployeeId: task.assignedToEmployeeId, // Use employee ID
             estimatedHours: task.estimatedHours,
             startDate: task.startDate,
             endDate: task.endDate,

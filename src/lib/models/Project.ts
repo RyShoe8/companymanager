@@ -10,7 +10,8 @@ export interface IProjectTask {
   startDate: Date;
   endDate: Date;
   estimatedHours?: number;
-  assignedTo?: string;
+  assignedTo?: string; // Legacy - kept for backward compatibility
+  assignedToEmployeeId?: Types.ObjectId; // New field using employee ID
   status?: TaskStatus;
 }
 
@@ -25,7 +26,8 @@ export interface IProject extends Document {
   color: string;
   status: ProjectStatus;
   estimatedHours?: number;
-  assignedTo?: string;
+  assignedTo?: string; // Legacy - kept for backward compatibility
+  assignedToEmployeeId?: Types.ObjectId; // New field using employee ID
   tasks?: IProjectTask[];
   userId: Types.ObjectId;
   createdAt: Date;
@@ -81,6 +83,10 @@ const ProjectSchema: Schema = new Schema(
     assignedTo: {
       type: String,
       trim: true,
+    },
+    assignedToEmployeeId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Employee',
     },
     // Keep stages for backward compatibility during migration
     stages: [
@@ -143,6 +149,10 @@ const ProjectSchema: Schema = new Schema(
         assignedTo: {
           type: String,
           trim: true,
+        },
+        assignedToEmployeeId: {
+          type: Schema.Types.ObjectId,
+          ref: 'Employee',
         },
         status: {
           type: String,

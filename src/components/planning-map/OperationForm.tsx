@@ -23,6 +23,9 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
   const [url, setUrl] = useState(operation?.url || '');
   const [status, setStatus] = useState<OperationStatus>(operation?.status || 'planning');
   const [assignedTo, setAssignedTo] = useState(operation?.assignedTo || '');
+  const [assignedToEmployeeId, setAssignedToEmployeeId] = useState(
+    (operation as any)?.assignedToEmployeeId?.toString() || ''
+  );
   const [estimatedHours, setEstimatedHours] = useState(operation?.estimatedHours?.toString() || '');
   const [startDate, setStartDate] = useState(
     operation?.startDate ? new Date(operation.startDate).toISOString().split('T')[0] : ''
@@ -48,6 +51,14 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
       }
     };
     fetchEmployees();
+    
+    // Initialize assignedToEmployeeId from operation if available
+    if ((operation as any)?.assignedToEmployeeId) {
+      setAssignedToEmployeeId((operation as any).assignedToEmployeeId.toString());
+    } else if (operation?.assignedTo) {
+      // Try to find employee by name for legacy data
+      setAssignedTo(operation.assignedTo);
+    }
 
     // Fetch current user ID
     const fetchCurrentUser = async () => {
@@ -73,7 +84,10 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
       recurrenceType: currentRecurrenceType,
       status,
     };
-    if (assignedTo) {
+    // Handle employee assignment - prefer employeeId over name
+    if (assignedToEmployeeId) {
+      (submitData as any).assignedToEmployeeId = assignedToEmployeeId;
+    } else if (assignedTo) {
       submitData.assignedTo = assignedTo;
     }
     if (estimatedHours) {
@@ -158,11 +172,23 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
         />
         <Select
           label="Assigned To (optional)"
-          value={assignedTo}
-          onChange={(e) => setAssignedTo(e.target.value)}
+          value={assignedToEmployeeId || assignedTo}
+          onChange={(e) => {
+            const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
+            if (selectedEmployee) {
+              setAssignedToEmployeeId(e.target.value);
+              setAssignedTo(selectedEmployee.name);
+            } else {
+              setAssignedToEmployeeId('');
+              setAssignedTo(e.target.value);
+            }
+          }}
           options={[
             { value: '', label: 'None' },
-            ...employees.map(emp => ({ value: emp.name, label: emp.name }))
+            ...employees.map(emp => ({ 
+              value: emp._id.toString(), 
+              label: emp.name 
+            }))
           ]}
         />
       </div>

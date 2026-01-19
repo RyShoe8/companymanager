@@ -47,13 +47,16 @@ export async function GET(request: NextRequest) {
       // The userId: { $in: orgUserIds } filter already ensures they only see org projects
       // But if they have an employee record, also include projects assigned to them (even if created outside org)
       if (currentUserEmployee) {
-        const employeeName = currentUserEmployee.name;
+        const employeeId = currentUserEmployee._id;
         // Use $or to include both org projects AND projects assigned to them
         query.$or = [
           { userId: { $in: orgUserIds } },
-          { assignedTo: employeeName },
-          { 'tasks.assignedTo': employeeName },
-          { 'stages.assignedTo': employeeName }
+          { assignedToEmployeeId: employeeId },
+          { 'tasks.assignedToEmployeeId': employeeId },
+          // Legacy support for name-based assignments
+          { assignedTo: currentUserEmployee.name },
+          { 'tasks.assignedTo': currentUserEmployee.name },
+          { 'stages.assignedTo': currentUserEmployee.name }
         ];
         // Remove the userId filter from top level since it's now in $or
         delete query.userId;
@@ -64,15 +67,18 @@ export async function GET(request: NextRequest) {
     } else {
       // Users see only projects they're assigned to
       if (currentUserEmployee) {
-        const employeeName = currentUserEmployee.name;
+        const employeeId = currentUserEmployee._id;
         // Keep the userId filter and add assignment filters
         query.$and = [
           { userId: { $in: orgUserIds } },
           {
             $or: [
-              { assignedTo: employeeName },
-              { 'tasks.assignedTo': employeeName },
-              { 'stages.assignedTo': employeeName } // Backward compatibility
+              { assignedToEmployeeId: employeeId },
+              { 'tasks.assignedToEmployeeId': employeeId },
+              // Legacy support for name-based assignments
+              { assignedTo: currentUserEmployee.name },
+              { 'tasks.assignedTo': currentUserEmployee.name },
+              { 'stages.assignedTo': currentUserEmployee.name }
             ]
           }
         ];
@@ -141,7 +147,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, tasks } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, tasks } = body;
 
     if (!name || !startDate || !endDate || !timeframeType) {
       return NextResponse.json(
@@ -166,15 +172,57 @@ export async function POST(request: NextRequest) {
       projectData.estimatedHours = estimatedHours;
     }
 
-    if (assignedTo) {
+    // Handle employee assignment - prefer employeeId over name
+    if (assignedToEmployeeId) {
+      projectData.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
+      // Also set name for backward compatibility if employee exists
+      const Employee = (await import('@/lib/models/Employee')).default;
+      const assignedEmployee = await Employee.findById(assignedToEmployeeId);
+      if (assignedEmployee) {
+        projectData.assignedTo = assignedEmployee.name;
+      }
+    } else if (assignedTo) {
+      // Legacy support: if name provided, try to find employee and set ID
+      const Employee = (await import('@/lib/models/Employee')).default;
+      const assignedEmployee = await Employee.findOne({ 
+        name: assignedTo, 
+        organizationId: user.organizationId 
+      });
+      if (assignedEmployee) {
+        projectData.assignedToEmployeeId = assignedEmployee._id;
+      }
       projectData.assignedTo = assignedTo;
     }
 
     if (tasks && Array.isArray(tasks)) {
-      projectData.tasks = tasks.map((task: any) => ({
-        ...task,
-        startDate: new Date(task.startDate),
-        endDate: new Date(task.endDate),
+      const Employee = (await import('@/lib/models/Employee')).default;
+      projectData.tasks = await Promise.all(tasks.map(async (task: any) => {
+        const taskData: any = {
+          ...task,
+          startDate: new Date(task.startDate),
+          endDate: new Date(task.endDate),
+        };
+        
+        // Handle employee assignment for tasks - prefer employeeId over name
+        if (task.assignedToEmployeeId) {
+          taskData.assignedToEmployeeId = new Types.ObjectId(task.assignedToEmployeeId);
+          const assignedEmployee = await Employee.findById(task.assignedToEmployeeId);
+          if (assignedEmployee) {
+            taskData.assignedTo = assignedEmployee.name;
+          }
+        } else if (task.assignedTo) {
+          // Legacy support: if name provided, try to find employee and set ID
+          const assignedEmployee = await Employee.findOne({ 
+            name: task.assignedTo, 
+            organizationId: user.organizationId 
+          });
+          if (assignedEmployee) {
+            taskData.assignedToEmployeeId = assignedEmployee._id;
+          }
+          taskData.assignedTo = task.assignedTo;
+        }
+        
+        return taskData;
       }));
     }
 

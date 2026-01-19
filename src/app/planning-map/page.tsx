@@ -36,6 +36,7 @@ export default function PlanningMapPage() {
   const [isManagerOrAdmin, setIsManagerOrAdmin] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
   const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
+  const [currentUserEmployeeId, setCurrentUserEmployeeId] = useState<string | null>(null);
   const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
 
   useEffect(() => {
@@ -70,6 +71,7 @@ export default function PlanningMapPage() {
           setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
           setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
           setCurrentUserEmployeeName(currentEmployee?.name || null);
+          setCurrentUserEmployeeId(currentEmployee?._id?.toString() || null);
         }
       } catch (error) {
         console.error('Error loading current user:', error);
@@ -250,6 +252,7 @@ export default function PlanningMapPage() {
               onOperationClick={handleViewOperation}
               onDateChange={setCurrentDate}
               currentUserEmployeeName={currentUserEmployeeName}
+              currentUserEmployeeId={currentUserEmployeeId}
               isManagerOrAdmin={isManagerOrAdmin}
             />
           </div>

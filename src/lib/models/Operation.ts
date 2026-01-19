@@ -9,7 +9,8 @@ export interface IOperation extends Document {
   url?: string;
   recurrenceType: RecurrenceType;
   status: OperationStatus;
-  assignedTo?: string;
+  assignedTo?: string; // Legacy - kept for backward compatibility
+  assignedToEmployeeId?: Types.ObjectId; // New field using employee ID
   estimatedHours?: number;
   startDate?: Date;
   endDate?: Date;
@@ -48,6 +49,10 @@ const OperationSchema: Schema = new Schema(
     assignedTo: {
       type: String,
       trim: true,
+    },
+    assignedToEmployeeId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Employee',
     },
     estimatedHours: {
       type: Number,

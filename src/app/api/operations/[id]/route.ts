@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, description, url, recurrenceType, status, assignedTo, estimatedHours, startDate, endDate } = body;
+    let { name, description, url, recurrenceType, status, assignedTo, assignedToEmployeeId, estimatedHours, startDate, endDate } = body;
 
     await connectDB();
     const { id } = await params;
@@ -89,9 +89,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       operation.recurrenceType = recurrenceType;
     }
     if (status !== undefined) operation.status = status;
-    if (assignedTo !== undefined) {
-      operation.assignedTo = assignedTo === '' ? undefined : assignedTo;
+    
+    // Handle employee assignment - prefer employeeId over name
+    if (assignedToEmployeeId !== undefined) {
+      if (assignedToEmployeeId === null || assignedToEmployeeId === '') {
+        operation.assignedToEmployeeId = undefined;
+        operation.assignedTo = undefined;
+      } else {
+        operation.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
+        // Also set name for backward compatibility
+        const Employee = (await import('@/lib/models/Employee')).default;
+        const assignedEmployee = await Employee.findById(assignedToEmployeeId);
+        if (assignedEmployee) {
+          operation.assignedTo = assignedEmployee.name;
+        }
+      }
+    } else if (assignedTo !== undefined) {
+      // Legacy support: if name provided, try to find employee and set ID
+      if (assignedTo === '') {
+        operation.assignedTo = undefined;
+        operation.assignedToEmployeeId = undefined;
+      } else {
+        const Employee = (await import('@/lib/models/Employee')).default;
+        const assignedEmployee = await Employee.findOne({ 
+          name: assignedTo, 
+          organizationId: user.organizationId 
+        });
+        if (assignedEmployee) {
+          operation.assignedToEmployeeId = assignedEmployee._id;
+        }
+        operation.assignedTo = assignedTo;
+      }
     }
+    
     if (estimatedHours !== undefined) {
       operation.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
     }

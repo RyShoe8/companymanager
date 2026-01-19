@@ -291,21 +291,28 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return Math.round(hours * 10) / 10; // Round to 1 decimal
   };
 
-  const getProjectsForEmployee = (employeeName: string) => {
+  const getProjectsForEmployee = (employee: IEmployee) => {
+    const employeeName = employee.name;
     return projects.filter((project) => {
       // Check if project is assigned to this employee
-      if (project.assignedTo === employeeName) return true;
+      // Check project-level assignment by employeeId (preferred) or name (legacy)
+      const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
+      if (projectAssignedToId === employee._id.toString() || project.assignedTo === employeeName) return true;
       
       // Check if any task is assigned to this employee
-      if (project.tasks && project.tasks.some(task => task.assignedTo === employeeName)) {
+      if (project.tasks && project.tasks.some(task => {
+        const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+        return taskAssignedToId === employee._id.toString() || task.assignedTo === employeeName;
+      })) {
         return true;
       }
       
       // Check if any operation linked to this project is assigned to this employee
-      if (operations.some(op => 
-        op.projectId?.toString() === project._id.toString() && 
-        op.assignedTo === employeeName
-      )) {
+      if (operations.some(op => {
+        const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
+        return op.projectId?.toString() === project._id.toString() && 
+          (opAssignedToId === employee._id.toString() || op.assignedTo === employeeName);
+      })) {
         return true;
       }
       
@@ -313,17 +320,21 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     });
   };
 
-  const getOperationsForEmployee = (employeeName: string) => {
+  const getOperationsForEmployee = (employee: IEmployee) => {
+    const employeeName = employee.name;
     return operationInstances.filter((instance) => {
-      return instance.operation.assignedTo === employeeName;
+      const opAssignedToId = (instance.operation as any).assignedToEmployeeId?.toString();
+      return opAssignedToId === employee._id.toString() || instance.operation.assignedTo === employeeName;
     });
   };
 
   // Get operations directly from operations array (not just instances) for display
   // This includes operations without startDate which won't appear in operationInstances
-  const getOperationsForEmployeeDirect = (employeeName: string) => {
+  const getOperationsForEmployeeDirect = (employee: IEmployee) => {
+    const employeeName = employee.name;
     return operations.filter((operation) => {
-      return operation.assignedTo === employeeName;
+      const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
+      return opAssignedToId === employee._id.toString() || operation.assignedTo === employeeName;
     });
   };
 
@@ -391,10 +402,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
   };
 
   const getCommittedHours = (employee: IEmployee) => {
-    const employeeProjects = getProjectsForEmployee(employee.name);
-    const employeeOperations = getOperationsForEmployee(employee.name);
+    const employeeProjects = getProjectsForEmployee(employee);
+    const employeeOperations = getOperationsForEmployee(employee);
     // Also get operations without startDate for hours calculation
-    const directOps = getOperationsForEmployeeDirect(employee.name);
+    const directOps = getOperationsForEmployeeDirect(employee);
     const opsWithoutDate = directOps.filter(op => !op.startDate && op.status !== 'complete');
     let totalHours = 0;
 

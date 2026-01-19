@@ -18,8 +18,35 @@ interface CalendarViewProps {
   isManagerOrAdmin?: boolean;
 }
 
-export default function CalendarView({ projects, operations, timeframe, currentDate, onProjectClick, onOperationClick, onDateChange, currentUserEmployeeName, isManagerOrAdmin = false }: CalendarViewProps) {
+export default function CalendarView({ projects, operations, timeframe, currentDate, onProjectClick, onOperationClick, onDateChange, currentUserEmployeeName, currentUserEmployeeId, isManagerOrAdmin = false }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
+  const [employees, setEmployees] = useState<any[]>([]);
+
+  // Fetch employees to resolve names from IDs
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const response = await fetch('/api/employees');
+        if (response.ok) {
+          const data = await response.json();
+          setEmployees(data);
+        }
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  // Helper function to get employee name from ID or return the name if available
+  const getEmployeeName = (assignedToId: string | undefined, assignedToName: string | undefined): string | undefined => {
+    if (assignedToName) return assignedToName;
+    if (assignedToId) {
+      const employee = employees.find(emp => emp._id?.toString() === assignedToId);
+      return employee?.name;
+    }
+    return undefined;
+  };
 
   useEffect(() => {
     setViewDate(currentDate);
@@ -457,9 +484,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                             </div>
                           )}
                           
-                          {operation.assignedTo && (
+                          {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo) && (
                             <div className="text-sm text-text-secondary">
-                              <strong>Assigned To:</strong> {operation.assignedTo}
+                              <strong>Assigned To:</strong> {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo)}
                             </div>
                           )}
                         </div>
@@ -529,9 +556,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
                       </div>
                       
-                      {project.assignedTo && (
+                      {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
                         <div className="text-sm text-text-secondary">
-                          <strong>Assigned To:</strong> {project.assignedTo}
+                          <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
                         </div>
                       )}
 
@@ -548,7 +575,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                   return true;
                                 }
                                 // If currentUserEmployeeName is set, only show tasks assigned to that user
+                                // Check by employeeId (preferred) or name (legacy)
                                 if (currentUserEmployeeName) {
+                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                                  // Note: We'd need currentUserEmployeeId passed as prop to check by ID
+                                  // For now, check by name for backward compatibility
                                   return task.assignedTo === currentUserEmployeeName;
                                 }
                                 // Otherwise show all tasks
@@ -568,7 +599,13 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               const isTodayInTask = todayNormalized >= taskStart && todayNormalized <= taskEnd;
 
                               // Show task if it includes today OR if user is manager/admin OR if it's assigned to the current user
-                              if (!isTodayInTask && !isManagerOrAdmin && (!currentUserEmployeeName || task.assignedTo !== currentUserEmployeeName)) return null;
+                              // Check assignment by employeeId (preferred) or name (legacy)
+                              const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                              const isAssignedToUser = currentUserEmployeeName && (
+                                taskAssignedToId === currentUserEmployeeId || 
+                                task.assignedTo === currentUserEmployeeName
+                              );
+                              if (!isTodayInTask && !isManagerOrAdmin && !isAssignedToUser) return null;
 
                               // Use a stable key based on task name, dates, and index to ensure uniqueness
                               // This prevents issues when tasks have the same name and dates
@@ -585,7 +622,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                   )}
                                   <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                     {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                                    {task.assignedTo && <span>Assigned: {task.assignedTo}</span>}
+                                    {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
+                                      <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
+                                    )}
                                     <span className="capitalize">{task.status}</span>
                                   </div>
                                 </div>
@@ -638,7 +677,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                     )}
                                     <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                       {operation.estimatedHours && <span>{operation.estimatedHours}h</span>}
-                                      {operation.assignedTo && <span>Assigned: {operation.assignedTo}</span>}
+                                      {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo) && (
+                                        <span>Assigned: {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo)}</span>
+                                      )}
                                       <span className="capitalize">{operation.status}</span>
                                     </div>
                                   </div>
@@ -838,7 +879,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
               const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
               const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
-              const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+              const assignedToId = isOperation 
+                ? (pos.operation!.operation as any).assignedToEmployeeId?.toString()
+                : (pos.project! as any).assignedToEmployeeId?.toString();
+              const assignedToName = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+              const assignedTo = getEmployeeName(assignedToId, assignedToName);
               
               // Calculate duration for operations
               let durationText = '';
@@ -1078,7 +1123,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
                   const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                   const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
-                  const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+                  const assignedToId = isOperation 
+                    ? (pos.operation!.operation as any).assignedToEmployeeId?.toString()
+                    : (pos.project! as any).assignedToEmployeeId?.toString();
+                  const assignedToName = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+                  const assignedTo = getEmployeeName(assignedToId, assignedToName);
                   
                   // Calculate duration for operations
                   let durationText = '';
@@ -1337,7 +1386,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
                         const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
                         const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
-                        const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+                        const assignedToId = isOperation 
+                          ? (pos.operation!.operation as any).assignedToEmployeeId?.toString()
+                          : (pos.project! as any).assignedToEmployeeId?.toString();
+                        const assignedToName = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+                        const assignedTo = getEmployeeName(assignedToId, assignedToName);
                         
                         // Calculate duration for operations
                         let durationText = '';
@@ -1422,7 +1475,8 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     const operationColor = operation.status === 'in-review' ? '#ef4444' : '#9ca3af';
                     const duration = Math.ceil((instance.endDate.getTime() - instance.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                     const durationText = duration > 1 ? ` - ${duration} day${duration !== 1 ? 's' : ''}` : '';
-                    const titleText = `${operation.name}${durationText}${operation.estimatedHours ? ` - ${operation.estimatedHours}h` : ''}${operation.assignedTo ? ` - ${operation.assignedTo}` : ''}`;
+                    const assignedToName = getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo);
+                    const titleText = `${operation.name}${durationText}${operation.estimatedHours ? ` - ${operation.estimatedHours}h` : ''}${assignedToName ? ` - ${assignedToName}` : ''}`;
                     return (
                       <div
                         key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`}

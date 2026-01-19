@@ -48,11 +48,13 @@ export async function GET(request: NextRequest) {
       // Administrators see all operations in their organization
       // But if they have an employee record, also include operations assigned to them
       if (currentUserEmployee) {
-        const employeeName = currentUserEmployee.name;
+        const employeeId = currentUserEmployee._id;
         // Use $or to include both org operations AND operations assigned to them
         query.$or = [
           { userId: { $in: orgUserIds } },
-          { assignedTo: employeeName }
+          { assignedToEmployeeId: employeeId },
+          // Legacy support for name-based assignments
+          { assignedTo: currentUserEmployee.name }
         ];
         // Remove the userId filter from top level since it's now in $or
         delete query.userId;
@@ -63,7 +65,12 @@ export async function GET(request: NextRequest) {
     } else {
       // Users see only operations they're assigned to
       if (currentUserEmployee) {
-        query.assignedTo = currentUserEmployee.name;
+        const employeeId = currentUserEmployee._id;
+        query.$or = [
+          { assignedToEmployeeId: employeeId },
+          // Legacy support for name-based assignments
+          { assignedTo: currentUserEmployee.name }
+        ];
       } else {
         // If no employee record, return empty array
         query._id = { $exists: false };
@@ -102,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    let { name, description, url, recurrenceType, status, assignedTo, estimatedHours, startDate, endDate } = body;
+    let { name, description, url, recurrenceType, status, assignedTo, assignedToEmployeeId, estimatedHours, startDate, endDate } = body;
 
     // Sanitize string inputs
     name = sanitizeString(name, 200);
@@ -152,7 +159,23 @@ export async function POST(request: NextRequest) {
       userId: session.userId,
     };
 
-    if (assignedTo) {
+    // Handle employee assignment - prefer employeeId over name
+    if (assignedToEmployeeId) {
+      operationData.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
+      // Also set name for backward compatibility if employee exists
+      const assignedEmployee = await Employee.findById(assignedToEmployeeId);
+      if (assignedEmployee) {
+        operationData.assignedTo = assignedEmployee.name;
+      }
+    } else if (assignedTo) {
+      // Legacy support: if name provided, try to find employee and set ID
+      const assignedEmployee = await Employee.findOne({ 
+        name: assignedTo, 
+        organizationId: user.organizationId 
+      });
+      if (assignedEmployee) {
+        operationData.assignedToEmployeeId = assignedEmployee._id;
+      }
       operationData.assignedTo = assignedTo;
     }
     if (estimatedHours !== undefined) {

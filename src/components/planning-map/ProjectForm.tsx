@@ -39,6 +39,9 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planning');
   const [estimatedHours, setEstimatedHours] = useState(project?.estimatedHours?.toString() || '');
   const [assignedTo, setAssignedTo] = useState(project?.assignedTo || '');
+  const [assignedToEmployeeId, setAssignedToEmployeeId] = useState(
+    project?.assignedToEmployeeId?.toString() || ''
+  );
   const [tasks, setTasks] = useState<IProjectTask[]>(project?.tasks || []);
   const [operations, setOperations] = useState<IOperation[]>([]);
   const [showTasks, setShowTasks] = useState(false);
@@ -203,10 +206,19 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
 
   const updateOperation = async (operationId: string, updates: Partial<IOperation>) => {
     try {
+      // If updating assignedTo by name, convert to employeeId
+      const updateData: any = { ...updates };
+      if (updates.assignedTo && typeof updates.assignedTo === 'string') {
+        const selectedEmployee = employees.find(emp => emp.name === updates.assignedTo);
+        if (selectedEmployee) {
+          updateData.assignedToEmployeeId = selectedEmployee._id.toString();
+        }
+      }
+      
       const response = await fetch(`/api/operations/${operationId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(updateData),
       });
       if (response.ok) {
         const updated = await response.json();
@@ -221,7 +233,22 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
 
   const updateTask = (index: number, field: keyof IProjectTask, value: any) => {
     const updated = [...tasks];
-    updated[index] = { ...updated[index], [field]: value };
+    const task = updated[index];
+    
+    // Handle employee assignment for tasks - prefer employeeId over name
+    if (field === 'assignedTo' && typeof value === 'string') {
+      const selectedEmployee = employees.find(emp => emp.name === value);
+      if (selectedEmployee) {
+        (task as any).assignedToEmployeeId = selectedEmployee._id.toString();
+        (task as any).assignedTo = selectedEmployee.name;
+      } else {
+        (task as any).assignedTo = value;
+        (task as any).assignedToEmployeeId = undefined;
+      }
+    } else {
+      updated[index] = { ...task, [field]: value };
+    }
+    
     setTasks(updated);
   };
 
@@ -256,7 +283,10 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       submitData.estimatedHours = parseFloat(estimatedHours);
     }
 
-    if (assignedTo) {
+    // Handle employee assignment - prefer employeeId over name
+    if (assignedToEmployeeId) {
+      submitData.assignedToEmployeeId = assignedToEmployeeId;
+    } else if (assignedTo) {
       submitData.assignedTo = assignedTo;
     }
 
@@ -265,6 +295,8 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         ...task,
         startDate: new Date(task.startDate),
         endDate: new Date(task.endDate),
+        // Ensure employeeId is included if available
+        assignedToEmployeeId: (task as any).assignedToEmployeeId || undefined,
       }));
     }
 
@@ -372,12 +404,24 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         />
         <Select
           label="Assigned To (optional)"
-          value={assignedTo}
-          onChange={(e) => setAssignedTo(e.target.value)}
+          value={assignedToEmployeeId || assignedTo}
+          onChange={(e) => {
+            const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
+            if (selectedEmployee) {
+              setAssignedToEmployeeId(e.target.value);
+              setAssignedTo(selectedEmployee.name);
+            } else {
+              setAssignedToEmployeeId('');
+              setAssignedTo(e.target.value);
+            }
+          }}
           disabled={isRegularUser}
           options={[
             { value: '', label: 'None' },
-            ...employees.map(emp => ({ value: emp.name, label: emp.name }))
+            ...employees.map(emp => ({ 
+              value: emp._id.toString(), 
+              label: emp.name 
+            }))
           ]}
         />
       </div>
@@ -465,11 +509,28 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     <div>
                       <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Assigned To</label>
                       <Select
-                        value={operation.assignedTo || ''}
-                        onChange={(e) => operation._id && updateOperation(operation._id.toString(), { assignedTo: e.target.value || undefined })}
+                        value={(operation as any).assignedToEmployeeId?.toString() || operation.assignedTo || ''}
+                        onChange={(e) => {
+                          if (operation._id) {
+                            const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
+                            if (selectedEmployee) {
+                              updateOperation(operation._id.toString(), { 
+                                assignedToEmployeeId: selectedEmployee._id.toString(),
+                                assignedTo: selectedEmployee.name 
+                              });
+                            } else {
+                              updateOperation(operation._id.toString(), { 
+                                assignedTo: e.target.value || undefined 
+                              });
+                            }
+                          }
+                        }}
                         options={[
                           { value: '', label: 'None' },
-                          ...employees.map(emp => ({ value: emp.name, label: emp.name }))
+                          ...employees.map(emp => ({ 
+                            value: emp._id.toString(), 
+                            label: emp.name 
+                          }))
                         ]}
                       />
                     </div>
@@ -601,11 +662,24 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   />
                   <Select
                     label="Assigned To (optional)"
-                    value={task.assignedTo || ''}
-                    onChange={(e) => updateTask(index, 'assignedTo', e.target.value)}
+                    value={(task as any).assignedToEmployeeId?.toString() || task.assignedTo || ''}
+                    onChange={(e) => {
+                      const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
+                      if (selectedEmployee) {
+                        updateTask(index, 'assignedTo', selectedEmployee.name);
+                        const updated = [...tasks];
+                        (updated[index] as any).assignedToEmployeeId = selectedEmployee._id.toString();
+                        setTasks(updated);
+                      } else {
+                        updateTask(index, 'assignedTo', e.target.value);
+                      }
+                    }}
                     options={[
                       { value: '', label: 'None' },
-                      ...employees.map(emp => ({ value: emp.name, label: emp.name }))
+                      ...employees.map(emp => ({ 
+                        value: emp._id.toString(), 
+                        label: emp.name 
+                      }))
                     ]}
                   />
                 </div>
