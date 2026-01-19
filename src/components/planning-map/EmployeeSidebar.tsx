@@ -918,7 +918,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               // Only show operations that either:
               // 1. Have an instance in the current timeframe (from instanceMap)
               // 2. Don't have a startDate (ongoing commitments)
-              const directOps = getOperationsForEmployeeDirect(employee.name);
+              const directOps = getOperationsForEmployeeDirect(employee);
               const activeOps = directOps.filter(op => {
                 if (op.status === 'complete') return false; // Note: Operations still use 'complete'
                 // Only show operations that aren't linked to a project
