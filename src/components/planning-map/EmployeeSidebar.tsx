@@ -423,7 +423,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       let employeeTaskHours = 0;
       if (project.tasks && project.tasks.length > 0) {
         project.tasks.forEach((task) => {
-          if (task.assignedTo === employee.name && task.estimatedHours && task.status !== 'complete') {
+          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+          const isAssignedToTask = taskAssignedToId === employee._id.toString() || task.assignedTo === employee.name;
+          if (isAssignedToTask && task.estimatedHours && task.status !== 'complete') {
             employeeTaskHours += task.estimatedHours;
           }
         });
@@ -433,7 +435,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (employeeTaskHours > 0 && project.estimatedHours && project.tasks) {
         // Calculate the proportion of task hours in the timeframe
         const taskHoursInRange = project.tasks
-          .filter(task => task.assignedTo === employee.name && task.estimatedHours && task.status !== 'complete')
+          .filter(task => {
+            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+            const isAssignedToTask = taskAssignedToId === employee._id.toString() || task.assignedTo === employee.name;
+            return isAssignedToTask && task.estimatedHours && task.status !== 'complete';
+          })
           .reduce((sum, task) => {
             if (!task.estimatedHours) return sum;
             const taskStart = new Date(task.startDate);
@@ -450,12 +456,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       }
       
       // If project is assigned to this employee, count remaining hours (project total - task hours assigned to others)
-      if (project.assignedTo === employee.name && project.estimatedHours) {
+      const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
+      const isProjectAssignedToEmployee = projectAssignedToId === employee._id.toString() || project.assignedTo === employee.name;
+      if (isProjectAssignedToEmployee && project.estimatedHours) {
         // Calculate total hours assigned to other employees via tasks
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
-            if (task.assignedTo && task.assignedTo !== employee.name && task.estimatedHours && task.status !== 'complete') {
+            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+            const isAssignedToTask = taskAssignedToId === employee._id.toString() || task.assignedTo === employee.name;
+            if (task.estimatedHours && task.status !== 'complete' && !isAssignedToTask) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
