@@ -1093,10 +1093,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       const projectEnd = new Date(project.endDate);
                       
                       // Check if employee is assigned to project or any tasks
-                      // Skip tasks if project is launched (tasks should have been converted to operations)
+                      // Show tasks even for launched projects if they're assigned to the employee
                       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
                       const isAssignedToProject = projectAssignedToId === employee._id.toString();
-                      const assignedTasks = project.status !== 'launched' && project.tasks 
+                      const assignedTasks = project.tasks 
                         ? project.tasks.filter(task => {
                             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
                             return taskAssignedToId === employee._id.toString() && task.status !== 'complete';
