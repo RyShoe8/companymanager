@@ -654,9 +654,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     );
   }
 
-  // Helper function to filter employees based on role
-  const getVisibleEmployees = (employeesList: IEmployee[]) => {
-    return employeesList.filter(employee => {
+  // Filter employees based on role - memoized to recalculate when role or employee list changes
+  const visibleEmployees = useMemo(() => {
+    return employees.filter(employee => {
       // Include employees that have a userId (registered users)
       if (employee.userId == null) return false;
       
@@ -664,18 +664,18 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // - Administrators: see all employees
       // - Managers: see all employees (users, managers, and admins)
       // - Users: see only themselves
+      // - If role is undefined/null, default to showing all (safer fallback)
       if (currentUserRole === 'User') {
         const employeeId = employee._id.toString();
         return employeeId === currentUserEmployeeId;
       }
       
-      // Managers and Administrators see all employees
+      // Managers, Administrators, and undefined roles see all employees
       return true;
     });
-  };
+  }, [employees, currentUserRole, currentUserEmployeeId]);
 
   // Calculate team totals - only include visible employees (based on role)
-  const visibleEmployees = getVisibleEmployees(employees);
   const teamTotals = visibleEmployees.reduce((totals, employee) => {
     const employeeProjects = getProjectsForEmployee(employee);
     const employeeOperations = getOperationsForEmployee(employee);
