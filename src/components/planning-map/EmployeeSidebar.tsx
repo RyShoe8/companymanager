@@ -416,13 +416,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectEnd = new Date(project.endDate);
       
       // Calculate task hours assigned to this employee (count independently of project hours)
+      let hasEmployeeTasks = false;
+      let taskHoursInRange = 0;
       if (project.tasks && project.tasks.length > 0) {
-        const taskHoursInRange = project.tasks
+        taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
             return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'complete';
           })
           .reduce((sum, task) => {
+            hasEmployeeTasks = true;
             if (!task.estimatedHours) return sum;
             const taskStart = new Date(task.startDate);
             const taskEnd = new Date(task.endDate);
@@ -439,10 +442,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         totalHours += taskHoursInRange;
       }
       
-      // If project is assigned to this employee, count remaining hours (project total - task hours assigned to others)
+      // If project is assigned to this employee AND there are no tasks assigned to this employee,
+      // count remaining hours (project total - task hours assigned to others)
+      // If there are tasks assigned to this employee, we already counted those above, so skip project-level hours
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       const isProjectAssignedToEmployee = projectAssignedToId === employee._id.toString();
-      if (isProjectAssignedToEmployee && project.estimatedHours) {
+      if (isProjectAssignedToEmployee && project.estimatedHours && !hasEmployeeTasks) {
         // Calculate total hours assigned to other employees via tasks
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
@@ -470,6 +475,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         } else {
           console.log(`[DEBUG] Project "${project.name}" assigned to employee but no remaining hours (all tasks assigned to others)`);
         }
+      } else if (isProjectAssignedToEmployee && hasEmployeeTasks) {
+        console.log(`[DEBUG] Project "${project.name}" assigned to employee but has tasks assigned to employee, skipping project-level hours`);
       }
     });
 
