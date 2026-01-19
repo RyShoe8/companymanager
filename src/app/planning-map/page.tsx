@@ -276,8 +276,8 @@ export default function PlanningMapPage() {
           <div className="lg:col-span-1">
             <EmployeeSidebar
               employees={employees}
-              projects={filteredProjects}
-              operations={filteredOperations}
+              projects={projects}
+              operations={operations}
               timeframe={timeframe}
               currentDate={currentDate}
               currentUserRole={currentUserRole}
