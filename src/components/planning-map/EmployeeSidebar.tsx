@@ -373,9 +373,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return operationInstances.filter((instance) => {
       const op = instance.operation;
       const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
+      const opAssignedToIds = (op as any).assignedToEmployeeIds;
       const isAssignedById = opAssignedToId === employee._id.toString();
       const isAssignedByName = op.assignedTo && op.assignedTo === employee.name;
-      return isAssignedById || isAssignedByName;
+      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+        opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
+      return isAssignedById || isAssignedByName || isAssignedByArray;
     });
   };
 
@@ -384,9 +387,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
   const getOperationsForEmployeeDirect = (employee: IEmployee) => {
     return operations.filter((operation) => {
       const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
+      const opAssignedToIds = (operation as any).assignedToEmployeeIds;
       const isAssignedById = opAssignedToId === employee._id.toString();
       const isAssignedByName = operation.assignedTo && operation.assignedTo === employee.name;
-      return isAssignedById || isAssignedByName;
+      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+        opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
+      return isAssignedById || isAssignedByName || isAssignedByArray;
     });
   };
 
@@ -1182,8 +1188,15 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       operationInstances.forEach(instance => {
                         const op = instance.operation;
                         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
+                        const opAssignedToIds = (op as any).assignedToEmployeeIds;
+                        const isAssignedById = opAssignedToId === employee._id.toString();
+                        const isAssignedByName = op.assignedTo && op.assignedTo === employee.name;
+                        const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+                          opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
+                        const isAssignedToEmployee = isAssignedById || isAssignedByName || isAssignedByArray;
+                        
                         if (op.projectId?.toString() === project._id.toString() &&
-                            opAssignedToId === employee._id.toString() &&
+                            isAssignedToEmployee &&
                             op.status !== 'complete') {
                           // Check if this instance overlaps with the current timeframe
                           const instanceStart = normalizeToStartOfDay(instance.startDate);
