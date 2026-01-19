@@ -33,9 +33,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const migratedProject = migrateStagesToTasks(project);
     if (migratedProject !== project) {
       // Save migration if it occurred (async, don't wait)
-      Project.findByIdAndUpdate(id, { tasks: (migratedProject as any).tasks }, { new: true }).catch((err: any) => 
+      Project.findByIdAndUpdate(id, { tasks: (migratedProject as any).tasks }, { new: true }).catch(() => {
         // Error saving migration
-      );
+      });
     }
     
     // Clean up: If project is launched and has operations, clear tasks to avoid duplicates

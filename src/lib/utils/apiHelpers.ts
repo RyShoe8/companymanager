@@ -81,9 +81,9 @@ export async function cleanupLaunchedProjectTasks(projectId: string | Types.Obje
     const existingOperations = await Operation.find({ projectId: projId }).lean();
     if (existingOperations.length > 0) {
       // Clear tasks since they've been converted to operations
-      await Project.findByIdAndUpdate(projId, { tasks: [] }, { new: true }).catch((err: any) => 
+      await Project.findByIdAndUpdate(projId, { tasks: [] }, { new: true }).catch(() => {
         // Error cleaning up tasks
-      );
+      });
     }
   }
 }
