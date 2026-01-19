@@ -306,37 +306,36 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
       )}
 
       {/* Asset Form Modal */}
-      {showAssetForm && (
-        <Modal
-          title="Add Asset"
-          onClose={() => setShowAssetForm(false)}
-        >
-          <AssetForm
-            linkedOperationId={operation._id.toString()}
-            projects={projects}
-            operations={operations}
-            onSuccess={() => {
-              setShowAssetForm(false);
-              // Refresh assets
-              fetch(`/api/assets?linkedOperationId=${operation._id}`)
-                .then(res => res.json())
-                .then(assetsData => {
-                  const assets = assetsData.filter((asset: IAsset) => 
-                    asset.linkedOperationId?.toString() === operation._id.toString() &&
-                    asset.type !== 'screenshot'
-                  );
-                  const screenshots = assetsData.filter((asset: IAsset) => 
-                    asset.linkedOperationId?.toString() === operation._id.toString() &&
-                    asset.type === 'screenshot'
-                  );
-                  setOperationAssets(assets);
-                  setOperationScreenshots(screenshots);
-                });
-            }}
-            onCancel={() => setShowAssetForm(false)}
-          />
-        </Modal>
-      )}
+      <Modal
+        isOpen={showAssetForm}
+        title="Add Asset"
+        onClose={() => setShowAssetForm(false)}
+      >
+        <AssetForm
+          linkedOperationId={operation._id.toString()}
+          projects={projects}
+          operations={operations}
+          onSuccess={() => {
+            setShowAssetForm(false);
+            // Refresh assets
+            fetch(`/api/assets?linkedOperationId=${operation._id}`)
+              .then(res => res.json())
+              .then(assetsData => {
+                const assets = assetsData.filter((asset: IAsset) => 
+                  asset.linkedOperationId?.toString() === operation._id.toString() &&
+                  asset.type !== 'screenshot'
+                );
+                const screenshots = assetsData.filter((asset: IAsset) => 
+                  asset.linkedOperationId?.toString() === operation._id.toString() &&
+                  asset.type === 'screenshot'
+                );
+                setOperationAssets(assets);
+                setOperationScreenshots(screenshots);
+              });
+          }}
+          onCancel={() => setShowAssetForm(false)}
+        />
+      </Modal>
     </div>
   );
 }
