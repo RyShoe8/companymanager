@@ -471,10 +471,14 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     });
 
     // Calculate hours from operations
+    console.log(`[DEBUG] Processing ${employeeOperations.length} operations for ${employee.name}`);
     employeeOperations.forEach((instance) => {
       const operation = instance.operation;
       // Skip completed operations - they don't count toward committed hours
-      if (operation.status === 'complete') return;
+      if (operation.status === 'complete') {
+        console.log(`[DEBUG] Skipping completed operation "${operation.name}"`);
+        return;
+      }
       
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // Calculate hours the same way as tasks - spread across duration using weekdays
@@ -495,9 +499,13 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             instanceEnd,
             hours
           );
-          console.log(`[DEBUG] Operation "${operation.name}": ${hours}h total, ${hoursInRange}h in range (${instanceStart.toISOString().split('T')[0]} to ${instanceEnd.toISOString().split('T')[0]})`);
+          console.log(`[DEBUG] Operation "${operation.name}" (projectId: ${operation.projectId?.toString() || 'none'}): ${hours}h total, ${hoursInRange}h in range (${instanceStart.toISOString().split('T')[0]} to ${instanceEnd.toISOString().split('T')[0]})`);
           totalHours += hoursInRange;
+        } else {
+          console.log(`[DEBUG] Operation "${operation.name}" has invalid estimatedHours: ${operation.estimatedHours}`);
         }
+      } else {
+        console.log(`[DEBUG] Operation "${operation.name}" has no estimatedHours`);
       }
     });
 
