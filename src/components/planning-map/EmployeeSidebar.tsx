@@ -723,8 +723,24 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return employeesWithUserId;
   }, [employees, currentUserRole, currentUserEmployeeId]);
 
+  // Sort employees so current user's card appears first
+  const sortedVisibleEmployees = useMemo(() => {
+    if (!currentUserEmployeeId) return visibleEmployees;
+    
+    const sorted = [...visibleEmployees];
+    const currentUserIndex = sorted.findIndex(emp => emp._id.toString() === currentUserEmployeeId);
+    
+    if (currentUserIndex > 0) {
+      // Move current user to the top
+      const [currentUser] = sorted.splice(currentUserIndex, 1);
+      sorted.unshift(currentUser);
+    }
+    
+    return sorted;
+  }, [visibleEmployees, currentUserEmployeeId]);
+
   // Calculate team totals - only include visible employees (based on role)
-  const teamTotals = visibleEmployees.reduce((totals, employee) => {
+  const teamTotals = sortedVisibleEmployees.reduce((totals, employee) => {
     const employeeProjects = getProjectsForEmployee(employee);
     const employeeOperations = getOperationsForEmployee(employee);
     let committedHours = 0;
@@ -882,7 +898,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           </div>
         </div>
       </div>
-      {visibleEmployees.map((employee) => {
+      {sortedVisibleEmployees.map((employee) => {
         const employeeProjects = getProjectsForEmployee(employee);
         const committedHours = getCommittedHours(employee);
         const completedHours = getCompletedHours(employee);
