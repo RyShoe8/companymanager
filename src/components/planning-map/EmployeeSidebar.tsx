@@ -503,12 +503,31 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         totalHours += taskHoursInRange;
       }
       
-      // If project is assigned to this employee AND there are no tasks assigned to this employee,
+      // Check if there are operations attached to this project assigned to this employee in the current timeframe
+      let hasEmployeeOperationsInRange = false;
+      employeeOperations.forEach((instance) => {
+        const operation = instance.operation;
+        if (operation.projectId?.toString() === project._id.toString() && 
+            operation.status !== 'complete') {
+          // Check if this operation instance overlaps with the current timeframe
+          const instanceStart = normalizeToStartOfDay(instance.startDate);
+          const instanceEnd = normalizeToEndOfDay(instance.endDate);
+          const rangeStart = normalizeToStartOfDay(startDate);
+          const rangeEnd = normalizeToEndOfDay(endDate);
+          
+          if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+            hasEmployeeOperationsInRange = true;
+          }
+        }
+      });
+      
+      // If project is assigned to this employee AND there are no tasks assigned to this employee
+      // AND there are no operations assigned to this employee for this project in this timeframe,
       // count remaining hours (project total - task hours assigned to others)
-      // If there are tasks assigned to this employee, we already counted those above, so skip project-level hours
+      // If there are tasks or operations assigned to this employee, we already counted those above, so skip project-level hours
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       const isProjectAssignedToEmployee = projectAssignedToId === employee._id.toString();
-      if (isProjectAssignedToEmployee && project.estimatedHours && !hasEmployeeTasks) {
+      if (isProjectAssignedToEmployee && project.estimatedHours && !hasEmployeeTasks && !hasEmployeeOperationsInRange) {
         // Calculate total hours assigned to other employees via tasks
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
@@ -1220,9 +1239,13 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       const finalAssignedOperations = assignedOperations;
                       
                       // Calculate project-level hours (remaining after ALL task assignments)
-                      // If employee is assigned to project, they get remaining hours after all tasks are assigned
+                      // Only calculate project-level hours if:
+                      // 1. Employee is assigned to project AND
+                      // 2. There are NO tasks assigned to this employee for this timeframe AND
+                      // 3. There are NO operations assigned to this employee for this timeframe
+                      // If there are tasks or operations assigned, those are shown separately and project-level hours shouldn't be counted
                       let totalProjectHours = 0;
-                      if (isAssignedToProject && project.estimatedHours) {
+                      if (isAssignedToProject && project.estimatedHours && assignedTasks.length === 0 && finalAssignedOperations.length === 0) {
                         // Calculate total hours assigned via tasks (to anyone, including this employee)
                         let totalTaskHours = 0;
                         if (project.tasks && project.tasks.length > 0) {
