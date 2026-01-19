@@ -55,12 +55,14 @@ export function migrateStagesToTasks(project: any): any {
  * Clean up launched projects by clearing tasks if operations exist
  * This prevents duplicates when tasks have been converted to operations
  */
-export async function cleanupLaunchedProjectTasks(projectId: Types.ObjectId, projectStatus: string, projectTasks: any[]): Promise<void> {
+export async function cleanupLaunchedProjectTasks(projectId: string | Types.ObjectId, projectStatus: string, projectTasks: any[]): Promise<void> {
   if (projectStatus === 'launched' && projectTasks && projectTasks.length > 0) {
-    const existingOperations = await Operation.find({ projectId }).lean();
+    // Convert string to ObjectId if needed
+    const projId = typeof projectId === 'string' ? new Types.ObjectId(projectId) : projectId;
+    const existingOperations = await Operation.find({ projectId: projId }).lean();
     if (existingOperations.length > 0) {
       // Clear tasks since they've been converted to operations
-      await Project.findByIdAndUpdate(projectId, { tasks: [] }, { new: true }).catch((err: any) => 
+      await Project.findByIdAndUpdate(projId, { tasks: [] }, { new: true }).catch((err: any) => 
         console.error('Error cleaning up tasks:', err)
       );
     }
