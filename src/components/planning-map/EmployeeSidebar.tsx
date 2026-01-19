@@ -1175,51 +1175,36 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       
                       // Get operations linked to this project that are assigned to this employee
                       // Use operation instances to get correct dates for recurring operations
-                      const assignedOperationsMap = new Map<string, { operation: IOperation; startDate: Date; endDate: Date }>();
+                      // For recurring operations, we need ALL instances that fall within the timeframe, not just one
+                      const assignedOperations: Array<{ operation: IOperation; startDate: Date; endDate: Date }> = [];
+                      const seenInstanceKeys = new Set<string>();
+                      
                       operationInstances.forEach(instance => {
                         const op = instance.operation;
                         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
                         if (op.projectId?.toString() === project._id.toString() &&
                             opAssignedToId === employee._id.toString() &&
                             op.status !== 'complete') {
-                          const opId = op._id?.toString();
-                          if (opId && !assignedOperationsMap.has(opId)) {
-                            assignedOperationsMap.set(opId, instance);
+                          // Check if this instance overlaps with the current timeframe
+                          const instanceStart = normalizeToStartOfDay(instance.startDate);
+                          const instanceEnd = normalizeToEndOfDay(instance.endDate);
+                          const rangeStart = normalizeToStartOfDay(startDate);
+                          const rangeEnd = normalizeToEndOfDay(endDate);
+                          
+                          // Only include instances that overlap with the timeframe
+                          if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+                            // Create a unique key for this instance (operation ID + start date + end date)
+                            // This allows multiple instances of the same recurring operation
+                            const instanceKey = `${op._id?.toString()}-${instance.startDate.getTime()}-${instance.endDate.getTime()}`;
+                            if (!seenInstanceKeys.has(instanceKey)) {
+                              assignedOperations.push(instance);
+                              seenInstanceKeys.add(instanceKey);
+                            }
                           }
                         }
                       });
-                      const assignedOperations = Array.from(assignedOperationsMap.values());
                       
-                      // Additional safety check: deduplicate by operation ID, and also by name+projectId+endDate to catch true duplicates
-                      const uniqueOperationsMap = new Map<string, { operation: IOperation; startDate: Date; endDate: Date }>();
-                      const seenCompositeKeys = new Set<string>();
-                      assignedOperations.forEach(instance => {
-                        const op = instance.operation;
-                        const opId = op._id?.toString();
-                        const endDateStr = instance.endDate ? new Date(instance.endDate).toISOString().split('T')[0] : 'no-date';
-                        const compositeKey = `${op.name}-${project._id.toString()}-${endDateStr}`;
-                        
-                        // Skip if we've already seen this composite key (same name, project, and end date)
-                        // This catches duplicates even if they have different IDs
-                        if (seenCompositeKeys.has(compositeKey)) {
-                          return;
-                        }
-                        
-                        // Primary deduplication by operation ID
-                        if (opId) {
-                          if (!uniqueOperationsMap.has(opId)) {
-                            uniqueOperationsMap.set(opId, instance);
-                            seenCompositeKeys.add(compositeKey);
-                          }
-                        } else {
-                          // Fallback: use composite key as map key if no ID
-                          if (!uniqueOperationsMap.has(compositeKey)) {
-                            uniqueOperationsMap.set(compositeKey, instance);
-                            seenCompositeKeys.add(compositeKey);
-                          }
-                        }
-                      });
-                      const finalAssignedOperations = Array.from(uniqueOperationsMap.values());
+                      const finalAssignedOperations = assignedOperations;
                       
                       // Calculate project-level hours (remaining after ALL task assignments)
                       // If employee is assigned to project, they get remaining hours after all tasks are assigned
@@ -1282,16 +1267,13 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         };
                       }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
                       
-                      // Calculate operation hours - deduplicate by operation ID to prevent duplicates
+                      // Calculate operation hours - for recurring operations, sum hours from all instances
                       const operationHoursMap = new Map<string, { name: string; hours: number; dueDate: Date | null; operationId: string }>();
                       finalAssignedOperations.forEach(instance => {
                         const op = instance.operation;
                         if (!op.estimatedHours) return;
                         const opId = op._id?.toString();
                         if (!opId) return; // Skip if no ID
-                        
-                        // Skip if we've already processed this operation
-                        if (operationHoursMap.has(opId)) return;
                         
                         // Use instance dates for proper calculation and display
                         const opStart = normalizeToStartOfDay(instance.startDate);
@@ -1307,12 +1289,23 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         // Only include operations with hours > 0 in the timeframe
                         if (roundedHours <= 0) return;
                         
-                        operationHoursMap.set(opId, {
-                          name: op.name,
-                          hours: roundedHours,
-                          dueDate: new Date(instance.endDate), // Use instance endDate for correct display
-                          operationId: opId
-                        });
+                        // For recurring operations, accumulate hours from all instances
+                        if (operationHoursMap.has(opId)) {
+                          const existing = operationHoursMap.get(opId)!;
+                          existing.hours += roundedHours;
+                          existing.hours = Math.round(existing.hours * 100) / 100;
+                          // Update due date to the latest instance's end date
+                          if (instance.endDate > (existing.dueDate || new Date(0))) {
+                            existing.dueDate = new Date(instance.endDate);
+                          }
+                        } else {
+                          operationHoursMap.set(opId, {
+                            name: op.name,
+                            hours: roundedHours,
+                            dueDate: new Date(instance.endDate), // Use instance endDate for correct display
+                            operationId: opId
+                          });
+                        }
                       });
                       const operationHoursList = Array.from(operationHoursMap.values());
                       
