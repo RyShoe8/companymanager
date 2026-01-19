@@ -1261,7 +1261,15 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           task.estimatedHours
                         );
                         // Round to 2 decimal places (0.01 precision)
-                        const roundedHours = parseFloat((Math.round(hours * 100) / 100).toFixed(2));
+                        // For tasks spanning multiple days, ensure we preserve very small daily values
+                        let roundedHours = parseFloat((Math.round(hours * 100) / 100).toFixed(2));
+                        
+                        // If roundedHours is 0 but hours is positive (very small value), use a minimum of 0.01
+                        // This ensures tasks with less than 0.01h per day still show up
+                        if (roundedHours === 0 && hours > 0) {
+                          roundedHours = 0.01;
+                        }
+                        
                         // Include tasks that overlap the timeframe, even if hours round to 0
                         // This ensures tasks spanning multiple months show up correctly
                         return {
