@@ -1238,14 +1238,69 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       
                       const finalAssignedOperations = assignedOperations;
                       
+                      // Calculate operation hours first to determine if we should show project-level hours
+                      // Calculate operation hours - for recurring operations, sum hours from all instances
+                      const operationHoursMap = new Map<string, { name: string; hours: number; dueDate: Date | null; operationId: string }>();
+                      finalAssignedOperations.forEach(instance => {
+                        const op = instance.operation;
+                        if (!op.estimatedHours) return;
+                        const opId = op._id?.toString();
+                        if (!opId) return; // Skip if no ID
+                        
+                        // Use instance dates for proper calculation and display
+                        const opStart = normalizeToStartOfDay(instance.startDate);
+                        const opEnd = normalizeToEndOfDay(instance.endDate);
+                        const hours = calculateHoursForDateRange(
+                          startDate,
+                          endDate,
+                          opStart,
+                          opEnd,
+                          op.estimatedHours
+                        );
+                        const roundedHours = Math.round(hours * 100) / 100;
+                        // Include operations that overlap the timeframe, even if hours round to 0
+                        // This ensures small operations (like 0.5h) show up correctly
+                        // Check if operation overlaps with timeframe
+                        const normalizedOpStart = normalizeToStartOfDay(opStart);
+                        const normalizedOpEnd = normalizeToEndOfDay(opEnd);
+                        const normalizedRangeStart = normalizeToStartOfDay(startDate);
+                        const normalizedRangeEnd = normalizeToEndOfDay(endDate);
+                        const overlaps = normalizedOpStart <= normalizedRangeEnd && normalizedOpEnd >= normalizedRangeStart;
+                        if (!overlaps) return;
+                        
+                        // Use Math.max to ensure we don't have negative values, but include even very small positive values
+                        const finalHours = Math.max(0, roundedHours);
+                        
+                        // For recurring operations, accumulate hours from all instances
+                        if (operationHoursMap.has(opId)) {
+                          const existing = operationHoursMap.get(opId)!;
+                          existing.hours += finalHours;
+                          existing.hours = Math.round(existing.hours * 100) / 100;
+                          // Update due date to the latest instance's end date
+                          if (instance.endDate > (existing.dueDate || new Date(0))) {
+                            existing.dueDate = new Date(instance.endDate);
+                          }
+                        } else {
+                          operationHoursMap.set(opId, {
+                            name: op.name,
+                            hours: finalHours,
+                            dueDate: new Date(instance.endDate), // Use instance endDate for correct display
+                            operationId: opId
+                          });
+                        }
+                      });
+                      const operationHoursList = Array.from(operationHoursMap.values());
+                      // Filter to only operations with hours > 0 for project-level hours check
+                      const operationsWithHours = operationHoursList.filter(op => op.hours > 0);
+                      
                       // Calculate project-level hours (remaining after ALL task assignments)
                       // Only calculate project-level hours if:
                       // 1. Employee is assigned to project AND
                       // 2. There are NO tasks assigned to this employee for this timeframe AND
-                      // 3. There are NO operations assigned to this employee for this timeframe
-                      // If there are tasks or operations assigned, those are shown separately and project-level hours shouldn't be counted
+                      // 3. There are NO operations with hours > 0 assigned to this employee for this timeframe
+                      // If there are tasks or operations with hours, those are shown separately and project-level hours shouldn't be counted
                       let totalProjectHours = 0;
-                      if (isAssignedToProject && project.estimatedHours && assignedTasks.length === 0 && finalAssignedOperations.length === 0) {
+                      if (isAssignedToProject && project.estimatedHours && assignedTasks.length === 0 && operationsWithHours.length === 0) {
                         // Calculate total hours assigned via tasks (to anyone, including this employee)
                         let totalTaskHours = 0;
                         if (project.tasks && project.tasks.length > 0) {
@@ -1302,58 +1357,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           dueDate: taskEnd
                         };
                       }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
-                      
-                      // Calculate operation hours - for recurring operations, sum hours from all instances
-                      const operationHoursMap = new Map<string, { name: string; hours: number; dueDate: Date | null; operationId: string }>();
-                      finalAssignedOperations.forEach(instance => {
-                        const op = instance.operation;
-                        if (!op.estimatedHours) return;
-                        const opId = op._id?.toString();
-                        if (!opId) return; // Skip if no ID
-                        
-                        // Use instance dates for proper calculation and display
-                        const opStart = normalizeToStartOfDay(instance.startDate);
-                        const opEnd = normalizeToEndOfDay(instance.endDate);
-                        const hours = calculateHoursForDateRange(
-                          startDate,
-                          endDate,
-                          opStart,
-                          opEnd,
-                          op.estimatedHours
-                        );
-                        const roundedHours = Math.round(hours * 100) / 100;
-                        // Include operations that overlap the timeframe, even if hours round to 0
-                        // This ensures small operations (like 0.5h) show up correctly
-                        // Check if operation overlaps with timeframe
-                        const normalizedOpStart = normalizeToStartOfDay(opStart);
-                        const normalizedOpEnd = normalizeToEndOfDay(opEnd);
-                        const normalizedRangeStart = normalizeToStartOfDay(startDate);
-                        const normalizedRangeEnd = normalizeToEndOfDay(endDate);
-                        const overlaps = normalizedOpStart <= normalizedRangeEnd && normalizedOpEnd >= normalizedRangeStart;
-                        if (!overlaps) return;
-                        
-                        // Use Math.max to ensure we don't have negative values, but include even very small positive values
-                        const finalHours = Math.max(0, roundedHours);
-                        
-                        // For recurring operations, accumulate hours from all instances
-                        if (operationHoursMap.has(opId)) {
-                          const existing = operationHoursMap.get(opId)!;
-                          existing.hours += finalHours;
-                          existing.hours = Math.round(existing.hours * 100) / 100;
-                          // Update due date to the latest instance's end date
-                          if (instance.endDate > (existing.dueDate || new Date(0))) {
-                            existing.dueDate = new Date(instance.endDate);
-                          }
-                        } else {
-                          operationHoursMap.set(opId, {
-                            name: op.name,
-                            hours: finalHours,
-                            dueDate: new Date(instance.endDate), // Use instance endDate for correct display
-                            operationId: opId
-                          });
-                        }
-                      });
-                      const operationHoursList = Array.from(operationHoursMap.values());
                       
                       // Show project if employee is assigned to it, has incomplete tasks assigned, or has operations assigned
                       // Don't show if only assigned to project but all tasks are completed
