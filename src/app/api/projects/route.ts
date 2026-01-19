@@ -43,8 +43,21 @@ export async function GET(request: NextRequest) {
     // - Managers: see only projects they created (filter by userId)
     // - Users: see only projects they're assigned to
     if (userRole === 'Administrator') {
-      // Administrators see all projects in their organization - no additional filtering needed
+      // Administrators see all projects in their organization
       // The userId: { $in: orgUserIds } filter already ensures they only see org projects
+      // But if they have an employee record, also include projects assigned to them (even if created outside org)
+      if (currentUserEmployee) {
+        const employeeName = currentUserEmployee.name;
+        // Use $or to include both org projects AND projects assigned to them
+        query.$or = [
+          { userId: { $in: orgUserIds } },
+          { assignedTo: employeeName },
+          { 'tasks.assignedTo': employeeName },
+          { 'stages.assignedTo': employeeName }
+        ];
+        // Remove the userId filter from top level since it's now in $or
+        delete query.userId;
+      }
     } else if (userRole === 'Manager') {
       // Managers see only projects they created
       query.userId = new Types.ObjectId(session.userId);
