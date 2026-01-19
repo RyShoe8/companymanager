@@ -811,7 +811,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           </div>
         </div>
       </div>
-      {employees.filter(employee => employee.userId).map((employee) => {
+      {employees.filter(employee => {
+        // Include employees that have a userId (registered users)
+        // Check if userId exists (handles ObjectId, null, undefined)
+        return employee.userId != null;
+      }).map((employee) => {
         const employeeProjects = getProjectsForEmployee(employee);
         const committedHours = getCommittedHours(employee);
         const completedHours = getCompletedHours(employee);
