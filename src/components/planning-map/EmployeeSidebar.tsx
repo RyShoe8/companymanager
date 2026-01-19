@@ -1289,12 +1289,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           opEnd,
                           op.estimatedHours
                         );
-                        // Round to 2 decimal places (0.01 precision)
-                        // Use parseFloat to handle floating point precision issues
-                        const roundedHours = parseFloat((Math.round(hours * 100) / 100).toFixed(2));
-                        // Include operations that overlap the timeframe, even if hours round to 0
-                        // This ensures small operations (like 0.25h or 0.01h) show up correctly
-                        // Check if operation overlaps with timeframe
+                        // Check if operation overlaps with timeframe first
                         const normalizedOpStart = normalizeToStartOfDay(opStart);
                         const normalizedOpEnd = normalizeToEndOfDay(opEnd);
                         const normalizedRangeStart = normalizeToStartOfDay(startDate);
@@ -1302,7 +1297,18 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         const overlaps = normalizedOpStart <= normalizedRangeEnd && normalizedOpEnd >= normalizedRangeStart;
                         if (!overlaps) return;
                         
-                        // Use Math.max to ensure we don't have negative values, but include even very small positive values (>= 0.01)
+                        // Round to 2 decimal places (0.01 precision)
+                        // Use parseFloat to handle floating point precision issues
+                        // For operations spanning multiple days, ensure we preserve very small daily values
+                        let roundedHours = parseFloat((Math.round(hours * 100) / 100).toFixed(2));
+                        
+                        // If roundedHours is 0 but hours is positive (very small value), use a minimum of 0.01
+                        // This ensures operations with less than 0.01h per day still show up
+                        if (roundedHours === 0 && hours > 0) {
+                          roundedHours = 0.01;
+                        }
+                        
+                        // Use Math.max to ensure we don't have negative values, but include even very small positive values
                         const finalHours = Math.max(0, roundedHours);
                         
                         // For recurring operations, accumulate hours from all instances
@@ -1325,9 +1331,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         }
                       });
                       const operationHoursList = Array.from(operationHoursMap.values());
-                      // Filter to only operations with hours >= 0.01 (to handle very small values)
-                      // This ensures operations with 0.01h or more are included
-                      const operationsWithHours = operationHoursList.filter(op => op.hours >= 0.01);
+                      // Filter to only operations with hours > 0 (include all positive values, even very small ones)
+                      // This ensures operations with any hours are included (including 0.01h, 0.25h, etc.)
+                      const operationsWithHours = operationHoursList.filter(op => op.hours > 0);
                       
                       // Calculate project hours as the sum of task hours + operation hours for this project in the timeframe
                       // Project hours should be an aggregate of operations and task hours, not remaining project hours
