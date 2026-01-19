@@ -1429,7 +1429,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           })}
                           
                           {/* Operations */}
-                          {operationHoursList.map((opInfo) => {
+                          {operationsWithHours.map((opInfo) => {
                             if (!opInfo.dueDate) return null;
                             const isOpDueToday = (() => {
                               const today = new Date();
