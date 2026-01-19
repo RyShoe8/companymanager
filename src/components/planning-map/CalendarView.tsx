@@ -97,7 +97,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
         if (saved) {
           try {
             const projectIds = JSON.parse(saved);
-            manuallyCollapsed.add(...projectIds);
+            projectIds.forEach((id: string) => manuallyCollapsed.add(id));
           } catch (e) {
             // Ignore parse errors
           }
