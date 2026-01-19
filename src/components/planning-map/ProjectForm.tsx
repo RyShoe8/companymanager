@@ -48,6 +48,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const [showTasks, setShowTasks] = useState(false);
   const [showOperations, setShowOperations] = useState(false);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
+  const [isAddingOperation, setIsAddingOperation] = useState(false);
   const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
   const isRegularUser = userRole === 'User';
   const isLaunched = project?.status === 'launched';

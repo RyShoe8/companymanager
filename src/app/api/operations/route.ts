@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    let { name, description, url, recurrenceType, status, assignedTo, assignedToEmployeeId, estimatedHours, startDate, endDate } = body;
+    let { name, description, url, recurrenceType, status, assignedTo, assignedToEmployeeId, estimatedHours, startDate, endDate, projectId } = body;
 
     // Sanitize string inputs
     name = sanitizeString(name, 200);
@@ -183,6 +183,9 @@ export async function POST(request: NextRequest) {
     }
     if (endDate) {
       operationData.endDate = new Date(endDate);
+    }
+    if (projectId) {
+      operationData.projectId = new Types.ObjectId(projectId);
     }
 
     const operation = await Operation.create(operationData);
