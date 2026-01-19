@@ -656,6 +656,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
   // Filter employees based on role - memoized to recalculate when role or employee list changes
   const visibleEmployees = useMemo(() => {
+    // If role is not set yet, show all employees (safer default)
+    if (!currentUserRole) {
+      return employees.filter(employee => employee.userId != null);
+    }
+    
     return employees.filter(employee => {
       // Include employees that have a userId (registered users)
       if (employee.userId == null) return false;
@@ -664,13 +669,17 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // - Administrators: see all employees
       // - Managers: see all employees (users, managers, and admins)
       // - Users: see only themselves
-      // - If role is undefined/null, default to showing all (safer fallback)
       if (currentUserRole === 'User') {
         const employeeId = employee._id.toString();
         return employeeId === currentUserEmployeeId;
       }
       
-      // Managers, Administrators, and undefined roles see all employees
+      // Managers and Administrators see all employees
+      if (currentUserRole === 'Manager' || currentUserRole === 'Administrator') {
+        return true;
+      }
+      
+      // Fallback: if role is something unexpected, show all
       return true;
     });
   }, [employees, currentUserRole, currentUserEmployeeId]);
