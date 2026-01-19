@@ -763,133 +763,177 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       </>
                     )}
 
-                      {/* Show tasks for non-launched projects */}
-                      {hasTasks && isExpanded && (
-                        <div className="mt-4">
-                          <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
+                    {/* Show tasks for non-launched projects */}
+                    {hasTasks && (
+                      <div className="mt-4">
+                        <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
+                        {isExpanded ? (
                           <div className="space-y-2">
-                              {/* Show all tasks for managers/admins, or tasks assigned to current user for regular users */}
-                              {project.tasks!
-                                .filter((task) => {
-                                  // If user is manager/admin, show all tasks
-                                  if (isManagerOrAdmin) {
-                                    return true;
-                                  }
-                                  // If currentUserEmployeeName is set, only show tasks assigned to that user
-                                  // Check by employeeId (preferred) or name (legacy)
-                                  if (currentUserEmployeeName) {
-                                    const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                    // Note: We'd need currentUserEmployeeId passed as prop to check by ID
-                                    // For now, check by name for backward compatibility
-                                    return task.assignedTo === currentUserEmployeeName;
-                                  }
-                                  // Otherwise show all tasks
+                            {/* Show all tasks for managers/admins, or tasks assigned to current user for regular users */}
+                            {project.tasks!
+                              .filter((task) => {
+                                // If user is manager/admin, show all tasks
+                                if (isManagerOrAdmin) {
                                   return true;
-                                })
-                                .map((task, idx) => {
-                                  // Normalize dates to midnight for accurate date-only comparison
-                                  const taskStart = new Date(task.startDate);
-                                  taskStart.setHours(0, 0, 0, 0);
-                                  const taskEnd = new Date(task.endDate);
-                                  taskEnd.setHours(23, 59, 59, 999); // End of day
-                                  
-                                  const todayNormalized = new Date(today);
-                                  todayNormalized.setHours(0, 0, 0, 0);
-                                  
-                                  const taskDays = Math.ceil((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                                  const isTodayInTask = todayNormalized >= taskStart && todayNormalized <= taskEnd;
-
-                                  // Show task if it includes today OR if user is manager/admin OR if it's assigned to the current user
-                                  // Check assignment by employeeId (preferred) or name (legacy)
+                                }
+                                // If currentUserEmployeeName is set, only show tasks assigned to that user
+                                // Check by employeeId (preferred) or name (legacy)
+                                if (currentUserEmployeeName) {
                                   const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                  const isAssignedToUser = currentUserEmployeeName && (
-                                    taskAssignedToId === currentUserEmployeeId || 
-                                    task.assignedTo === currentUserEmployeeName
-                                  );
-                                  if (!isTodayInTask && !isManagerOrAdmin && !isAssignedToUser) return null;
+                                  // Note: We'd need currentUserEmployeeId passed as prop to check by ID
+                                  // For now, check by name for backward compatibility
+                                  return task.assignedTo === currentUserEmployeeName;
+                                }
+                                // Otherwise show all tasks
+                                return true;
+                              })
+                              .map((task, idx) => {
+                                // Normalize dates to midnight for accurate date-only comparison
+                                const taskStart = new Date(task.startDate);
+                                taskStart.setHours(0, 0, 0, 0);
+                                const taskEnd = new Date(task.endDate);
+                                taskEnd.setHours(23, 59, 59, 999); // End of day
+                                
+                                const todayNormalized = new Date(today);
+                                todayNormalized.setHours(0, 0, 0, 0);
+                                
+                                const taskDays = Math.ceil((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                                const isTodayInTask = todayNormalized >= taskStart && todayNormalized <= taskEnd;
 
-                                  // Use a stable key based on task name, dates, and index to ensure uniqueness
-                                  // This prevents issues when tasks have the same name and dates
-                                  const taskKey = `${project._id.toString()}-task-${idx}-${task.name}-${taskStart.getTime()}-${taskEnd.getTime()}`;
+                                // Show task if it includes today OR if user is manager/admin OR if it's assigned to the current user
+                                // Check assignment by employeeId (preferred) or name (legacy)
+                                const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                                const isAssignedToUser = currentUserEmployeeName && (
+                                  taskAssignedToId === currentUserEmployeeId || 
+                                  task.assignedTo === currentUserEmployeeName
+                                );
+                                if (!isTodayInTask && !isManagerOrAdmin && !isAssignedToUser) return null;
 
-                                  return (
-                                    <div
-                                      key={taskKey}
-                                      className="p-3 rounded border border-border bg-background-card"
-                                    >
-                                      <div className="font-medium text-text-primary">{task.name}</div>
-                                      {task.description && (
-                                        <p className="text-sm text-text-secondary mt-1">{task.description}</p>
+                                // Use a stable key based on task name, dates, and index to ensure uniqueness
+                                // This prevents issues when tasks have the same name and dates
+                                const taskKey = `${project._id.toString()}-task-${idx}-${task.name}-${taskStart.getTime()}-${taskEnd.getTime()}`;
+
+                                return (
+                                  <div
+                                    key={taskKey}
+                                    className="p-3 rounded border border-border bg-background-card"
+                                  >
+                                    <div className="font-medium text-text-primary">{task.name}</div>
+                                    {task.description && (
+                                      <p className="text-sm text-text-secondary mt-1">{task.description}</p>
+                                    )}
+                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                      {task.estimatedHours && <span>{task.estimatedHours}h</span>}
+                                      {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
+                                        <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
                                       )}
-                                      <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                        {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                                        {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
-                                          <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
-                                        )}
-                                        <span className="capitalize">{task.status}</span>
-                                      </div>
+                                      <span className="capitalize">{task.status}</span>
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                );
+                              })}
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="space-y-1">
+                            {project.tasks!
+                              .filter((task) => {
+                                if (isManagerOrAdmin) return true;
+                                if (currentUserEmployeeName) {
+                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+                                }
+                                return true;
+                              })
+                              .map((task, idx) => {
+                                const taskStart = new Date(task.startDate);
+                                taskStart.setHours(0, 0, 0, 0);
+                                const taskEnd = new Date(task.endDate);
+                                taskEnd.setHours(23, 59, 59, 999);
+                                const todayNormalized = new Date(today);
+                                todayNormalized.setHours(0, 0, 0, 0);
+                                const isTodayInTask = todayNormalized >= taskStart && todayNormalized <= taskEnd;
+                                const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                                const isAssignedToUser = currentUserEmployeeName && (
+                                  taskAssignedToId === currentUserEmployeeId || 
+                                  task.assignedTo === currentUserEmployeeName
+                                );
+                                if (!isTodayInTask && !isManagerOrAdmin && !isAssignedToUser) return null;
+                                return (
+                                  <div key={`${project._id.toString()}-task-${idx}`} className="text-sm text-text-secondary">
+                                    {task.name}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                      {/* Show operations for launched projects */}
-                      {hasOperations && isExpanded && (() => {
-                        const projectOperations = operations.filter((op) => 
-                          op.projectId?.toString() === project._id.toString() && op.startDate
-                        );
+                    {/* Show operations for launched projects */}
+                    {hasOperations && (() => {
+                      const projectOperations = operations.filter((op) => 
+                        op.projectId?.toString() === project._id.toString() && op.startDate
+                      );
+                      
+                      const todayOperations = projectOperations.filter((op) => {
+                        const opStart = new Date(op.startDate!);
+                        opStart.setHours(0, 0, 0, 0);
+                        const opEnd = op.endDate ? new Date(op.endDate) : new Date(opStart);
+                        opEnd.setHours(23, 59, 59, 999);
                         
-                        const todayOperations = projectOperations.filter((op) => {
-                          const opStart = new Date(op.startDate!);
-                          opStart.setHours(0, 0, 0, 0);
-                          const opEnd = op.endDate ? new Date(op.endDate) : new Date(opStart);
-                          opEnd.setHours(23, 59, 59, 999);
-                          
-                          const todayNormalized = new Date(today);
-                          todayNormalized.setHours(0, 0, 0, 0);
-                          
-                          return todayNormalized >= opStart && todayNormalized <= opEnd;
-                        });
+                        const todayNormalized = new Date(today);
+                        todayNormalized.setHours(0, 0, 0, 0);
+                        
+                        return todayNormalized >= opStart && todayNormalized <= opEnd;
+                      });
 
-                        if (todayOperations.length === 0) return null;
+                      if (todayOperations.length === 0) return null;
 
-                        return (
-                          <div className="mt-4">
-                            <p className="text-sm font-semibold text-text-primary mb-2">Operations:</p>
+                      return (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-text-primary mb-2">Operations:</p>
+                          {isExpanded ? (
                             <div className="space-y-2">
-                                {todayOperations.map((operation) => {
-                                  const opStart = new Date(operation.startDate!);
-                                  opStart.setHours(0, 0, 0, 0);
-                                  const opEnd = operation.endDate ? new Date(operation.endDate) : new Date(opStart);
-                                  opEnd.setHours(23, 59, 59, 999);
-                                  
-                                  const operationKey = `${project._id.toString()}-${operation._id.toString()}-${opStart.getTime()}-${opEnd.getTime()}`;
+                              {todayOperations.map((operation) => {
+                                const opStart = new Date(operation.startDate!);
+                                opStart.setHours(0, 0, 0, 0);
+                                const opEnd = operation.endDate ? new Date(operation.endDate) : new Date(opStart);
+                                opEnd.setHours(23, 59, 59, 999);
+                                
+                                const operationKey = `${project._id.toString()}-${operation._id.toString()}-${opStart.getTime()}-${opEnd.getTime()}`;
 
-                                  return (
-                                    <div
-                                      key={operationKey}
-                                      className="p-3 rounded border border-border bg-background-card"
-                                    >
-                                      <div className="font-medium text-text-primary">{operation.name}</div>
-                                      {operation.description && (
-                                        <p className="text-sm text-text-secondary mt-1">{operation.description}</p>
+                                return (
+                                  <div
+                                    key={operationKey}
+                                    className="p-3 rounded border border-border bg-background-card"
+                                  >
+                                    <div className="font-medium text-text-primary">{operation.name}</div>
+                                    {operation.description && (
+                                      <p className="text-sm text-text-secondary mt-1">{operation.description}</p>
+                                    )}
+                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                      {operation.estimatedHours && <span>{operation.estimatedHours}h</span>}
+                                      {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo) && (
+                                        <span>Assigned: {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo)}</span>
                                       )}
-                                      <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                        {operation.estimatedHours && <span>{operation.estimatedHours}h</span>}
-                                        {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo) && (
-                                          <span>Assigned: {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo)}</span>
-                                        )}
-                                        <span className="capitalize">{operation.status}</span>
-                                      </div>
+                                      <span className="capitalize">{operation.status}</span>
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          </div>
-                        );
-                      })()}
+                          ) : (
+                            <div className="space-y-1">
+                              {todayOperations.map((operation) => (
+                                <div key={`${project._id.toString()}-operation-${operation._id.toString()}`} className="text-sm text-text-secondary">
+                                  {operation.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
