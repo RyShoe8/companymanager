@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
+import Operation from '@/lib/models/Operation';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getOrganizationUserIds, migrateStagesToTasks, cleanupLaunchedProjectTasks } from '@/lib/utils/apiHelpers';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,15 +21,35 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
-    const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } });
+    const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } }).lean();
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    return NextResponse.json(project);
+    // Migrate stages to tasks for backward compatibility
+    const migratedProject = migrateStagesToTasks(project);
+    if (migratedProject !== project) {
+      // Save migration if it occurred (async, don't wait)
+      Project.findByIdAndUpdate(id, { tasks: (migratedProject as any).tasks }, { new: true }).catch((err: any) => 
+        console.error('Error saving migration:', err)
+      );
+    }
+    
+    // Clean up: If project is launched and has operations, clear tasks to avoid duplicates
+    await cleanupLaunchedProjectTasks(id, project.status, project.tasks);
+    
+    // Return project with tasks cleared if cleanup occurred
+    const finalProject = migratedProject;
+    if (finalProject.status === 'launched' && finalProject.tasks && finalProject.tasks.length > 0) {
+      const existingOperations = await Operation.find({ projectId: id }).lean();
+      if (existingOperations.length > 0) {
+        (finalProject as any).tasks = [];
+      }
+    }
+    
+    return NextResponse.json(finalProject);
   } catch (error) {
     console.error('Get project error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -40,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, tasks } = body;
 
     await connectDB();
     const { id } = await params;
@@ -57,8 +79,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!project) {
@@ -82,7 +103,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
           startDate !== undefined || endDate !== undefined || timeframeType !== undefined || 
           color !== undefined || estimatedHours !== undefined || assignedTo !== undefined || 
-          stages !== undefined) {
+          tasks !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
       }
     }
@@ -95,6 +116,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (endDate !== undefined) project.endDate = new Date(endDate);
     if (timeframeType !== undefined) project.timeframeType = timeframeType;
     if (color !== undefined) project.color = color;
+    const previousStatus = project.status;
     if (status !== undefined) project.status = status;
     if (estimatedHours !== undefined) {
       project.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
@@ -102,23 +124,65 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (assignedTo !== undefined) {
       project.assignedTo = assignedTo === null || assignedTo === '' ? undefined : assignedTo;
     }
-    if (stages !== undefined) {
-      if (Array.isArray(stages)) {
-        project.stages = stages.map((stage: any) => ({
-          name: stage.name,
-          description: stage.description || undefined,
-          startDate: new Date(stage.startDate),
-          endDate: new Date(stage.endDate),
-          estimatedHours: stage.estimatedHours || undefined,
-          assignedTo: stage.assignedTo || undefined,
-          status: stage.status || 'planning',
+    if (tasks !== undefined) {
+      if (Array.isArray(tasks)) {
+        project.tasks = tasks.map((task: any) => ({
+          name: task.name,
+          description: task.description || undefined,
+          startDate: new Date(task.startDate),
+          endDate: new Date(task.endDate),
+          estimatedHours: task.estimatedHours || undefined,
+          assignedTo: task.assignedTo || undefined,
+          status: task.status || 'planning',
         }));
       } else {
-        project.stages = [];
+        project.tasks = [];
       }
     }
 
     await project.save();
+
+    // If project status changed to "launched", convert all tasks to operations
+    if (status === 'launched' && previousStatus !== 'launched' && project.tasks && project.tasks.length > 0) {
+      try {
+        // Check if operations already exist for this project to avoid duplicates
+        const existingOperations = await Operation.find({ projectId: project._id });
+        if (existingOperations.length === 0) {
+          // Convert each task to an operation
+          const operationsToCreate = project.tasks.map((task: any) => ({
+            name: task.name,
+            description: task.description,
+            recurrenceType: 'none' as const,
+            status: task.status === 'complete' ? 'complete' : task.status === 'active' ? 'active' : task.status === 'in-review' ? 'in-review' : 'planning',
+            assignedTo: task.assignedTo,
+            estimatedHours: task.estimatedHours,
+            startDate: task.startDate,
+            endDate: task.endDate,
+            projectId: project._id,
+            userId: project.userId,
+          }));
+
+          await Operation.insertMany(operationsToCreate);
+          
+          // Clear tasks array since they've been converted to operations
+          project.tasks = [];
+          await project.save();
+        }
+      } catch (error) {
+        console.error('Error converting tasks to operations:', error);
+        // Don't fail the project update if operation creation fails
+      }
+    }
+    
+    // Also clear tasks if project is already launched and has tasks (cleanup for existing data)
+    if (project.status === 'launched' && project.tasks && project.tasks.length > 0) {
+      const existingOperations = await Operation.find({ projectId: project._id });
+      if (existingOperations.length > 0) {
+        // If operations exist, clear tasks to avoid duplicates
+        project.tasks = [];
+        await project.save();
+      }
+    }
 
     return NextResponse.json(project);
   } catch (error) {
@@ -142,8 +206,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const project = await Project.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });
     if (!project) {

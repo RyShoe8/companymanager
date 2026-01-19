@@ -13,6 +13,7 @@ export interface IOperation extends Document {
   estimatedHours?: number;
   startDate?: Date;
   endDate?: Date;
+  projectId?: Types.ObjectId; // Link to project if created from a launched project
   userId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -57,6 +58,10 @@ const OperationSchema: Schema = new Schema(
     },
     endDate: {
       type: Date,
+    },
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Project',
     },
     userId: {
       type: Schema.Types.ObjectId,

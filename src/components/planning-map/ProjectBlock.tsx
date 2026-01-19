@@ -30,14 +30,16 @@ export default function ProjectBlock({ project, onClick, onDelete }: ProjectBloc
               className="w-4 h-4 rounded"
               style={{ backgroundColor: project.color }}
             />
-            <h3 className="font-semibold text-text-primary">{project.name}</h3>
+            <h3 className={`font-semibold text-text-primary ${project.status === 'completed' ? 'line-through opacity-75' : ''}`}>{project.name}</h3>
             <span className={`text-xs px-2 py-1 rounded ${
+              project.status === 'completed' ? 'bg-border text-text-secondary' :
               project.status === 'in-development' ? 'bg-success-light text-success-dark' :
               project.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
               project.status === 'launched' ? 'bg-border text-text-secondary' :
               'bg-primary-light text-primary-dark'
             }`}>
-              {project.status === 'in-development' ? 'In Development' :
+              {project.status === 'completed' ? 'Completed' :
+               project.status === 'in-development' ? 'In Development' :
                project.status === 'in-review' ? 'In Review' :
                project.status === 'launched' ? 'Launched' :
                'Planning'}

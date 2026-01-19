@@ -150,7 +150,7 @@ export default function OperationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 px-[100px] max-md:px-4 py-8">
+      <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
         <div className="max-w-7xl mx-auto">
           <p className="text-gray-300">Loading...</p>
         </div>
@@ -211,7 +211,7 @@ export default function OperationsPage() {
                         </a>
                       )}
                       <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span>Recurrence: {operation.recurrenceType}</span>
+                        <span>Recurrence: {operation.recurrenceType === 'none' ? 'Non Recurring' : operation.recurrenceType}</span>
                         {operation.assignedTo && <span className="ml-4">Assigned to: {operation.assignedTo}</span>}
                         {operation.estimatedHours && <span className="ml-4">{operation.estimatedHours}h</span>}
                         {operation.startDate && (

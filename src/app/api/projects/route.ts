@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
+import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getOrganizationUserIds, migrateStagesToTasks, cleanupLaunchedProjectTasks } from '@/lib/utils/apiHelpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,8 +25,7 @@ export async function GET(request: NextRequest) {
     const userRole = currentUserEmployee?.role || 'User';
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
@@ -51,7 +52,8 @@ export async function GET(request: NextRequest) {
         const employeeName = currentUserEmployee.name;
         query.$or = [
           { assignedTo: employeeName },
-          { 'stages.assignedTo': employeeName }
+          { 'tasks.assignedTo': employeeName },
+          { 'stages.assignedTo': employeeName } // Backward compatibility
         ];
       } else {
         // If no employee record, return empty array
@@ -59,9 +61,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const projects = await Project.find(query).sort({ startDate: 1 });
+    const projects = await Project.find(query).sort({ startDate: 1 }).lean();
+    
+    // Migrate stages to tasks for backward compatibility and clean up launched projects
+    const migratedProjects = await Promise.all(projects.map(async (project: any) => {
+      // Migrate stages to tasks
+      const migratedProject = migrateStagesToTasks(project);
+      if (migratedProject !== project) {
+        // Save migration if it occurred (async, don't wait)
+        Project.findByIdAndUpdate(project._id, { tasks: migratedProject.tasks }, { new: true }).catch((err: any) => 
+          console.error('Error saving migration:', err)
+        );
+      }
+      
+      // Clean up: If project is launched and has operations, clear tasks to avoid duplicates
+      await cleanupLaunchedProjectTasks(project._id, project.status, project.tasks);
+      
+      // Return project with tasks cleared if cleanup occurred
+      if (project.status === 'launched' && project.tasks && project.tasks.length > 0) {
+        const existingOperations = await Operation.find({ projectId: project._id }).lean();
+        if (existingOperations.length > 0) {
+          project.tasks = [];
+        }
+      }
+      
+      return migratedProject;
+    }));
 
-    return NextResponse.json(projects);
+    return NextResponse.json(migratedProjects);
   } catch (error) {
     console.error('Get projects error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -91,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, tasks } = body;
 
     if (!name || !startDate || !endDate || !timeframeType) {
       return NextResponse.json(
@@ -120,11 +147,11 @@ export async function POST(request: NextRequest) {
       projectData.assignedTo = assignedTo;
     }
 
-    if (stages && Array.isArray(stages)) {
-      projectData.stages = stages.map((stage: any) => ({
-        ...stage,
-        startDate: new Date(stage.startDate),
-        endDate: new Date(stage.endDate),
+    if (tasks && Array.isArray(tasks)) {
+      projectData.tasks = tasks.map((task: any) => ({
+        ...task,
+        startDate: new Date(task.startDate),
+        endDate: new Date(task.endDate),
       }));
     }
 

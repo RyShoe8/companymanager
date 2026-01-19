@@ -25,7 +25,7 @@ MONGODB_URI=your_mongodb_connection_string
 NEXTAUTH_SECRET=your_secret_key
 NEXTAUTH_URL=http://localhost:3000
 BREVO_API_KEY=your_brevo_api_key
-BREVO_SENDER_EMAIL=theteam@nucleas.app (optional - defaults to theteam@nucleas.app if not set)
+BREVO_SENDER_EMAIL=theteam@nucleas.app
 BREVO_SENDER_NAME=Nucleas (optional - defaults to "Nucleas" if not set)
 GOOGLE_CLIENT_ID=your_google_client_id (optional - for Google OAuth)
 GOOGLE_CLIENT_SECRET=your_google_client_secret (optional - for Google OAuth)
@@ -37,7 +37,7 @@ GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback (optional - d
 - `NEXTAUTH_SECRET` - A random secret key for session encryption (required)
 - `NEXTAUTH_URL` - Your application URL (required)
 - `BREVO_API_KEY` - Your Brevo API key for sending emails (required for invitations)
-- `BREVO_SENDER_EMAIL` - Email address to send from (optional - defaults to theteam@nucleas.app)
+- `BREVO_SENDER_EMAIL` - Email address to send from (should be set to theteam@nucleas.app)
 - `BREVO_SENDER_NAME` - Name to display as sender (optional - defaults to "Nucleas")
 - `GOOGLE_CLIENT_ID` - Google OAuth Client ID (optional - enables Google sign-in)
 - `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret (optional - required if GOOGLE_CLIENT_ID is set)

@@ -38,7 +38,7 @@ export default function OperationList({ operations, onEdit, onDelete }: Operatio
               <div className="flex items-center gap-2 mb-2">
                 <h4 className="font-medium text-text-primary">{operation.name}</h4>
                 <span className="text-xs px-2 py-1 rounded bg-accent-light text-accent-dark">
-                  {operation.recurrenceType}
+                  {operation.recurrenceType === 'none' ? 'Non Recurring' : operation.recurrenceType}
                 </span>
                 <span className={`text-xs px-2 py-1 rounded ${
                   operation.status === 'active' ? 'bg-success-light text-success-dark' :

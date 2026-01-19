@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,14 +19,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const category = searchParams.get('category');
     const linkedProjectId = searchParams.get('linkedProjectId');
-    const linkedProjectStageIndex = searchParams.get('linkedProjectStageIndex');
+    const linkedProjectTaskIndex = searchParams.get('linkedProjectTaskIndex');
     const linkedOperationId = searchParams.get('linkedOperationId');
 
     const query: any = { userId: { $in: orgUserIds } };
@@ -38,8 +38,8 @@ export async function GET(request: NextRequest) {
     if (linkedProjectId) {
       query.linkedProjectId = linkedProjectId;
     }
-    if (linkedProjectStageIndex !== null && linkedProjectStageIndex !== undefined) {
-      query.linkedProjectStageIndex = parseInt(linkedProjectStageIndex);
+    if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined) {
+      query.linkedProjectTaskIndex = parseInt(linkedProjectTaskIndex);
     }
     if (linkedOperationId) {
       query.linkedOperationId = linkedOperationId;
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectStageIndex, linkedOperationId } = body;
+    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedOperationId } = body;
 
     if (!name || !type) {
       return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       category,
       tags: tags || [],
       linkedProjectId,
-      linkedProjectStageIndex,
+      linkedProjectTaskIndex,
       linkedOperationId,
       userId: session.userId,
     });

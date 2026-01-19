@@ -61,7 +61,7 @@ export default function AboutPage() {
             </li>
             <li className="flex items-start">
               <span className="text-primary mr-2">•</span>
-              <span><strong className="text-text-primary">Project Management:</strong> Create projects with stages, estimated hours, and team assignments</span>
+              <span><strong className="text-text-primary">Project Management:</strong> Create projects with tasks, estimated hours, and team assignments</span>
             </li>
             <li className="flex items-start">
               <span className="text-primary mr-2">•</span>

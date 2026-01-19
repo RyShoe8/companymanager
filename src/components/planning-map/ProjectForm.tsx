@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { IProject, TimeframeType, ProjectStatus, IProjectStage } from '@/lib/models/Project';
+import { IProject, TimeframeType, ProjectStatus, TaskStatus, IProjectTask } from '@/lib/models/Project';
+import { IOperation, RecurrenceType, OperationStatus } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -38,11 +39,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planning');
   const [estimatedHours, setEstimatedHours] = useState(project?.estimatedHours?.toString() || '');
   const [assignedTo, setAssignedTo] = useState(project?.assignedTo || '');
-  const [stages, setStages] = useState<IProjectStage[]>(project?.stages || []);
-  const [showStages, setShowStages] = useState(false);
+  const [tasks, setTasks] = useState<IProjectTask[]>(project?.tasks || []);
+  const [operations, setOperations] = useState<IOperation[]>([]);
+  const [showTasks, setShowTasks] = useState(false);
+  const [showOperations, setShowOperations] = useState(false);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
   const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
   const isRegularUser = userRole === 'User';
+  const isLaunched = project?.status === 'launched';
 
   useEffect(() => {
     // Fetch employees for the dropdown
@@ -59,7 +63,25 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     };
     fetchEmployees();
 
-  }, []);
+    // If project is launched, fetch operations linked to this project
+    if (isLaunched && project?._id) {
+      const fetchOperations = async () => {
+        try {
+          const response = await fetch('/api/operations');
+          if (response.ok) {
+            const data = await response.json();
+            const projectOperations = data.filter((op: IOperation) => 
+              op.projectId?.toString() === project._id.toString()
+            );
+            setOperations(projectOperations);
+          }
+        } catch (error) {
+          console.error('Error fetching operations:', error);
+        }
+      };
+      fetchOperations();
+    }
+  }, [isLaunched, project?._id]);
 
   useEffect(() => {
     if (!project) {
@@ -88,24 +110,119 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     }
   }, [timeframeType, project]);
 
-  const addStage = () => {
-    const newStage: IProjectStage = {
+  const addTask = () => {
+    const newTask: IProjectTask = {
       name: '',
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       status: 'planning' as ProjectStatus,
     };
-    setStages([...stages, newStage]);
+    setTasks([...tasks, newTask]);
   };
 
-  const removeStage = (index: number) => {
-    setStages(stages.filter((_, i) => i !== index));
+  const removeTask = (index: number) => {
+    setTasks(tasks.filter((_, i) => i !== index));
   };
 
-  const updateStage = (index: number, field: keyof IProjectStage, value: any) => {
-    const updated = [...stages];
+  const deleteTask = async (index: number) => {
+    if (!project?._id) {
+      // If no project ID (new project), just remove from local state
+      removeTask(index);
+      return;
+    }
+    
+    if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return;
+    }
+    
+    const updatedTasks = tasks.filter((_, i) => i !== index);
+    try {
+      const response = await fetch(`/api/projects/${project._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: updatedTasks }),
+      });
+      if (response.ok) {
+        setTasks(updatedTasks);
+        // Refresh the form data
+        const updatedProject = await response.json();
+        if (updatedProject.tasks) {
+          setTasks(updatedProject.tasks);
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to delete task:', errorData.error || 'Unknown error');
+        alert('Failed to delete task. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Error deleting task. Please try again.');
+    }
+  };
+
+  const deleteOperation = async (operationId: string) => {
+    if (!confirm('Are you sure you want to delete this operation? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/operations/${operationId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        // Remove from local state immediately
+        setOperations(operations.filter(op => op._id?.toString() !== operationId));
+        // Refresh operations from server
+        const opsResponse = await fetch('/api/operations');
+        if (opsResponse.ok) {
+          const data = await opsResponse.json();
+          const projectOperations = data.filter((op: IOperation) => 
+            op.projectId?.toString() === project?._id.toString()
+          );
+          setOperations(projectOperations);
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to delete operation:', errorData.error || 'Unknown error');
+        alert('Failed to delete operation. Please try again.');
+        // Reload operations to restore state
+        const opsResponse = await fetch('/api/operations');
+        if (opsResponse.ok) {
+          const data = await opsResponse.json();
+          const projectOperations = data.filter((op: IOperation) => 
+            op.projectId?.toString() === project?._id.toString()
+          );
+          setOperations(projectOperations);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting operation:', error);
+      alert('Error deleting operation. Please try again.');
+    }
+  };
+
+  const updateOperation = async (operationId: string, updates: Partial<IOperation>) => {
+    try {
+      const response = await fetch(`/api/operations/${operationId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setOperations(operations.map(op => 
+          op._id?.toString() === operationId ? updated : op
+        ));
+      }
+    } catch (error) {
+      console.error('Error updating operation:', error);
+    }
+  };
+
+  const updateTask = (index: number, field: keyof IProjectTask, value: any) => {
+    const updated = [...tasks];
     updated[index] = { ...updated[index], [field]: value };
-    setStages(updated);
+    setTasks(updated);
   };
 
   const addUrl = () => {
@@ -143,11 +260,11 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       submitData.assignedTo = assignedTo;
     }
 
-    if (stages.length > 0) {
-      submitData.stages = stages.map(stage => ({
-        ...stage,
-        startDate: new Date(stage.startDate),
-        endDate: new Date(stage.endDate),
+    if (tasks.length > 0) {
+      submitData.tasks = tasks.map(task => ({
+        ...task,
+        startDate: new Date(task.startDate),
+        endDate: new Date(task.endDate),
       }));
     }
 
@@ -288,79 +405,188 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   { value: 'in-development', label: 'In Development' },
                   { value: 'in-review', label: 'In Review' },
                   { value: 'launched', label: 'Launched' },
+                  { value: 'completed', label: 'Completed' },
                 ]
           }
         />
       </div>
 
-      {/* Stages Section - Only for admins/managers */}
-      {isManagerOrAdmin && (
+      {/* Operations Section for Launched Projects - Only for admins/managers */}
+      {isManagerOrAdmin && isLaunched && (
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
           <div className="flex items-center justify-between mb-3">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Stages (optional)
+              Operations
             </label>
             <div className="flex gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => setShowStages(!showStages)}
+                onClick={() => setShowOperations(!showOperations)}
               >
-                {showStages ? 'Hide' : 'Show'} Stages
+                {showOperations ? 'Hide' : 'Show'} Operations
               </Button>
-              {showStages && (
+            </div>
+          </div>
+
+          {showOperations && operations.length > 0 && (
+            <div className="space-y-3">
+              {operations.map((operation) => (
+                <div key={operation._id?.toString()} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-900 dark:text-white">{operation.name}</h4>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      onClick={() => operation._id && deleteOperation(operation._id.toString())}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                  {operation.description && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{operation.description}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Status</label>
+                      <Select
+                        value={operation.status || 'planning'}
+                        onChange={(e) => operation._id && updateOperation(operation._id.toString(), { status: e.target.value as OperationStatus })}
+                        options={[
+                          { value: 'planning', label: 'Planning' },
+                          { value: 'active', label: 'Active' },
+                          { value: 'in-review', label: 'In Review' },
+                          { value: 'complete', label: 'Complete' },
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Assigned To</label>
+                      <Select
+                        value={operation.assignedTo || ''}
+                        onChange={(e) => operation._id && updateOperation(operation._id.toString(), { assignedTo: e.target.value || undefined })}
+                        options={[
+                          { value: '', label: 'None' },
+                          ...employees.map(emp => ({ value: emp.name, label: emp.name }))
+                        ]}
+                      />
+                    </div>
+                    {operation.startDate && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Start Date</label>
+                        <Input
+                          type="date"
+                          value={operation.startDate ? new Date(operation.startDate).toISOString().split('T')[0] : ''}
+                          onChange={(e) => operation._id && updateOperation(operation._id.toString(), { startDate: e.target.value ? new Date(e.target.value) : undefined })}
+                        />
+                      </div>
+                    )}
+                    {operation.endDate && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">End Date</label>
+                        <Input
+                          type="date"
+                          value={operation.endDate ? new Date(operation.endDate).toISOString().split('T')[0] : ''}
+                          onChange={(e) => operation._id && updateOperation(operation._id.toString(), { endDate: e.target.value ? new Date(e.target.value) : undefined })}
+                        />
+                      </div>
+                    )}
+                    {operation.estimatedHours !== undefined && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Estimated Hours</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={operation.estimatedHours?.toString() || ''}
+                          onChange={(e) => operation._id && updateOperation(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showOperations && operations.length === 0 && (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No operations found. Operations are created automatically when a project is launched.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Tasks Section - Only for admins/managers and non-launched projects */}
+      {isManagerOrAdmin && !isLaunched && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Tasks (optional)
+            </label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowTasks(!showTasks)}
+              >
+                {showTasks ? 'Hide' : 'Show'} Tasks
+              </Button>
+              {showTasks && (
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={addStage}
+                  onClick={addTask}
                 >
-                  + Add Stage
+                  + Add Task
                 </Button>
               )}
             </div>
           </div>
 
-        {showStages && stages.length > 0 && (
+        {showTasks && tasks.length > 0 && (
           <div className="space-y-3">
-            {stages.map((stage, index) => (
+            {tasks.map((task, index) => (
               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-gray-900 dark:text-white">Stage {index + 1}</h4>
+                  <h4 className="font-medium text-gray-900 dark:text-white">Task {index + 1}</h4>
                   <Button
                     type="button"
                     variant="danger"
                     size="sm"
-                    onClick={() => removeStage(index)}
+                    onClick={() => project?._id ? deleteTask(index) : removeTask(index)}
                   >
-                    Remove
+                    Delete
                   </Button>
                 </div>
                 <Input
-                  label="Stage Name"
-                  value={stage.name}
-                  onChange={(e) => updateStage(index, 'name', e.target.value)}
+                  label="Task Name"
+                  value={task.name}
+                  onChange={(e) => updateTask(index, 'name', e.target.value)}
                   required
                 />
                 <Input
                   label="Description (optional)"
-                  value={stage.description || ''}
-                  onChange={(e) => updateStage(index, 'description', e.target.value)}
+                  value={task.description || ''}
+                  onChange={(e) => updateTask(index, 'description', e.target.value)}
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     label="Start Date"
                     type="date"
-                    value={stage.startDate ? new Date(stage.startDate).toISOString().split('T')[0] : ''}
-                    onChange={(e) => updateStage(index, 'startDate', new Date(e.target.value))}
+                    value={task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => updateTask(index, 'startDate', new Date(e.target.value))}
                     required
                   />
                   <Input
                     label="End Date"
                     type="date"
-                    value={stage.endDate ? new Date(stage.endDate).toISOString().split('T')[0] : ''}
-                    onChange={(e) => updateStage(index, 'endDate', new Date(e.target.value))}
+                    value={task.endDate ? new Date(task.endDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => updateTask(index, 'endDate', new Date(e.target.value))}
                     required
                   />
                 </div>
@@ -370,13 +596,13 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     type="number"
                     min="0"
                     step="0.5"
-                    value={stage.estimatedHours?.toString() || ''}
-                    onChange={(e) => updateStage(index, 'estimatedHours', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    value={task.estimatedHours?.toString() || ''}
+                    onChange={(e) => updateTask(index, 'estimatedHours', e.target.value ? parseFloat(e.target.value) : undefined)}
                   />
                   <Select
                     label="Assigned To (optional)"
-                    value={stage.assignedTo || ''}
-                    onChange={(e) => updateStage(index, 'assignedTo', e.target.value)}
+                    value={task.assignedTo || ''}
+                    onChange={(e) => updateTask(index, 'assignedTo', e.target.value)}
                     options={[
                       { value: '', label: 'None' },
                       ...employees.map(emp => ({ value: emp.name, label: emp.name }))
@@ -385,13 +611,13 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                 </div>
                 <Select
                   label="Status"
-                  value={stage.status || 'planning'}
-                  onChange={(e) => updateStage(index, 'status', e.target.value as ProjectStatus)}
+                  value={task.status || 'planning'}
+                  onChange={(e) => updateTask(index, 'status', e.target.value as TaskStatus)}
                   options={[
                     { value: 'planning', label: 'Planning' },
-                    { value: 'in-development', label: 'In Development' },
+                    { value: 'active', label: 'Active' },
                     { value: 'in-review', label: 'In Review' },
-                    { value: 'launched', label: 'Launched' },
+                    { value: 'complete', label: 'Complete' },
                   ]}
                 />
               </div>
@@ -399,9 +625,9 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           </div>
         )}
 
-          {showStages && stages.length === 0 && (
+          {showTasks && tasks.length === 0 && (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              No stages added. Click "Add Stage" to create project phases.
+              No tasks added. Click "Add Task" to create project phases.
             </p>
           )}
         </div>

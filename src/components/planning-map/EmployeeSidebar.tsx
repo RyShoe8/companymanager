@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
 import { IProject } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
-import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
+import { TimeframeType, getTimeframeRange, formatDate } from '@/lib/utils/dateUtils';
 import Card from '@/components/ui/Card';
 
 interface EmployeeSidebarProps {
@@ -19,7 +19,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   const range = getTimeframeRange(timeframe, currentDate);
   
-  const toggleEmployee = (employeeId: string) => {
+  const toggleEmployee = useCallback((employeeId: string) => {
     setExpandedEmployees(prev => {
       const newSet = new Set(prev);
       if (newSet.has(employeeId)) {
@@ -29,7 +29,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       }
       return newSet;
     });
-  };
+  }, []);
   // Normalize start date to beginning of day, end date to end of day for accurate calculations
   const startDate = new Date(range.start);
   startDate.setHours(0, 0, 0, 0);
@@ -245,19 +245,48 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return instances;
   }, [operations, startDate, endDate]);
 
-  // Calculate total available hours based on timeframe
+  // Helper function to count weekdays (Monday-Friday) between two dates
+  const countWeekdays = (start: Date, end: Date): number => {
+    let count = 0;
+    const current = new Date(start);
+    current.setHours(0, 0, 0, 0);
+    const endDate = new Date(end);
+    endDate.setHours(23, 59, 59, 999);
+    
+    while (current <= endDate) {
+      const dayOfWeek = current.getDay();
+      // 0 = Sunday, 6 = Saturday, so weekdays are 1-5 (Monday-Friday)
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        count++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return count;
+  };
+
+  // Calculate total available hours based on timeframe (weekdays only)
   const totalAvailableHours = (employee: IEmployee) => {
     if (timeframe === 'today') {
-      // Today is 1 day = weeklyHours / 7
-      return Math.round((employee.weeklyHours / 7) * 10) / 10;
+      // Check if today is a weekday
+      const today = new Date(startDate);
+      const dayOfWeek = today.getDay();
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        // Today is a weekday = weeklyHours / 5
+        return Math.round((employee.weeklyHours / 5) * 10) / 10;
+      } else {
+        // Today is a weekend = 0 hours
+        return 0;
+      }
     }
     if (timeframe === 'weekly') {
-      // Weekly is exactly 1 week
+      // Weekly is exactly 1 week = 5 weekdays
       return employee.weeklyHours;
     }
     
-    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const weeks = days / 7;
+    // For other timeframes, count weekdays in the range
+    const weekdays = countWeekdays(startDate, endDate);
+    const weeks = weekdays / 5;
     const hours = employee.weeklyHours * weeks;
     return Math.round(hours * 10) / 10; // Round to 1 decimal
   };
@@ -267,8 +296,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // Check if project is assigned to this employee
       if (project.assignedTo === employeeName) return true;
       
-      // Check if any stage is assigned to this employee
-      if (project.stages && project.stages.some(stage => stage.assignedTo === employeeName)) {
+      // Check if any task is assigned to this employee
+      if (project.tasks && project.tasks.some(task => task.assignedTo === employeeName)) {
+        return true;
+      }
+      
+      // Check if any operation linked to this project is assigned to this employee
+      if (operations.some(op => 
+        op.projectId?.toString() === project._id.toString() && 
+        op.assignedTo === employeeName
+      )) {
         return true;
       }
       
@@ -304,7 +341,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return normalized;
   };
 
-  // Helper function to calculate hours for a date range
+  // Helper function to calculate hours for a date range (weekdays only)
   const calculateHoursForDateRange = (
     rangeStart: Date,
     rangeEnd: Date,
@@ -335,53 +372,22 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // If no overlap, return 0
     if (overlapStart.getTime() > overlapEnd.getTime()) return 0;
     
-    // Calculate project duration in days (inclusive of both start and end dates)
-    // Example: Day 1 00:00:00 to Day 10 23:59:59 = 10 days (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-    const normalizedProjectStartForDuration = normalizeToStartOfDay(projectStart);
-    const normalizedProjectEndForDuration = normalizeToStartOfDay(projectEnd);
-    const projectDurationMs = normalizedProjectEndForDuration.getTime() - normalizedProjectStartForDuration.getTime();
-    const projectDurationDays = Math.floor(projectDurationMs / (1000 * 60 * 60 * 24)) + 1;
+    // Calculate project duration in weekdays (Monday-Friday only)
+    const projectDurationWeekdays = countWeekdays(normalizedProjectStart, normalizedProjectEnd);
     
-    if (projectDurationDays <= 0) return 0;
+    if (projectDurationWeekdays <= 0) return 0;
     
-    // Calculate hours per day
-    const hoursPerDay = totalHours / projectDurationDays;
+    // Calculate hours per weekday
+    const hoursPerWeekday = totalHours / projectDurationWeekdays;
     
-    // Calculate number of days in the overlap (inclusive of both start and end dates)
-    // Convert overlapStart to start of day
-    const overlapStartForDays = normalizeToStartOfDay(overlapStart);
+    // Calculate number of weekdays in the overlap
+    const overlapWeekdays = countWeekdays(overlapStart, overlapEnd);
     
-    // For overlapEnd, if it's at end of day (23:59:59.999), we need to ensure we count that full day
-    // When we normalize Day 10 23:59:59.999 to start of day, we get Day 10 00:00:00
-    // But for accurate day counting when the end is at end of day, we should treat it as
-    // the start of the next day (exclusive), which means the current day is included
-    // So: Day 10 23:59:59.999 -> Day 11 00:00:00 (exclusive) means Day 10 is included
-    // For counting: Day 8 00:00:00 to Day 11 00:00:00 (exclusive) = 3 days (8, 9, 10)
-    const overlapEndIsEndOfDay = overlapEnd.getHours() === 23 && 
-                                  overlapEnd.getMinutes() === 59 && 
-                                  overlapEnd.getSeconds() === 59;
+    // Ensure we have at least 1 weekday
+    if (overlapWeekdays < 1) return 0;
     
-    let overlapEndForDays: Date;
-    if (overlapEndIsEndOfDay) {
-      // If at end of day, add 1 day then normalize to start of day to get the next day
-      // This way, when we calculate days, we get the correct count
-      const nextDay = new Date(overlapEnd.getTime() + 24 * 60 * 60 * 1000);
-      overlapEndForDays = normalizeToStartOfDay(nextDay);
-    } else {
-      overlapEndForDays = normalizeToStartOfDay(overlapEnd);
-    }
-    
-    // Calculate days: Day 8 00:00:00 to Day 11 00:00:00 (exclusive) = 3 days (8, 9, 10)
-    // Since overlapEndForDays is now the start of the day AFTER the last day we want to count,
-    // we don't need the +1
-    const overlapMs = overlapEndForDays.getTime() - overlapStartForDays.getTime();
-    const overlapDays = Math.floor(overlapMs / (1000 * 60 * 60 * 24));
-    
-    // Ensure we have at least 1 day
-    if (overlapDays < 1) return 0;
-    
-    // Return hours for the overlap period
-    return hoursPerDay * overlapDays;
+    // Return hours for the overlap period (weekdays only)
+    return hoursPerWeekday * overlapWeekdays;
   };
 
   const getCommittedHours = (employee: IEmployee) => {
@@ -402,50 +408,50 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
       
-      // Calculate total stage hours assigned to this employee
-      let employeeStageHours = 0;
-      if (project.stages && project.stages.length > 0) {
-        project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched') {
-            employeeStageHours += stage.estimatedHours;
+      // Calculate total task hours assigned to this employee
+      let employeeTaskHours = 0;
+      if (project.tasks && project.tasks.length > 0) {
+        project.tasks.forEach((task) => {
+          if (task.assignedTo === employee.name && task.estimatedHours && task.status !== 'complete') {
+            employeeTaskHours += task.estimatedHours;
           }
         });
       }
       
-      // If employee has stages assigned, count those stage hours
-      if (employeeStageHours > 0 && project.estimatedHours && project.stages) {
-        // Calculate the proportion of stage hours in the timeframe
-        const stageHoursInRange = project.stages
-          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched')
-          .reduce((sum, stage) => {
-            if (!stage.estimatedHours) return sum;
-            const stageStart = new Date(stage.startDate);
-            const stageEnd = new Date(stage.endDate);
+      // If employee has tasks assigned, count those task hours
+      if (employeeTaskHours > 0 && project.estimatedHours && project.tasks) {
+        // Calculate the proportion of task hours in the timeframe
+        const taskHoursInRange = project.tasks
+          .filter(task => task.assignedTo === employee.name && task.estimatedHours && task.status !== 'complete')
+          .reduce((sum, task) => {
+            if (!task.estimatedHours) return sum;
+            const taskStart = new Date(task.startDate);
+            const taskEnd = new Date(task.endDate);
             return sum + calculateHoursForDateRange(
               startDate,
               endDate,
-              stageStart,
-              stageEnd,
-              stage.estimatedHours
+              taskStart,
+              taskEnd,
+              task.estimatedHours
             );
           }, 0);
-        totalHours += stageHoursInRange;
+        totalHours += taskHoursInRange;
       }
       
-      // If project is assigned to this employee, count remaining hours (project total - stage hours assigned to others)
+      // If project is assigned to this employee, count remaining hours (project total - task hours assigned to others)
       if (project.assignedTo === employee.name && project.estimatedHours) {
-        // Calculate total hours assigned to other employees via stages
-        let otherEmployeeStageHours = 0;
-        if (project.stages && project.stages.length > 0) {
-          project.stages.forEach((stage) => {
-            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'launched') {
-              otherEmployeeStageHours += stage.estimatedHours;
+        // Calculate total hours assigned to other employees via tasks
+        let otherEmployeeTaskHours = 0;
+        if (project.tasks && project.tasks.length > 0) {
+          project.tasks.forEach((task) => {
+            if (task.assignedTo && task.assignedTo !== employee.name && task.estimatedHours && task.status !== 'complete') {
+              otherEmployeeTaskHours += task.estimatedHours;
             }
           });
         }
         
-        // Project hours minus stages assigned to others
-        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeStageHours);
+        // Project hours minus tasks assigned to others
+        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
         
         if (remainingProjectHours > 0) {
           const hours = calculateHoursForDateRange(
@@ -467,22 +473,25 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (operation.status === 'complete') return;
       
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
-        // For operations, the hours are for each instance (not spread across duration)
-        // So if an operation is 0.25h (15 min) and recurs weekly, each week gets 0.25h
-        // Check if the instance overlaps with the timeframe
+        // Calculate hours the same way as tasks - spread across duration using weekdays
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
-        const rangeStart = normalizeToStartOfDay(startDate);
-        const rangeEnd = normalizeToEndOfDay(endDate);
         
-        // If instance overlaps with timeframe, add full hours
         // Ensure we're using a number, not a string
         const hours = typeof operation.estimatedHours === 'number' 
           ? operation.estimatedHours 
           : parseFloat(operation.estimatedHours);
         
-        if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
-          totalHours += hours;
+        if (!isNaN(hours)) {
+          // Use calculateHoursForDateRange to spread hours across the operation's duration
+          const hoursInRange = calculateHoursForDateRange(
+            startDate,
+            endDate,
+            instanceStart,
+            instanceEnd,
+            hours
+          );
+          totalHours += hoursInRange;
         }
       }
     });
@@ -524,49 +533,49 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
       
-      // Calculate total stage hours assigned to this employee (completed stages only)
-      let employeeStageHours = 0;
-      if (project.stages && project.stages.length > 0) {
-        project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'launched') {
-            employeeStageHours += stage.estimatedHours;
+      // Calculate total task hours assigned to this employee (completed tasks only)
+      let employeeTaskHours = 0;
+      if (project.tasks && project.tasks.length > 0) {
+        project.tasks.forEach((task) => {
+          if (task.assignedTo === employee.name && task.estimatedHours && task.status === 'complete') {
+            employeeTaskHours += task.estimatedHours;
           }
         });
       }
       
-      // If employee has completed stages assigned, count those stage hours
-      if (employeeStageHours > 0 && project.stages) {
-        const stageHoursInRange = project.stages
-          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'launched')
-          .reduce((sum, stage) => {
-            if (!stage.estimatedHours) return sum;
-            const stageStart = new Date(stage.startDate);
-            const stageEnd = new Date(stage.endDate);
+      // If employee has completed tasks assigned, count those task hours
+      if (employeeTaskHours > 0 && project.tasks) {
+        const taskHoursInRange = project.tasks
+          .filter(task => task.assignedTo === employee.name && task.estimatedHours && task.status === 'complete')
+          .reduce((sum, task) => {
+            if (!task.estimatedHours) return sum;
+            const taskStart = new Date(task.startDate);
+            const taskEnd = new Date(task.endDate);
             return sum + calculateHoursForDateRange(
               startDate,
               endDate,
-              stageStart,
-              stageEnd,
-              stage.estimatedHours
+              taskStart,
+              taskEnd,
+              task.estimatedHours
             );
           }, 0);
-        totalHours += stageHoursInRange;
+        totalHours += taskHoursInRange;
       }
       
       // If project is assigned to this employee and completed, count remaining hours
       if (project.assignedTo === employee.name && project.estimatedHours) {
-        // Calculate total hours assigned to other employees via completed stages
-        let otherEmployeeStageHours = 0;
-        if (project.stages && project.stages.length > 0) {
-          project.stages.forEach((stage) => {
-            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status === 'launched') {
-              otherEmployeeStageHours += stage.estimatedHours;
+        // Calculate total hours assigned to other employees via completed tasks
+        let otherEmployeeTaskHours = 0;
+        if (project.tasks && project.tasks.length > 0) {
+          project.tasks.forEach((task) => {
+            if (task.assignedTo && task.assignedTo !== employee.name && task.estimatedHours && task.status === 'complete') {
+              otherEmployeeTaskHours += task.estimatedHours;
             }
           });
         }
         
-        // Project hours minus stages assigned to others
-        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeStageHours);
+        // Project hours minus tasks assigned to others
+        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
         
         if (remainingProjectHours > 0) {
           const hours = calculateHoursForDateRange(
@@ -588,19 +597,24 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (operation.status !== 'complete') return;
       
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
-        // Check if the instance overlaps with the timeframe
+        // Calculate hours the same way as tasks - spread across duration using weekdays
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
-        const rangeStart = normalizeToStartOfDay(startDate);
-        const rangeEnd = normalizeToEndOfDay(endDate);
         
         const hours = typeof operation.estimatedHours === 'number' 
           ? operation.estimatedHours 
           : parseFloat(operation.estimatedHours);
         
-        // If instance overlaps with timeframe, add full hours
-        if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
-          totalHours += hours;
+        if (!isNaN(hours)) {
+          // Use calculateHoursForDateRange to spread hours across the operation's duration
+          const hoursInRange = calculateHoursForDateRange(
+            startDate,
+            endDate,
+            instanceStart,
+            instanceEnd,
+            hours
+          );
+          totalHours += hoursInRange;
         }
       }
     });
@@ -631,50 +645,50 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
       
-      // Calculate total stage hours assigned to this employee
-      let employeeStageHours = 0;
-      if (project.stages && project.stages.length > 0) {
-        project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched') {
-            employeeStageHours += stage.estimatedHours;
+      // Calculate total task hours assigned to this employee
+      let employeeTaskHours = 0;
+      if (project.tasks && project.tasks.length > 0) {
+        project.tasks.forEach((task) => {
+          if (task.assignedTo === employee.name && task.estimatedHours && task.status !== 'complete') {
+            employeeTaskHours += task.estimatedHours;
           }
         });
       }
       
-      // If employee has stages assigned, count those stage hours
-      if (employeeStageHours > 0 && project.estimatedHours && project.stages) {
-        // Calculate the proportion of stage hours in the timeframe
-        const stageHoursInRange = project.stages
-          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched')
-          .reduce((sum, stage) => {
-            if (!stage.estimatedHours) return sum;
-            const stageStart = new Date(stage.startDate);
-            const stageEnd = new Date(stage.endDate);
+      // If employee has tasks assigned, count those task hours
+      if (employeeTaskHours > 0 && project.estimatedHours && project.tasks) {
+        // Calculate the proportion of task hours in the timeframe
+        const taskHoursInRange = project.tasks
+          .filter(task => task.assignedTo === employee.name && task.estimatedHours && task.status !== 'complete')
+          .reduce((sum, task) => {
+            if (!task.estimatedHours) return sum;
+            const taskStart = new Date(task.startDate);
+            const taskEnd = new Date(task.endDate);
             return sum + calculateHoursForDateRange(
               startDate,
               endDate,
-              stageStart,
-              stageEnd,
-              stage.estimatedHours
+              taskStart,
+              taskEnd,
+              task.estimatedHours
             );
           }, 0);
-        committedHours += stageHoursInRange;
+        committedHours += taskHoursInRange;
       }
       
-      // If project is assigned to this employee, count remaining hours (project total - stage hours assigned to others)
+      // If project is assigned to this employee, count remaining hours (project total - task hours assigned to others)
       if (project.assignedTo === employee.name && project.estimatedHours) {
-        // Calculate total hours assigned to other employees via stages
-        let otherEmployeeStageHours = 0;
-        if (project.stages && project.stages.length > 0) {
-          project.stages.forEach((stage) => {
-            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'launched') {
-              otherEmployeeStageHours += stage.estimatedHours;
+        // Calculate total hours assigned to other employees via tasks
+        let otherEmployeeTaskHours = 0;
+        if (project.tasks && project.tasks.length > 0) {
+          project.tasks.forEach((task) => {
+            if (task.assignedTo && task.assignedTo !== employee.name && task.estimatedHours && task.status !== 'complete') {
+              otherEmployeeTaskHours += task.estimatedHours;
             }
           });
         }
         
-        // Project hours minus stages assigned to others
-        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeStageHours);
+        // Project hours minus tasks assigned to others
+        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
         
         if (remainingProjectHours > 0) {
           const hours = calculateHoursForDateRange(
@@ -696,33 +710,49 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (operation.status === 'complete') return;
       
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
-        // For operations, the hours are for each instance (not spread across duration)
-        // Check if the instance overlaps with the timeframe
+        // Calculate hours the same way as tasks - spread across duration using weekdays
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
-        const rangeStart = normalizeToStartOfDay(startDate);
-        const rangeEnd = normalizeToEndOfDay(endDate);
         
         // Ensure we're using a number, not a string
         const hours = typeof operation.estimatedHours === 'number' 
           ? operation.estimatedHours 
           : parseFloat(operation.estimatedHours);
         
-        // If instance overlaps with timeframe, add full hours
-        if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
-          committedHours += hours;
+        if (!isNaN(hours)) {
+          // Use calculateHoursForDateRange to spread hours across the operation's duration
+          const hoursInRange = calculateHoursForDateRange(
+            startDate,
+            endDate,
+            instanceStart,
+            instanceEnd,
+            hours
+          );
+          committedHours += hoursInRange;
         }
       }
     });
 
-    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    // Calculate available hours based on weekdays only
     let availableHours;
     if (timeframe === 'today') {
-      availableHours = employee.weeklyHours / 7;
+      // Check if today is a weekday
+      const today = new Date(startDate);
+      const dayOfWeek = today.getDay();
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        // Today is a weekday = weeklyHours / 5
+        availableHours = employee.weeklyHours / 5;
+      } else {
+        // Today is a weekend = 0 hours
+        availableHours = 0;
+      }
     } else if (timeframe === 'weekly') {
+      // Weekly is exactly 1 week = 5 weekdays
       availableHours = employee.weeklyHours;
     } else {
-      const weeks = days / 7;
+      // For other timeframes, count weekdays in the range
+      const weekdays = countWeekdays(startDate, endDate);
+      const weeks = weekdays / 5;
       availableHours = employee.weeklyHours * weeks;
     }
 
@@ -880,6 +910,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               const directOps = getOperationsForEmployeeDirect(employee.name);
               const activeOps = directOps.filter(op => {
                 if (op.status === 'complete') return false; // Note: Operations still use 'complete'
+                // Only show operations that aren't linked to a project
+                if (op.projectId) return false;
                 // Show if it has an instance in the current timeframe
                 if (instanceMap.has(op._id.toString())) return true;
                 // Show if it doesn't have a startDate (ongoing commitment)
@@ -892,7 +924,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               
               return (
                 <div className="mt-3 pt-3 border-t border-gray-200">
-                  <p className="text-xs font-medium text-gray-700 mb-2">Assigned Operations:</p>
+                  <p className="text-xs font-medium text-gray-700 mb-2">Non Project Operations:</p>
                   <div className="space-y-1 max-h-[200px] overflow-y-auto">
                     {activeOps.map((operation, idx) => {
                       const instance = instanceMap.get(operation._id.toString());
@@ -903,17 +935,65 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                             : parseFloat(operation.estimatedHours))
                         : 0;
                       
-                      // For operations with instances, check if instance overlaps with timeframe
+                      // For operations with instances, calculate hours averaged by weekdays
                       let hoursInRange = 0;
+                      let dueDate: Date | null = null;
+                      let isDueToday = false;
+                      
                       if (instance) {
                         const instanceStart = normalizeToStartOfDay(instance.startDate);
                         const instanceEnd = normalizeToEndOfDay(instance.endDate);
                         const rangeStart = normalizeToStartOfDay(startDate);
                         const rangeEnd = normalizeToEndOfDay(endDate);
-                        hoursInRange = (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) ? hours : 0;
+                        
+                        // Use calculateHoursForDateRange to average hours by weekdays
+                        if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
+                          hoursInRange = calculateHoursForDateRange(
+                            rangeStart,
+                            rangeEnd,
+                            instanceStart,
+                            instanceEnd,
+                            hours
+                          );
+                        }
+                        
+                        // Get due date (end date)
+                        dueDate = instance.endDate;
+                      } else if (operation.endDate) {
+                        // Use operation's end date if no instance
+                        dueDate = new Date(operation.endDate);
+                        // For operations without startDate but with endDate, still calculate hours if they overlap
+                        if (!isNaN(hours) && operation.startDate) {
+                          const opStart = normalizeToStartOfDay(new Date(operation.startDate));
+                          const opEnd = normalizeToEndOfDay(dueDate);
+                          const rangeStart = normalizeToStartOfDay(startDate);
+                          const rangeEnd = normalizeToEndOfDay(endDate);
+                          
+                          if (opStart <= rangeEnd && opEnd >= rangeStart) {
+                            hoursInRange = calculateHoursForDateRange(
+                              rangeStart,
+                              rangeEnd,
+                              opStart,
+                              opEnd,
+                              hours
+                            );
+                          }
+                        } else if (!isNaN(hours)) {
+                          // No start date, just show full hours
+                          hoursInRange = hours;
+                        }
                       } else if (!isNaN(hours)) {
-                        // For operations without startDate, show hours if they have estimatedHours
+                        // For operations without dates, show hours if they have estimatedHours
                         hoursInRange = hours;
+                      }
+                      
+                      // Check if due date is today
+                      if (dueDate) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dueDateNormalized = new Date(dueDate);
+                        dueDateNormalized.setHours(0, 0, 0, 0);
+                        isDueToday = dueDateNormalized.getTime() === today.getTime();
                       }
                       
                       return (
@@ -927,10 +1007,14 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                             )}
                           </div>
                           <div className="text-gray-500 dark:text-gray-500 text-[10px] mt-0.5">
-                            {operation.recurrenceType}
-                            {instance && ` • ${instance.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                            {!instance && operation.startDate && ` • ${new Date(operation.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                            {!instance && !operation.startDate && ' • No date set'}
+                            {operation.recurrenceType === 'none' ? 'Non Recurring' : operation.recurrenceType}
+                            {dueDate && (
+                              <>
+                                {' • Due Date: '}
+                                {isDueToday ? 'Today' : dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </>
+                            )}
+                            {!dueDate && ' • No due date set'}
                           </div>
                         </div>
                       );
@@ -940,9 +1024,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               );
             })()}
 
-            {/* Assigned Projects and Stages - Only show when expanded */}
+            {/* Assigned Projects and Tasks - Only show when expanded */}
             {isExpanded && employeeProjects.length > 0 && (() => {
-              const projectsToShow = employeeProjects.filter(p => p.status !== 'launched');
+              // Show all projects assigned to employee, including launched ones (they may have operations)
+              const projectsToShow = employeeProjects;
               if (projectsToShow.length === 0) return null;
               
               return (
@@ -953,28 +1038,76 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       const projectStart = new Date(project.startDate);
                       const projectEnd = new Date(project.endDate);
                       
-                      // Check if employee is assigned to project or any stages
+                      // Check if employee is assigned to project or any tasks
+                      // Skip tasks if project is launched (tasks should have been converted to operations)
                       const isAssignedToProject = project.assignedTo === employee.name;
-                      const assignedStages = project.stages?.filter(stage => 
-                        stage.assignedTo === employee.name && stage.status !== 'launched'
-                      ) || [];
+                      const assignedTasks = project.status !== 'launched' && project.tasks 
+                        ? project.tasks.filter(task => 
+                            task.assignedTo === employee.name && task.status !== 'complete'
+                          )
+                        : [];
                       
-                      // Calculate project-level hours (remaining after ALL stage assignments)
-                      // If employee is assigned to project, they get remaining hours after all stages are assigned
+                      // Get operations linked to this project that are assigned to this employee
+                      // Deduplicate by operation ID to avoid showing the same operation twice
+                      const assignedOperationsMap = new Map<string, IOperation>();
+                      operations.forEach(op => {
+                        if (op.projectId?.toString() === project._id.toString() &&
+                            op.assignedTo === employee.name &&
+                            op.status !== 'complete') {
+                          const opId = op._id?.toString();
+                          if (opId && !assignedOperationsMap.has(opId)) {
+                            assignedOperationsMap.set(opId, op);
+                          }
+                        }
+                      });
+                      const assignedOperations = Array.from(assignedOperationsMap.values());
+                      
+                      // Additional safety check: deduplicate by operation ID, and also by name+projectId+endDate to catch true duplicates
+                      const uniqueOperationsMap = new Map<string, IOperation>();
+                      const seenCompositeKeys = new Set<string>();
+                      assignedOperations.forEach(op => {
+                        const opId = op._id?.toString();
+                        const endDateStr = op.endDate ? new Date(op.endDate).toISOString().split('T')[0] : 'no-date';
+                        const compositeKey = `${op.name}-${project._id.toString()}-${endDateStr}`;
+                        
+                        // Skip if we've already seen this composite key (same name, project, and end date)
+                        // This catches duplicates even if they have different IDs
+                        if (seenCompositeKeys.has(compositeKey)) {
+                          return;
+                        }
+                        
+                        // Primary deduplication by operation ID
+                        if (opId) {
+                          if (!uniqueOperationsMap.has(opId)) {
+                            uniqueOperationsMap.set(opId, op);
+                            seenCompositeKeys.add(compositeKey);
+                          }
+                        } else {
+                          // Fallback: use composite key as map key if no ID
+                          if (!uniqueOperationsMap.has(compositeKey)) {
+                            uniqueOperationsMap.set(compositeKey, op);
+                            seenCompositeKeys.add(compositeKey);
+                          }
+                        }
+                      });
+                      const finalAssignedOperations = Array.from(uniqueOperationsMap.values());
+                      
+                      // Calculate project-level hours (remaining after ALL task assignments)
+                      // If employee is assigned to project, they get remaining hours after all tasks are assigned
                       let totalProjectHours = 0;
                       if (isAssignedToProject && project.estimatedHours) {
-                        // Calculate total hours assigned via stages (to anyone, including this employee)
-                        let totalStageHours = 0;
-                        if (project.stages && project.stages.length > 0) {
-                          project.stages.forEach((stage) => {
-                            if (stage.assignedTo && stage.estimatedHours && stage.status !== 'launched') {
-                              totalStageHours += stage.estimatedHours;
+                        // Calculate total hours assigned via tasks (to anyone, including this employee)
+                        let totalTaskHours = 0;
+                        if (project.tasks && project.tasks.length > 0) {
+                          project.tasks.forEach((task) => {
+                            if (task.assignedTo && task.estimatedHours && task.status !== 'complete') {
+                              totalTaskHours += task.estimatedHours;
                             }
                           });
                         }
                         
-                        // Project hours minus ALL stage hours (stages are shown separately)
-                        const remainingProjectHours = Math.max(0, project.estimatedHours - totalStageHours);
+                        // Project hours minus ALL task hours (tasks are shown separately)
+                        const remainingProjectHours = Math.max(0, project.estimatedHours - totalTaskHours);
                         
                         if (remainingProjectHours > 0) {
                           totalProjectHours = calculateHoursForDateRange(
@@ -988,29 +1121,97 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         }
                       }
                       
-                      // Calculate stage hours
-                      const stageHoursList = assignedStages.map(stage => {
-                        if (!stage.estimatedHours) return null;
-                        const stageStart = new Date(stage.startDate);
-                        const stageEnd = new Date(stage.endDate);
+                      // Calculate task hours
+                      const taskHoursList = assignedTasks.map(task => {
+                        if (!task.estimatedHours) return null;
+                        const taskStart = new Date(task.startDate);
+                        const taskEnd = new Date(task.endDate);
                         const hours = calculateHoursForDateRange(
                           startDate,
                           endDate,
-                          stageStart,
-                          stageEnd,
-                          stage.estimatedHours
+                          taskStart,
+                          taskEnd,
+                          task.estimatedHours
                         );
+                        const roundedHours = Math.round(hours * 10) / 10;
+                        // Only include tasks with hours > 0 in the timeframe
+                        if (roundedHours <= 0) return null;
                         return {
-                          name: stage.name,
-                          hours: Math.round(hours * 10) / 10
+                          name: task.name,
+                          hours: roundedHours,
+                          dueDate: taskEnd
                         };
-                      }).filter(Boolean) as Array<{ name: string; hours: number }>;
+                      }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
                       
-                      // Only show if there are project hours or stage hours
-                      if (totalProjectHours === 0 && stageHoursList.length === 0) return null;
+                      // Calculate operation hours - deduplicate by operation ID to prevent duplicates
+                      const operationHoursMap = new Map<string, { name: string; hours: number; dueDate: Date | null; operationId: string }>();
+                      finalAssignedOperations.forEach(op => {
+                        if (!op.estimatedHours) return;
+                        const opId = op._id?.toString();
+                        if (!opId) return; // Skip if no ID
+                        
+                        // Skip if we've already processed this operation
+                        if (operationHoursMap.has(opId)) return;
+                        
+                        const opStart = op.startDate ? normalizeToStartOfDay(new Date(op.startDate)) : null;
+                        const opEnd = op.endDate ? normalizeToEndOfDay(new Date(op.endDate)) : null;
+                        let hours = 0;
+                        if (opStart && opEnd) {
+                          hours = calculateHoursForDateRange(
+                            startDate,
+                            endDate,
+                            opStart,
+                            opEnd,
+                            op.estimatedHours
+                          );
+                        } else {
+                          hours = op.estimatedHours;
+                        }
+                        const roundedHours = Math.round(hours * 10) / 10;
+                        // Only include operations with hours > 0 in the timeframe
+                        if (roundedHours <= 0) return;
+                        
+                        operationHoursMap.set(opId, {
+                          name: op.name,
+                          hours: roundedHours,
+                          dueDate: op.endDate ? new Date(op.endDate) : null,
+                          operationId: opId
+                        });
+                      });
+                      const operationHoursList = Array.from(operationHoursMap.values());
                       
-                      // Show project name if employee is assigned to project OR has stages assigned
-                      const showProjectName = isAssignedToProject || stageHoursList.length > 0;
+                      // Only show project if it has hours in the current timeframe
+                      // Check if there are project hours, task hours, or operation hours > 0
+                      const hasProjectHours = totalProjectHours > 0;
+                      const hasTaskHours = taskHoursList.some(task => task.hours > 0);
+                      const hasOperationHours = operationHoursList.some(op => op.hours > 0);
+                      
+                      // If project is launched, only show if there are operations with hours
+                      if (project.status === 'launched') {
+                        if (!hasOperationHours && operationHoursList.length === 0) {
+                          return null;
+                        }
+                      }
+                      
+                      // For non-launched projects, only show if there are hours in the timeframe
+                      if (project.status !== 'launched') {
+                        if (!hasProjectHours && !hasTaskHours && !hasOperationHours) {
+                          return null;
+                        }
+                      }
+                      
+                      // Show project name if employee is assigned to project, has tasks assigned, or has operations assigned
+                      const showProjectName = isAssignedToProject || assignedTasks.length > 0 || finalAssignedOperations.length > 0;
+                      
+                      // Get project due date (end date)
+                      const projectDueDate = projectEnd;
+                      const isProjectDueToday = (() => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dueDateNormalized = new Date(projectDueDate);
+                        dueDateNormalized.setHours(0, 0, 0, 0);
+                        return dueDateNormalized.getTime() === today.getTime();
+                      })();
                       
                       return (
                         <div key={project._id.toString()} className="space-y-1">
@@ -1028,24 +1229,70 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                                   {totalProjectHours}h
                                 </div>
                               )}
+                              <div className="text-gray-500 text-[10px] mt-0.5">
+                                Due Date: {isProjectDueToday ? 'Today' : formatDate(projectDueDate)}
+                              </div>
                             </div>
                           )}
                           
-                          {/* Stages */}
-                          {stageHoursList.map((stageInfo, idx) => (
-                            <div
-                              key={`stage-${project._id.toString()}-${idx}`}
-                              className="text-xs p-1.5 rounded ml-3"
-                              style={{ backgroundColor: project.color + '15' }}
-                            >
-                              <div className="text-gray-700 truncate">
-                                • {stageInfo.name}
+                          {/* Tasks */}
+                          {taskHoursList.map((taskInfo, idx) => {
+                            const isTaskDueToday = (() => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const dueDateNormalized = new Date(taskInfo.dueDate);
+                              dueDateNormalized.setHours(0, 0, 0, 0);
+                              return dueDateNormalized.getTime() === today.getTime();
+                            })();
+                            
+                            return (
+                              <div
+                                key={`task-${project._id.toString()}-${idx}`}
+                                className="text-xs p-1.5 rounded ml-3"
+                                style={{ backgroundColor: project.color + '15' }}
+                              >
+                                <div className="text-gray-700 truncate">
+                                  • {taskInfo.name}
+                                </div>
+                                <div className="text-gray-600">
+                                  {taskInfo.hours}h
+                                </div>
+                                <div className="text-gray-500 text-[10px] mt-0.5">
+                                  Due Date: {isTaskDueToday ? 'Today' : formatDate(taskInfo.dueDate)}
+                                </div>
                               </div>
-                              <div className="text-gray-600">
-                                {stageInfo.hours}h
+                            );
+                          })}
+                          
+                          {/* Operations */}
+                          {operationHoursList.map((opInfo) => {
+                            if (!opInfo.dueDate) return null;
+                            const isOpDueToday = (() => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const dueDateNormalized = new Date(opInfo.dueDate);
+                              dueDateNormalized.setHours(0, 0, 0, 0);
+                              return dueDateNormalized.getTime() === today.getTime();
+                            })();
+                            
+                            return (
+                              <div
+                                key={`operation-${project._id.toString()}-${opInfo.operationId}`}
+                                className="text-xs p-1.5 rounded ml-3"
+                                style={{ backgroundColor: project.color + '15' }}
+                              >
+                                <div className="text-gray-700 truncate">
+                                  • {opInfo.name}
+                                </div>
+                                <div className="text-gray-600">
+                                  {opInfo.hours}h
+                                </div>
+                                <div className="text-gray-500 text-[10px] mt-0.5">
+                                  Due Date: {isOpDueToday ? 'Today' : formatDate(opInfo.dueDate)}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       );
                     })}

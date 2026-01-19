@@ -22,7 +22,7 @@ function AssetsPageContent() {
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
-  const [stageIndexFilter, setStageIndexFilter] = useState<number | null>(null);
+  const [taskIndexFilter, setTaskIndexFilter] = useState<number | null>(null);
   const [operationFilter, setOperationFilter] = useState<string | null>(null);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<IAsset | undefined>();
@@ -30,15 +30,15 @@ function AssetsPageContent() {
   useEffect(() => {
     // Get filter parameters from URL
     const projectId = searchParams?.get('projectId');
-    const stageIndex = searchParams?.get('stageIndex');
+    const taskIndex = searchParams?.get('taskIndex');
     const operationId = searchParams?.get('operationId');
     if (projectId) {
       setProjectFilter(projectId);
     }
-    if (stageIndex) {
-      setStageIndexFilter(parseInt(stageIndex));
+    if (taskIndex) {
+      setTaskIndexFilter(parseInt(taskIndex));
     } else {
-      setStageIndexFilter(null);
+      setTaskIndexFilter(null);
     }
     if (operationId) {
       setOperationFilter(operationId);
@@ -48,7 +48,7 @@ function AssetsPageContent() {
 
   useEffect(() => {
     filterAssets();
-  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, stageIndexFilter, operationFilter]);
+  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, taskIndexFilter, operationFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -87,9 +87,9 @@ function AssetsPageContent() {
         const linkedProjectId = asset.linkedProjectId?.toString();
         if (linkedProjectId !== projectFilter) return false;
         
-        // If stageIndexFilter is set, also filter by stage
-        if (stageIndexFilter !== null) {
-          return asset.linkedProjectStageIndex === stageIndexFilter;
+        // If taskIndexFilter is set, also filter by task
+        if (taskIndexFilter !== null) {
+          return asset.linkedProjectTaskIndex === taskIndexFilter;
         }
         
         return true;
@@ -149,7 +149,7 @@ function AssetsPageContent() {
     }
   };
 
-  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectStageIndex?: number }) => {
+  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number }) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';
@@ -182,7 +182,7 @@ function AssetsPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
-      <div className="w-full mx-auto px-[100px] max-md:px-4">
+      <div className="w-full mx-auto px-4 sm:px-6 lg:px-[100px]">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white mb-4">Assets</h1>
           <div className="flex gap-4 mb-4">

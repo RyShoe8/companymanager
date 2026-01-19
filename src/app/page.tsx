@@ -87,7 +87,7 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-xl font-semibold text-text-primary mb-2">Projects</h3>
                 <p className="text-text-secondary">
-                  Manage complex projects with multiple stages, assignments, and timelines. Track progress and coordinate team efforts.
+                  Manage complex projects with multiple tasks, assignments, and timelines. Track progress and coordinate team efforts.
                 </p>
               </div>
             </Link>

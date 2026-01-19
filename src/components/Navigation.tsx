@@ -114,7 +114,7 @@ export default function Navigation() {
     { href: '/assets', label: 'Assets' },
     { href: '/projects', label: 'Projects' },
     { href: '/operations', label: 'Operations' },
-    { href: '/employees', label: 'Employees' },
+    { href: '/employees', label: 'Team' },
   ];
 
   return (

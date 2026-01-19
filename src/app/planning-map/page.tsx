@@ -195,8 +195,8 @@ export default function PlanningMapPage() {
     ? projects.filter((project) => {
         // Show if assigned to user
         if (project.assignedTo === currentUserEmployeeName) return true;
-        // Show if any stage is assigned to user
-        if (project.stages && project.stages.some(stage => stage.assignedTo === currentUserEmployeeName)) return true;
+        // Show if any task is assigned to user
+        if (project.tasks && project.tasks.some(task => task.assignedTo === currentUserEmployeeName)) return true;
         return false;
       })
     : projects;
@@ -218,11 +218,11 @@ export default function PlanningMapPage() {
       <div className="w-full mx-auto pt-[30px] pb-8">
         {/* Header with Planning, Timeframe Selector, and Buttons */}
         <div className="mb-1">
-          <div className="flex flex-row items-center gap-4">
+          <div className="flex flex-row items-center gap-4 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold text-white whitespace-nowrap">Planning</h1>
             <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
             {isManagerOrAdmin && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-shrink-0">
                 <Button onClick={handleCreateProject}>+ New Project</Button>
                 <Button onClick={handleCreateOperation} variant="secondary">+ New Operation</Button>
               </div>
@@ -249,6 +249,8 @@ export default function PlanningMapPage() {
               onProjectClick={handleViewProject}
               onOperationClick={handleViewOperation}
               onDateChange={setCurrentDate}
+              currentUserEmployeeName={currentUserEmployeeName}
+              isManagerOrAdmin={isManagerOrAdmin}
             />
           </div>
 
@@ -308,12 +310,12 @@ export default function PlanningMapPage() {
             setShowProjectDetail(false);
             setViewingProject(undefined);
           }}
-          title="Project Details"
+          title="Project"
           maxWidth="4xl"
           hideCloseButton={true}
           headerActions={
             viewingProject ? (
-              <>
+              <div className="flex items-center gap-2">
                 {isManagerOrAdmin && (
                   <>
                     <Button variant="secondary" size="sm" onClick={() => handleEditProject(viewingProject)}>
@@ -356,7 +358,7 @@ export default function PlanningMapPage() {
                 }}>
                   Close
                 </Button>
-              </>
+              </div>
             ) : undefined
           }
         >

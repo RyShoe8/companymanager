@@ -47,7 +47,7 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
         <div className="flex items-center gap-3 mb-3">
           <h2 className="text-2xl font-bold text-text-primary">{operation.name}</h2>
           <span className="text-sm px-3 py-1 rounded bg-accent-light text-accent-dark">
-            {operation.recurrenceType}
+            {operation.recurrenceType === 'none' ? 'Non Recurring' : operation.recurrenceType}
           </span>
           <span className={`text-sm px-3 py-1 rounded ${
             operation.status === 'active' ? 'bg-success-light text-success-dark' :

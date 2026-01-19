@@ -52,32 +52,12 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
   sendSmtpEmail.subject = `You've been invited to join ${data.organizationName || 'Nucleas'}`;
   sendSmtpEmail.to = [{ email: data.recipientEmail, name: data.recipientName || data.recipientEmail }];
   
-  // Brevo requires a sender email - it must be set explicitly
-  const senderEmail = process.env.BREVO_SENDER_EMAIL;
-  if (!senderEmail) {
-    const errorMsg = 'BREVO_SENDER_EMAIL is required but not set. Please add BREVO_SENDER_EMAIL to your .env.local file with a verified sender email from your Brevo account.';
-    console.error(errorMsg);
-    throw new Error(errorMsg);
-  }
+  // Brevo requires a sender email - always use theteam@nucleas.app
+  const senderEmail = 'theteam@nucleas.app';
   
-  // Get base URL for logo - parse from invitation link
-  let logoUrl = 'https://nucleas.app/images/icon.png'; // Default fallback
-  try {
-    const url = new URL(data.invitationLink);
-    logoUrl = `${url.origin}/images/icon.png`;
-  } catch (error) {
-    // If URL parsing fails, use environment variable or default
-    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!baseUrl && process.env.VERCEL_URL) {
-      baseUrl = process.env.VERCEL_URL.startsWith('http') 
-        ? process.env.VERCEL_URL 
-        : `https://${process.env.VERCEL_URL}`;
-    }
-    if (!baseUrl) {
-      baseUrl = 'https://nucleas.app';
-    }
-    logoUrl = `${baseUrl}/images/icon.png`;
-  }
+  // Always use production URL for logo to ensure email clients can access it
+  // Email clients proxy images, so we need a stable, publicly accessible URL
+  const logoUrl = 'https://nucleas.app/images/Nucleas.png';
   
   sendSmtpEmail.sender = {
     email: senderEmail,
@@ -93,30 +73,30 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Invitation to Nucleas</title>
     </head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f3f4f6;">
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #202637; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #F7F8FC;">
       <div style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <div style="background-color: #3b82f6; color: white; padding: 30px; text-align: center;">
-          <img src="${logoUrl}" alt="Nucleas" style="height: 48px; width: auto; margin-bottom: 10px;" onerror="this.style.display='none';">
-          <h1 style="margin: 10px 0 0 0; font-size: 28px; font-weight: bold;">Nucleas</h1>
+        <div style="background-color: #ffffff; padding: 30px; text-align: center; border-bottom: 1px solid #E1E5EE;">
+          <img src="${logoUrl}" alt="Nucleas" width="400" height="120" style="height: 120px; width: auto; max-width: 400px; display: block; margin: 0 auto;" />
+          ${data.organizationName ? `<p style="color: #5E677D; font-size: 18px; font-weight: 600; margin-top: 20px; margin-bottom: 0;">${data.organizationName}</p>` : ''}
         </div>
         <div style="background-color: #ffffff; padding: 40px;">
-          <h2 style="color: #1f2937; margin-top: 0; font-size: 24px; font-weight: 600;">You've been invited!</h2>
-          <p style="color: #4b5563; font-size: 16px; margin: 20px 0;">Hi ${data.recipientName || 'there'},</p>
-          <p style="color: #4b5563; font-size: 16px; margin: 20px 0;"><strong>${data.inviterName}</strong> has invited you to join <strong>${data.organizationName || 'their organization'}</strong> as a <strong>${data.role}</strong>.</p>
+          <h2 style="color: #202637; margin-top: 0; font-size: 24px; font-weight: 600;">You've been invited!</h2>
+          <p style="color: #5E677D; font-size: 16px; margin: 20px 0;">Hi ${data.recipientName || 'there'},</p>
+          <p style="color: #5E677D; font-size: 16px; margin: 20px 0;"><strong>${data.inviterName}</strong> has invited you to join <strong>${data.organizationName || 'their organization'}</strong> as a <strong>${data.role}</strong>.</p>
           <div style="margin: 40px 0; text-align: center;">
             <a href="${data.invitationLink}" 
-               style="background-color: #3b82f6; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3); transition: background-color 0.2s;">
+               style="background-color: #347AF6; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(52, 122, 246, 0.3); transition: background-color 0.2s;">
               Accept Invitation
             </a>
           </div>
-          <p style="color: #6b7280; font-size: 14px; margin: 20px 0;">
+          <p style="color: #5E677D; font-size: 14px; margin: 20px 0;">
             This invitation will expire in ${data.expiresInDays} day${data.expiresInDays !== 1 ? 's' : ''}.
           </p>
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #5E677D; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #E1E5EE;">
             If the button doesn't work, copy and paste this link into your browser:<br>
-            <a href="${data.invitationLink}" style="color: #3b82f6; word-break: break-all; text-decoration: underline;">${data.invitationLink}</a>
+            <a href="${data.invitationLink}" style="color: #347AF6; word-break: break-all; text-decoration: underline;">${data.invitationLink}</a>
           </p>
-          <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #E1E5EE;">
             If you didn't expect this invitation, you can safely ignore this email.
           </p>
         </div>
@@ -167,13 +147,27 @@ export async function createBrevoContact(data: CreateContactData): Promise<void>
     const createContact = new brevo.CreateContact();
     createContact.email = data.email.toLowerCase();
     
-    // Set attributes if provided
-    if (data.name || data.attributes) {
-      createContact.attributes = {
-        ...(data.name && { FIRSTNAME: data.name.split(' ')[0], LASTNAME: data.name.split(' ').slice(1).join(' ') || '' }),
-        ...data.attributes,
-      };
+    // Set CREATED attribute to current date (YYYY-MM-DD format)
+    const currentDate = new Date();
+    const createdDateStr = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    
+    // Build attributes object
+    const attributes: Record<string, any> = {
+      CREATED: createdDateStr,
+    };
+    
+    // Add name attributes if provided
+    if (data.name) {
+      attributes.FIRSTNAME = data.name.split(' ')[0];
+      attributes.LASTNAME = data.name.split(' ').slice(1).join(' ') || '';
     }
+    
+    // Merge with any additional attributes
+    if (data.attributes) {
+      Object.assign(attributes, data.attributes);
+    }
+    
+    createContact.attributes = attributes;
     
     // Add to list ID #3 (Users list)
     createContact.listIds = [3];
@@ -238,13 +232,8 @@ export async function sendEmail(data: SendEmailData): Promise<void> {
   sendSmtpEmail.subject = data.subject;
   sendSmtpEmail.to = [{ email: data.to }];
   
-  // Brevo requires a sender email - it must be set explicitly
-  const senderEmail = process.env.BREVO_SENDER_EMAIL;
-  if (!senderEmail) {
-    const errorMsg = 'BREVO_SENDER_EMAIL is required but not set. Please add BREVO_SENDER_EMAIL to your .env.local file with a verified sender email from your Brevo account.';
-    console.error(errorMsg);
-    throw new Error(errorMsg);
-  }
+  // Brevo requires a sender email - always use theteam@nucleas.app
+  const senderEmail = 'theteam@nucleas.app';
   
   sendSmtpEmail.sender = {
     email: senderEmail,

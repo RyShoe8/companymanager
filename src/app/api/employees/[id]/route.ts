@@ -43,7 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, role, jobTitle, weeklyHours, employeeType, email } = body;
+    let { name, role, jobTitle, team, weeklyHours, employeeType, email } = body;
 
     await connectDB();
     const { id } = await params;
@@ -92,6 +92,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       employee.role = role;
     }
     if (jobTitle !== undefined) employee.jobTitle = sanitizeString(jobTitle, 100);
+    if (team !== undefined) {
+      const validTeams = ['Development', 'Marketing', 'Testing'];
+      if (team && !validTeams.includes(team)) {
+        return NextResponse.json({ error: 'Invalid team' }, { status: 400 });
+      }
+      employee.team = team || undefined;
+    }
     if (weeklyHours !== undefined) {
       const hours = parseFloat(weeklyHours);
       if (isNaN(hours) || hours < 0 || hours > 168) {
@@ -127,11 +134,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         { $set: { assignedTo: newName } }
       );
 
-      // Update project stage assignments
+      // Update project task assignments
       await Project.updateMany(
-        { userId: session.userId, 'stages.assignedTo': oldName },
-        { $set: { 'stages.$[stage].assignedTo': newName } },
-        { arrayFilters: [{ 'stage.assignedTo': oldName }] }
+        { userId: session.userId, 'tasks.assignedTo': oldName },
+        { $set: { 'tasks.$[task].assignedTo': newName } },
+        { arrayFilters: [{ 'task.assignedTo': oldName }] }
       );
 
       // Update operation assignments
@@ -211,11 +218,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       { $unset: { assignedTo: '' } }
     );
 
-    // Remove employee assignments from project stages
+    // Remove employee assignments from project tasks
     await Project.updateMany(
-      { userId: session.userId, 'stages.assignedTo': employeeName },
-      { $set: { 'stages.$[stage].assignedTo': null } },
-      { arrayFilters: [{ 'stage.assignedTo': employeeName }] }
+      { userId: session.userId, 'tasks.assignedTo': employeeName },
+      { $set: { 'tasks.$[task].assignedTo': null } },
+      { arrayFilters: [{ 'task.assignedTo': employeeName }] }
     );
 
     // Remove employee assignments from operations

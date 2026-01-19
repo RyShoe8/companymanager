@@ -9,6 +9,7 @@ export interface IInvitation extends Document {
   employeeId?: Types.ObjectId; // Reference to the Employee record if created
   role: 'Administrator' | 'Manager' | 'User'; // Role for the employee
   jobTitle?: string;
+  team?: 'Development' | 'Marketing' | 'Testing';
   weeklyHours?: number;
   employeeType?: 'full-time' | 'part-time' | 'contractor';
   expiresAt: Date;
@@ -50,6 +51,11 @@ const InvitationSchema: Schema = new Schema(
     },
     jobTitle: {
       type: String,
+      trim: true,
+    },
+    team: {
+      type: String,
+      enum: ['Development', 'Marketing', 'Testing'],
       trim: true,
     },
     weeklyHours: {

@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { sanitizeString } from '@/lib/utils/security';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,8 +25,7 @@ export async function GET(request: NextRequest) {
     const userRole = currentUserEmployee?.role || 'User';
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const { searchParams } = new URL(request.url);
     const recurrenceType = searchParams.get('recurrenceType');

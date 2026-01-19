@@ -12,7 +12,7 @@ export interface IAsset extends Document {
   category?: string;
   tags: string[];
   linkedProjectId?: Types.ObjectId;
-  linkedProjectStageIndex?: number; // Index of the stage in the project's stages array
+  linkedProjectTaskIndex?: number; // Index of the task in the project's tasks array
   linkedOperationId?: Types.ObjectId;
   userId: Types.ObjectId;
   createdAt: Date;
@@ -59,7 +59,7 @@ const AssetSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'Project',
     },
-    linkedProjectStageIndex: {
+    linkedProjectTaskIndex: {
       type: Number,
       min: 0,
     },

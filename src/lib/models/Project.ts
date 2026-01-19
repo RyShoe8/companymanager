@@ -1,16 +1,17 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type TimeframeType = 'today' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review';
+export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
+export type TaskStatus = 'planning' | 'active' | 'in-review' | 'complete';
 
-export interface IProjectStage {
+export interface IProjectTask {
   name: string;
   description?: string;
   startDate: Date;
   endDate: Date;
   estimatedHours?: number;
   assignedTo?: string;
-  status?: ProjectStatus;
+  status?: TaskStatus;
 }
 
 export interface IProject extends Document {
@@ -25,7 +26,7 @@ export interface IProject extends Document {
   status: ProjectStatus;
   estimatedHours?: number;
   assignedTo?: string;
-  stages?: IProjectStage[];
+  tasks?: IProjectTask[];
   userId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -70,7 +71,7 @@ const ProjectSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['planning', 'in-development', 'launched', 'in-review'],
+      enum: ['planning', 'in-development', 'launched', 'in-review', 'completed'],
       default: 'planning',
     },
     estimatedHours: {
@@ -81,6 +82,7 @@ const ProjectSchema: Schema = new Schema(
       type: String,
       trim: true,
     },
+    // Keep stages for backward compatibility during migration
     stages: [
       {
         name: {
@@ -110,7 +112,41 @@ const ProjectSchema: Schema = new Schema(
         },
         status: {
           type: String,
-          enum: ['planning', 'in-development', 'launched', 'in-review'],
+          enum: ['planning', 'in-development', 'launched', 'in-review', 'active', 'complete'],
+          default: 'planning',
+        },
+      },
+    ],
+    tasks: [
+      {
+        name: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        description: {
+          type: String,
+          trim: true,
+        },
+        startDate: {
+          type: Date,
+          required: true,
+        },
+        endDate: {
+          type: Date,
+          required: true,
+        },
+        estimatedHours: {
+          type: Number,
+          min: 0,
+        },
+        assignedTo: {
+          type: String,
+          trim: true,
+        },
+        status: {
+          type: String,
+          enum: ['planning', 'active', 'in-review', 'complete'],
           default: 'planning',
         },
       },
@@ -125,6 +161,8 @@ const ProjectSchema: Schema = new Schema(
     timestamps: true,
   }
 );
+
+// Migration logic has been moved to src/lib/utils/apiHelpers.ts
 
 const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);
 

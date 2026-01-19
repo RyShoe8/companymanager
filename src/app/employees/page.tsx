@@ -62,7 +62,7 @@ export default function EmployeesPage() {
   };
 
   const handleDeleteEmployee = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return;
+    if (!confirm('Are you sure you want to delete this team member?')) return;
 
     try {
       const response = await fetch(`/api/employees/${id}`, { method: 'DELETE' });
@@ -90,7 +90,7 @@ export default function EmployeesPage() {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Error response:', errorData);
-        alert(`Error: ${errorData.error || 'Failed to save employee'}`);
+        alert(`Error: ${errorData.error || 'Failed to save team member'}`);
         return;
       }
 
@@ -99,7 +99,7 @@ export default function EmployeesPage() {
       loadData();
     } catch (error) {
       console.error('Error saving employee:', error);
-      alert('Failed to save employee. Please check the console for details.');
+      alert('Failed to save team member. Please check the console for details.');
     }
   };
 
@@ -112,19 +112,19 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
-      <div className="w-full mx-auto px-[100px] max-md:px-4">
+    <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
+      <div className="w-full mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-white">Employees</h1>
+          <h1 className="text-3xl font-bold text-white">Team</h1>
           {currentUserEmployee?.role === 'Administrator' && (
-            <Button onClick={handleCreateEmployee}>+ New Employee</Button>
+            <Button onClick={handleCreateEmployee}>+ New Team Member</Button>
           )}
         </div>
 
         {employees.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <p className="text-gray-300 mb-4">No employees yet. Create your first employee!</p>
-            <Button onClick={handleCreateEmployee}>Create Employee</Button>
+            <p className="text-gray-300 mb-4">No team members yet. Create your first team member!</p>
+            <Button onClick={handleCreateEmployee}>Create Team Member</Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -191,7 +191,7 @@ export default function EmployeesPage() {
             setShowEmployeeForm(false);
             setEditingEmployee(undefined);
           }}
-          title={editingEmployee ? 'Edit Employee' : 'New Employee'}
+          title={editingEmployee ? 'Edit Team Member' : 'New Team Member'}
         >
           <EmployeeForm
             employee={editingEmployee}

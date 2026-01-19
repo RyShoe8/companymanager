@@ -14,9 +14,11 @@ interface CalendarViewProps {
   onProjectClick: (project: IProject) => void;
   onOperationClick: (operation: IOperation) => void;
   onDateChange?: (date: Date) => void;
+  currentUserEmployeeName?: string | null;
+  isManagerOrAdmin?: boolean;
 }
 
-export default function CalendarView({ projects, operations, timeframe, currentDate, onProjectClick, onOperationClick, onDateChange }: CalendarViewProps) {
+export default function CalendarView({ projects, operations, timeframe, currentDate, onProjectClick, onOperationClick, onDateChange, currentUserEmployeeName, isManagerOrAdmin = false }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
 
   useEffect(() => {
@@ -33,7 +35,10 @@ export default function CalendarView({ projects, operations, timeframe, currentD
     
     const instances: Array<{ operation: IOperation; startDate: Date; endDate: Date }> = [];
     
-    operations.forEach((operation) => {
+    // Filter out operations that are linked to projects - they should only show inside their project
+    const standaloneOperations = operations.filter((operation) => !operation.projectId);
+    
+    standaloneOperations.forEach((operation) => {
       if (!operation.startDate) return; // Skip operations without start date
       
       // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
@@ -247,6 +252,50 @@ export default function CalendarView({ projects, operations, timeframe, currentD
 
   const { start: startDate, end: endDate } = getDateRange();
 
+  // Helper function to calculate project hours by summing tasks/operations' estimatedHours
+  // Excludes completed items for consistency
+  const getProjectEstimatedHours = (project: IProject): number => {
+    // For launched projects, sum operations' estimatedHours
+    if (project.status === 'launched') {
+      const projectOperations = operations.filter((op) => 
+        op.projectId?.toString() === project._id.toString() && 
+        op.status !== 'complete' // Exclude completed operations
+      );
+      
+      const totalOperationHours = projectOperations.reduce((sum, op) => {
+        if (op.estimatedHours !== undefined && op.estimatedHours !== null) {
+          const hours = typeof op.estimatedHours === 'number' 
+            ? op.estimatedHours 
+            : parseFloat(op.estimatedHours);
+          return sum + (isNaN(hours) ? 0 : hours);
+        }
+        return sum;
+      }, 0);
+      
+      // Round to 1 decimal place for consistency
+      return Math.round(totalOperationHours * 10) / 10;
+    }
+    
+    // For non-launched projects, sum tasks' estimatedHours (excluding completed tasks)
+    if (project.tasks && project.tasks.length > 0) {
+      const totalTaskHours = project.tasks.reduce((sum, task) => {
+        if (task.status !== 'complete' && task.estimatedHours !== undefined && task.estimatedHours !== null) {
+          const hours = typeof task.estimatedHours === 'number' 
+            ? task.estimatedHours 
+            : parseFloat(task.estimatedHours);
+          return sum + (isNaN(hours) ? 0 : hours);
+        }
+        return sum;
+      }, 0);
+      
+      // Round to 1 decimal place for consistency
+      return Math.round(totalTaskHours * 10) / 10;
+    }
+    
+    // If no tasks, return 0 (or project.estimatedHours if you want to keep that as fallback)
+    return 0;
+  };
+
   const navigatePeriod = (direction: 'prev' | 'next') => {
     const newDate = new Date(viewDate);
     switch (timeframe) {
@@ -395,7 +444,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         <div className="space-y-2">
                           <div className="flex items-center gap-4 text-sm">
                             <span className="text-text-secondary">
-                              <strong>Recurrence:</strong> {operation.recurrenceType}
+                              <strong>Recurrence:</strong> {operation.recurrenceType === 'none' ? 'Non Recurring' : operation.recurrenceType}
                             </span>
                             <span className="text-text-secondary">
                               <strong>Dates:</strong> {formatDate(instance.startDate)} - {formatDate(instance.endDate)}
@@ -454,7 +503,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     }}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <h4 className={`text-xl font-bold text-text-primary ${project.status === 'launched' ? 'line-through opacity-60' : ''}`} style={{ color: displayColor }}>
+                      <h4 className={`text-xl font-bold text-text-primary ${project.status === 'completed' ? 'line-through opacity-60' : ''}`} style={{ color: displayColor }}>
                         {project.name}
                       </h4>
                       <span
@@ -476,11 +525,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         </span>
                       </div>
                       
-                      {project.estimatedHours && (
-                        <div className="text-sm text-text-secondary">
-                          <strong>Estimated Hours:</strong> {project.estimatedHours}h
-                        </div>
-                      )}
+                      <div className="text-sm text-text-secondary">
+                        <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
+                      </div>
                       
                       {project.assignedTo && (
                         <div className="text-sm text-text-secondary">
@@ -488,43 +535,58 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         </div>
                       )}
 
-                      {project.stages && project.stages.length > 0 && (
+                      {/* Show tasks for non-launched projects */}
+                      {project.tasks && project.tasks.length > 0 && project.status !== 'launched' && (
                         <div className="mt-4">
-                          <p className="text-sm font-semibold text-text-primary mb-2">Stages:</p>
+                          <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
                           <div className="space-y-2">
-                            {/* Show ALL stages for the project - no filtering by assignment */}
-                            {project.stages.map((stage, idx) => {
+                            {/* Show all tasks for managers/admins, or tasks assigned to current user for regular users */}
+                            {project.tasks
+                              .filter((task) => {
+                                // If user is manager/admin, show all tasks
+                                if (isManagerOrAdmin) {
+                                  return true;
+                                }
+                                // If currentUserEmployeeName is set, only show tasks assigned to that user
+                                if (currentUserEmployeeName) {
+                                  return task.assignedTo === currentUserEmployeeName;
+                                }
+                                // Otherwise show all tasks
+                                return true;
+                              })
+                              .map((task, idx) => {
                               // Normalize dates to midnight for accurate date-only comparison
-                              const stageStart = new Date(stage.startDate);
-                              stageStart.setHours(0, 0, 0, 0);
-                              const stageEnd = new Date(stage.endDate);
-                              stageEnd.setHours(23, 59, 59, 999); // End of day
+                              const taskStart = new Date(task.startDate);
+                              taskStart.setHours(0, 0, 0, 0);
+                              const taskEnd = new Date(task.endDate);
+                              taskEnd.setHours(23, 59, 59, 999); // End of day
                               
                               const todayNormalized = new Date(today);
                               todayNormalized.setHours(0, 0, 0, 0);
                               
-                              const stageDays = Math.ceil((stageEnd.getTime() - stageStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                              const isTodayInStage = todayNormalized >= stageStart && todayNormalized <= stageEnd;
+                              const taskDays = Math.ceil((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                              const isTodayInTask = todayNormalized >= taskStart && todayNormalized <= taskEnd;
 
-                              if (!isTodayInStage) return null;
+                              // Show task if it includes today OR if user is manager/admin OR if it's assigned to the current user
+                              if (!isTodayInTask && !isManagerOrAdmin && (!currentUserEmployeeName || task.assignedTo !== currentUserEmployeeName)) return null;
 
-                              // Use a stable key based on stage name and dates instead of array index
-                              // This prevents issues when stages are deleted and indices shift
-                              const stageKey = `${project._id.toString()}-${stage.name}-${stageStart.getTime()}-${stageEnd.getTime()}`;
+                              // Use a stable key based on task name, dates, and index to ensure uniqueness
+                              // This prevents issues when tasks have the same name and dates
+                              const taskKey = `${project._id.toString()}-task-${idx}-${task.name}-${taskStart.getTime()}-${taskEnd.getTime()}`;
 
                               return (
                                 <div
-                                  key={stageKey}
+                                  key={taskKey}
                                   className="p-3 rounded border border-border bg-background-card"
                                 >
-                                  <div className="font-medium text-text-primary">{stage.name}</div>
-                                  {stage.description && (
-                                    <p className="text-sm text-text-secondary mt-1">{stage.description}</p>
+                                  <div className="font-medium text-text-primary">{task.name}</div>
+                                  {task.description && (
+                                    <p className="text-sm text-text-secondary mt-1">{task.description}</p>
                                   )}
                                   <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                    {stage.estimatedHours && <span>{stage.estimatedHours}h</span>}
-                                    {stage.assignedTo && <span>Assigned: {stage.assignedTo}</span>}
-                                    <span className="capitalize">{stage.status}</span>
+                                    {task.estimatedHours && <span>{task.estimatedHours}h</span>}
+                                    {task.assignedTo && <span>Assigned: {task.assignedTo}</span>}
+                                    <span className="capitalize">{task.status}</span>
                                   </div>
                                 </div>
                               );
@@ -532,6 +594,60 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           </div>
                         </div>
                       )}
+
+                      {/* Show operations for launched projects */}
+                      {project.status === 'launched' && (() => {
+                        const projectOperations = operations.filter((op) => 
+                          op.projectId?.toString() === project._id.toString() && op.startDate
+                        );
+                        
+                        const todayOperations = projectOperations.filter((op) => {
+                          const opStart = new Date(op.startDate!);
+                          opStart.setHours(0, 0, 0, 0);
+                          const opEnd = op.endDate ? new Date(op.endDate) : new Date(opStart);
+                          opEnd.setHours(23, 59, 59, 999);
+                          
+                          const todayNormalized = new Date(today);
+                          todayNormalized.setHours(0, 0, 0, 0);
+                          
+                          return todayNormalized >= opStart && todayNormalized <= opEnd;
+                        });
+
+                        if (todayOperations.length === 0) return null;
+
+                        return (
+                          <div className="mt-4">
+                            <p className="text-sm font-semibold text-text-primary mb-2">Operations:</p>
+                            <div className="space-y-2">
+                              {todayOperations.map((operation) => {
+                                const opStart = new Date(operation.startDate!);
+                                opStart.setHours(0, 0, 0, 0);
+                                const opEnd = operation.endDate ? new Date(operation.endDate) : new Date(opStart);
+                                opEnd.setHours(23, 59, 59, 999);
+                                
+                                const operationKey = `${project._id.toString()}-${operation._id.toString()}-${opStart.getTime()}-${opEnd.getTime()}`;
+
+                                return (
+                                  <div
+                                    key={operationKey}
+                                    className="p-3 rounded border border-border bg-background-card"
+                                  >
+                                    <div className="font-medium text-text-primary">{operation.name}</div>
+                                    {operation.description && (
+                                      <p className="text-sm text-text-secondary mt-1">{operation.description}</p>
+                                    )}
+                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                      {operation.estimatedHours && <span>{operation.estimatedHours}h</span>}
+                                      {operation.assignedTo && <span>Assigned: {operation.assignedTo}</span>}
+                                      <span className="capitalize">{operation.status}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -721,7 +837,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
               const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
               const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
-              const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
+              const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
               const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
               
               // Calculate duration for operations
@@ -737,7 +853,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 <div
                   key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-weekly` : `${pos.project!._id.toString()}-weekly`}
                   onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                  className={`absolute text-xs px-2 py-1 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'launched' ? 'line-through opacity-60' : ''}`}
+                  className={`absolute text-xs px-2 py-1 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? status === 'complete' : status === 'completed') ? 'line-through opacity-60' : ''}`}
                   style={{
                     backgroundColor: color,
                     color: 'white',
@@ -961,7 +1077,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
                   const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
                   const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
-                  const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
+                  const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
                   const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
                   
                   // Calculate duration for operations
@@ -977,7 +1093,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     <div
                       key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-${weekIdx}` : `${pos.project!._id.toString()}-${weekIdx}`}
                       onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                      className={`absolute text-xs px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'complete' ? 'line-through opacity-60' : ''}`}
+                      className={`absolute text-xs px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? status === 'complete' : status === 'completed') ? 'line-through opacity-60' : ''}`}
                       style={{
                         backgroundColor: color,
                         color: 'white',
@@ -1220,7 +1336,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
                         const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
                         const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
-                        const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : pos.project!.estimatedHours;
+                        const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
                         const assignedTo = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
                         
                         // Calculate duration for operations
@@ -1236,7 +1352,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           <div
                             key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-q${idx}-w${weekIdx}` : `${pos.project!._id.toString()}-q${idx}-w${weekIdx}`}
                             onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                            className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'complete' ? 'line-through opacity-60' : ''}`}
+                            className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? status === 'complete' : status === 'completed') ? 'line-through opacity-60' : ''}`}
                             style={{
                               backgroundColor: color,
                               color: 'white',
@@ -1329,7 +1445,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       <div
                         key={project._id.toString()}
                         onClick={() => onProjectClick(project)}
-                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'launched' ? 'line-through opacity-60' : ''}`}
+                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
                         style={{
                           backgroundColor: projectColor,
                           color: 'white',

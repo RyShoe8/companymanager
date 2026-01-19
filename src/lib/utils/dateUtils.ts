@@ -111,9 +111,14 @@ export function getTimeframeRange(timeframe: TimeframeType, referenceDate?: Date
 
 /**
  * Format a date to a readable string
+ * Accepts Date objects or date strings
  */
-export function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-US', {
+export function formatDate(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(dateObj.getTime())) {
+    return 'Invalid Date';
+  }
+  return dateObj.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

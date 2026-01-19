@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { IEmployee, EmployeeType, EmployeeRole } from '@/lib/models/Employee';
+import { IEmployee, EmployeeType, EmployeeRole, EmployeeTeam } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
@@ -16,6 +16,7 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
   const [name, setName] = useState(employee?.name || '');
   const [role, setRole] = useState<EmployeeRole>(employee?.role || 'User');
   const [jobTitle, setJobTitle] = useState(employee?.jobTitle || '');
+  const [team, setTeam] = useState<EmployeeTeam | ''>(employee?.team || '');
   const [weeklyHours, setWeeklyHours] = useState(employee?.weeklyHours?.toString() || '40');
   const [employeeType, setEmployeeType] = useState<EmployeeType>(employee?.employeeType || 'full-time');
   const [email, setEmail] = useState(employee?.email || '');
@@ -33,6 +34,7 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
       name,
       role,
       jobTitle: jobTitle || undefined,
+      team: team || undefined,
       weeklyHours: parsedWeeklyHours,
       employeeType,
       email: email || undefined,
@@ -58,12 +60,25 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
         ]}
         required
       />
-      <Input
-        label="Job Title (optional)"
-        value={jobTitle}
-        onChange={(e) => setJobTitle(e.target.value)}
-        placeholder="e.g., Senior Developer, Product Manager, Designer"
-      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Input
+          label="Job Title (optional)"
+          value={jobTitle}
+          onChange={(e) => setJobTitle(e.target.value)}
+          placeholder="e.g., Senior Developer, Product Manager, Designer"
+        />
+        <Select
+          label="Team (optional)"
+          value={team}
+          onChange={(e) => setTeam(e.target.value as EmployeeTeam | '')}
+          options={[
+            { value: '', label: 'None' },
+            { value: 'Development', label: 'Development' },
+            { value: 'Marketing', label: 'Marketing' },
+            { value: 'Testing', label: 'Testing' },
+          ]}
+        />
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Weekly Hours"

@@ -28,6 +28,16 @@ In the Vercel project settings, add the following environment variables:
 - `NEXTAUTH_URL`: Your Vercel deployment URL
   - Format: `https://your-app.vercel.app`
   - Vercel will provide this after first deployment
+  
+- `BREVO_API_KEY`: Your Brevo API key for sending emails
+  - Get your API key from: https://app.brevo.com/settings/keys/api
+  
+- `BREVO_SENDER_EMAIL`: Email address to send from
+  - **Must be set to:** `theteam@nucleas.app`
+  - This email must be verified in your Brevo account
+  
+- `BREVO_SENDER_NAME`: Name to display as sender (optional)
+  - Defaults to "Nucleas" if not set
 
 ### 4. MongoDB Atlas Configuration
 

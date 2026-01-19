@@ -1,12 +1,12 @@
 import Card from '@/components/ui/Card';
 
 export const metadata = {
-  title: 'Project Management - Track Projects & Stages | Nucleas',
-  description: 'Create and manage projects with stages, estimated hours, team assignments, and status tracking. Organize your work with powerful project management tools.',
-  keywords: 'project management, project tracking, project stages, team collaboration, project planning',
+  title: 'Project Management - Track Projects & Tasks | Nucleas',
+  description: 'Create and manage projects with tasks, estimated hours, team assignments, and status tracking. Organize your work with powerful project management tools.',
+  keywords: 'project management, project tracking, project tasks, team collaboration, project planning',
   openGraph: {
-    title: 'Project Management - Track Projects & Stages | Nucleas',
-    description: 'Create and manage projects with stages, estimated hours, and team assignments.',
+    title: 'Project Management - Track Projects & Tasks | Nucleas',
+    description: 'Create and manage projects with tasks, estimated hours, and team assignments.',
     type: 'website',
   },
 };
@@ -18,7 +18,7 @@ export default function ProjectsPage() {
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-text-primary mb-4">Projects</h1>
           <p className="text-xl text-text-secondary max-w-2xl mx-auto">
-            Create, organize, and track projects with detailed stages, timelines, and team assignments. 
+            Create, organize, and track projects with detailed tasks, timelines, and team assignments. 
             Keep everything organized from start to finish.
           </p>
         </div>
@@ -26,14 +26,14 @@ export default function ProjectsPage() {
         <Card className="p-8 mb-8">
           <h2 className="text-3xl font-semibold text-text-primary mb-4">Comprehensive Project Management</h2>
           <p className="text-text-secondary leading-relaxed mb-6">
-            Projects in Nucleas give you complete control over your work. Define project stages, estimate time, 
+            Projects in Nucleas give you complete control over your work. Define project tasks, estimate time, 
             assign team members, and track progress—all in one place.
           </p>
           
           <div className="grid md:grid-cols-2 gap-6">
             <div className="bg-primary-light border border-primary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-primary-dark mb-2">Project Stages</h3>
-              <p className="text-text-secondary">Break down projects into manageable stages with clear milestones and deliverables.</p>
+              <h3 className="text-xl font-semibold text-primary-dark mb-2">Project Tasks</h3>
+              <p className="text-text-secondary">Break down projects into manageable tasks with clear milestones and deliverables.</p>
             </div>
             <div className="bg-secondary-light border border-secondary/20 rounded-lg p-6">
               <h3 className="text-xl font-semibold text-secondary-dark mb-2">Time Estimation</h3>
@@ -59,7 +59,7 @@ export default function ProjectsPage() {
             </li>
             <li className="flex items-start">
               <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Flexible Stages:</strong> Define as many stages as needed for each project</span>
+              <span><strong className="text-text-primary">Flexible Tasks:</strong> Define as many tasks as needed for each project</span>
             </li>
             <li className="flex items-start">
               <span className="text-primary mr-3 mt-1">✓</span>
@@ -81,11 +81,11 @@ export default function ProjectsPage() {
           <div className="grid md:grid-cols-2 gap-6 text-text-secondary">
             <div>
               <p className="font-semibold text-text-primary mb-2">Product Development</p>
-              <p>Track product launches from ideation to market release with clear stages and milestones</p>
+              <p>Track product launches from ideation to market release with clear tasks and milestones</p>
             </div>
             <div>
               <p className="font-semibold text-text-primary mb-2">Client Projects</p>
-              <p>Manage client deliverables with detailed stages and time tracking</p>
+              <p>Manage client deliverables with detailed tasks and time tracking</p>
             </div>
             <div>
               <p className="font-semibold text-text-primary mb-2">Internal Initiatives</p>
@@ -93,7 +93,7 @@ export default function ProjectsPage() {
             </div>
             <div>
               <p className="font-semibold text-text-primary mb-2">Campaign Management</p>
-              <p>Plan and execute marketing campaigns with stage-based workflows</p>
+              <p>Plan and execute marketing campaigns with task-based workflows</p>
             </div>
           </div>
         </Card>

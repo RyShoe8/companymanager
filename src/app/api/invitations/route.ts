@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { email, role, jobTitle, weeklyHours, employeeType, name } = body;
+    const { email, role, jobTitle, team, weeklyHours, employeeType, name } = body;
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
       name: name || email.split('@')[0],
       role: role || 'User',
       jobTitle: jobTitle || undefined,
+      team: team || undefined,
       weeklyHours: weeklyHours || 40,
       employeeType: employeeType || 'full-time',
       email: email.toLowerCase(),
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
       employeeId: employee._id,
       role: role || 'User',
       jobTitle: jobTitle || undefined,
+      team: team || undefined,
       weeklyHours: weeklyHours || 40,
       employeeType: employeeType || 'full-time',
       expiresAt,
@@ -124,6 +126,12 @@ export async function POST(request: NextRequest) {
 
     // Send invitation email
     try {
+      // Get organization name
+      const Organization = (await import('@/lib/models/Organization')).default;
+      const adminUserId = user.organizationId;
+      const organization = await Organization.findOne({ userId: adminUserId });
+      const organizationName = organization?.name || 'the organization';
+      
       // Get base URL from request headers or environment
       const origin = request.headers.get('origin') || request.headers.get('host');
       let baseUrl: string | undefined;
@@ -136,7 +144,7 @@ export async function POST(request: NextRequest) {
         recipientEmail: email.toLowerCase(),
         recipientName: name || email.split('@')[0],
         inviterName: user.name || user.email,
-        organizationName: user.name || 'the organization',
+        organizationName: organizationName,
         invitationLink,
         role: role || 'User',
         expiresInDays: 7,

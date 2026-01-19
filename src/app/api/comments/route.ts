@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const entityType = searchParams.get('entityType');
     const entityId = searchParams.get('entityId');
-    const stageIndex = searchParams.get('stageIndex');
+    const taskIndex = searchParams.get('taskIndex');
 
     if (!entityType || !entityId) {
       return NextResponse.json({ error: 'entityType and entityId are required' }, { status: 400 });
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
       entityId,
     };
 
-    if (stageIndex !== null && stageIndex !== undefined) {
-      query.stageIndex = parseInt(stageIndex);
+    if (taskIndex !== null && taskIndex !== undefined) {
+      query.taskIndex = parseInt(taskIndex);
     }
 
     const comments = await Comment.find(query)
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { content, parentId, entityType, entityId, stageIndex } = body;
+    const { content, parentId, entityType, entityId, taskIndex } = body;
 
     if (!content || !entityType || !entityId) {
       return NextResponse.json(
@@ -102,8 +102,8 @@ export async function POST(request: NextRequest) {
       commentData.parentId = parentId;
     }
 
-    if (stageIndex !== undefined && stageIndex !== null) {
-      commentData.stageIndex = parseInt(stageIndex);
+    if (taskIndex !== undefined && taskIndex !== null) {
+      commentData.taskIndex = parseInt(taskIndex);
     }
 
     const comment = await Comment.create(commentData);

@@ -5,9 +5,9 @@ export interface IComment extends Document {
   authorId: Types.ObjectId;
   authorName: string;
   parentId?: Types.ObjectId; // For threading - references another comment
-  entityType: 'project' | 'projectStage' | 'operation';
-  entityId: Types.ObjectId; // ID of the project, stage, or operation
-  stageIndex?: number; // For project stages - which stage in the project
+  entityType: 'project' | 'projectTask' | 'operation';
+  entityId: Types.ObjectId; // ID of the project, task, or operation
+  taskIndex?: number; // For project tasks - which task in the project
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,7 +35,7 @@ const CommentSchema: Schema = new Schema(
     },
     entityType: {
       type: String,
-      enum: ['project', 'projectStage', 'operation'],
+      enum: ['project', 'projectTask', 'operation'],
       required: true,
     },
     entityId: {
@@ -43,7 +43,7 @@ const CommentSchema: Schema = new Schema(
       required: true,
       index: true,
     },
-    stageIndex: {
+    taskIndex: {
       type: Number,
     },
   },
@@ -53,7 +53,7 @@ const CommentSchema: Schema = new Schema(
 );
 
 // Compound index for efficient queries
-CommentSchema.index({ entityType: 1, entityId: 1, stageIndex: 1 });
+CommentSchema.index({ entityType: 1, entityId: 1, taskIndex: 1 });
 
 const Comment: Model<IComment> = mongoose.models.Comment || mongoose.model<IComment>('Comment', CommentSchema);
 

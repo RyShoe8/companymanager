@@ -4,6 +4,11 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Allow access to sitemap and robots files (must be first)
+  if (pathname === '/sitemap.xml' || pathname === '/robots.txt') {
+    return NextResponse.next();
+  }
+  
   // Allow access to auth pages, setup page, admin page, public pages, and API routes
   if (
     pathname === '/' ||
@@ -49,7 +54,9 @@ export const config = {
      * - favicon.ico (favicon file)
      * - uploads (uploaded user files)
      * - images (static images)
+     * - sitemap.xml (sitemap file)
+     * - robots.txt (robots file)
      */
-    '/((?!_next/static|_next/image|favicon.ico|uploads|images).*)',
+    '/((?!_next/static|_next/image|favicon.ico|uploads|images|sitemap.xml|robots.txt).*)',
   ],
 };

@@ -2,11 +2,13 @@ import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type EmployeeType = 'full-time' | 'part-time' | 'contractor';
 export type EmployeeRole = 'Administrator' | 'Manager' | 'User';
+export type EmployeeTeam = 'Development' | 'Marketing' | 'Testing';
 
 export interface IEmployee extends Document {
   name: string;
   role: EmployeeRole; // Required: Administrator or User
   jobTitle?: string; // Optional job title (e.g., "Senior Developer", "Product Manager")
+  team?: EmployeeTeam; // Optional team (Development, Marketing, Testing)
   weeklyHours: number;
   employeeType: EmployeeType;
   userId?: Types.ObjectId; // Optional - for invited employees who haven't signed up yet
@@ -31,6 +33,11 @@ const EmployeeSchema: Schema = new Schema(
     },
     jobTitle: {
       type: String,
+      trim: true,
+    },
+    team: {
+      type: String,
+      enum: ['Development', 'Marketing', 'Testing'],
       trim: true,
     },
     weeklyHours: {

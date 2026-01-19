@@ -4,6 +4,14 @@ import Asset from '@/lib/models/Asset';
 import { requireAuth } from '@/lib/auth/middleware';
 import { sanitizeString, isValidObjectId } from '@/lib/utils/security';
 
+// Dynamic import for sharp (optional - will fallback if not installed)
+let sharp: any = null;
+try {
+  sharp = require('sharp');
+} catch (e) {
+  console.warn('Sharp not installed. Image compression will be skipped. Install with: npm install sharp');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth(request);
@@ -11,12 +19,13 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const assetType = formData.get('type') as string | null; // 'screenshot' or 'file'
     let name = formData.get('name') as string;
     let description = formData.get('description') as string | null;
     let category = formData.get('category') as string | null;
     let tags = formData.get('tags') as string | null;
     const linkedProjectId = formData.get('linkedProjectId') as string | null;
-    const linkedProjectStageIndex = formData.get('linkedProjectStageIndex') as string | null;
+    const linkedProjectTaskIndex = formData.get('linkedProjectTaskIndex') as string | null;
     const linkedOperationId = formData.get('linkedOperationId') as string | null;
 
     if (!file || !name) {
@@ -51,27 +60,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid operation ID' }, { status: 400 });
     }
 
-    // Validate stage index
-    let stageIndex: number | undefined;
-    if (linkedProjectStageIndex !== null && linkedProjectStageIndex !== undefined && linkedProjectStageIndex !== '') {
-      const parsed = parseInt(linkedProjectStageIndex);
+    // Validate task index
+    let taskIndex: number | undefined;
+    if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined && linkedProjectTaskIndex !== '') {
+      const parsed = parseInt(linkedProjectTaskIndex);
       if (isNaN(parsed) || parsed < 0) {
-        return NextResponse.json({ error: 'Invalid stage index' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid task index' }, { status: 400 });
       }
-      stageIndex = parsed;
+      taskIndex = parsed;
     }
 
     await connectDB();
 
-    // Convert file to base64 for storage (in production, use cloud storage like S3, Cloudinary, etc.)
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString('base64');
-    const fileUrl = `data:${file.type};base64,${base64}`;
+    // Process image files (screenshots) with compression
+    let fileUrl: string;
+    let finalType = assetType || 'file';
+    
+    const isImage = file.type.startsWith('image/');
+    if (isImage && sharp) {
+      try {
+        // Compress and convert to WebP
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        
+        // Use sharp with proper error handling
+        const sharpInstance = sharp(buffer);
+        const compressedBuffer = await sharpInstance
+          .webp({ quality: 80, effort: 4 }) // Good balance between quality and file size
+          .resize(1920, 1920, { 
+            fit: 'inside', 
+            withoutEnlargement: true 
+          }) // Max dimensions, maintain aspect ratio
+          .toBuffer();
+        
+        const base64 = compressedBuffer.toString('base64');
+        fileUrl = `data:image/webp;base64,${base64}`;
+        
+        if (assetType === 'screenshot' || !assetType) {
+          finalType = 'screenshot';
+        }
+      } catch (error: any) {
+        console.error('Error compressing image:', error);
+        // Fallback to original if compression fails
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        const base64 = buffer.toString('base64');
+        fileUrl = `data:${file.type};base64,${base64}`;
+      }
+    } else {
+      // Non-image files or sharp not available - use original
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const base64 = buffer.toString('base64');
+      fileUrl = `data:${file.type};base64,${base64}`;
+    }
 
     const assetData: any = {
       name,
-      type: 'file',
+      type: finalType,
       fileUrl,
       description: description || undefined,
       category: category || undefined,
@@ -82,8 +128,8 @@ export async function POST(request: NextRequest) {
     if (linkedProjectId) {
       assetData.linkedProjectId = linkedProjectId;
     }
-    if (stageIndex !== undefined) {
-      assetData.linkedProjectStageIndex = stageIndex;
+    if (taskIndex !== undefined) {
+      assetData.linkedProjectTaskIndex = taskIndex;
     }
     if (linkedOperationId) {
       assetData.linkedOperationId = linkedOperationId;

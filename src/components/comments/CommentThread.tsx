@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { IComment } from '@/lib/models/Comment';
+import { IAsset } from '@/lib/models/Asset';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 
 interface CommentThreadProps {
-  entityType: 'project' | 'projectStage' | 'operation';
+  entityType: 'project' | 'projectTask' | 'operation';
   entityId: string;
-  stageIndex?: number;
+  taskIndex?: number;
   currentUserId?: string;
   showHeading?: boolean;
 }
@@ -17,16 +18,18 @@ interface CommentWithReplies extends IComment {
   replies?: CommentWithReplies[];
 }
 
-export default function CommentThread({ entityType, entityId, stageIndex, currentUserId, showHeading = true }: CommentThreadProps) {
+export default function CommentThread({ entityType, entityId, taskIndex, currentUserId, showHeading = true }: CommentThreadProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [loading, setLoading] = useState(true);
+  const [screenshots, setScreenshots] = useState<IAsset[]>([]);
 
   useEffect(() => {
     loadComments();
-  }, [entityType, entityId, stageIndex]);
+    loadScreenshots();
+  }, [entityType, entityId, taskIndex]);
 
   const loadComments = async () => {
     try {
@@ -34,8 +37,8 @@ export default function CommentThread({ entityType, entityId, stageIndex, curren
         entityType,
         entityId,
       });
-      if (stageIndex !== undefined) {
-        params.append('stageIndex', stageIndex.toString());
+      if (taskIndex !== undefined) {
+        params.append('taskIndex', taskIndex.toString());
       }
 
       const response = await fetch(`/api/comments?${params}`);
@@ -47,6 +50,78 @@ export default function CommentThread({ entityType, entityId, stageIndex, curren
       console.error('Error loading comments:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadScreenshots = async () => {
+    try {
+      let url = '/api/assets?type=screenshot';
+      if (entityType === 'project') {
+        url += `&linkedProjectId=${entityId}`;
+        if (taskIndex !== undefined) {
+          url += `&linkedProjectTaskIndex=${taskIndex}`;
+        }
+      } else if (entityType === 'operation') {
+        url += `&linkedOperationId=${entityId}`;
+      }
+
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setScreenshots(data);
+      }
+    } catch (error) {
+      console.error('Error loading screenshots:', error);
+    }
+  };
+
+  const handleAddScreenshot = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.onchange = async (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (files && files.length > 0) {
+        await handleUploadScreenshots(Array.from(files));
+      }
+    };
+    input.click();
+  };
+
+  const handleUploadScreenshots = async (files: File[]) => {
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', file.name.replace(/\.[^/.]+$/, '') || 'Screenshot');
+        formData.append('type', 'screenshot');
+        
+        if (entityType === 'project') {
+          formData.append('linkedProjectId', entityId);
+          if (taskIndex !== undefined) {
+            formData.append('linkedProjectTaskIndex', taskIndex.toString());
+          }
+        } else if (entityType === 'operation') {
+          formData.append('linkedOperationId', entityId);
+        }
+
+        const response = await fetch('/api/assets/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+        return response.json();
+      });
+
+      await Promise.all(uploadPromises);
+      loadScreenshots();
+    } catch (error) {
+      console.error('Error uploading screenshots:', error);
+      alert('Failed to upload screenshots');
     }
   };
 
@@ -68,8 +143,8 @@ export default function CommentThread({ entityType, entityId, stageIndex, curren
         body.parentId = parentId;
       }
 
-      if (stageIndex !== undefined) {
-        body.stageIndex = stageIndex;
+      if (taskIndex !== undefined) {
+        body.taskIndex = taskIndex;
       }
 
       const response = await fetch('/api/comments', {
@@ -176,6 +251,7 @@ export default function CommentThread({ entityType, entityId, stageIndex, curren
                 type="button" 
                 size="sm"
                 onClick={(e) => handleSubmitComment(e as any, comment._id.toString())}
+                className="h-[38px] min-h-0"
               >
                 Reply
               </Button>
@@ -211,8 +287,29 @@ export default function CommentThread({ entityType, entityId, stageIndex, curren
         )}
       </div>
 
+      {screenshots.length > 0 && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Screenshots</label>
+          <div className="grid grid-cols-4 gap-2">
+            {screenshots.map((screenshot) => (
+              <div key={screenshot._id.toString()} className="relative group">
+                <img
+                  src={screenshot.fileUrl}
+                  alt={screenshot.name}
+                  className="w-full h-20 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => window.open(screenshot.fileUrl, '_blank')}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate" title={screenshot.name}>
+                  {screenshot.name}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-2">
           <Input
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
@@ -229,8 +326,18 @@ export default function CommentThread({ entityType, entityId, stageIndex, curren
             type="button" 
             size="sm"
             onClick={(e) => handleSubmitComment(e as any)}
+            className="h-[38px] min-h-0"
           >
             Post
+          </Button>
+          <Button 
+            type="button" 
+            variant="secondary"
+            size="sm"
+            onClick={handleAddScreenshot}
+            className="h-[38px] min-h-0 whitespace-nowrap flex-shrink-0"
+          >
+            Add Screenshot
           </Button>
         </div>
       </div>

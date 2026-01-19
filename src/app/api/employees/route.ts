@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, role, jobTitle, weeklyHours, employeeType, email } = body;
+    const { name, role, jobTitle, team, weeklyHours, employeeType, email } = body;
 
     if (!name || !role || weeklyHours === undefined || weeklyHours === null || isNaN(parseFloat(weeklyHours))) {
       return NextResponse.json({ 
@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
             employee.name = name;
             employee.role = role;
             employee.jobTitle = jobTitle || undefined;
+            employee.team = team || undefined;
             employee.weeklyHours = parseFloat(weeklyHours);
             employee.employeeType = employeeType || 'full-time';
             await employee.save();
@@ -107,6 +108,7 @@ export async function POST(request: NextRequest) {
             invitation.jobTitle = jobTitle || undefined;
             invitation.weeklyHours = parseFloat(weeklyHours);
             invitation.employeeType = employeeType || 'full-time';
+            invitation.team = team || undefined;
             invitation.expiresAt = new Date();
             invitation.expiresAt.setDate(invitation.expiresAt.getDate() + 7);
             await invitation.save();
@@ -119,6 +121,7 @@ export async function POST(request: NextRequest) {
             name,
             role,
             jobTitle: jobTitle || undefined,
+            team: team || undefined,
             weeklyHours: parseFloat(weeklyHours),
             employeeType: employeeType || 'full-time',
             email: email.toLowerCase(),
@@ -133,6 +136,7 @@ export async function POST(request: NextRequest) {
           invitation.jobTitle = jobTitle || undefined;
           invitation.weeklyHours = parseFloat(weeklyHours);
           invitation.employeeType = employeeType || 'full-time';
+          invitation.team = team || undefined;
           invitation.expiresAt = new Date();
           invitation.expiresAt.setDate(invitation.expiresAt.getDate() + 7);
           await invitation.save();
@@ -143,6 +147,7 @@ export async function POST(request: NextRequest) {
           name,
           role,
           jobTitle: jobTitle || undefined,
+          team: team || undefined,
           weeklyHours: parseFloat(weeklyHours),
           employeeType: employeeType || 'full-time',
           email: email.toLowerCase(),
@@ -161,6 +166,7 @@ export async function POST(request: NextRequest) {
           employeeId: employee._id,
           role,
           jobTitle: jobTitle || undefined,
+          team: team || undefined,
           weeklyHours: parseFloat(weeklyHours),
           employeeType: employeeType || 'full-time',
           expiresAt,
@@ -172,6 +178,12 @@ export async function POST(request: NextRequest) {
       // Send invitation email (only if we have a token)
       if (invitation && invitation.token) {
         try {
+          // Get organization name
+          const Organization = (await import('@/lib/models/Organization')).default;
+          const adminUserId = user.organizationId;
+          const organization = await Organization.findOne({ userId: adminUserId });
+          const organizationName = organization?.name || 'the organization';
+          
           // Get base URL from request headers or environment
           const origin = request.headers.get('origin') || request.headers.get('host');
           let baseUrl: string | undefined;
@@ -185,7 +197,7 @@ export async function POST(request: NextRequest) {
             recipientEmail: email.toLowerCase(),
             recipientName: name,
             inviterName: user.name || user.email,
-            organizationName: user.name || 'the organization',
+            organizationName: organizationName,
             invitationLink,
             role,
             expiresInDays: 7,
@@ -220,6 +232,7 @@ export async function POST(request: NextRequest) {
       name,
       role,
       jobTitle: jobTitle || undefined,
+      team: team || undefined,
       weeklyHours: parseFloat(weeklyHours),
       employeeType: employeeType || 'full-time',
       organizationId: user.organizationId,

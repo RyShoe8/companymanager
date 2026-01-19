@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { IProject } from '@/lib/models/Project';
+import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IAsset } from '@/lib/models/Asset';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import Toggle from '@/components/ui/Toggle';
 import ProjectForm from '@/components/planning-map/ProjectForm';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { IEmployee } from '@/lib/models/Employee';
+import { formatDate } from '@/lib/utils/dateUtils';
+import Select from '@/components/ui/Select';
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -19,14 +20,21 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<IProject | undefined>();
-  const [uploadingAsset, setUploadingAsset] = useState<{ projectId: string; stageIndex?: number } | null>(null);
-  const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
   const [employees, setEmployees] = useState<IEmployee[]>([]);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    // Auto-select first project if none selected
+    if (!selectedProjectId && projects.length > 0) {
+      setSelectedProjectId(projects[0]._id.toString());
+    }
+  }, [projects, selectedProjectId]);
 
   const loadData = async () => {
     setLoading(true);
@@ -46,13 +54,14 @@ export default function ProjectsPage() {
       const assetsData = await assetsRes.json();
       const employeesData = await employeesRes.json();
 
-      // Get current user's employee name
+      // Get current user's employee name and role
       try {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
           const userData = await userResponse.json();
           const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
           setCurrentUserEmployeeName(currentEmployee?.name || null);
+          setCurrentUserRole(currentEmployee?.role as 'Administrator' | 'Manager' | 'User' | undefined);
         }
       } catch (error) {
         console.error('Error loading current user:', error);
@@ -92,74 +101,111 @@ export default function ProjectsPage() {
       if (response.ok) {
         setShowProjectForm(false);
         setEditingProject(undefined);
-        loadData();
+        await loadData();
+        // Select the newly created/edited project
+        if (editingProject) {
+          setSelectedProjectId(editingProject._id.toString());
+        } else if (response.ok) {
+          const newProject = await response.json();
+          setSelectedProjectId(newProject._id.toString());
+        }
       }
     } catch (error) {
       console.error('Error saving project:', error);
     }
   };
 
-  const handleUploadAsset = (projectId: string, stageIndex?: number) => {
-    setUploadingAsset({ projectId, stageIndex });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !uploadingAsset) return;
-
-    const uploadPromises = Array.from(files).map(async (file) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('name', file.name);
-      formData.append('linkedProjectId', uploadingAsset.projectId);
-      if (uploadingAsset.stageIndex !== undefined) {
-        formData.append('linkedProjectStageIndex', uploadingAsset.stageIndex.toString());
-      }
-
-      try {
-        const response = await fetch('/api/assets/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
-        }
-        return response.json();
-      } catch (error) {
-        console.error(`Error uploading ${file.name}:`, error);
-        throw error;
-      }
-    });
-
-    try {
-      await Promise.all(uploadPromises);
-      setUploadingAsset(null);
-      loadData();
-    } catch (error) {
-      console.error('Error uploading files:', error);
-      // Still reload to show successfully uploaded files
-      loadData();
-    }
-  };
-
-  const getProjectAssets = (projectId: string, stageIndex?: number) => {
+  const getProjectAssets = (projectId: string, taskIndex?: number) => {
     return assets.filter((asset) => {
       if (asset.linkedProjectId?.toString() !== projectId) return false;
-      if (stageIndex !== undefined) {
-        return asset.linkedProjectStageIndex === stageIndex;
+      if (taskIndex !== undefined) {
+        return asset.linkedProjectTaskIndex === taskIndex;
       }
-      return asset.linkedProjectStageIndex === undefined;
+      return asset.linkedProjectTaskIndex === undefined;
     });
   };
 
-  const formatDate = (date: Date | string) => {
-    return new Date(date).toLocaleDateString();
+  const getProjectAssetsByType = (projectId: string, type: string, taskIndex?: number) => {
+    return getProjectAssets(projectId, taskIndex).filter(asset => asset.type === type);
   };
+
+  const selectedProject = projects.find(p => p._id.toString() === selectedProjectId);
+  const activeTasks = selectedProject?.tasks?.filter(t => t.status !== 'complete') || [];
+  const completedTasks = selectedProject?.tasks?.filter(t => t.status === 'complete') || [];
+
+  // Calculate employee utilization for the selected project
+  const calculateEmployeeUtilization = () => {
+    if (!selectedProject) return [];
+
+    const utilizationMap = new Map<string, { name: string; projectHours: number; taskHours: number; completedHours: number; totalHours: number }>();
+
+    // Get all unique employee names from project and tasks
+    const employeeNames = new Set<string>();
+    if (selectedProject.assignedTo) {
+      employeeNames.add(selectedProject.assignedTo);
+    }
+    if (selectedProject.tasks) {
+      selectedProject.tasks.forEach(task => {
+        if (task.assignedTo) {
+          employeeNames.add(task.assignedTo);
+        }
+      });
+    }
+
+    // Calculate hours for each employee
+    employeeNames.forEach(employeeName => {
+      let projectHours = 0;
+      let taskHours = 0;
+      let completedHours = 0;
+
+      // Project-level hours (only if employee is assigned to project)
+      if (selectedProject.assignedTo === employeeName && selectedProject.estimatedHours) {
+        // Calculate total hours assigned via tasks (to anyone)
+        let totalTaskHours = 0;
+        if (selectedProject.tasks) {
+          selectedProject.tasks.forEach(task => {
+            if (task.assignedTo && task.estimatedHours && task.status !== 'complete') {
+              totalTaskHours += task.estimatedHours;
+            }
+          });
+        }
+        // Project hours minus task hours = remaining project hours
+        projectHours = Math.max(0, selectedProject.estimatedHours - totalTaskHours);
+      }
+
+      // Task-level hours (active and completed)
+      if (selectedProject.tasks) {
+        selectedProject.tasks.forEach(task => {
+          if (task.assignedTo === employeeName && task.estimatedHours) {
+            if (task.status === 'complete') {
+              completedHours += task.estimatedHours;
+            } else {
+              taskHours += task.estimatedHours;
+            }
+          }
+        });
+      }
+
+      const totalHours = projectHours + taskHours + completedHours;
+      if (totalHours > 0) {
+        utilizationMap.set(employeeName, {
+          name: employeeName,
+          projectHours,
+          taskHours,
+          completedHours,
+          totalHours
+        });
+      }
+    });
+
+    return Array.from(utilizationMap.values()).sort((a, b) => b.totalHours - a.totalHours);
+  };
+
+  const employeeUtilization = calculateEmployeeUtilization();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 px-[100px] max-md:px-4 py-8">
+      <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
         <div className="max-w-7xl mx-auto">
           <p className="text-gray-300">Loading...</p>
         </div>
@@ -168,182 +214,813 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 px-[100px] max-md:px-4 py-8">
+    <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-white">Projects</h1>
-            {currentUserEmployeeName && (
-              <Toggle
-                label="Show only my assignments"
-                checked={showOnlyAssigned}
-                onChange={setShowOnlyAssigned}
-              />
-            )}
+        {/* Header with Projects Dropdown */}
+        <div className="flex justify-end items-center gap-3 mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-white font-medium">Projects:</span>
+            <Select
+              value={selectedProjectId || ''}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              options={projects.map(p => ({
+                value: p._id.toString(),
+                label: p.name
+              }))}
+              className="min-w-[200px] bg-white"
+            />
           </div>
-          <Button onClick={handleCreateProject}>+ New Project</Button>
+          <Button onClick={handleCreateProject}>+ Add Project</Button>
         </div>
 
-        {(showOnlyAssigned && currentUserEmployeeName
-          ? projects.filter(p => 
-              p.assignedTo === currentUserEmployeeName || 
-              p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
-            )
-          : projects
-        ).length === 0 ? (
-          <Card className="p-8 text-center">
-            <p className="text-gray-300 mb-4">No active projects found.</p>
-            <Button onClick={handleCreateProject}>Create Your First Project</Button>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {(showOnlyAssigned && currentUserEmployeeName
-              ? projects.filter(p => 
-                  p.assignedTo === currentUserEmployeeName || 
-                  p.stages?.some(s => s.assignedTo === currentUserEmployeeName)
-                )
-              : projects
-            ).map((project) => {
-              const projectAssets = getProjectAssets(project._id.toString());
-              return (
-                <Card key={project._id.toString()} className="p-6">
-                  <div className="flex justify-between items-start mb-4">
+        {/* Project Details */}
+        {selectedProject ? (
+          <div className="space-y-6">
+            {/* Project Overview */}
+            <Card className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h1 className={`text-3xl font-bold text-gray-900 dark:text-white ${selectedProject.status === 'completed' ? 'line-through opacity-75' : ''}`}>
+                      {selectedProject.name}
+                    </h1>
+                    <span className={`text-xs px-3 py-1 rounded font-medium ${
+                      selectedProject.status === 'completed' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' :
+                      selectedProject.status === 'in-development' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                      selectedProject.status === 'in-review' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                      selectedProject.status === 'launched' ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' :
+                      'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                    }`}>
+                      {selectedProject.status === 'completed' ? 'Completed' :
+                       selectedProject.status === 'in-development' ? 'In Development' :
+                       selectedProject.status === 'in-review' ? 'In Review' :
+                       selectedProject.status === 'launched' ? 'Launched' :
+                       'Planning'}
+                    </span>
+                  </div>
+                  
+                  {selectedProject.description && (
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">{selectedProject.description}</p>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                          {project.name}
-                        </h2>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          project.status === 'in-development' ? 'bg-green-100 text-green-800' :
-                          project.status === 'in-review' ? 'bg-yellow-100 text-yellow-800' :
-                          project.status === 'launched' ? 'bg-gray-100 text-gray-600' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {project.status}
-                        </span>
+                      <span className="text-gray-500 dark:text-gray-400">Dates: </span>
+                      <span className="text-gray-900 dark:text-white">
+                        {(() => {
+                          // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+                          const startDateObj = new Date(selectedProject.startDate);
+                          const startDateStr = startDateObj.toISOString().split('T')[0];
+                          const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+                          const localStartDate = new Date(startYear, startMonth - 1, startDay);
+                          
+                          const endDateObj = new Date(selectedProject.endDate);
+                          const endDateStr = endDateObj.toISOString().split('T')[0];
+                          const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+                          const localEndDate = new Date(endYear, endMonth - 1, endDay);
+                          
+                          return `${formatDate(localStartDate)} - ${formatDate(localEndDate)}`;
+                        })()}
+                      </span>
+                    </div>
+                    {selectedProject.assignedTo && (
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Assigned to: </span>
+                        <span className="text-gray-900 dark:text-white">{selectedProject.assignedTo}</span>
                       </div>
-                      {project.description && (
-                        <p className="text-gray-600 dark:text-gray-400 mb-2">{project.description}</p>
-                      )}
-                      {((project.urls && project.urls.length > 0) || project.url) && (
-                        <div className="space-y-1">
-                          {project.urls && project.urls.length > 0 ? (
-                            project.urls.map((url, index) => (
-                              <div key={index}>
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                                >
-                                  {url}
-                                </a>
-                              </div>
-                            ))
-                          ) : (
-                            project.url && (
+                    )}
+                    {selectedProject.estimatedHours && (
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Estimated Hours: </span>
+                        <span className="text-gray-900 dark:text-white">{selectedProject.estimatedHours}h</span>
+                      </div>
+                    )}
+                    {((selectedProject.urls && selectedProject.urls.length > 0) || selectedProject.url) && (
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">URLs: </span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {selectedProject.urls && selectedProject.urls.length > 0 ? (
+                            selectedProject.urls.map((url, index) => (
                               <a
-                                href={project.url}
+                                key={index}
+                                href={url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 dark:text-blue-400 hover:underline"
                               >
-                                {project.url}
+                                {url}
+                              </a>
+                            ))
+                          ) : (
+                            selectedProject.url && (
+                              <a
+                                href={selectedProject.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                {selectedProject.url}
                               </a>
                             )
                           )}
                         </div>
-                      )}
-                      <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span>{formatDate(project.startDate)} - {formatDate(project.endDate)}</span>
-                        {project.assignedTo && <span className="ml-4">Assigned to: {project.assignedTo}</span>}
-                        {project.estimatedHours && <span className="ml-4">{project.estimatedHours}h</span>}
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => handleEditProject(project)}>
-                        Edit
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={() => handleUploadAsset(project._id.toString())}>
-                        Upload Screenshot
-                      </Button>
-                    </div>
+                    )}
                   </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => handleEditProject(selectedProject)}>
+                    Edit
+                  </Button>
+                </div>
+              </div>
 
-                  {projectAssets.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Screenshots:</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {projectAssets.map((asset) => (
-                          <div key={asset._id.toString()} className="relative">
-                            {asset.fileUrl && (
-                              <img
-                                src={asset.fileUrl}
-                                alt={asset.name}
-                                className="w-full h-32 object-cover rounded border border-gray-200 dark:border-gray-700"
-                              />
-                            )}
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">{asset.name}</p>
-                          </div>
-                        ))}
+              {/* Project Assets by Type */}
+              {(() => {
+                const projectAssets = getProjectAssets(selectedProject._id.toString());
+                const screenshots = getProjectAssetsByType(selectedProject._id.toString(), 'screenshot');
+                const spreadsheets = getProjectAssetsByType(selectedProject._id.toString(), 'spreadsheet');
+                const documents = getProjectAssetsByType(selectedProject._id.toString(), 'document');
+                const links = getProjectAssetsByType(selectedProject._id.toString(), 'link');
+                const otherAssets = projectAssets.filter(asset => 
+                  !['screenshot', 'spreadsheet', 'document', 'link'].includes(asset.type)
+                );
+
+                return projectAssets.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-6">
+                    {/* Screenshots */}
+                    {screenshots.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Screenshots</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {screenshots.map((asset) => (
+                            <div key={asset._id.toString()} className="relative">
+                              {asset.fileUrl && (
+                                <img
+                                  src={asset.fileUrl}
+                                  alt={asset.name}
+                                  className="w-full h-32 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => window.open(asset.fileUrl, '_blank')}
+                                />
+                              )}
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">{asset.name}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {project.stages && project.stages.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Stages:</h3>
-                      <div className="space-y-3">
-                        {project.stages.map((stage, index) => {
-                          const stageAssets = getProjectAssets(project._id.toString(), index);
-                          return (
-                            <div key={index} className="pl-4 border-l-2 border-gray-200 dark:border-gray-700">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <h4 className="font-medium text-gray-900 dark:text-white">{stage.name}</h4>
-                                  {stage.description && (
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">{stage.description}</p>
-                                  )}
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    <span>{formatDate(stage.startDate)} - {formatDate(stage.endDate)}</span>
-                                    {stage.assignedTo && <span className="ml-4">Assigned to: {stage.assignedTo}</span>}
-                                    {stage.estimatedHours && <span className="ml-4">{stage.estimatedHours}h</span>}
-                                  </div>
-                                </div>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => handleUploadAsset(project._id.toString(), index)}
-                                >
-                                  Upload Screenshot
-                                </Button>
+                    {/* Spreadsheets */}
+                    {spreadsheets.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Spreadsheets</h3>
+                        <div className="space-y-2">
+                          {spreadsheets.map((asset) => (
+                            <div 
+                              key={asset._id.toString()} 
+                              className={`flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 ${asset.url ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors' : ''}`}
+                              onClick={asset.url ? () => window.open(asset.url, '_blank') : undefined}
+                            >
+                              <div className="flex-1">
+                                {asset.url ? (
+                                  <a
+                                    href={asset.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                  >
+                                    {asset.name}
+                                  </a>
+                                ) : (
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                )}
+                                {asset.description && (
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{asset.description}</p>
+                                )}
                               </div>
-                              {stageAssets.length > 0 && (
-                                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                                  {stageAssets.map((asset) => (
-                                    <div key={asset._id.toString()} className="relative">
-                                      {asset.fileUrl && (
-                                        <img
-                                          src={asset.fileUrl}
-                                          alt={asset.name}
-                                          className="w-full h-24 object-cover rounded border border-gray-200 dark:border-gray-700"
-                                        />
-                                      )}
-                                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">{asset.name}</p>
-                                    </div>
-                                  ))}
-                                </div>
+                              <div className="flex items-center gap-2 ml-4">
+                                {asset.url && (
+                                  <a
+                                    href={asset.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                                  >
+                                    Open
+                                  </a>
+                                )}
+                                {asset.fileUrl && (
+                                  <a
+                                    href={asset.fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                                  >
+                                    Download
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Documents */}
+                    {documents.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Documents</h3>
+                        <div className="space-y-2">
+                          {documents.map((asset) => (
+                            <div key={asset._id.toString()} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                {asset.description && (
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{asset.description}</p>
+                                )}
+                              </div>
+                              {asset.url && (
+                                <a
+                                  href={asset.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-4 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                                >
+                                  Open
+                                </a>
+                              )}
+                              {asset.fileUrl && (
+                                <a
+                                  href={asset.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-4 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                                >
+                                  Download
+                                </a>
                               )}
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
+                    )}
+
+                    {/* Links */}
+                    {links.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Links</h3>
+                        <div className="space-y-2">
+                          {links.map((asset) => (
+                            <div key={asset._id.toString()} className="p-3 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">{asset.name}</p>
+                              {asset.url && (
+                                <a
+                                  href={asset.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 dark:text-blue-400 hover:underline text-sm break-all"
+                                >
+                                  {asset.url}
+                                </a>
+                              )}
+                              {asset.description && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{asset.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Other Assets */}
+                    {otherAssets.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Other Assets</h3>
+                        <div className="space-y-2">
+                          {otherAssets.map((asset) => (
+                            <div key={asset._id.toString()} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 capitalize">
+                                    {asset.type}
+                                  </span>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                </div>
+                                {asset.description && (
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{asset.description}</p>
+                                )}
+                              </div>
+                              {asset.url && (
+                                <a
+                                  href={asset.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-4 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                                >
+                                  Open
+                                </a>
+                              )}
+                              {asset.fileUrl && (
+                                <a
+                                  href={asset.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-4 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                                >
+                                  Download
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </Card>
+
+            {/* Active Tasks */}
+            {activeTasks.length > 0 && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Active Tasks</h2>
+                <div className="space-y-4">
+                  {activeTasks.map((task, idx) => {
+                    const originalTaskIndex = selectedProject.tasks?.findIndex(t => 
+                      t.name === task.name && 
+                      t.startDate.toString() === task.startDate.toString() &&
+                      t.endDate.toString() === task.endDate.toString()
+                    ) ?? -1;
+                    const taskAssets = originalTaskIndex >= 0 ? getProjectAssets(selectedProject._id.toString(), originalTaskIndex) : [];
+                    
+                    return (
+                      <div key={`active-task-${originalTaskIndex >= 0 ? originalTaskIndex : idx}-${task.name}`} className="pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium text-gray-900 dark:text-white">{task.name}</h3>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                task.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                task.status === 'in-review' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                'bg-primary-light text-primary-dark'
+                              }`}>
+                                {task.status === 'active' ? 'Active' :
+                                 task.status === 'in-review' ? 'In Review' :
+                                 'Planning'}
+                              </span>
+                            </div>
+                            {task.description && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{task.description}</p>
+                            )}
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              <span>{(() => {
+                                // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+                                const taskStartDateObj = new Date(task.startDate);
+                                const taskStartDateStr = taskStartDateObj.toISOString().split('T')[0];
+                                const [taskStartYear, taskStartMonth, taskStartDay] = taskStartDateStr.split('-').map(Number);
+                                const localTaskStartDate = new Date(taskStartYear, taskStartMonth - 1, taskStartDay);
+                                
+                                const taskEndDateObj = new Date(task.endDate);
+                                const taskEndDateStr = taskEndDateObj.toISOString().split('T')[0];
+                                const [taskEndYear, taskEndMonth, taskEndDay] = taskEndDateStr.split('-').map(Number);
+                                const localTaskEndDate = new Date(taskEndYear, taskEndMonth - 1, taskEndDay);
+                                
+                                return `${formatDate(localTaskStartDate)} - ${formatDate(localTaskEndDate)}`;
+                              })()}</span>
+                              {task.assignedTo && <span className="ml-4">Assigned to: {task.assignedTo}</span>}
+                              {task.estimatedHours && <span className="ml-4">{task.estimatedHours}h</span>}
+                            </div>
+                          </div>
+                          {(currentUserRole === 'Administrator' || currentUserRole === 'Manager') && (
+                            <div className="ml-4 flex-shrink-0">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleEditProject(selectedProject)}
+                                title="Edit task"
+                              >
+                                Edit
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        {taskAssets.length > 0 && (() => {
+                              const taskScreenshots = taskAssets.filter(a => a.type === 'screenshot');
+                              const taskSpreadsheets = taskAssets.filter(a => a.type === 'spreadsheet');
+                              const taskDocuments = taskAssets.filter(a => a.type === 'document');
+                              const taskLinks = taskAssets.filter(a => a.type === 'link');
+                              const taskOther = taskAssets.filter(a => !['screenshot', 'spreadsheet', 'document', 'link'].includes(a.type));
+
+                              return (
+                                <div className="mt-3 space-y-3">
+                                  {taskScreenshots.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Screenshots</h4>
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {taskScreenshots.map((asset) => (
+                                          <div key={asset._id.toString()} className="relative">
+                                            {asset.fileUrl && (
+                                              <img
+                                                src={asset.fileUrl}
+                                                alt={asset.name}
+                                                className="w-full h-24 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
+                                                onClick={() => window.open(asset.fileUrl, '_blank')}
+                                              />
+                                            )}
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">{asset.name}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskSpreadsheets.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Spreadsheets</h4>
+                                      <div className="space-y-1">
+                                        {taskSpreadsheets.map((asset) => (
+                                          <div 
+                                            key={asset._id.toString()} 
+                                            className={`flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 ${asset.url ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors' : ''}`}
+                                            onClick={asset.url ? () => window.open(asset.url, '_blank') : undefined}
+                                          >
+                                            {asset.url ? (
+                                              <a
+                                                href={asset.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                              >
+                                                {asset.name}
+                                              </a>
+                                            ) : (
+                                              <p className="text-xs font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                            )}
+                                            <div className="flex items-center gap-2 ml-2">
+                                              {asset.url && (
+                                                <a 
+                                                  href={asset.url} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer" 
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                  Open
+                                                </a>
+                                              )}
+                                              {asset.fileUrl && (
+                                                <a 
+                                                  href={asset.fileUrl} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer" 
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                  Download
+                                                </a>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskDocuments.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Documents</h4>
+                                      <div className="space-y-1">
+                                        {taskDocuments.map((asset) => (
+                                          <div key={asset._id.toString()} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                            <p className="text-xs font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                            {asset.url && (
+                                              <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Open</a>
+                                            )}
+                                            {asset.fileUrl && (
+                                              <a href={asset.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Download</a>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskLinks.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Links</h4>
+                                      <div className="space-y-1">
+                                        {taskLinks.map((asset) => (
+                                          <div key={asset._id.toString()} className="p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                            <p className="text-xs font-medium text-gray-900 dark:text-white mb-1">{asset.name}</p>
+                                            {asset.url && (
+                                              <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all">{asset.url}</a>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskOther.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Other Assets</h4>
+                                      <div className="space-y-1">
+                                        {taskOther.map((asset) => (
+                                          <div key={asset._id.toString()} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 capitalize">{asset.type}</span>
+                                              <p className="text-xs font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                            </div>
+                                            {asset.url && (
+                                              <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Open</a>
+                                            )}
+                                            {asset.fileUrl && (
+                                              <a href={asset.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Download</a>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {/* Completed Tasks */}
+            {completedTasks.length > 0 && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Completed Tasks</h2>
+                <div className="space-y-4">
+                  {completedTasks.map((task, idx) => {
+                    const originalTaskIndex = selectedProject.tasks?.findIndex(t => 
+                      t.name === task.name && 
+                      t.startDate.toString() === task.startDate.toString() &&
+                      t.endDate.toString() === task.endDate.toString()
+                    ) ?? -1;
+                    const taskAssets = originalTaskIndex >= 0 ? getProjectAssets(selectedProject._id.toString(), originalTaskIndex) : [];
+                    
+                    return (
+                      <div key={`completed-task-${originalTaskIndex >= 0 ? originalTaskIndex : idx}-${task.name}`} className="pl-4 border-l-2 border-gray-200 dark:border-gray-700 opacity-75">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium text-gray-900 dark:text-white line-through">{task.name}</h3>
+                              <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                Complete
+                              </span>
+                            </div>
+                            {task.description && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-through">{task.description}</p>
+                            )}
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              <span>{(() => {
+                                // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
+                                const taskStartDateObj = new Date(task.startDate);
+                                const taskStartDateStr = taskStartDateObj.toISOString().split('T')[0];
+                                const [taskStartYear, taskStartMonth, taskStartDay] = taskStartDateStr.split('-').map(Number);
+                                const localTaskStartDate = new Date(taskStartYear, taskStartMonth - 1, taskStartDay);
+                                
+                                const taskEndDateObj = new Date(task.endDate);
+                                const taskEndDateStr = taskEndDateObj.toISOString().split('T')[0];
+                                const [taskEndYear, taskEndMonth, taskEndDay] = taskEndDateStr.split('-').map(Number);
+                                const localTaskEndDate = new Date(taskEndYear, taskEndMonth - 1, taskEndDay);
+                                
+                                return `${formatDate(localTaskStartDate)} - ${formatDate(localTaskEndDate)}`;
+                              })()}</span>
+                              {task.assignedTo && <span className="ml-4">Assigned to: {task.assignedTo}</span>}
+                              {task.estimatedHours && <span className="ml-4">{task.estimatedHours}h</span>}
+                            </div>
+                          </div>
+                          {(currentUserRole === 'Administrator' || currentUserRole === 'Manager') && (
+                            <div className="ml-4 flex-shrink-0">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleEditProject(selectedProject)}
+                                title="Edit task"
+                              >
+                                Edit
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        {taskAssets.length > 0 && (() => {
+                              const taskScreenshots = taskAssets.filter(a => a.type === 'screenshot');
+                              const taskSpreadsheets = taskAssets.filter(a => a.type === 'spreadsheet');
+                              const taskDocuments = taskAssets.filter(a => a.type === 'document');
+                              const taskLinks = taskAssets.filter(a => a.type === 'link');
+                              const taskOther = taskAssets.filter(a => !['screenshot', 'spreadsheet', 'document', 'link'].includes(a.type));
+
+                              return (
+                                <div className="mt-3 space-y-3 opacity-75">
+                                  {taskScreenshots.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Screenshots</h4>
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {taskScreenshots.map((asset) => (
+                                          <div key={asset._id.toString()} className="relative">
+                                            {asset.fileUrl && (
+                                              <img
+                                                src={asset.fileUrl}
+                                                alt={asset.name}
+                                                className="w-full h-24 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
+                                                onClick={() => window.open(asset.fileUrl, '_blank')}
+                                              />
+                                            )}
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">{asset.name}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskSpreadsheets.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Spreadsheets</h4>
+                                      <div className="space-y-1">
+                                        {taskSpreadsheets.map((asset) => (
+                                          <div 
+                                            key={asset._id.toString()} 
+                                            className={`flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 ${asset.url ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors' : ''}`}
+                                            onClick={asset.url ? () => window.open(asset.url, '_blank') : undefined}
+                                          >
+                                            {asset.url ? (
+                                              <a
+                                                href={asset.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                              >
+                                                {asset.name}
+                                              </a>
+                                            ) : (
+                                              <p className="text-xs font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                            )}
+                                            <div className="flex items-center gap-2 ml-2">
+                                              {asset.url && (
+                                                <a 
+                                                  href={asset.url} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer" 
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                  Open
+                                                </a>
+                                              )}
+                                              {asset.fileUrl && (
+                                                <a 
+                                                  href={asset.fileUrl} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer" 
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                  Download
+                                                </a>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskDocuments.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Documents</h4>
+                                      <div className="space-y-1">
+                                        {taskDocuments.map((asset) => (
+                                          <div key={asset._id.toString()} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                            <p className="text-xs font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                            {asset.url && (
+                                              <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Open</a>
+                                            )}
+                                            {asset.fileUrl && (
+                                              <a href={asset.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Download</a>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskLinks.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Links</h4>
+                                      <div className="space-y-1">
+                                        {taskLinks.map((asset) => (
+                                          <div key={asset._id.toString()} className="p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                            <p className="text-xs font-medium text-gray-900 dark:text-white mb-1">{asset.name}</p>
+                                            {asset.url && (
+                                              <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all">{asset.url}</a>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {taskOther.length > 0 && (
+                                    <div>
+                                      <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Other Assets</h4>
+                                      <div className="space-y-1">
+                                        {taskOther.map((asset) => (
+                                          <div key={asset._id.toString()} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 capitalize">{asset.type}</span>
+                                              <p className="text-xs font-medium text-gray-900 dark:text-white">{asset.name}</p>
+                                            </div>
+                                            {asset.url && (
+                                              <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Open</a>
+                                            )}
+                                            {asset.fileUrl && (
+                                              <a href={asset.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2">Download</a>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {activeTasks.length === 0 && completedTasks.length === 0 && (
+              <Card className="p-6">
+                <p className="text-gray-500 dark:text-gray-400 text-center">No tasks for this project.</p>
+              </Card>
+            )}
+
+            {/* Employee Utilization Overview */}
+            {employeeUtilization.length > 0 && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Employee Utilization</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {employeeUtilization.map((util) => {
+                    const employee = employees.find(emp => emp.name === util.name);
+                    return (
+                      <Card key={util.name} className="p-4">
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">{util.name}</h4>
+                            {employee && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                employee.role === 'Manager' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                              }`}>
+                                {employee.role}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {util.projectHours > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600 dark:text-gray-400">Project Hours:</span>
+                              <span className="font-medium text-orange-600 dark:text-orange-400">{util.projectHours}h</span>
+                            </div>
+                          )}
+                          {util.taskHours > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600 dark:text-gray-400">Task Hours:</span>
+                              <span className="font-medium text-orange-600 dark:text-orange-400">{util.taskHours}h</span>
+                            </div>
+                          )}
+                          {util.completedHours > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600 dark:text-gray-400">Completed:</span>
+                              <span className="font-medium text-green-600 dark:text-green-400">{util.completedHours}h</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <span className="font-medium text-gray-900 dark:text-white">Total:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">{util.totalHours}h</span>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
           </div>
+        ) : (
+          <Card className="p-8 text-center">
+            <p className="text-gray-300 mb-4">No projects found.</p>
+            <Button onClick={handleCreateProject}>Create Your First Project</Button>
+          </Card>
         )}
 
         {/* Project Form Modal */}
@@ -353,35 +1030,8 @@ export default function ProjectsPage() {
             timeframeType="monthly"
             onSubmit={handleSubmitProject}
             onCancel={() => setShowProjectForm(false)}
+            userRole={currentUserRole}
           />
-        </Modal>
-
-        {/* File Upload Modal */}
-        <Modal isOpen={uploadingAsset !== null} onClose={() => setUploadingAsset(null)}>
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Upload Screenshots</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Select one or more images to upload
-            </p>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileUpload}
-              className="block w-full text-sm text-gray-500 dark:text-gray-400
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100
-                dark:file:bg-blue-900 dark:file:text-blue-300"
-            />
-            <div className="mt-4 flex justify-end">
-              <Button variant="secondary" onClick={() => setUploadingAsset(null)}>
-                Close
-              </Button>
-            </div>
-          </div>
         </Modal>
       </div>
     </div>
