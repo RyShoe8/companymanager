@@ -303,10 +303,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       if (projectAssignedToId === employee._id.toString()) return true;
       
+      // Check if project is assigned by legacy name field
+      if (project.assignedTo && project.assignedTo === employee.name) return true;
+      
       // Check if any task is assigned to this employee by ID
       if (project.tasks && project.tasks.some(task => {
         const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-        return taskAssignedToId === employee._id.toString();
+        if (taskAssignedToId === employee._id.toString()) return true;
+        // Check legacy name field
+        if (task.assignedTo && task.assignedTo === employee.name) return true;
+        return false;
       })) {
         return true;
       }
@@ -314,8 +320,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // Check if any operation linked to this project is assigned to this employee by ID
       if (operations.some(op => {
         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
+        const isOpAssignedById = opAssignedToId === employee._id.toString();
+        const isOpAssignedByName = op.assignedTo && op.assignedTo === employee.name;
         return op.projectId?.toString() === project._id.toString() && 
-          opAssignedToId === employee._id.toString();
+          (isOpAssignedById || isOpAssignedByName);
       })) {
         return true;
       }
