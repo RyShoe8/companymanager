@@ -70,7 +70,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         operationEnd.setHours(23, 59, 59, 999);
         // Calculate days between start and end (inclusive)
         const diffMs = operationEnd.getTime() - operationStart.getTime();
-        durationDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
+        durationDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1);
+        // If start and end are the same day, duration should be exactly 1
+        if (operationStart.toDateString() === operationEnd.toDateString()) {
+          durationDays = 1;
+        }
       } else {
         // No endDate means single day operation
         durationDays = 1;
@@ -107,8 +111,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           const instanceStart = new Date(currentDate);
           instanceStart.setHours(0, 0, 0, 0);
           const instanceEnd = new Date(instanceStart);
-          // If durationDays = 1, instanceEnd stays the same day (1 day operation)
-          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+          // If durationDays > 1, add the extra days; if 1, keep same day
+          if (durationDays > 1) {
+            instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+          }
           instanceEnd.setHours(23, 59, 59, 999);
           
           if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
@@ -155,8 +161,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           const instanceStart = new Date(currentDate);
           instanceStart.setHours(0, 0, 0, 0);
           const instanceEnd = new Date(instanceStart);
-          // If durationDays = 1, instanceEnd stays the same day (1 day operation)
-          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+          // If durationDays > 1, add the extra days; if 1, keep same day
+          if (durationDays > 1) {
+            instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+          }
           instanceEnd.setHours(23, 59, 59, 999);
           
           if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
@@ -210,8 +218,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           const instanceStart = new Date(currentDate);
           instanceStart.setHours(0, 0, 0, 0);
           const instanceEnd = new Date(instanceStart);
-          // If durationDays = 1, instanceEnd stays the same day (1 day operation)
-          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+          // If durationDays > 1, add the extra days; if 1, keep same day
+          if (durationDays > 1) {
+            instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+          }
           instanceEnd.setHours(23, 59, 59, 999);
           
           if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
@@ -1245,6 +1255,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         if (!task.estimatedHours) return null;
                         const taskStart = new Date(task.startDate);
                         const taskEnd = new Date(task.endDate);
+                        // Normalize dates for overlap check
+                        const normalizedTaskStart = normalizeToStartOfDay(taskStart);
+                        const normalizedTaskEnd = normalizeToEndOfDay(taskEnd);
+                        const normalizedRangeStart = normalizeToStartOfDay(startDate);
+                        const normalizedRangeEnd = normalizeToEndOfDay(endDate);
+                        
+                        // Check if task overlaps with the timeframe
+                        const overlaps = normalizedTaskStart <= normalizedRangeEnd && normalizedTaskEnd >= normalizedRangeStart;
+                        if (!overlaps) return null;
+                        
                         const hours = calculateHoursForDateRange(
                           startDate,
                           endDate,
@@ -1253,11 +1273,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           task.estimatedHours
                         );
                         const roundedHours = Math.round(hours * 100) / 100;
-                        // Only include tasks with hours > 0 in the timeframe
-                        if (roundedHours <= 0) return null;
+                        // Include tasks that overlap the timeframe, even if hours round to 0
+                        // This ensures tasks spanning multiple months show up correctly
                         return {
                           name: task.name,
-                          hours: roundedHours,
+                          hours: Math.max(0, roundedHours), // Ensure non-negative
                           dueDate: taskEnd
                         };
                       }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
@@ -1341,7 +1361,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                                 </div>
                               )}
                               <div className="text-gray-500 text-[10px] mt-0.5">
-                                Due Date: {isProjectDueToday ? 'Today' : formatDate(projectDueDate)}
+                                {project.status === 'launched' ? 'End Date' : 'Due Date'}: {isProjectDueToday ? 'Today' : formatDate(projectDueDate)}
                               </div>
                             </div>
                           )}

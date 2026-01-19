@@ -902,7 +902,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         const operationStart = new Date(year, month - 1, day);
                         operationStart.setHours(0, 0, 0, 0);
                         
-                        // Calculate duration
+                        // Calculate duration - ensure same day operations have duration of 1
                         let durationDays: number;
                         if (operation.endDate) {
                           const endDateObj = new Date(operation.endDate);
@@ -911,7 +911,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           const operationEnd = new Date(endYear, endMonth - 1, endDay);
                           operationEnd.setHours(23, 59, 59, 999);
                           const diffMs = operationEnd.getTime() - operationStart.getTime();
-                          durationDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
+                          durationDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1);
+                          // If start and end are the same day, duration should be exactly 1
+                          if (operationStart.toDateString() === operationEnd.toDateString()) {
+                            durationDays = 1;
+                          }
                         } else {
                           durationDays = 1;
                         }
@@ -926,7 +930,9 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         if (operation.recurrenceType === 'none') {
                           // Single instance
                           const instanceEnd = new Date(currentDate);
-                          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+                          if (durationDays > 1) {
+                            instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+                          }
                           instanceEnd.setHours(23, 59, 59, 999);
                           if (currentDate <= maxDate) {
                             projectOperationInstances.push({
@@ -939,16 +945,31 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           // Generate recurring instances
                           while (currentDate <= maxDate) {
                             const instanceEnd = new Date(currentDate);
-                            instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+                            if (durationDays > 1) {
+                              instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+                            }
                             instanceEnd.setHours(23, 59, 59, 999);
                             
                             // Check if this instance overlaps with today
-                            if (todayNormalized >= currentDate && todayNormalized <= instanceEnd) {
-                              projectOperationInstances.push({
-                                operation,
-                                startDate: new Date(currentDate),
-                                endDate: instanceEnd
-                              });
+                            // For same-day operations, check if today equals the instance date
+                            if (durationDays === 1) {
+                              const currentDateNormalized = new Date(currentDate);
+                              currentDateNormalized.setHours(0, 0, 0, 0);
+                              if (todayNormalized.getTime() === currentDateNormalized.getTime()) {
+                                projectOperationInstances.push({
+                                  operation,
+                                  startDate: new Date(currentDate),
+                                  endDate: instanceEnd
+                                });
+                              }
+                            } else {
+                              if (todayNormalized >= currentDate && todayNormalized <= instanceEnd) {
+                                projectOperationInstances.push({
+                                  operation,
+                                  startDate: new Date(currentDate),
+                                  endDate: instanceEnd
+                                });
+                              }
                             }
                             
                             // Move to next occurrence
