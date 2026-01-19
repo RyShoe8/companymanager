@@ -17,9 +17,10 @@ interface CalendarViewProps {
   currentUserEmployeeName?: string | null;
   currentUserEmployeeId?: string | null;
   isManagerOrAdmin?: boolean;
+  showOnlyMyAssignments?: boolean;
 }
 
-export default function CalendarView({ projects, operations, timeframe, currentDate, onProjectClick, onOperationClick, onDateChange, currentUserEmployeeName, currentUserEmployeeId, isManagerOrAdmin = false }: CalendarViewProps) {
+export default function CalendarView({ projects, operations, timeframe, currentDate, onProjectClick, onOperationClick, onDateChange, currentUserEmployeeName, currentUserEmployeeId, isManagerOrAdmin = false, showOnlyMyAssignments = false }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
@@ -769,9 +770,15 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
                         {isExpanded ? (
                           <div className="space-y-2">
-                            {/* Show all tasks for managers/admins, or tasks assigned to current user for regular users */}
+                            {/* Show all tasks for managers/admins (unless toggle is on), or tasks assigned to current user */}
                             {project.tasks!
                               .filter((task) => {
+                                // If toggle is on, only show tasks assigned to current user
+                                if (showOnlyMyAssignments) {
+                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return false;
+                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+                                }
                                 // If user is manager/admin, show all tasks
                                 if (isManagerOrAdmin) {
                                   return true;
@@ -780,9 +787,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                 // Check by employeeId (preferred) or name (legacy)
                                 if (currentUserEmployeeName) {
                                   const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                  // Note: We'd need currentUserEmployeeId passed as prop to check by ID
-                                  // For now, check by name for backward compatibility
-                                  return task.assignedTo === currentUserEmployeeName;
+                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
                                 }
                                 // Otherwise show all tasks
                                 return true;
@@ -837,6 +842,12 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           <div className="space-y-1">
                             {project.tasks!
                               .filter((task) => {
+                                // If toggle is on, only show tasks assigned to current user
+                                if (showOnlyMyAssignments) {
+                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return false;
+                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+                                }
                                 if (isManagerOrAdmin) return true;
                                 if (currentUserEmployeeName) {
                                   const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
@@ -884,7 +895,17 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         const todayNormalized = new Date(today);
                         todayNormalized.setHours(0, 0, 0, 0);
                         
-                        return todayNormalized >= opStart && todayNormalized <= opEnd;
+                        const isTodayInRange = todayNormalized >= opStart && todayNormalized <= opEnd;
+                        
+                        // If toggle is on, only show operations assigned to current user
+                        if (showOnlyMyAssignments) {
+                          if (!currentUserEmployeeName && !currentUserEmployeeId) return false;
+                          const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
+                          const isAssignedToUser = opAssignedToId === currentUserEmployeeId || op.assignedTo === currentUserEmployeeName;
+                          return isTodayInRange && isAssignedToUser;
+                        }
+                        
+                        return isTodayInRange;
                       });
 
                       if (todayOperations.length === 0) return null;

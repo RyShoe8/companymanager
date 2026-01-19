@@ -193,18 +193,25 @@ export default function PlanningMapPage() {
   };
 
   // Filter projects and operations based on toggle
-  const filteredProjects = showOnlyMyAssignments && currentUserEmployeeName
+  const filteredProjects = showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)
     ? projects.filter((project) => {
-        // Show if assigned to user
-        if (project.assignedTo === currentUserEmployeeName) return true;
+        // Show if assigned to user (check by ID first, then name)
+        const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
+        if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
         // Show if any task is assigned to user
-        if (project.tasks && project.tasks.some(task => task.assignedTo === currentUserEmployeeName)) return true;
+        if (project.tasks && project.tasks.some(task => {
+          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+          return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+        })) return true;
         return false;
       })
     : projects;
 
-  const filteredOperations = showOnlyMyAssignments && currentUserEmployeeName
-    ? operations.filter((operation) => operation.assignedTo === currentUserEmployeeName)
+  const filteredOperations = showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)
+    ? operations.filter((operation) => {
+        const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
+        return opAssignedToId === currentUserEmployeeId || operation.assignedTo === currentUserEmployeeName;
+      })
     : operations;
 
   if (loading) {
@@ -254,6 +261,7 @@ export default function PlanningMapPage() {
               currentUserEmployeeName={currentUserEmployeeName}
               currentUserEmployeeId={currentUserEmployeeId}
               isManagerOrAdmin={isManagerOrAdmin}
+              showOnlyMyAssignments={showOnlyMyAssignments}
             />
           </div>
 
