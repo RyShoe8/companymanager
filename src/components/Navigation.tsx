@@ -23,7 +23,10 @@ export default function Navigation() {
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
-          setUser(data);
+          // Only set user if data exists (not null)
+          if (data && !data.error) {
+            setUser(data);
+          }
         }
       } catch (error) {
         // Error fetching user

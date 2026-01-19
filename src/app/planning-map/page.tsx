@@ -66,12 +66,14 @@ export default function PlanningMapPage() {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          const role = currentEmployee?.role || 'User';
-          setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
-          setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
-          setCurrentUserEmployeeName(currentEmployee?.name || null);
-          setCurrentUserEmployeeId(currentEmployee?._id?.toString() || null);
+          if (userData && userData.id) {
+            const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+            const role = currentEmployee?.role || 'User';
+            setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
+            setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
+            setCurrentUserEmployeeName(currentEmployee?.name || null);
+            setCurrentUserEmployeeId(currentEmployee?._id?.toString() || null);
+          }
         }
       } catch (error) {
         // Error loading current user

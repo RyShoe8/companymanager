@@ -7,7 +7,10 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      // Return 200 with null instead of 401 for public pages
+      // This prevents unnecessary 401 errors in logs when Navigation component
+      // calls this endpoint on public pages where users aren't logged in
+      return NextResponse.json(null, { status: 200 });
     }
 
     await connectDB();

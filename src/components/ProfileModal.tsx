@@ -24,9 +24,11 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
-          setName(data.name || '');
-          setEmail(data.email || '');
-          setProfilePicture(data.profilePicture || null);
+          if (data) {
+            setName(data.name || '');
+            setEmail(data.email || '');
+            setProfilePicture(data.profilePicture || null);
+          }
         }
       } catch (error) {
         // Error fetching profile

@@ -59,9 +59,11 @@ export default function ProjectsPage() {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          setCurrentUserEmployeeName(currentEmployee?.name || null);
-          setCurrentUserRole(currentEmployee?.role as 'Administrator' | 'Manager' | 'User' | undefined);
+          if (userData && userData.id) {
+            const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+            setCurrentUserEmployeeName(currentEmployee?.name || null);
+            setCurrentUserRole(currentEmployee?.role as 'Administrator' | 'Manager' | 'User' | undefined);
+          }
         }
       } catch (error) {
         // Error loading current user

@@ -34,7 +34,7 @@ export default function OrganizationSetupCheck({ children }: { children: React.R
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
-          if (!data.organizationSetupComplete) {
+          if (data && !data.organizationSetupComplete) {
             setNeedsSetup(true);
           }
         }

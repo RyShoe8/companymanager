@@ -66,7 +66,9 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
-          setCurrentUserId(data.id);
+          if (data && data.id) {
+            setCurrentUserId(data.id);
+          }
         }
       } catch (error) {
         // Error fetching current user

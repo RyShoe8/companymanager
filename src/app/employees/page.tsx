@@ -38,8 +38,10 @@ export default function EmployeesPage() {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const currentEmployee = data.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          setCurrentUserEmployee(currentEmployee || null);
+          if (userData && userData.id) {
+            const currentEmployee = data.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+            setCurrentUserEmployee(currentEmployee || null);
+          }
         }
       } catch (error) {
         // Error loading current user

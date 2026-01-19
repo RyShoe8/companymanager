@@ -16,11 +16,14 @@ export default function SetupOrganizationPage() {
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
-          if (data.organizationSetupComplete) {
+          if (data && data.organizationSetupComplete) {
             setIsSetup(true);
             router.push('/planning-map');
-          } else {
+          } else if (data) {
             setLoading(false);
+          } else {
+            // No user data, redirect to login
+            router.push('/login');
           }
         } else {
           router.push('/login');
