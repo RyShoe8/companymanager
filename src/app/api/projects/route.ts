@@ -27,13 +27,25 @@ export async function GET(request: NextRequest) {
 
     // Find all users in the same organization
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
+    
+    // Also get string versions for compatibility (in case some projects have string userIds)
+    const orgUserIdsAsStrings = orgUserIds.map(id => id.toString());
+    const sessionUserIdAsObjectId = new Types.ObjectId(session.userId);
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
     // Don't filter by timeframeType - projects should appear based on their date range
     // timeframeType is just metadata about the view they were created in
-    const query: any = { userId: { $in: orgUserIds } };
+    // Query with both ObjectId and string versions to handle any type mismatches
+    const query: any = { 
+      $or: [
+        { userId: { $in: orgUserIds } },
+        { userId: { $in: orgUserIdsAsStrings } },
+        { userId: sessionUserIdAsObjectId },
+        { userId: session.userId }
+      ]
+    };
     if (status) {
       query.status = status;
     }
