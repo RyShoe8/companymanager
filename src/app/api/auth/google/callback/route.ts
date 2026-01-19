@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
           employee.userId = user._id;
           if (name) employee.name = name;
           // Ensure organizationId matches (in case of any mismatch)
-          if (employee.organizationId !== organizationId) {
+          if (organizationId && employee.organizationId !== organizationId) {
             employee.organizationId = organizationId;
           }
           // Ensure email is set
