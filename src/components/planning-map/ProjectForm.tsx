@@ -354,9 +354,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     if (!debounce && (updates.startDate !== undefined || updates.endDate !== undefined || 
         updates.estimatedHours !== undefined || updates.recurrenceType !== undefined || 
         updates.status !== undefined || updates.assignedTo !== undefined || updates.assignedToEmployeeId !== undefined)) {
-      setOperations(prev => prev.map(op => 
-        op._id?.toString() === operationId ? { ...op, ...updates } : op
-      ));
+      setOperations(prev => prev.map(op => {
+        if (op._id?.toString() === operationId) {
+          // Create a new object with updates, maintaining the operation structure
+          // Use type assertion since we're merging partial updates with the full operation
+          return { ...op, ...updates } as IOperation;
+        }
+        return op;
+      }));
     }
     
     // Then call the actual update function
