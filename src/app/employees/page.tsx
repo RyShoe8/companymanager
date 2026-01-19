@@ -39,8 +39,8 @@ export default function EmployeesPage() {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           if (userData && userData.id) {
-            const currentEmployee = data.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-            setCurrentUserEmployee(currentEmployee || null);
+          const currentEmployee = data.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+          setCurrentUserEmployee(currentEmployee || null);
           }
         }
       } catch (error) {

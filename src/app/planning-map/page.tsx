@@ -261,22 +261,13 @@ export default function PlanningMapPage() {
 
   // For EmployeeSidebar: Regular users see only their projects, Managers/Admins see all projects
   const sidebarProjects = (() => {
-    console.log('[PlanningMapPage] sidebarProjects calculation:', {
-      currentUserRole,
-      currentUserEmployeeName,
-      currentUserEmployeeId,
-      totalProjects: projects.length,
-      projectNames: projects.map(p => p.name)
-    });
-    
     // If role not set yet, show all projects (safer default)
     if (!currentUserRole) {
-      console.log('[PlanningMapPage] No role set, returning all projects');
       return projects;
     }
     // Regular users see only their projects
     if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
-      const filtered = projects.filter((project) => {
+      return projects.filter((project) => {
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
         if (project.tasks && project.tasks.some(task => {
@@ -285,11 +276,8 @@ export default function PlanningMapPage() {
         })) return true;
         return false;
       });
-      console.log('[PlanningMapPage] User role, filtered projects:', filtered.length);
-      return filtered;
     }
     // Managers/Admins see all projects
-    console.log('[PlanningMapPage] Manager/Admin role, returning all projects');
     return projects;
   })();
 

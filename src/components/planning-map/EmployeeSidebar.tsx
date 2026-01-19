@@ -20,9 +20,6 @@ interface EmployeeSidebarProps {
 export default function EmployeeSidebar({ employees, projects, operations, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   
-  // Debug: Log role and employee info (remove after debugging)
-  // console.log('EmployeeSidebar - currentUserRole:', currentUserRole, 'currentUserEmployeeId:', currentUserEmployeeId);
-  // console.log('EmployeeSidebar - employees count:', employees.length, 'employees with userId:', employees.filter(e => e.userId != null).length);
   const range = getTimeframeRange(timeframe, currentDate);
   
   const toggleEmployee = useCallback((employeeId: string) => {
@@ -302,13 +299,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // Check if project is assigned to this employee by ID
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       if (projectAssignedToId === employee._id.toString()) {
-        console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - assigned by ID`);
         return true;
       }
       
       // Check if project is assigned by legacy name field
       if (project.assignedTo && project.assignedTo === employee.name) {
-        console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - assigned by name: "${project.assignedTo}"`);
         return true;
       }
       
@@ -316,12 +311,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (project.tasks && project.tasks.some(task => {
         const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
         if (taskAssignedToId === employee._id.toString()) {
-          console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - task "${task.name}" assigned by ID`);
           return true;
         }
         // Check legacy name field
         if (task.assignedTo && task.assignedTo === employee.name) {
-          console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - task "${task.name}" assigned by name: "${task.assignedTo}"`);
           return true;
         }
         return false;
@@ -335,7 +328,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         const isOpAssignedById = opAssignedToId === employee._id.toString();
         const isOpAssignedByName = op.assignedTo && op.assignedTo === employee.name;
         if (op.projectId?.toString() === project._id.toString() && (isOpAssignedById || isOpAssignedByName)) {
-          console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - operation "${op.name}" assigned`);
           return true;
         }
         return false;
@@ -345,20 +337,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       
       return false;
     });
-    
-    if (result.length === 0) {
-      console.log(`[getProjectsForEmployee] ${employee.name}: No projects found. Employee ID: ${employee._id.toString()}, Employee name: "${employee.name}"`);
-      console.log(`[getProjectsForEmployee] ${employee.name}: Available projects:`, projects.map(p => ({
-        name: p.name,
-        assignedToId: (p as any).assignedToEmployeeId?.toString(),
-        assignedToName: p.assignedTo,
-        tasks: p.tasks?.map(t => ({
-          name: t.name,
-          assignedToId: (t as any).assignedToEmployeeId?.toString(),
-          assignedToName: t.assignedTo
-        }))
-      })));
-    }
     
     return result;
   };
@@ -707,22 +685,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // Filter to only employees with userId (registered users)
     const employeesWithUserId = employees.filter(employee => employee.userId != null);
     
-    // Debug logging (temporary)
-    const currentEmployeeRecord = employeesWithUserId.find(e => e._id.toString() === currentUserEmployeeId);
-    console.log('[EmployeeSidebar] Role filtering:', {
-      currentUserRole,
-      currentUserEmployeeId,
-      currentEmployeeName: currentEmployeeRecord?.name,
-      currentEmployeeRoleInDB: currentEmployeeRecord?.role,
-      totalEmployees: employees.length,
-      employeesWithUserId: employeesWithUserId.length,
-      employeeNames: employeesWithUserId.map(e => e.name),
-      employeeRoles: employeesWithUserId.map(e => ({ name: e.name, role: e.role, userId: e.userId?.toString() }))
-    });
-    
     // If role is not set yet, show all employees with userId (safer default)
     if (!currentUserRole) {
-      console.log('[EmployeeSidebar] No role set, showing all employees with userId');
       return employeesWithUserId;
     }
     
@@ -732,25 +696,20 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // - Users: see only themselves
     if (currentUserRole === 'User') {
       if (!currentUserEmployeeId) {
-        console.log('[EmployeeSidebar] User role but no employeeId, returning empty');
         return [];
       }
-      const filtered = employeesWithUserId.filter(employee => {
+      return employeesWithUserId.filter(employee => {
         const employeeId = employee._id.toString();
         return employeeId === currentUserEmployeeId;
       });
-      console.log('[EmployeeSidebar] User role, showing only self:', filtered.map(e => e.name));
-      return filtered;
     }
     
     // Managers and Administrators see all employees
     if (currentUserRole === 'Manager' || currentUserRole === 'Administrator') {
-      console.log('[EmployeeSidebar] Manager/Admin role, showing all employees:', employeesWithUserId.map(e => e.name));
       return employeesWithUserId;
     }
     
     // Fallback: if role is something unexpected, show all
-    console.log('[EmployeeSidebar] Unexpected role, showing all employees');
     return employeesWithUserId;
   }, [employees, currentUserRole, currentUserEmployeeId]);
 
@@ -939,16 +898,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
         const employeeId = employee._id.toString();
         const isExpanded = expandedEmployees.has(employeeId);
-        
-        // Debug logging
-        console.log(`[EmployeeSidebar] ${employee.name}:`, {
-          employeeId,
-          isExpanded,
-          employeeProjectsCount: employeeProjects.length,
-          projectNames: employeeProjects.map(p => p.name),
-          committedHours,
-          totalHours
-        });
 
         return (
           <Card key={employeeId} className="p-4">
