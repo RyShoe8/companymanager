@@ -4,6 +4,22 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Block common WordPress and other CMS probe paths to reduce log noise
+  const blockedPaths = [
+    '/wp-admin',
+    '/wp-login.php',
+    '/wp-content',
+    '/wp-includes',
+    '/administrator',
+    '/phpmyadmin',
+    '/.env',
+    '/.git',
+  ];
+  
+  if (blockedPaths.some(path => pathname.startsWith(path))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  
   // Allow access to sitemap and robots files (must be first)
   if (pathname === '/sitemap.xml' || pathname === '/robots.txt') {
     return NextResponse.next();
