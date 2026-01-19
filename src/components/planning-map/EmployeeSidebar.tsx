@@ -472,7 +472,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           totalHours += hours;
         }
       }
-      }
     });
 
     // Calculate hours from operations
