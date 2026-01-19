@@ -251,14 +251,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await Employee.deleteOne({ _id: id, organizationId: user.organizationId });
 
     // Delete associated User account if employee has one
-    // Don't delete if they're the organization admin or a system admin
+    // Only protect organization admins (the person who owns/created the organization)
     if (employeeUserId) {
       const associatedUser = await User.findById(employeeUserId);
       if (associatedUser) {
         // Check if user is organization admin (their userId matches their organizationId)
         const isOrgAdmin = associatedUser._id.toString() === associatedUser.organizationId;
-        // Don't delete organization admins or system admins
-        if (!isOrgAdmin && !associatedUser.isAdmin) {
+        // Only protect organization admins - delete all other users when their employee record is deleted
+        if (!isOrgAdmin) {
           await User.findByIdAndDelete(employeeUserId);
         }
       }
