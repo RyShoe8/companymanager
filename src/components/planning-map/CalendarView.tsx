@@ -628,7 +628,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     }}
                   >
                     <div 
-                      className="flex items-start justify-between mb-3 cursor-pointer"
+                      className="flex items-start justify-between cursor-pointer"
                       onClick={() => onProjectClick(project)}
                     >
                       <h4 className={`text-xl font-bold text-text-primary ${project.status === 'completed' ? 'line-through opacity-60' : ''}`} style={{ color: displayColor }}>
@@ -656,26 +656,31 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       </div>
                     </div>
                     
-                    {project.description && (
-                      <p className="text-text-secondary mb-3">{project.description}</p>
-                    )}
+                    {isExpanded && (
+                      <>
+                        {project.description && (
+                          <p className="text-text-secondary mb-3 mt-3">{project.description}</p>
+                        )}
 
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-text-secondary">
-                          <strong>Duration:</strong> {formatDate(projectStart)} - {formatDate(projectEnd)} ({totalDays} {totalDays === 1 ? 'day' : 'days'})
-                        </span>
-                      </div>
-                      
-                      <div className="text-sm text-text-secondary">
-                        <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
-                      </div>
-                      
-                      {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
-                        <div className="text-sm text-text-secondary">
-                          <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
+                        <div className="space-y-2 mt-3">
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-text-secondary">
+                              <strong>Duration:</strong> {formatDate(projectStart)} - {formatDate(projectEnd)} ({totalDays} {totalDays === 1 ? 'day' : 'days'})
+                            </span>
+                          </div>
+                          
+                          <div className="text-sm text-text-secondary">
+                            <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
+                          </div>
+                          
+                          {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
+                            <div className="text-sm text-text-secondary">
+                              <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </>
+                    )}
 
                       {/* Show tasks for non-launched projects */}
                       {hasTasks && (
