@@ -47,8 +47,8 @@ export async function migrateAssignmentsToEmployeeId() {
       const projects = await Project.find({ 
         userId: { $in: orgUserIds },
         $or: [
-          { assignedTo: { $exists: true, $ne: null, $ne: '' } },
-          { 'tasks.assignedTo': { $exists: true, $ne: null, $ne: '' } }
+          { assignedTo: { $exists: true, $ne: null, $nin: [''] } },
+          { 'tasks.assignedTo': { $exists: true, $ne: null, $nin: [''] } }
         ]
       });
       
