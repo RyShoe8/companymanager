@@ -58,7 +58,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const [showOperations, setShowOperations] = useState(false);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
   const [isAddingOperation, setIsAddingOperation] = useState(false);
-  const [operationLocalState, setOperationLocalState] = useState<Record<string, { name: string; description: string }>>({});
+  const [operationLocalState, setOperationLocalState] = useState<Record<string, { name: string; description: string; estimatedHours?: string }>>({});
   const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
   const isRegularUser = userRole === 'User';
   const isLaunched = project?.status === 'launched';
@@ -543,10 +543,10 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           label="Estimated Hours (optional)"
           type="number"
           min="0"
-          step="0.25"
+          step="0.01"
           value={estimatedHours}
           onChange={(e) => setEstimatedHours(e.target.value)}
-          placeholder="e.g., 40"
+          placeholder="e.g., 40 or 0.25"
           disabled={isRegularUser}
         />
         <MultiSelect
@@ -678,10 +678,31 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                       label="Estimated Hours (optional)"
                       type="number"
                       min="0"
-                      step="0.25"
-                      value={operation.estimatedHours?.toString() || ''}
-                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined }, true)}
-                      onBlur={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined }, false)}
+                      step="0.01"
+                      value={operationLocalState[operation._id?.toString() || '']?.estimatedHours ?? (operation.estimatedHours?.toString() || '')}
+                      onChange={(e) => {
+                        const opId = operation._id?.toString();
+                        if (opId) {
+                          setOperationLocalState(prev => ({
+                            ...prev,
+                            [opId]: {
+                              ...prev[opId],
+                              name: prev[opId]?.name ?? operation.name,
+                              description: prev[opId]?.description ?? (operation.description || ''),
+                              estimatedHours: e.target.value
+                            }
+                          }));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const opId = operation._id?.toString();
+                        if (opId) {
+                          const value = e.target.value.trim();
+                          const numValue = value ? parseFloat(value) : undefined;
+                          updateOperationOptimized(opId, { estimatedHours: numValue }, false);
+                        }
+                      }}
+                      placeholder="e.g., 0.25 or 0.01"
                     />
                     <Select
                       label="Recurrence"
@@ -821,9 +842,21 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     label="Estimated Hours (optional)"
                     type="number"
                     min="0"
-                    step="0.25"
+                    step="0.01"
                     value={task.estimatedHours?.toString() || ''}
-                    onChange={(e) => updateTask(index, 'estimatedHours', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty string while typing, parse on blur
+                      if (value === '') {
+                        updateTask(index, 'estimatedHours', undefined);
+                      } else {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                          updateTask(index, 'estimatedHours', numValue);
+                        }
+                      }
+                    }}
+                    placeholder="e.g., 0.25 or 0.01"
                   />
                   <Select
                     label="Assigned To (optional)"
