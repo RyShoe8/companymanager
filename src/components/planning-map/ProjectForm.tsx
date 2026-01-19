@@ -286,7 +286,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
 
     // Handle employee assignment - prefer employeeId over name
     if (assignedToEmployeeId) {
-      submitData.assignedToEmployeeId = assignedToEmployeeId;
+      submitData.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
     } else if (assignedTo) {
       submitData.assignedTo = assignedTo;
     }
