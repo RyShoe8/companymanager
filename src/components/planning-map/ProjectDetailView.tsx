@@ -25,8 +25,11 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
+  const [expandedOperations, setExpandedOperations] = useState<Set<string>>(new Set());
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [assetFormTaskIndex, setAssetFormTaskIndex] = useState<number | undefined>(undefined);
+  const [assetFormOperationId, setAssetFormOperationId] = useState<string | undefined>(undefined);
+  const [operationScreenshots, setOperationScreenshots] = useState<Map<string, IAsset[]>>(new Map());
   const [projects, setProjects] = useState<Array<{ _id: string; name: string }>>([]);
   const [operations, setOperations] = useState<Array<{ _id: string; name: string }>>([]);
   const [projectAssets, setProjectAssets] = useState<IAsset[]>([]);
@@ -78,23 +81,57 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           // Filter assets for the project (without task)
           const projectOnlyAssets = assetsData.filter((asset: IAsset) => 
             asset.linkedProjectId?.toString() === project._id.toString() && 
-            asset.linkedProjectTaskIndex === undefined
+            asset.linkedProjectTaskIndex === undefined &&
+            asset.linkedOperationId === undefined
           );
           setProjectAssets(projectOnlyAssets);
 
+          // Filter screenshots for the project (without task)
+          const projectOnlyScreenshots = assetsData.filter((asset: IAsset) => 
+            asset.linkedProjectId?.toString() === project._id.toString() && 
+            asset.linkedProjectTaskIndex === undefined &&
+            asset.linkedOperationId === undefined &&
+            asset.type === 'screenshot'
+          );
+          setProjectScreenshots(projectOnlyScreenshots);
+
           // Group assets by task index
           const taskAssetsMap = new Map<number, IAsset[]>();
+          const taskScreenshotsMap = new Map<number, IAsset[]>();
           assetsData.forEach((asset: IAsset) => {
             if (asset.linkedProjectId?.toString() === project._id.toString() && 
                 asset.linkedProjectTaskIndex !== undefined) {
-              const taskIndex = asset.linkedProjectTaskIndex;
-              if (!taskAssetsMap.has(taskIndex)) {
-                taskAssetsMap.set(taskIndex, []);
+              const taskIdx = asset.linkedProjectTaskIndex;
+              if (asset.type === 'screenshot') {
+                if (!taskScreenshotsMap.has(taskIdx)) {
+                  taskScreenshotsMap.set(taskIdx, []);
+                }
+                taskScreenshotsMap.get(taskIdx)!.push(asset);
+              } else {
+                if (!taskAssetsMap.has(taskIdx)) {
+                  taskAssetsMap.set(taskIdx, []);
+                }
+                taskAssetsMap.get(taskIdx)!.push(asset);
               }
-              taskAssetsMap.get(taskIndex)!.push(asset);
             }
           });
           setTaskAssets(taskAssetsMap);
+          setTaskScreenshots(taskScreenshotsMap);
+
+          // Group screenshots by operation ID
+          const operationScreenshotsMap = new Map<string, IAsset[]>();
+          assetsData.forEach((asset: IAsset) => {
+            if (asset.linkedOperationId) {
+              const opId = asset.linkedOperationId.toString();
+              if (asset.type === 'screenshot') {
+                if (!operationScreenshotsMap.has(opId)) {
+                  operationScreenshotsMap.set(opId, []);
+                }
+                operationScreenshotsMap.get(opId)!.push(asset);
+              }
+            }
+          });
+          setOperationScreenshots(operationScreenshotsMap);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -149,12 +186,25 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
     });
   };
 
-  const handleAddAsset = (taskIndex?: number) => {
+  const toggleOperation = (operationId: string) => {
+    setExpandedOperations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(operationId)) {
+        newSet.delete(operationId);
+      } else {
+        newSet.add(operationId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleAddAsset = (taskIndex?: number, operationId?: string) => {
     setAssetFormTaskIndex(taskIndex);
+    setAssetFormOperationId(operationId);
     setShowAssetForm(true);
   };
 
-  const handleAddScreenshot = (taskIndex?: number) => {
+  const handleAddScreenshot = (taskIndex?: number, operationId?: string) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -168,16 +218,20 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
     input.click();
   };
 
-  const handleUploadScreenshots = async (files: File[], taskIndex?: number) => {
+  const handleUploadScreenshots = async (files: File[], taskIndex?: number, operationId?: string) => {
     try {
       const uploadPromises = files.map(async (file) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('name', file.name.replace(/\.[^/.]+$/, '') || 'Screenshot');
         formData.append('type', 'screenshot');
-        formData.append('linkedProjectId', project._id.toString());
-        if (taskIndex !== undefined) {
-          formData.append('linkedProjectTaskIndex', taskIndex.toString());
+        if (operationId) {
+          formData.append('linkedOperationId', operationId);
+        } else {
+          formData.append('linkedProjectId', project._id.toString());
+          if (taskIndex !== undefined) {
+            formData.append('linkedProjectTaskIndex', taskIndex.toString());
+          }
         }
 
         const response = await fetch('/api/assets/upload', {
@@ -244,12 +298,16 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
 
   const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; file?: File }) => {
     try {
-      // Set the project and task if provided
+      // Set the project/task/operation if provided
       const submitData: any = {
         ...data,
-        linkedProjectId: project._id.toString(),
-        linkedProjectTaskIndex: assetFormTaskIndex,
       };
+      if (assetFormOperationId) {
+        submitData.linkedOperationId = assetFormOperationId;
+      } else {
+        submitData.linkedProjectId = project._id.toString();
+        submitData.linkedProjectTaskIndex = assetFormTaskIndex;
+      }
 
       let response;
       if (data.file) {
@@ -263,11 +321,15 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         if (submitData.tags) formData.append('tags', JSON.stringify(submitData.tags));
         if (submitData.url) formData.append('url', submitData.url);
         if (submitData.textContent) formData.append('textContent', submitData.textContent);
-        formData.append('linkedProjectId', submitData.linkedProjectId);
+        if (submitData.linkedProjectId) {
+          formData.append('linkedProjectId', submitData.linkedProjectId);
+        }
         if (submitData.linkedProjectTaskIndex !== undefined) {
           formData.append('linkedProjectTaskIndex', submitData.linkedProjectTaskIndex.toString());
         }
-        if (submitData.linkedOperationId) formData.append('linkedOperationId', submitData.linkedOperationId);
+        if (submitData.linkedOperationId) {
+          formData.append('linkedOperationId', submitData.linkedOperationId);
+        }
 
         response = await fetch('/api/assets/upload', {
           method: 'POST',
@@ -286,6 +348,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
       if (response.ok) {
         setShowAssetForm(false);
         setAssetFormTaskIndex(undefined);
+        setAssetFormOperationId(undefined);
         
         // Refresh assets
         try {
@@ -296,6 +359,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
             const projectOnlyAssets = assetsData.filter((asset: IAsset) => 
               asset.linkedProjectId?.toString() === project._id.toString() && 
               asset.linkedProjectTaskIndex === undefined &&
+              asset.linkedOperationId === undefined &&
               asset.type !== 'screenshot'
             );
             setProjectAssets(projectOnlyAssets);
@@ -304,6 +368,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
             const projectOnlyScreenshots = assetsData.filter((asset: IAsset) => 
               asset.linkedProjectId?.toString() === project._id.toString() && 
               asset.linkedProjectTaskIndex === undefined &&
+              asset.linkedOperationId === undefined &&
               asset.type === 'screenshot'
             );
             setProjectScreenshots(projectOnlyScreenshots);
@@ -330,6 +395,21 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
             });
             setTaskAssets(taskAssetsMap);
             setTaskScreenshots(taskScreenshotsMap);
+
+            // Group screenshots by operation ID
+            const operationScreenshotsMap = new Map<string, IAsset[]>();
+            assetsData.forEach((asset: IAsset) => {
+              if (asset.linkedOperationId) {
+                const opId = asset.linkedOperationId.toString();
+                if (asset.type === 'screenshot') {
+                  if (!operationScreenshotsMap.has(opId)) {
+                    operationScreenshotsMap.set(opId, []);
+                  }
+                  operationScreenshotsMap.get(opId)!.push(asset);
+                }
+              }
+            });
+            setOperationScreenshots(operationScreenshotsMap);
           }
         } catch (error) {
           console.error('Error refreshing assets:', error);
@@ -506,13 +586,28 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-text-primary">Operations</h3>
           {projectOperations.map((operation, index) => {
+            const operationId = operation._id.toString();
             const operationAssets = projectAssets.filter(a => 
-              a.linkedOperationId?.toString() === operation._id.toString()
+              a.linkedOperationId?.toString() === operationId
             );
+            const opScreenshots = operationScreenshots.get(operationId) || [];
+            const isExpanded = expandedOperations.has(operationId);
             return (
-              <Card key={operation._id.toString()} className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+              <Card key={operationId} className="p-4">
+                {/* Collapsible Header */}
+                <button
+                  onClick={() => toggleOperation(operationId)}
+                  className="w-full flex items-center justify-between mb-2 hover:opacity-80 transition-opacity"
+                >
+                  <div className="flex items-center gap-2 flex-1 text-left">
+                    <svg
+                      className={`w-4 h-4 text-text-secondary transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                     <h4 className="text-lg font-semibold text-text-primary">
                       Operation {index + 1}: {operation.name}
                     </h4>
@@ -528,37 +623,100 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                        'Planning'}
                     </span>
                   </div>
-                </div>
-                {operation.description && (
-                  <p className="text-text-secondary mb-2">{operation.description}</p>
-                )}
-                <div className="text-sm text-text-secondary">
-                  {operation.startDate && operation.endDate && (
-                    <span>{formatDate(new Date(operation.startDate))} - {formatDate(new Date(operation.endDate))}</span>
-                  )}
-                  {operation.assignedTo && <span className="ml-4">Assigned to: {operation.assignedTo}</span>}
-                  {operation.estimatedHours && <span className="ml-4">{operation.estimatedHours}h</span>}
-                </div>
-                {operationAssets.length > 0 && (
-                  <div className="mt-3">
-                    <h5 className="text-sm font-medium text-text-secondary mb-2">Assets</h5>
-                    <div className="space-y-1">
-                      {operationAssets.map((asset) => (
-                        <div key={asset._id.toString()} className="text-sm text-text-primary">
-                          {asset.name}
+                </button>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <>
+                    {operation.description && (
+                      <p className="text-text-secondary mb-3">{operation.description}</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                      {operation.startDate && (
+                        <div>
+                          <label className="text-xs font-medium text-text-secondary">Start Date</label>
+                          <p className="text-text-primary">{formatDate(new Date(operation.startDate))}</p>
                         </div>
-                      ))}
+                      )}
+                      {operation.endDate && (
+                        <div>
+                          <label className="text-xs font-medium text-text-secondary">End Date</label>
+                          <p className="text-text-primary">{formatDate(new Date(operation.endDate))}</p>
+                        </div>
+                      )}
+                      {operation.estimatedHours && (
+                        <div>
+                          <label className="text-xs font-medium text-text-secondary">Estimated Hours</label>
+                          <p className="text-text-primary">{operation.estimatedHours}h</p>
+                        </div>
+                      )}
+                      {operation.assignedTo && (
+                        <div>
+                          <label className="text-xs font-medium text-text-secondary">Assigned To</label>
+                          <p className="text-text-primary">{operation.assignedTo}</p>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                    <div className="mt-4">
+                      <div className="flex gap-2 mb-2">
+                        {operationAssets.length > 0 && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              router.push(`/assets?operationId=${operationId}`);
+                              onClose();
+                            }}
+                          >
+                            View Assets
+                          </Button>
+                        )}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleAddAsset(undefined, operationId)}
+                        >
+                          Add Asset
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleAddScreenshot(undefined, operationId)}
+                        >
+                          Add Screenshot
+                        </Button>
+                      </div>
+                      {opScreenshots.length > 0 && (
+                        <div className="mt-2">
+                          <label className="text-xs font-medium text-text-secondary mb-1 block">Screenshots</label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {opScreenshots.map((screenshot) => (
+                              <div key={screenshot._id.toString()} className="relative group">
+                                <img
+                                  src={screenshot.fileUrl}
+                                  alt={screenshot.name}
+                                  className="w-full h-20 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => window.open(screenshot.fileUrl, '_blank')}
+                                />
+                                <p className="text-xs text-text-secondary mt-1 truncate" title={screenshot.name}>
+                                  {screenshot.name}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 border-t border-border pt-3">
+                      <CommentThread
+                        entityType="operation"
+                        entityId={operationId}
+                        currentUserId={currentUserId}
+                        showHeading={false}
+                      />
+                    </div>
+                  </>
                 )}
-                <div className="mt-3 border-t border-border pt-3">
-                  <CommentThread
-                    entityType="operation"
-                    entityId={operation._id.toString()}
-                    currentUserId={currentUserId}
-                    showHeading={false}
-                  />
-                </div>
               </Card>
             );
           })}

@@ -426,13 +426,15 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             if (!task.estimatedHours) return sum;
             const taskStart = new Date(task.startDate);
             const taskEnd = new Date(task.endDate);
-            return sum + calculateHoursForDateRange(
+            const hours = calculateHoursForDateRange(
               startDate,
               endDate,
               taskStart,
               taskEnd,
               task.estimatedHours
             );
+            console.log(`[DEBUG] Task "${task.name}": ${task.estimatedHours}h total, ${hours}h in range (${taskStart.toISOString().split('T')[0]} to ${taskEnd.toISOString().split('T')[0]})`);
+            return sum + hours;
           }, 0);
         totalHours += taskHoursInRange;
       }
@@ -493,6 +495,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             instanceEnd,
             hours
           );
+          console.log(`[DEBUG] Operation "${operation.name}": ${hours}h total, ${hoursInRange}h in range (${instanceStart.toISOString().split('T')[0]} to ${instanceEnd.toISOString().split('T')[0]})`);
           totalHours += hoursInRange;
         }
       }
@@ -514,6 +517,18 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         }
       });
     }
+
+    // Debug logging
+    console.log(`[DEBUG] getCommittedHours for ${employee.name}:`, {
+      totalHours: totalHours,
+      rounded: Math.round(totalHours * 10) / 10,
+      timeframe,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+      projectCount: employeeProjects.length,
+      operationCount: employeeOperations.length,
+      opsWithoutDateCount: opsWithoutDate.length
+    });
 
     // Round to 1 decimal place for display
     return Math.round(totalHours * 10) / 10;
