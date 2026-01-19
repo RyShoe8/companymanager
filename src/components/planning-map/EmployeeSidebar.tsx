@@ -334,8 +334,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
   const getOperationsForEmployee = (employee: IEmployee) => {
     return operationInstances.filter((instance) => {
-      const opAssignedToId = (instance.operation as any).assignedToEmployeeId?.toString();
-      return opAssignedToId === employee._id.toString();
+      const op = instance.operation;
+      const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
+      const isAssignedById = opAssignedToId === employee._id.toString();
+      const isAssignedByName = op.assignedTo && op.assignedTo === employee.name;
+      return isAssignedById || isAssignedByName;
     });
   };
 
@@ -344,7 +347,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
   const getOperationsForEmployeeDirect = (employee: IEmployee) => {
     return operations.filter((operation) => {
       const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
-      return opAssignedToId === employee._id.toString();
+      const isAssignedById = opAssignedToId === employee._id.toString();
+      const isAssignedByName = operation.assignedTo && operation.assignedTo === employee.name;
+      return isAssignedById || isAssignedByName;
     });
   };
 
