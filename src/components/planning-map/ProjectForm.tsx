@@ -164,7 +164,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     }
   };
 
-  const addOperation = async () => {
+  const addOperation = async (e?: React.MouseEvent<HTMLButtonElement>) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    console.log('[ProjectForm] addOperation called', { projectId: project?._id, project });
+    
     if (!project?._id) {
       alert('Cannot add operation: Project must be saved first.');
       return;
@@ -181,14 +188,19 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         endDate: endDate ? new Date(endDate).toISOString().split('T')[0] : undefined,
       };
 
+      console.log('[ProjectForm] Creating operation:', newOperationData);
+
       const response = await fetch('/api/operations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newOperationData),
       });
 
+      console.log('[ProjectForm] Operation creation response:', response.status, response.ok);
+
       if (response.ok) {
         const newOperation = await response.json();
+        console.log('[ProjectForm] Operation created:', newOperation);
         // Refresh operations from server
         const opsResponse = await fetch('/api/operations');
         if (opsResponse.ok) {
@@ -196,6 +208,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           const projectOperations = data.filter((op: IOperation) => 
             op.projectId?.toString() === project._id.toString()
           );
+          console.log('[ProjectForm] Refreshed operations:', projectOperations.length);
           setOperations(projectOperations);
           // Ensure operations section is visible after adding
           if (!showOperations) {
@@ -205,10 +218,12 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       } else {
         const errorData = await response.json();
         const errorMessage = errorData.error || 'Failed to create operation. Please try again.';
+        console.error('[ProjectForm] Operation creation failed:', errorData);
         alert(errorMessage);
       }
     } catch (error) {
       // Error creating operation
+      console.error('[ProjectForm] Error creating operation:', error);
       alert('Error creating operation. Please try again.');
     }
   };
@@ -531,9 +546,8 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   variant="secondary"
                   size="sm"
                   onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    addOperation();
+                    console.log('[ProjectForm] Add Operation button clicked');
+                    addOperation(e);
                   }}
                 >
                   + Add Operation
