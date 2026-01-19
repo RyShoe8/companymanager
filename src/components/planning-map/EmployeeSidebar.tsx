@@ -1288,9 +1288,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           opEnd,
                           op.estimatedHours
                         );
-                        const roundedHours = Math.round(hours * 100) / 100;
+                        // Round to 2 decimal places (0.01 precision)
+                        // Use parseFloat to handle floating point precision issues
+                        const roundedHours = parseFloat((Math.round(hours * 100) / 100).toFixed(2));
                         // Include operations that overlap the timeframe, even if hours round to 0
-                        // This ensures small operations (like 0.5h) show up correctly
+                        // This ensures small operations (like 0.25h or 0.01h) show up correctly
                         // Check if operation overlaps with timeframe
                         const normalizedOpStart = normalizeToStartOfDay(opStart);
                         const normalizedOpEnd = normalizeToEndOfDay(opEnd);
@@ -1299,14 +1301,15 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         const overlaps = normalizedOpStart <= normalizedRangeEnd && normalizedOpEnd >= normalizedRangeStart;
                         if (!overlaps) return;
                         
-                        // Use Math.max to ensure we don't have negative values, but include even very small positive values
+                        // Use Math.max to ensure we don't have negative values, but include even very small positive values (>= 0.01)
                         const finalHours = Math.max(0, roundedHours);
                         
                         // For recurring operations, accumulate hours from all instances
                         if (operationHoursMap.has(opId)) {
                           const existing = operationHoursMap.get(opId)!;
                           existing.hours += finalHours;
-                          existing.hours = Math.round(existing.hours * 100) / 100;
+                          // Round to 2 decimal places (0.01 precision)
+                          existing.hours = parseFloat((Math.round(existing.hours * 100) / 100).toFixed(2));
                           // Update due date to the latest instance's end date
                           if (instance.endDate > (existing.dueDate || new Date(0))) {
                             existing.dueDate = new Date(instance.endDate);
@@ -1321,8 +1324,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         }
                       });
                       const operationHoursList = Array.from(operationHoursMap.values());
-                      // Filter to only operations with hours > 0
-                      const operationsWithHours = operationHoursList.filter(op => op.hours > 0);
+                      // Filter to only operations with hours >= 0.01 (to handle very small values)
+                      // This ensures operations with 0.01h or more are included
+                      const operationsWithHours = operationHoursList.filter(op => op.hours >= 0.01);
                       
                       // Calculate project hours as the sum of task hours + operation hours for this project in the timeframe
                       // Project hours should be an aggregate of operations and task hours, not remaining project hours
