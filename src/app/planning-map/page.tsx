@@ -68,11 +68,17 @@ export default function PlanningMapPage() {
           const userData = await userResponse.json();
           if (userData && userData.id) {
             const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-            const role = currentEmployee?.role || 'User';
-            setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
-            setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
-            setCurrentUserEmployeeName(currentEmployee?.name || null);
-            setCurrentUserEmployeeId(currentEmployee?._id?.toString() || null);
+            if (currentEmployee) {
+              const role = currentEmployee.role || 'User';
+              setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
+              setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
+              setCurrentUserEmployeeName(currentEmployee.name || null);
+              setCurrentUserEmployeeId(currentEmployee._id?.toString() || null);
+            } else {
+              // Employee record not found - default to User
+              setCurrentUserRole('User');
+              setIsManagerOrAdmin(false);
+            }
           }
         }
       } catch (error) {

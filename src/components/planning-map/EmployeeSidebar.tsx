@@ -19,6 +19,10 @@ interface EmployeeSidebarProps {
 
 export default function EmployeeSidebar({ employees, projects, operations, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
+  
+  // Debug: Log role and employee info (remove after debugging)
+  // console.log('EmployeeSidebar - currentUserRole:', currentUserRole, 'currentUserEmployeeId:', currentUserEmployeeId);
+  // console.log('EmployeeSidebar - employees count:', employees.length, 'employees with userId:', employees.filter(e => e.userId != null).length);
   const range = getTimeframeRange(timeframe, currentDate);
   
   const toggleEmployee = useCallback((employeeId: string) => {
@@ -656,32 +660,35 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
   // Filter employees based on role - memoized to recalculate when role or employee list changes
   const visibleEmployees = useMemo(() => {
-    // If role is not set yet, show all employees (safer default)
+    // Filter to only employees with userId (registered users)
+    const employeesWithUserId = employees.filter(employee => employee.userId != null);
+    
+    // If role is not set yet, show all employees with userId (safer default)
     if (!currentUserRole) {
-      return employees.filter(employee => employee.userId != null);
+      return employeesWithUserId;
     }
     
-    return employees.filter(employee => {
-      // Include employees that have a userId (registered users)
-      if (employee.userId == null) return false;
-      
-      // Role-based filtering:
-      // - Administrators: see all employees
-      // - Managers: see all employees (users, managers, and admins)
-      // - Users: see only themselves
-      if (currentUserRole === 'User') {
+    // Role-based filtering:
+    // - Administrators: see all employees
+    // - Managers: see all employees (users, managers, and admins)
+    // - Users: see only themselves
+    if (currentUserRole === 'User') {
+      if (!currentUserEmployeeId) {
+        return [];
+      }
+      return employeesWithUserId.filter(employee => {
         const employeeId = employee._id.toString();
         return employeeId === currentUserEmployeeId;
-      }
-      
-      // Managers and Administrators see all employees
-      if (currentUserRole === 'Manager' || currentUserRole === 'Administrator') {
-        return true;
-      }
-      
-      // Fallback: if role is something unexpected, show all
-      return true;
-    });
+      });
+    }
+    
+    // Managers and Administrators see all employees
+    if (currentUserRole === 'Manager' || currentUserRole === 'Administrator') {
+      return employeesWithUserId;
+    }
+    
+    // Fallback: if role is something unexpected, show all
+    return employeesWithUserId;
   }, [employees, currentUserRole, currentUserEmployeeId]);
 
   // Calculate team totals - only include visible employees (based on role)
