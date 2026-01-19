@@ -25,7 +25,30 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set());
-  const [expandedOperations, setExpandedOperations] = useState<Set<string>>(new Set());
+  
+  // Load expanded operations from localStorage on mount
+  const [expandedOperations, setExpandedOperations] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`project-${project._id.toString()}-expanded-operations`);
+      if (saved) {
+        try {
+          const operationIds = JSON.parse(saved);
+          return new Set(operationIds);
+        } catch (e) {
+          return new Set();
+        }
+      }
+    }
+    return new Set();
+  });
+  
+  // Save expanded operations to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const operationIds = Array.from(expandedOperations);
+      localStorage.setItem(`project-${project._id.toString()}-expanded-operations`, JSON.stringify(operationIds));
+    }
+  }, [expandedOperations, project._id]);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [assetFormTaskIndex, setAssetFormTaskIndex] = useState<number | undefined>(undefined);
   const [assetFormOperationId, setAssetFormOperationId] = useState<string | undefined>(undefined);
