@@ -348,26 +348,43 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     }
   }, [performOperationUpdate, updateOperationLocalState]);
 
-  const updateTask = (index: number, field: keyof IProjectTask, value: any) => {
-    const updated = [...tasks];
-    const task = updated[index];
-    
-    // Handle employee assignment for tasks - prefer employeeId over name
-    if (field === 'assignedTo' && typeof value === 'string') {
-      const selectedEmployee = employees.find(emp => emp.name === value);
-      if (selectedEmployee) {
-        (task as any).assignedToEmployeeId = selectedEmployee._id.toString();
-        (task as any).assignedTo = selectedEmployee.name;
-      } else {
-        (task as any).assignedTo = value;
-        (task as any).assignedToEmployeeId = undefined;
-      }
-    } else {
-      updated[index] = { ...task, [field]: value };
+  // Optimize operation updates by updating local state immediately for better UX
+  const updateOperationOptimized = useCallback(async (operationId: string, updates: Partial<IOperation>, debounce: boolean = false) => {
+    // For non-text fields, update local operations state immediately for instant feedback
+    if (!debounce && (updates.startDate !== undefined || updates.endDate !== undefined || 
+        updates.estimatedHours !== undefined || updates.recurrenceType !== undefined || 
+        updates.status !== undefined || updates.assignedTo !== undefined || updates.assignedToEmployeeId !== undefined)) {
+      setOperations(prev => prev.map(op => 
+        op._id?.toString() === operationId ? { ...op, ...updates } : op
+      ));
     }
     
-    setTasks(updated);
-  };
+    // Then call the actual update function
+    await updateOperation(operationId, updates, debounce);
+  }, [updateOperation]);
+
+  const updateTask = useCallback((index: number, field: keyof IProjectTask, value: any) => {
+    setTasks(prevTasks => {
+      const updated = [...prevTasks];
+      const task = updated[index];
+      
+      // Handle employee assignment for tasks - prefer employeeId over name
+      if (field === 'assignedTo' && typeof value === 'string') {
+        const selectedEmployee = employees.find(emp => emp.name === value);
+        if (selectedEmployee) {
+          (task as any).assignedToEmployeeId = selectedEmployee._id.toString();
+          (task as any).assignedTo = selectedEmployee.name;
+        } else {
+          (task as any).assignedTo = value;
+          (task as any).assignedToEmployeeId = undefined;
+        }
+      } else {
+        updated[index] = { ...task, [field]: value };
+      }
+      
+      return updated;
+    });
+  }, [employees]);
 
   const addUrl = () => {
     setUrls([...urls, '']);
@@ -642,13 +659,13 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                       label="Start Date"
                       type="date"
                       value={operation.startDate ? new Date(operation.startDate).toISOString().split('T')[0] : ''}
-                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { startDate: e.target.value ? new Date(e.target.value) : undefined })}
+                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { startDate: e.target.value ? new Date(e.target.value) : undefined }, false)}
                     />
                     <Input
                       label="End Date"
                       type="date"
                       value={operation.endDate ? new Date(operation.endDate).toISOString().split('T')[0] : ''}
-                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { endDate: e.target.value ? new Date(e.target.value) : undefined })}
+                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { endDate: e.target.value ? new Date(e.target.value) : undefined }, false)}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -658,12 +675,13 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                       min="0"
                       step="0.25"
                       value={operation.estimatedHours?.toString() || ''}
-                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined }, true)}
+                      onBlur={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined }, false)}
                     />
                     <Select
                       label="Recurrence"
                       value={operation.recurrenceType || 'none'}
-                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { recurrenceType: e.target.value as RecurrenceType })}
+                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { recurrenceType: e.target.value as RecurrenceType }, false)}
                       options={[
                         { value: 'none', label: 'None' },
                         { value: 'weekly', label: 'Weekly' },
@@ -675,7 +693,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   <Select
                     label="Status"
                     value={operation.status || 'planning'}
-                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { status: e.target.value as OperationStatus })}
+                    onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { status: e.target.value as OperationStatus }, false)}
                     options={[
                       { value: 'planning', label: 'Planning' },
                       { value: 'active', label: 'Active' },
@@ -690,14 +708,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                       if (operation._id) {
                         const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
                         if (selectedEmployee) {
-                          updateOperation(operation._id.toString(), { 
+                          updateOperationOptimized(operation._id.toString(), { 
                             assignedToEmployeeId: selectedEmployee._id.toString() as any,
                             assignedTo: selectedEmployee.name 
-                          });
+                          }, false);
                         } else {
-                          updateOperation(operation._id.toString(), { 
+                          updateOperationOptimized(operation._id.toString(), { 
                             assignedTo: e.target.value || undefined 
-                          });
+                          }, false);
                         }
                       }
                     }}
