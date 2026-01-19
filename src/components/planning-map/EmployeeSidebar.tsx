@@ -786,11 +786,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
   const teamCompleted = employees.reduce((total, employee) => {
     return total + getCompletedHours(employee);
   }, 0);
-  const teamCompletedRounded = Math.round(teamCompleted * 10) / 10;
+  const teamCompletedRounded = Math.round(teamCompleted * 100) / 100;
 
-  const teamAvailable = Math.round(teamTotals.totalAvailable * 10) / 10;
-  const teamCommitted = Math.round(teamTotals.totalCommitted * 10) / 10;
-  const teamRemaining = Math.round((teamAvailable - teamCommitted) * 10) / 10;
+  const teamAvailable = Math.round(teamTotals.totalAvailable * 100) / 100;
+  const teamCommitted = Math.round(teamTotals.totalCommitted * 100) / 100;
+  const teamRemaining = Math.round((teamAvailable - teamCommitted) * 100) / 100;
 
   return (
     <div className="space-y-4">
