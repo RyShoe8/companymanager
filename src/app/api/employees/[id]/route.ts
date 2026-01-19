@@ -124,26 +124,40 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await employee.save();
 
     // If name changed, update all assignments in projects and operations
+    // IMPORTANT: Only update assignments for THIS specific employee
+    // Since assignments store names, we need to be careful with duplicate names
+    // We'll update assignments where the employee's userId matches (if they have one)
+    // OR if the employee doesn't have a userId, we'll update all assignments with the old name
+    // in the organization (this is a limitation when there are duplicate names without userIds)
     if (newName && newName !== oldName) {
       const Project = (await import('@/lib/models/Project')).default;
       const Operation = (await import('@/lib/models/Operation')).default;
 
-      // Update project assignments
+      // Build query to find assignments for THIS specific employee
+      // If employee has a userId, we can be more precise by checking who created the projects/operations
+      // But since assignments only store names, we'll update all assignments with the old name
+      // that belong to projects/operations created by users in the organization
+      // This is imperfect but necessary until we store employeeId in assignments
+      
+      // Get all user IDs in the organization to filter properly
+      const orgUserIds = await (await import('@/lib/utils/apiHelpers')).getOrganizationUserIds(session.userId, user.organizationId);
+      
+      // Update project assignments - only for projects in the organization
       await Project.updateMany(
-        { userId: session.userId, assignedTo: oldName },
+        { userId: { $in: orgUserIds }, assignedTo: oldName },
         { $set: { assignedTo: newName } }
       );
 
-      // Update project task assignments
+      // Update project task assignments - only for projects in the organization
       await Project.updateMany(
-        { userId: session.userId, 'tasks.assignedTo': oldName },
+        { userId: { $in: orgUserIds }, 'tasks.assignedTo': oldName },
         { $set: { 'tasks.$[task].assignedTo': newName } },
         { arrayFilters: [{ 'task.assignedTo': oldName }] }
       );
 
-      // Update operation assignments
+      // Update operation assignments - only for operations in the organization
       await Operation.updateMany(
-        { userId: session.userId, assignedTo: oldName },
+        { userId: { $in: orgUserIds }, assignedTo: oldName },
         { $set: { assignedTo: newName } }
       );
     }
