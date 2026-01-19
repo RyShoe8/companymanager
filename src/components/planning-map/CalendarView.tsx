@@ -823,7 +823,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                     key={taskKey}
                                     className="p-3 rounded border border-border bg-background-card"
                                   >
-                                    <div className="font-medium text-text-primary">{task.name}</div>
+                                    <div className={`font-medium text-text-primary ${task.status === 'complete' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
                                     {task.description && (
                                       <p className="text-sm text-text-secondary mt-1">{task.description}</p>
                                     )}
@@ -870,7 +870,10 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                 );
                                 if (!isTodayInTask && !isManagerOrAdmin && !isAssignedToUser) return null;
                                 return (
-                                  <div key={`${project._id.toString()}-task-${idx}`} className="text-sm text-text-secondary">
+                                  <div 
+                                    key={`${project._id.toString()}-task-${idx}`} 
+                                    className={`text-sm text-text-secondary ${task.status === 'complete' ? 'line-through opacity-60' : ''}`}
+                                  >
                                     {task.name}
                                   </div>
                                 );
