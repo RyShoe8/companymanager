@@ -520,7 +520,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                             const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
                             if (selectedEmployee) {
                               updateOperation(operation._id.toString(), { 
-                                assignedToEmployeeId: new Types.ObjectId(selectedEmployee._id.toString()),
+                                assignedToEmployeeId: selectedEmployee._id.toString() as any,
                                 assignedTo: selectedEmployee.name 
                               });
                             } else {
