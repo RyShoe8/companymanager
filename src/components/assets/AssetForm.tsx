@@ -10,11 +10,14 @@ interface AssetFormProps {
   asset?: IAsset;
   projects?: Array<{ _id: string; name: string }>;
   operations?: Array<{ _id: string; name: string }>;
+  linkedProjectId?: string;
+  linkedProjectTaskIndex?: number;
+  linkedOperationId?: string;
   onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; file?: File }) => void;
   onCancel: () => void;
 }
 
-export default function AssetForm({ asset, projects = [], operations = [], onSubmit, onCancel }: AssetFormProps) {
+export default function AssetForm({ asset, projects = [], operations = [], linkedProjectId: initialLinkedProjectId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedOperationId: initialLinkedOperationId, onSubmit, onCancel }: AssetFormProps) {
   const [name, setName] = useState(asset?.name || '');
   const [type, setType] = useState<AssetType>(asset?.type || 'link');
   const [url, setUrl] = useState(asset?.url || '');
@@ -23,9 +26,9 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
   const [description, setDescription] = useState(asset?.description || '');
   const [category, setCategory] = useState(asset?.category || '');
   const [tags, setTags] = useState(asset?.tags?.join(', ') || '');
-  const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || '');
-  const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() || '');
-  const [linkedOperationId, setLinkedOperationId] = useState(asset?.linkedOperationId?.toString() || '');
+  const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || initialLinkedProjectId || '');
+  const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() || initialLinkedProjectTaskIndex?.toString() || '');
+  const [linkedOperationId, setLinkedOperationId] = useState(asset?.linkedOperationId?.toString() || initialLinkedOperationId || '');
   const [selectedProjectTasks, setSelectedProjectTasks] = useState<Array<{ index: number; name: string }>>([]);
 
   // Reset file and textContent when type changes
