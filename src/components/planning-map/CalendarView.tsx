@@ -68,8 +68,27 @@ export default function CalendarView({ projects, operations, timeframe, currentD
   useEffect(() => {
     const fetchLatestComments = async () => {
       const commentMap = new Map<string, Date>();
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      // Get last refresh time from localStorage
+      let lastRefreshTime: Date | null = null;
+      if (typeof window !== 'undefined') {
+        const savedRefreshTime = localStorage.getItem('calendar-last-refresh-time');
+        if (savedRefreshTime) {
+          try {
+            lastRefreshTime = new Date(savedRefreshTime);
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+      
+      // If no last refresh time, set it to now (first time loading)
+      if (!lastRefreshTime) {
+        lastRefreshTime = new Date();
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('calendar-last-refresh-time', lastRefreshTime.toISOString());
+        }
+      }
       
       // Load manually collapsed projects from localStorage
       const manuallyCollapsed = new Set<string>();
@@ -105,21 +124,23 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             };
             
             const timestamps = getAllCommentTimestamps(comments);
+            const projectId = project._id.toString();
+            let latestUpdateTime: Date | null = null;
+            
             if (timestamps.length > 0) {
               const latestComment = new Date(Math.max(...timestamps.map(t => t.getTime())));
-              commentMap.set(project._id.toString(), latestComment);
-              
-              // If project was updated in last 7 days AND hasn't been manually collapsed, expand it
-              const projectId = project._id.toString();
-              if (latestComment >= sevenDaysAgo && !manuallyCollapsed.has(projectId)) {
-                setExpandedProjects(prev => new Set(prev).add(projectId));
-              }
+              commentMap.set(projectId, latestComment);
+              latestUpdateTime = latestComment;
             }
             
-            // Also check project.updatedAt - if it's recent AND hasn't been manually collapsed, expand it
+            // Also check project.updatedAt
             const projectUpdatedAt = new Date((project as any).updatedAt || project.createdAt);
-            const projectId = project._id.toString();
-            if (projectUpdatedAt >= sevenDaysAgo && !manuallyCollapsed.has(projectId)) {
+            if (!latestUpdateTime || projectUpdatedAt > latestUpdateTime) {
+              latestUpdateTime = projectUpdatedAt;
+            }
+            
+            // Only auto-expand if project was updated AFTER last refresh AND hasn't been manually collapsed
+            if (latestUpdateTime && latestUpdateTime > lastRefreshTime && !manuallyCollapsed.has(projectId)) {
               setExpandedProjects(prev => new Set(prev).add(projectId));
             }
           }
@@ -130,6 +151,11 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       
       await Promise.all(commentPromises);
       setProjectLatestComments(commentMap);
+      
+      // Update last refresh time to now
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('calendar-last-refresh-time', new Date().toISOString());
+      }
     };
     
     if (projects.length > 0) {
