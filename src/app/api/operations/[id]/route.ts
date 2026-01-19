@@ -4,6 +4,7 @@ import Operation from '@/lib/models/Operation';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
