@@ -215,6 +215,10 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           updateData.assignedToEmployeeId = selectedEmployee._id.toString();
         }
       }
+      // Convert assignedToEmployeeId string to ObjectId if present
+      if (updateData.assignedToEmployeeId && typeof updateData.assignedToEmployeeId === 'string') {
+        updateData.assignedToEmployeeId = new Types.ObjectId(updateData.assignedToEmployeeId);
+      }
       
       const response = await fetch(`/api/operations/${operationId}`, {
         method: 'PUT',
