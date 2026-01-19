@@ -433,7 +433,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               taskEnd,
               task.estimatedHours
             );
-            console.log(`[DEBUG] Task "${task.name}": ${task.estimatedHours}h total, ${hours}h in range (${taskStart.toISOString().split('T')[0]} to ${taskEnd.toISOString().split('T')[0]})`);
+            console.log(`[DEBUG] Task "${task.name}" (project: "${project.name}"): ${task.estimatedHours}h total, ${hours}h in range (${taskStart.toISOString().split('T')[0]} to ${taskEnd.toISOString().split('T')[0]})`);
             return sum + hours;
           }, 0);
         totalHours += taskHoursInRange;
