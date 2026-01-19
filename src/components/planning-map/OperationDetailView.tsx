@@ -315,23 +315,64 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
           linkedOperationId={operation._id.toString()}
           projects={projects}
           operations={operations}
-          onSuccess={() => {
-            setShowAssetForm(false);
-            // Refresh assets
-            fetch(`/api/assets?linkedOperationId=${operation._id}`)
-              .then(res => res.json())
-              .then(assetsData => {
-                const assets = assetsData.filter((asset: IAsset) => 
-                  asset.linkedOperationId?.toString() === operation._id.toString() &&
-                  asset.type !== 'screenshot'
-                );
-                const screenshots = assetsData.filter((asset: IAsset) => 
-                  asset.linkedOperationId?.toString() === operation._id.toString() &&
-                  asset.type === 'screenshot'
-                );
-                setOperationAssets(assets);
-                setOperationScreenshots(screenshots);
-              });
+          onSubmit={async (data) => {
+            try {
+              const submitData: any = {
+                ...data,
+                linkedOperationId: operation._id.toString(),
+              };
+
+              let response;
+              if (data.file) {
+                const formData = new FormData();
+                formData.append('file', data.file);
+                formData.append('name', submitData.name);
+                formData.append('type', submitData.type);
+                if (submitData.description) formData.append('description', submitData.description);
+                if (submitData.category) formData.append('category', submitData.category);
+                if (submitData.tags) formData.append('tags', JSON.stringify(submitData.tags));
+                if (submitData.url) formData.append('url', submitData.url);
+                if (submitData.textContent) formData.append('textContent', submitData.textContent);
+                formData.append('linkedOperationId', submitData.linkedOperationId);
+
+                response = await fetch('/api/assets/upload', {
+                  method: 'POST',
+                  body: formData,
+                });
+              } else {
+                const { file, ...jsonData } = submitData;
+                response = await fetch('/api/assets', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(jsonData),
+                });
+              }
+
+              if (response.ok) {
+                setShowAssetForm(false);
+                // Refresh assets
+                const assetsRes = await fetch(`/api/assets?linkedOperationId=${operation._id}`);
+                if (assetsRes.ok) {
+                  const assetsData = await assetsRes.json();
+                  const assets = assetsData.filter((asset: IAsset) => 
+                    asset.linkedOperationId?.toString() === operation._id.toString() &&
+                    asset.type !== 'screenshot'
+                  );
+                  const screenshots = assetsData.filter((asset: IAsset) => 
+                    asset.linkedOperationId?.toString() === operation._id.toString() &&
+                    asset.type === 'screenshot'
+                  );
+                  setOperationAssets(assets);
+                  setOperationScreenshots(screenshots);
+                }
+              } else {
+                const error = await response.json();
+                alert(error.error || 'Failed to create asset');
+              }
+            } catch (error) {
+              console.error('Error creating asset:', error);
+              alert('Failed to create asset');
+            }
           }}
           onCancel={() => setShowAssetForm(false)}
         />
