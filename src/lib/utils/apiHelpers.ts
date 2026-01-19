@@ -12,6 +12,7 @@ export async function getOrganizationUserIds(userId: string | Types.ObjectId, or
   // organizationId is stored as string in User model, so convert ObjectId to string if needed
   const orgId = typeof organizationId === 'string' ? organizationId : organizationId.toString();
   const orgUsers = await User.find({ organizationId: orgId });
+  
   // Ensure we return proper ObjectIds - convert string IDs to ObjectId if needed
   const userIds = orgUsers.map(u => {
     if (typeof u._id === 'string') {
@@ -22,11 +23,15 @@ export async function getOrganizationUserIds(userId: string | Types.ObjectId, or
   
   // Ensure the current user is included (in case of any edge cases)
   const currentUserId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
-  if (!userIds.some(id => id.toString() === currentUserId.toString())) {
+  const currentUserIdString = currentUserId.toString();
+  if (!userIds.some(id => id.toString() === currentUserIdString)) {
     userIds.push(currentUserId);
   }
   
-  return userIds;
+  // Return unique IDs only
+  const uniqueIds = Array.from(new Set(userIds.map(id => id.toString()))).map(id => new Types.ObjectId(id));
+  
+  return uniqueIds;
 }
 
 /**
