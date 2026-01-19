@@ -39,11 +39,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Role-based filtering:
-    // - Administrators: see all projects (no additional filter)
+    // - Administrators: see all projects in organization (already filtered by userId: { $in: orgUserIds })
     // - Managers: see only projects they created (filter by userId)
     // - Users: see only projects they're assigned to
     if (userRole === 'Administrator') {
-      // Administrators see all projects - no additional filtering needed
+      // Administrators see all projects in their organization - no additional filtering needed
+      // The userId: { $in: orgUserIds } filter already ensures they only see org projects
     } else if (userRole === 'Manager') {
       // Managers see only projects they created
       query.userId = new Types.ObjectId(session.userId);

@@ -13,12 +13,20 @@ export async function getOrganizationUserIds(userId: string | Types.ObjectId, or
   const orgId = typeof organizationId === 'string' ? organizationId : organizationId.toString();
   const orgUsers = await User.find({ organizationId: orgId });
   // Ensure we return proper ObjectIds - convert string IDs to ObjectId if needed
-  return orgUsers.map(u => {
+  const userIds = orgUsers.map(u => {
     if (typeof u._id === 'string') {
       return new Types.ObjectId(u._id);
     }
     return u._id;
   });
+  
+  // Ensure the current user is included (in case of any edge cases)
+  const currentUserId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
+  if (!userIds.some(id => id.toString() === currentUserId.toString())) {
+    userIds.push(currentUserId);
+  }
+  
+  return userIds;
 }
 
 /**
