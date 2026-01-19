@@ -764,11 +764,10 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     )}
 
                       {/* Show tasks for non-launched projects */}
-                      {hasTasks && (
+                      {hasTasks && isExpanded && (
                         <div className="mt-4">
                           <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
-                          {isExpanded && (
-                            <div className="space-y-2">
+                          <div className="space-y-2">
                               {/* Show all tasks for managers/admins, or tasks assigned to current user for regular users */}
                               {project.tasks!
                                 .filter((task) => {
@@ -832,13 +831,12 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                     </div>
                                   );
                                 })}
-                            </div>
-                          )}
+                          </div>
                         </div>
                       )}
 
                       {/* Show operations for launched projects */}
-                      {hasOperations && (() => {
+                      {hasOperations && isExpanded && (() => {
                         const projectOperations = operations.filter((op) => 
                           op.projectId?.toString() === project._id.toString() && op.startDate
                         );
@@ -860,8 +858,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         return (
                           <div className="mt-4">
                             <p className="text-sm font-semibold text-text-primary mb-2">Operations:</p>
-                            {isExpanded && (
-                              <div className="space-y-2">
+                            <div className="space-y-2">
                                 {todayOperations.map((operation) => {
                                   const opStart = new Date(operation.startDate!);
                                   opStart.setHours(0, 0, 0, 0);
@@ -889,8 +886,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                     </div>
                                   );
                                 })}
-                              </div>
-                            )}
+                            </div>
                           </div>
                         );
                       })()}
