@@ -47,7 +47,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
         setComments(data);
       }
     } catch (error) {
-      console.error('Error loading comments:', error);
+      // Error loading comments
     } finally {
       setLoading(false);
     }
@@ -71,7 +71,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
         setScreenshots(data);
       }
     } catch (error) {
-      console.error('Error loading screenshots:', error);
+      // Error loading screenshots
     }
   };
 
@@ -120,7 +120,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
       await Promise.all(uploadPromises);
       loadScreenshots();
     } catch (error) {
-      console.error('Error uploading screenshots:', error);
+      // Error uploading screenshots
       alert('Failed to upload screenshots');
     }
   };
@@ -160,7 +160,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
         loadComments();
       }
     } catch (error) {
-      console.error('Error submitting comment:', error);
+      // Error submitting comment
     }
   };
 
@@ -176,7 +176,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
         loadComments();
       }
     } catch (error) {
-      console.error('Error deleting comment:', error);
+      // Error deleting comment
     }
   };
 

@@ -47,7 +47,7 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
           setEmployees(data);
         }
       } catch (error) {
-        console.error('Error fetching employees:', error);
+        // Error fetching employees
       }
     };
     fetchEmployees();
@@ -69,7 +69,7 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
           setCurrentUserId(data.id);
         }
       } catch (error) {
-        console.error('Error fetching current user:', error);
+        // Error fetching current user
       }
     };
     fetchCurrentUser();

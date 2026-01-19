@@ -12,7 +12,7 @@ export async function migrateAssignmentsToEmployeeId() {
   try {
     await connectDB();
     
-    console.log('Starting migration of assignments from names to employee IDs...');
+    // Starting migration of assignments from names to employee IDs
     
     // Get all employees grouped by organization
     const employees = await Employee.find({}).lean();
@@ -111,10 +111,10 @@ export async function migrateAssignmentsToEmployeeId() {
       }
     }
     
-    console.log(`Migration complete!`);
-    console.log(`- Projects updated: ${projectsUpdated}`);
-    console.log(`- Tasks updated: ${tasksUpdated}`);
-    console.log(`- Operations updated: ${operationsUpdated}`);
+    // Migration complete!
+    // - Projects updated
+    // - Tasks updated
+    // - Operations updated
     
     return {
       projectsUpdated,
@@ -122,7 +122,7 @@ export async function migrateAssignmentsToEmployeeId() {
       operationsUpdated
     };
   } catch (error) {
-    console.error('Migration error:', error);
+    // Migration error
     throw error;
   }
 }

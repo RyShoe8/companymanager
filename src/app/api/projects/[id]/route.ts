@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (migratedProject !== project) {
       // Save migration if it occurred (async, don't wait)
       Project.findByIdAndUpdate(id, { tasks: (migratedProject as any).tasks }, { new: true }).catch((err: any) => 
-        console.error('Error saving migration:', err)
+        // Error saving migration
       );
     }
     
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     
     return NextResponse.json(finalProject);
   } catch (error) {
-    console.error('Get project error:', error);
+    // Get project error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -220,7 +220,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           await project.save();
         }
       } catch (error) {
-        console.error('Error converting tasks to operations:', error);
+        // Error converting tasks to operations
         // Don't fail the project update if operation creation fails
       }
     }
@@ -237,7 +237,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(project);
   } catch (error) {
-    console.error('Update project error:', error);
+    // Update project error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -266,7 +266,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ message: 'Project deleted successfully' });
   } catch (error) {
-    console.error('Delete project error:', error);
+    // Delete project error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

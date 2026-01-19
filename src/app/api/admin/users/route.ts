@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       users: usersWithOrg,
     });
   } catch (error) {
-    console.error('Admin get users error:', error);
+    // Admin get users error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

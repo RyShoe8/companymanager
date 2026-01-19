@@ -37,7 +37,7 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
           setCurrentUserId(data.id);
         }
       } catch (error) {
-        console.error('Error fetching current user:', error);
+        // Error fetching current user
       }
     };
     fetchCurrentUser();
@@ -72,7 +72,7 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
           setOperationScreenshots(screenshots);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        // Error fetching data
       }
     };
     fetchData();
@@ -140,7 +140,7 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
         setOperationScreenshots(screenshots);
       }
     } catch (error) {
-      console.error('Error uploading screenshots:', error);
+      // Error uploading screenshots
       alert('Failed to upload screenshots');
     }
   };
@@ -370,7 +370,7 @@ export default function OperationDetailView({ operation, onEdit, onDelete, onClo
                 alert(error.error || 'Failed to create asset');
               }
             } catch (error) {
-              console.error('Error creating asset:', error);
+              // Error creating asset
               alert('Failed to create asset');
             }
           }}

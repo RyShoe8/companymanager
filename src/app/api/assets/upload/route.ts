@@ -9,7 +9,7 @@ let sharp: any = null;
 try {
   sharp = require('sharp');
 } catch (e) {
-  console.warn('Sharp not installed. Image compression will be skipped. Install with: npm install sharp');
+  // Sharp not installed. Image compression will be skipped. Install with: npm install sharp
 }
 
 export async function POST(request: NextRequest) {
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
           finalType = 'screenshot';
         }
       } catch (error: any) {
-        console.error('Error compressing image:', error);
+        // Error compressing image
         // Fallback to original if compression fails
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
-    console.error('Upload asset error:', error);
+    // Upload asset error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

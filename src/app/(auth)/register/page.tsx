@@ -49,7 +49,7 @@ function RegisterForm() {
           }
         })
         .catch((err) => {
-          console.error('Error loading invitation:', err);
+          // Error loading invitation
           setError('Failed to load invitation details');
         })
         .finally(() => {

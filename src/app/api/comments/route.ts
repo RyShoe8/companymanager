@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(rootComments);
   } catch (error) {
-    console.error('Get comments error:', error);
+    // Get comments error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {
-    console.error('Create comment error:', error);
+    // Create comment error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

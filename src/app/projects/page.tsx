@@ -64,14 +64,14 @@ export default function ProjectsPage() {
           setCurrentUserRole(currentEmployee?.role as 'Administrator' | 'Manager' | 'User' | undefined);
         }
       } catch (error) {
-        console.error('Error loading current user:', error);
+        // Error loading current user
       }
 
       setProjects(projectsData);
       setAssets(assetsData);
       setEmployees(employeesData);
     } catch (error) {
-      console.error('Error loading data:', error);
+      // Error loading data
     } finally {
       setLoading(false);
     }
@@ -111,7 +111,7 @@ export default function ProjectsPage() {
         }
       }
     } catch (error) {
-      console.error('Error saving project:', error);
+      // Error saving project
     }
   };
 

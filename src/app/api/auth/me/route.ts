@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       isAdmin: user.isAdmin,
     });
   } catch (error) {
-    console.error('Get user error:', error);
+    // Get user error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

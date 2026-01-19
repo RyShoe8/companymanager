@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       ...result
     });
   } catch (error) {
-    console.error('Migration error:', error);
+    // Migration error
     return NextResponse.json({ error: 'Migration failed' }, { status: 500 });
   }
 }

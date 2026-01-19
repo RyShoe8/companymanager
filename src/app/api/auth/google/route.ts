@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(authUrl.toString());
   } catch (error) {
-    console.error('Google OAuth initiation error:', error);
+    // Google OAuth initiation error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

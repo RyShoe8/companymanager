@@ -26,7 +26,7 @@ export default function Navigation() {
           setUser(data);
         }
       } catch (error) {
-        console.error('Error fetching user:', error);
+        // Error fetching user
       }
     };
     fetchUser();
@@ -38,7 +38,7 @@ export default function Navigation() {
       router.push('/login');
       router.refresh();
     } catch (error) {
-      console.error('Logout error:', error);
+      // Logout error
     }
   };
 

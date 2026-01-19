@@ -72,7 +72,7 @@ function AssetsPageContent() {
       setProjects(projectsData);
       setOperations(operationsData);
     } catch (error) {
-      console.error('Error loading data:', error);
+      // Error loading data
     } finally {
       setLoading(false);
     }
@@ -145,7 +145,7 @@ function AssetsPageContent() {
         loadData();
       }
     } catch (error) {
-      console.error('Error deleting asset:', error);
+      // Error deleting asset
     }
   };
 
@@ -166,7 +166,7 @@ function AssetsPageContent() {
         loadData();
       }
     } catch (error) {
-      console.error('Error saving asset:', error);
+      // Error saving asset
     }
   };
 

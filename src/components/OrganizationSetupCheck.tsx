@@ -39,7 +39,7 @@ export default function OrganizationSetupCheck({ children }: { children: React.R
           }
         }
       } catch (error) {
-        console.error('Error checking organization setup:', error);
+        // Error checking organization setup
       } finally {
         setChecking(false);
       }

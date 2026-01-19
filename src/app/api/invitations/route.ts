@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(invitations);
   } catch (error) {
-    console.error('Get invitations error:', error);
+    // Get invitations error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -150,14 +150,14 @@ export async function POST(request: NextRequest) {
         expiresInDays: 7,
       });
     } catch (emailError) {
-      console.error('Failed to send invitation email:', emailError);
+      // Failed to send invitation email
       // Don't fail the request if email fails - invitation is still created
       // Could optionally delete the invitation here, but keeping it allows retry
     }
 
     return NextResponse.json(invitation, { status: 201 });
   } catch (error) {
-    console.error('Create invitation error:', error);
+    // Create invitation error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

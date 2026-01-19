@@ -70,7 +70,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           setCurrentUserId(data.id);
         }
       } catch (error) {
-        console.error('Error fetching current user:', error);
+        // Error fetching current user
       }
     };
     fetchCurrentUser();
@@ -157,7 +157,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           setOperationScreenshots(operationScreenshotsMap);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        // Error fetching data
       }
     };
     fetchData();
@@ -184,7 +184,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         alert(error.error || 'Failed to update status');
       }
     } catch (error) {
-      console.error('Error updating status:', error);
+      // Error updating status
       alert('Failed to update status');
     } finally {
       setIsUpdatingStatus(false);
@@ -314,7 +314,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         setTaskScreenshots(taskScreenshotsMap);
       }
     } catch (error) {
-      console.error('Error uploading screenshots:', error);
+      // Error uploading screenshots
       alert('Failed to upload screenshots');
     }
   };
@@ -435,14 +435,14 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
             setOperationScreenshots(operationScreenshotsMap);
           }
         } catch (error) {
-          console.error('Error refreshing assets:', error);
+          // Error refreshing assets
         }
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to create asset');
       }
     } catch (error) {
-      console.error('Error creating asset:', error);
+      // Error creating asset
       alert('Failed to create asset');
     }
   };

@@ -6,7 +6,7 @@ export async function POST() {
     await deleteSession();
     return NextResponse.json({ message: 'Logout successful' });
   } catch (error) {
-    console.error('Logout error:', error);
+    // Logout error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

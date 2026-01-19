@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(employee);
   } catch (error) {
-    console.error('Get employee error:', error);
+    // Get employee error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -175,7 +175,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(employee);
   } catch (error) {
-    console.error('Update employee error:', error);
+    // Update employee error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -228,7 +228,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       try {
         await deleteBrevoContact(employeeEmail);
       } catch (brevoError) {
-        console.error('Error removing contact from Brevo:', brevoError);
+        // Error removing contact from Brevo
         // Don't fail the request if Brevo fails
       }
     }
@@ -276,7 +276,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ message: 'Employee deleted successfully' });
   } catch (error) {
-    console.error('Delete employee error:', error);
+    // Delete employee error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

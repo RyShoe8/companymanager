@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(employees);
   } catch (error) {
-    console.error('Get employees error:', error);
+    // Get employees error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
             expiresInDays: 7,
           });
         } catch (emailError: any) {
-          console.error('Failed to send invitation email:', emailError?.message || emailError);
+          // Failed to send invitation email
           // Don't fail the request if email fails - invitation is still created/updated
         }
       }
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (brevoError) {
-        console.error('Error adding contact to Brevo:', brevoError);
+        // Error adding contact to Brevo
         // Don't fail the request if Brevo fails
       }
 
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(employee, { status: 201 });
   } catch (error) {
-    console.error('Create employee error:', error);
+    // Create employee error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

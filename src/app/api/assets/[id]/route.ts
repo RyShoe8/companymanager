@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(asset);
   } catch (error) {
-    console.error('Get asset error:', error);
+    // Get asset error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -114,7 +114,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(asset);
   } catch (error) {
-    console.error('Update asset error:', error);
+    // Update asset error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -149,7 +149,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ message: 'Asset deleted successfully' });
   } catch (error) {
-    console.error('Delete asset error:', error);
+    // Delete asset error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

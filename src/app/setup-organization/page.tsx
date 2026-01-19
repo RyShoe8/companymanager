@@ -26,7 +26,7 @@ export default function SetupOrganizationPage() {
           router.push('/login');
         }
       } catch (error) {
-        console.error('Error checking setup:', error);
+        // Error checking setup
         router.push('/login');
       }
     };

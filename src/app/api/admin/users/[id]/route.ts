@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       isAdmin: updatedUser!.isAdmin || false,
     });
   } catch (error) {
-    console.error('Admin update user error:', error);
+    // Admin update user error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -105,7 +105,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Admin delete user error:', error);
+    // Admin delete user error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
-      console.error('Token exchange error:', errorData);
+      // Token exchange error
       return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
     }
 
@@ -281,7 +281,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(new URL('/planning-map', request.url));
   } catch (error) {
-    console.error('Google OAuth callback error:', error);
+    // Google OAuth callback error
     return NextResponse.redirect(new URL('/login?error=oauth_error', request.url));
   }
 }

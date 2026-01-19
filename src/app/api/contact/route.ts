@@ -88,14 +88,14 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     } catch (emailError) {
-      console.error('Error sending contact email:', emailError);
+      // Error sending contact email
       return NextResponse.json(
         { error: 'Failed to send message. Please try again later.' },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error('Contact form error:', error);
+    // Contact form error
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

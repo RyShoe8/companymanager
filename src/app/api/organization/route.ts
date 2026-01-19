@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       isAdmin, // Include admin status so frontend can show/hide edit controls
     });
   } catch (error) {
-    console.error('Get organization error:', error);
+    // Get organization error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Update organization error:', error);
+    // Update organization error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

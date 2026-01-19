@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(assets);
   } catch (error) {
-    console.error('Get assets error:', error);
+    // Get assets error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
-    console.error('Create asset error:', error);
+    // Create asset error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

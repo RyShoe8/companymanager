@@ -74,7 +74,7 @@ export default function PlanningMapPage() {
           setCurrentUserEmployeeId(currentEmployee?._id?.toString() || null);
         }
       } catch (error) {
-        console.error('Error loading current user:', error);
+        // Error loading current user
       }
 
       // Pass all projects to CalendarView - it will handle date filtering based on its viewDate
@@ -82,7 +82,7 @@ export default function PlanningMapPage() {
       setOperations(operationsData);
       setEmployees(employeesData);
     } catch (error) {
-      console.error('Error loading data:', error);
+      // Error loading data
     } finally {
       setLoading(false);
     }
@@ -113,7 +113,7 @@ export default function PlanningMapPage() {
         loadData();
       }
     } catch (error) {
-      console.error('Error deleting project:', error);
+      // Error deleting project
     }
   };
 
@@ -136,7 +136,7 @@ export default function PlanningMapPage() {
         loadData();
       }
     } catch (error) {
-      console.error('Error saving project:', error);
+      // Error saving project
     }
   };
 
@@ -165,7 +165,7 @@ export default function PlanningMapPage() {
         loadData();
       }
     } catch (error) {
-      console.error('Error deleting operation:', error);
+      // Error deleting operation
     }
   };
 
@@ -188,7 +188,7 @@ export default function PlanningMapPage() {
         loadData();
       }
     } catch (error) {
-      console.error('Error saving operation:', error);
+      // Error saving operation
     }
   };
 
@@ -348,7 +348,7 @@ export default function PlanningMapPage() {
                           window.location.reload();
                         }
                       } catch (error) {
-                        console.error('Error updating status:', error);
+                        // Error updating status
                       }
                     }}
                   >

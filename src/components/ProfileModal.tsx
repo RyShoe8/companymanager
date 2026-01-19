@@ -29,7 +29,7 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
           setProfilePicture(data.profilePicture || null);
         }
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        // Error fetching profile
       }
     };
     fetchProfile();

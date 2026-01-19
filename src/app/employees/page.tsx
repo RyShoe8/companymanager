@@ -42,10 +42,10 @@ export default function EmployeesPage() {
           setCurrentUserEmployee(currentEmployee || null);
         }
       } catch (error) {
-        console.error('Error loading current user:', error);
+        // Error loading current user
       }
     } catch (error) {
-      console.error('Error loading employees:', error);
+      // Error loading employees
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ export default function EmployeesPage() {
         loadData();
       }
     } catch (error) {
-      console.error('Error deleting employee:', error);
+      // Error deleting employee
     }
   };
 
@@ -79,7 +79,7 @@ export default function EmployeesPage() {
       const url = editingEmployee ? `/api/employees/${editingEmployee._id}` : '/api/employees';
       const method = editingEmployee ? 'PUT' : 'POST';
 
-      console.log('Submitting employee data:', data);
+      // Submitting employee data
 
       const response = await fetch(url, {
         method,
@@ -89,7 +89,7 @@ export default function EmployeesPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error response:', errorData);
+        // Error response
         alert(`Error: ${errorData.error || 'Failed to save team member'}`);
         return;
       }
@@ -98,7 +98,7 @@ export default function EmployeesPage() {
       setEditingEmployee(undefined);
       loadData();
     } catch (error) {
-      console.error('Error saving employee:', error);
+      // Error saving employee
       alert('Failed to save team member. Please check the console for details.');
     }
   };

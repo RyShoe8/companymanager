@@ -66,7 +66,7 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
             setSelectedProjectTasks([]);
           }
         } catch (error) {
-          console.error('Error fetching project tasks:', error);
+          // Error fetching project tasks
           setSelectedProjectTasks([]);
         }
       } else {

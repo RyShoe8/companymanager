@@ -27,7 +27,7 @@ export default function OrganizationModal({ onUpdate, onClose }: OrganizationMod
           setIsAdmin(data.isAdmin || false);
         }
       } catch (error) {
-        console.error('Error fetching organization:', error);
+        // Error fetching organization
       }
     };
     fetchOrganization();

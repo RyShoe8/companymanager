@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
       if (migratedProject !== project) {
         // Save migration if it occurred (async, don't wait)
         Project.findByIdAndUpdate(project._id, { tasks: migratedProject.tasks }, { new: true }).catch((err: any) => 
-          console.error('Error saving migration:', err)
+          // Error saving migration
         );
       }
       
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(migratedProjects);
   } catch (error) {
-    console.error('Get projects error:', error);
+    // Get projects error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
-    console.error('Create project error:', error);
+    // Create project error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

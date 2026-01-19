@@ -62,7 +62,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           setEmployees(data);
         }
       } catch (error) {
-        console.error('Error fetching employees:', error);
+        // Error fetching employees
       }
     };
     fetchEmployees();
@@ -80,7 +80,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
             setOperations(projectOperations);
           }
         } catch (error) {
-          console.error('Error fetching operations:', error);
+          // Error fetching operations
         }
       };
       fetchOperations();
@@ -155,11 +155,11 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         }
       } else {
         const errorData = await response.json();
-        console.error('Failed to delete task:', errorData.error || 'Unknown error');
+        // Failed to delete task
         alert('Failed to delete task. Please try again.');
       }
     } catch (error) {
-      console.error('Error deleting task:', error);
+      // Error deleting task
       alert('Error deleting task. Please try again.');
     }
   };
@@ -200,11 +200,11 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         }
       } else {
         const errorData = await response.json();
-        console.error('Failed to create operation:', errorData.error || 'Unknown error');
+        // Failed to create operation
         alert('Failed to create operation. Please try again.');
       }
     } catch (error) {
-      console.error('Error creating operation:', error);
+      // Error creating operation
       alert('Error creating operation. Please try again.');
     }
   };
@@ -232,7 +232,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         }
       } else {
         const errorData = await response.json();
-        console.error('Failed to delete operation:', errorData.error || 'Unknown error');
+        // Failed to delete operation
         alert('Failed to delete operation. Please try again.');
         // Reload operations to restore state
         const opsResponse = await fetch('/api/operations');
@@ -245,7 +245,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         }
       }
     } catch (error) {
-      console.error('Error deleting operation:', error);
+      // Error deleting operation
       alert('Error deleting operation. Please try again.');
     }
   };
@@ -277,7 +277,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         ));
       }
     } catch (error) {
-      console.error('Error updating operation:', error);
+      // Error updating operation
     }
   };
 

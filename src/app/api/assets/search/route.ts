@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(assets);
   } catch (error) {
-    console.error('Search assets error:', error);
+    // Search assets error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -58,7 +58,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
           setEmployees(data);
         }
       } catch (error) {
-        console.error('Error fetching employees:', error);
+        // Error fetching employees
       }
     };
     fetchEmployees();
@@ -145,7 +145,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             }
           }
         } catch (error) {
-          console.error(`Error fetching comments for project ${project._id}:`, error);
+          // Error fetching comments for project
         }
       });
       

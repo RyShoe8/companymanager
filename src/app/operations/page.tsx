@@ -54,14 +54,14 @@ export default function OperationsPage() {
           setCurrentUserEmployeeName(currentEmployee?.name || null);
         }
       } catch (error) {
-        console.error('Error loading current user:', error);
+        // Error loading current user
       }
 
       setOperations(operationsData);
       setAssets(assetsData);
       setEmployees(employeesData);
     } catch (error) {
-      console.error('Error loading data:', error);
+      // Error loading data
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export default function OperationsPage() {
         loadData();
       }
     } catch (error) {
-      console.error('Error saving operation:', error);
+      // Error saving operation
     }
   };
 
@@ -123,7 +123,7 @@ export default function OperationsPage() {
         }
         return response.json();
       } catch (error) {
-        console.error(`Error uploading ${file.name}:`, error);
+        // Error uploading file
         throw error;
       }
     });
@@ -133,7 +133,7 @@ export default function OperationsPage() {
       setUploadingAsset(null);
       loadData();
     } catch (error) {
-      console.error('Error uploading files:', error);
+      // Error uploading files
       // Still reload to show successfully uploaded files
       loadData();
     }

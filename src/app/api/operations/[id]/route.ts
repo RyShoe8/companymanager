@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(operation);
   } catch (error) {
-    console.error('Get operation error:', error);
+    // Get operation error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -137,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(operation);
   } catch (error) {
-    console.error('Update operation error:', error);
+    // Update operation error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -172,7 +172,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ message: 'Operation deleted successfully' });
   } catch (error) {
-    console.error('Delete operation error:', error);
+    // Delete operation error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

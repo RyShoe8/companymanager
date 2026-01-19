@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(comment);
   } catch (error) {
-    console.error('Update comment error:', error);
+    // Update comment error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ message: 'Comment deleted successfully' });
   } catch (error) {
-    console.error('Delete comment error:', error);
+    // Delete comment error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

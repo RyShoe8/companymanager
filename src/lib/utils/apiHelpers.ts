@@ -82,7 +82,7 @@ export async function cleanupLaunchedProjectTasks(projectId: string | Types.Obje
     if (existingOperations.length > 0) {
       // Clear tasks since they've been converted to operations
       await Project.findByIdAndUpdate(projId, { tasks: [] }, { new: true }).catch((err: any) => 
-        console.error('Error cleaning up tasks:', err)
+        // Error cleaning up tasks
       );
     }
   }

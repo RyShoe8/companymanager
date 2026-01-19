@@ -3,12 +3,12 @@ import * as brevo from '@getbrevo/brevo';
 const apiKey = process.env.BREVO_API_KEY;
 
 if (!apiKey) {
-  console.warn('BREVO_API_KEY is not set. Email functionality will be disabled.');
+  // BREVO_API_KEY is not set. Email functionality will be disabled.
 } else {
   // Check if it's an SMTP key (starts with xsmtpsib-) - SDK needs REST API key
   if (apiKey.startsWith('xsmtpsib-')) {
-    console.warn('WARNING: You are using an SMTP API key. The Brevo SDK requires a REST API v3 key.');
-    console.warn('Please get your REST API key from: https://app.brevo.com/settings/keys/api');
+    // WARNING: You are using an SMTP API key. The Brevo SDK requires a REST API v3 key.
+    // Please get your REST API key from: https://app.brevo.com/settings/keys/api
   }
 }
 
@@ -23,7 +23,7 @@ if (apiKey) {
     contactsApiInstance = new brevo.ContactsApi();
     contactsApiInstance.setApiKey(brevo.ContactsApiApiKeys.apiKey, apiKey);
   } catch (error) {
-    console.error('Error initializing Brevo API instances:', error);
+    // Error initializing Brevo API instances
     apiInstance = null;
     contactsApiInstance = null;
   }
@@ -123,7 +123,7 @@ If you didn't expect this invitation, you can safely ignore this email.
   try {
     await apiInstance.sendTransacEmail(sendSmtpEmail);
   } catch (error: any) {
-    console.error('Error sending invitation email:', error?.message || error);
+    // Error sending invitation email
     throw error;
   }
 }
@@ -139,7 +139,7 @@ export interface CreateContactData {
  */
 export async function createBrevoContact(data: CreateContactData): Promise<void> {
   if (!contactsApiInstance) {
-    console.warn('Brevo Contacts API is not configured. Contact will not be created. Please set BREVO_API_KEY environment variable.');
+    // Brevo Contacts API is not configured. Contact will not be created. Please set BREVO_API_KEY environment variable.
     return;
   }
 
@@ -182,11 +182,11 @@ export async function createBrevoContact(data: CreateContactData): Promise<void>
       } catch (listError: any) {
         // If already in list, that's fine - silently continue
         if (listError?.response?.body?.code !== 'duplicate_parameter') {
-          console.error('Error adding contact to list in Brevo:', listError);
+          // Error adding contact to list in Brevo
         }
       }
     } else {
-      console.error('Error creating contact in Brevo:', error);
+      // Error creating contact in Brevo
       // Don't throw - we don't want to fail employee creation if Brevo fails
     }
   }
@@ -197,7 +197,7 @@ export async function createBrevoContact(data: CreateContactData): Promise<void>
  */
 export async function deleteBrevoContact(email: string): Promise<void> {
   if (!contactsApiInstance) {
-    console.warn('Brevo Contacts API is not configured. Contact will not be deleted. Please set BREVO_API_KEY environment variable.');
+    // Brevo Contacts API is not configured. Contact will not be deleted. Please set BREVO_API_KEY environment variable.
     return;
   }
 
@@ -206,7 +206,7 @@ export async function deleteBrevoContact(email: string): Promise<void> {
   } catch (error: any) {
     // If contact doesn't exist, that's okay - silently continue
     if (error?.response?.statusCode !== 404) {
-      console.error('Error deleting contact from Brevo:', error);
+      // Error deleting contact from Brevo
       // Don't throw - we don't want to fail employee deletion if Brevo fails
     }
   }
@@ -249,7 +249,7 @@ export async function sendEmail(data: SendEmailData): Promise<void> {
   try {
     await apiInstance.sendTransacEmail(sendSmtpEmail);
   } catch (error: any) {
-    console.error('Error sending email:', error?.message || error);
+    // Error sending email
     throw error;
   }
 }
