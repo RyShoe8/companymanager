@@ -1203,9 +1203,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       });
                       const operationHoursList = Array.from(operationHoursMap.values());
                       
-                      // Show project if employee is assigned to it, has tasks assigned, or has operations assigned
+                      // Show project if employee is assigned to it, has incomplete tasks assigned, or has operations assigned
+                      // Don't show if only assigned to project but all tasks are completed
                       // Don't filter by hours - show all assigned projects regardless of hours in current timeframe
-                      const showProject = isAssignedToProject || assignedTasks.length > 0 || finalAssignedOperations.length > 0;
+                      const hasIncompleteTasks = assignedTasks.length > 0;
+                      const hasOperations = finalAssignedOperations.length > 0;
+                      const showProject = (isAssignedToProject && (hasIncompleteTasks || hasOperations)) || hasIncompleteTasks || hasOperations;
                       
                       // Debug logging for project display
                       console.log(`[DEBUG] Project "${project.name}":`, {
@@ -1215,11 +1218,13 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         taskHoursListCount: taskHoursList.length,
                         taskHoursList: taskHoursList.map(t => ({ name: t.name, hours: t.hours })),
                         finalAssignedOperationsCount: finalAssignedOperations.length,
+                        hasIncompleteTasks,
+                        hasOperations,
                         showProject
                       });
                       
                       if (!showProject) {
-                        console.log(`[DEBUG] Hiding project "${project.name}" - not assigned to employee, no tasks, no operations`);
+                        console.log(`[DEBUG] Hiding project "${project.name}" - not assigned to employee, no incomplete tasks, no operations`);
                         return null;
                       }
                       
