@@ -4,6 +4,7 @@ import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { sanitizeString } from '@/lib/utils/security';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
