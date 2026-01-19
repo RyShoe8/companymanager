@@ -32,12 +32,15 @@ export default function ProjectBlock({ project, onClick, onDelete }: ProjectBloc
             />
             <h3 className="font-semibold text-text-primary">{project.name}</h3>
             <span className={`text-xs px-2 py-1 rounded ${
-              project.status === 'active' ? 'bg-success-light text-success-dark' :
+              project.status === 'in-development' ? 'bg-success-light text-success-dark' :
               project.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
-              project.status === 'complete' ? 'bg-border text-text-secondary' :
+              project.status === 'launched' ? 'bg-border text-text-secondary' :
               'bg-primary-light text-primary-dark'
             }`}>
-              {project.status}
+              {project.status === 'in-development' ? 'In Development' :
+               project.status === 'in-review' ? 'In Review' :
+               project.status === 'launched' ? 'Launched' :
+               'Planning'}
             </span>
           </div>
           {project.description && (

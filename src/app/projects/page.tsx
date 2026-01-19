@@ -209,21 +209,50 @@ export default function ProjectsPage() {
                 <Card key={project._id.toString()} className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                        {project.name}
-                      </h2>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                          {project.name}
+                        </h2>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          project.status === 'in-development' ? 'bg-green-100 text-green-800' :
+                          project.status === 'in-review' ? 'bg-yellow-100 text-yellow-800' :
+                          project.status === 'launched' ? 'bg-gray-100 text-gray-600' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {project.status}
+                        </span>
+                      </div>
                       {project.description && (
                         <p className="text-gray-600 dark:text-gray-400 mb-2">{project.description}</p>
                       )}
-                      {project.url && (
-                        <a
-                          href={project.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          {project.url}
-                        </a>
+                      {((project.urls && project.urls.length > 0) || project.url) && (
+                        <div className="space-y-1">
+                          {project.urls && project.urls.length > 0 ? (
+                            project.urls.map((url, index) => (
+                              <div key={index}>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                  {url}
+                                </a>
+                              </div>
+                            ))
+                          ) : (
+                            project.url && (
+                              <a
+                                href={project.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                {project.url}
+                              </a>
+                            )
+                          )}
+                        </div>
                       )}
                       <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                         <span>{formatDate(project.startDate)} - {formatDate(project.endDate)}</span>

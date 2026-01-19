@@ -397,7 +397,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // This ensures that marking items as complete frees up employee capacity
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
-      if (project.status === 'complete') return;
+      if (project.status === 'launched') return;
       
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
@@ -406,7 +406,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       let employeeStageHours = 0;
       if (project.stages && project.stages.length > 0) {
         project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete') {
+          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched') {
             employeeStageHours += stage.estimatedHours;
           }
         });
@@ -416,7 +416,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (employeeStageHours > 0 && project.estimatedHours && project.stages) {
         // Calculate the proportion of stage hours in the timeframe
         const stageHoursInRange = project.stages
-          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete')
+          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched')
           .reduce((sum, stage) => {
             if (!stage.estimatedHours) return sum;
             const stageStart = new Date(stage.startDate);
@@ -438,7 +438,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         let otherEmployeeStageHours = 0;
         if (project.stages && project.stages.length > 0) {
           project.stages.forEach((stage) => {
-            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'complete') {
+            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'launched') {
               otherEmployeeStageHours += stage.estimatedHours;
             }
           });
@@ -519,7 +519,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // Calculate hours from completed projects
     employeeProjects.forEach((project) => {
       // Only count completed projects
-      if (project.status !== 'complete') return;
+      if (project.status !== 'launched') return;
       
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
@@ -528,7 +528,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       let employeeStageHours = 0;
       if (project.stages && project.stages.length > 0) {
         project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'complete') {
+          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'launched') {
             employeeStageHours += stage.estimatedHours;
           }
         });
@@ -537,7 +537,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       // If employee has completed stages assigned, count those stage hours
       if (employeeStageHours > 0 && project.stages) {
         const stageHoursInRange = project.stages
-          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'complete')
+          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status === 'launched')
           .reduce((sum, stage) => {
             if (!stage.estimatedHours) return sum;
             const stageStart = new Date(stage.startDate);
@@ -559,7 +559,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         let otherEmployeeStageHours = 0;
         if (project.stages && project.stages.length > 0) {
           project.stages.forEach((stage) => {
-            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status === 'complete') {
+            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status === 'launched') {
               otherEmployeeStageHours += stage.estimatedHours;
             }
           });
@@ -626,7 +626,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // Calculate hours from projects
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
-      if (project.status === 'complete') return;
+      if (project.status === 'launched') return;
       
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
@@ -635,7 +635,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       let employeeStageHours = 0;
       if (project.stages && project.stages.length > 0) {
         project.stages.forEach((stage) => {
-          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete') {
+          if (stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched') {
             employeeStageHours += stage.estimatedHours;
           }
         });
@@ -645,7 +645,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       if (employeeStageHours > 0 && project.estimatedHours && project.stages) {
         // Calculate the proportion of stage hours in the timeframe
         const stageHoursInRange = project.stages
-          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'complete')
+          .filter(stage => stage.assignedTo === employee.name && stage.estimatedHours && stage.status !== 'launched')
           .reduce((sum, stage) => {
             if (!stage.estimatedHours) return sum;
             const stageStart = new Date(stage.startDate);
@@ -667,7 +667,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         let otherEmployeeStageHours = 0;
         if (project.stages && project.stages.length > 0) {
           project.stages.forEach((stage) => {
-            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'complete') {
+            if (stage.assignedTo && stage.assignedTo !== employee.name && stage.estimatedHours && stage.status !== 'launched') {
               otherEmployeeStageHours += stage.estimatedHours;
             }
           });
@@ -879,7 +879,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               // 2. Don't have a startDate (ongoing commitments)
               const directOps = getOperationsForEmployeeDirect(employee.name);
               const activeOps = directOps.filter(op => {
-                if (op.status === 'complete') return false;
+                if (op.status === 'complete') return false; // Note: Operations still use 'complete'
                 // Show if it has an instance in the current timeframe
                 if (instanceMap.has(op._id.toString())) return true;
                 // Show if it doesn't have a startDate (ongoing commitment)
@@ -942,7 +942,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
             {/* Assigned Projects and Stages - Only show when expanded */}
             {isExpanded && employeeProjects.length > 0 && (() => {
-              const projectsToShow = employeeProjects.filter(p => p.status !== 'complete');
+              const projectsToShow = employeeProjects.filter(p => p.status !== 'launched');
               if (projectsToShow.length === 0) return null;
               
               return (
@@ -956,7 +956,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       // Check if employee is assigned to project or any stages
                       const isAssignedToProject = project.assignedTo === employee.name;
                       const assignedStages = project.stages?.filter(stage => 
-                        stage.assignedTo === employee.name && stage.status !== 'complete'
+                        stage.assignedTo === employee.name && stage.status !== 'launched'
                       ) || [];
                       
                       // Calculate project-level hours (remaining after ALL stage assignments)
@@ -967,7 +967,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         let totalStageHours = 0;
                         if (project.stages && project.stages.length > 0) {
                           project.stages.forEach((stage) => {
-                            if (stage.assignedTo && stage.estimatedHours && stage.status !== 'complete') {
+                            if (stage.assignedTo && stage.estimatedHours && stage.status !== 'launched') {
                               totalStageHours += stage.estimatedHours;
                             }
                           });

@@ -40,7 +40,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
 
     await connectDB();
     const { id } = await params;
@@ -71,15 +71,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Only Managers, Administrators, and Users can update projects' }, { status: 403 });
       }
       
-      // Regular users can only change status from active to in-review
+      // Regular users can only change status from in-development to in-review
       if (status !== undefined && status !== project.status) {
-        if (project.status !== 'active' || status !== 'in-review') {
-          return NextResponse.json({ error: 'Users can only change status from active to in-review' }, { status: 403 });
+        if (project.status !== 'in-development' || status !== 'in-review') {
+          return NextResponse.json({ error: 'Users can only change status from in-development to in-review' }, { status: 403 });
         }
       }
       
       // Regular users cannot change other fields
-      if (name !== undefined || description !== undefined || url !== undefined || 
+      if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
           startDate !== undefined || endDate !== undefined || timeframeType !== undefined || 
           color !== undefined || estimatedHours !== undefined || assignedTo !== undefined || 
           stages !== undefined) {
@@ -90,6 +90,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (name !== undefined) project.name = name;
     if (description !== undefined) project.description = description;
     if (url !== undefined) project.url = url;
+    if (urls !== undefined) project.urls = urls;
     if (startDate !== undefined) project.startDate = new Date(startDate);
     if (endDate !== undefined) project.endDate = new Date(endDate);
     if (timeframeType !== undefined) project.timeframeType = timeframeType;

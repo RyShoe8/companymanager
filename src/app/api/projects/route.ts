@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, stages } = body;
 
     if (!name || !startDate || !endDate || !timeframeType) {
       return NextResponse.json(
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     const projectData: any = {
       name,
       description,
-      url,
+      urls: urls || [],
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       timeframeType,

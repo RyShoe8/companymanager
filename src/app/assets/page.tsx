@@ -22,6 +22,7 @@ function AssetsPageContent() {
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [stageIndexFilter, setStageIndexFilter] = useState<number | null>(null);
   const [operationFilter, setOperationFilter] = useState<string | null>(null);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<IAsset | undefined>();
@@ -29,9 +30,15 @@ function AssetsPageContent() {
   useEffect(() => {
     // Get filter parameters from URL
     const projectId = searchParams?.get('projectId');
+    const stageIndex = searchParams?.get('stageIndex');
     const operationId = searchParams?.get('operationId');
     if (projectId) {
       setProjectFilter(projectId);
+    }
+    if (stageIndex) {
+      setStageIndexFilter(parseInt(stageIndex));
+    } else {
+      setStageIndexFilter(null);
     }
     if (operationId) {
       setOperationFilter(operationId);
@@ -41,7 +48,7 @@ function AssetsPageContent() {
 
   useEffect(() => {
     filterAssets();
-  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, operationFilter]);
+  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, stageIndexFilter, operationFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -78,7 +85,14 @@ function AssetsPageContent() {
     if (projectFilter) {
       filtered = filtered.filter((asset) => {
         const linkedProjectId = asset.linkedProjectId?.toString();
-        return linkedProjectId === projectFilter;
+        if (linkedProjectId !== projectFilter) return false;
+        
+        // If stageIndexFilter is set, also filter by stage
+        if (stageIndexFilter !== null) {
+          return asset.linkedProjectStageIndex === stageIndexFilter;
+        }
+        
+        return true;
       });
     }
 
@@ -135,7 +149,7 @@ function AssetsPageContent() {
     }
   };
 
-  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string }) => {
+  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectStageIndex?: number }) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';

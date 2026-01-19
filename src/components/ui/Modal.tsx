@@ -9,9 +9,10 @@ interface ModalProps {
   children: React.ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
   headerActions?: React.ReactNode;
+  hideCloseButton?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children, maxWidth = '2xl', headerActions }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, maxWidth = '2xl', headerActions, hideCloseButton = false }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -47,15 +48,17 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '2x
             <h2 className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>
             <div className="flex items-center gap-2">
               {headerActions}
-              <button
-                onClick={onClose}
-                className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1"
-                aria-label="Close"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              {!hideCloseButton && (
+                <button
+                  onClick={onClose}
+                  className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1"
+                  aria-label="Close"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -454,7 +454,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     }}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <h4 className={`text-xl font-bold text-text-primary ${project.status === 'complete' ? 'line-through opacity-60' : ''}`} style={{ color: displayColor }}>
+                      <h4 className={`text-xl font-bold text-text-primary ${project.status === 'launched' ? 'line-through opacity-60' : ''}`} style={{ color: displayColor }}>
                         {project.name}
                       </h4>
                       <span
@@ -737,7 +737,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 <div
                   key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-weekly` : `${pos.project!._id.toString()}-weekly`}
                   onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                  className={`absolute text-xs px-2 py-1 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'complete' ? 'line-through opacity-60' : ''}`}
+                  className={`absolute text-xs px-2 py-1 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'launched' ? 'line-through opacity-60' : ''}`}
                   style={{
                     backgroundColor: color,
                     color: 'white',
@@ -1329,7 +1329,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       <div
                         key={project._id.toString()}
                         onClick={() => onProjectClick(project)}
-                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'complete' ? 'line-through opacity-60' : ''}`}
+                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'launched' ? 'line-through opacity-60' : ''}`}
                         style={{
                           backgroundColor: projectColor,
                           color: 'white',

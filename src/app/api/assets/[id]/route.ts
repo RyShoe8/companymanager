@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedOperationId } = body;
+    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedProjectStageIndex, linkedOperationId } = body;
 
     await connectDB();
     const { id } = await params;
@@ -105,6 +105,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       asset.tags = tags.map((tag: any) => sanitizeString(String(tag), 50)).filter((tag: string) => tag.length > 0);
     }
     if (linkedProjectId !== undefined) asset.linkedProjectId = linkedProjectId;
+    if (linkedProjectStageIndex !== undefined) {
+      asset.linkedProjectStageIndex = linkedProjectStageIndex === null || linkedProjectStageIndex === '' ? undefined : parseInt(linkedProjectStageIndex);
+    }
     if (linkedOperationId !== undefined) asset.linkedOperationId = linkedOperationId;
 
     await asset.save();

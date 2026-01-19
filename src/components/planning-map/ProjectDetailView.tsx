@@ -20,6 +20,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [expandedStages, setExpandedStages] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -37,8 +38,8 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   }, []);
 
   const handleStatusChange = async (newStatus: 'in-review') => {
-    if (project.status !== 'active' || newStatus !== 'in-review') {
-      return; // Only allow active -> in-review
+    if (project.status !== 'in-development' || newStatus !== 'in-review') {
+      return; // Only allow in-development -> in-review
     }
 
     setIsUpdatingStatus(true);
@@ -70,6 +71,18 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
     }
   };
 
+  const toggleStage = (index: number) => {
+    setExpandedStages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <div className="space-y-6 max-h-[80vh] overflow-y-auto">
       {/* Project Header */}
@@ -81,12 +94,15 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           />
           <h2 className="text-2xl font-bold text-text-primary">{project.name}</h2>
           <span className={`text-sm px-3 py-1 rounded ${
-            project.status === 'active' ? 'bg-success-light text-success-dark' :
+            project.status === 'in-development' ? 'bg-success-light text-success-dark' :
             project.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
-            project.status === 'complete' ? 'bg-border text-text-secondary' :
+            project.status === 'launched' ? 'bg-border text-text-secondary' :
             'bg-primary-light text-primary-dark'
           }`}>
-            {project.status}
+            {project.status === 'in-development' ? 'In Development' :
+             project.status === 'in-review' ? 'In Review' :
+             project.status === 'launched' ? 'Launched' :
+             'Planning'}
           </span>
         </div>
         {project.description && (
@@ -123,6 +139,17 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
               })()}
             </p>
           </div>
+          <div className="col-span-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                router.push(`/assets?projectId=${project._id}`);
+                onClose();
+              }}
+            >
+              View Assets
+            </Button>
+          </div>
           {project.estimatedHours && (
             <div>
               <label className="text-sm font-medium text-text-secondary">Estimated Hours</label>
@@ -135,16 +162,32 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
               <p className="text-text-primary">{project.assignedTo}</p>
             </div>
           )}
-          {project.url && (
+          {(project.urls && project.urls.length > 0) || project.url ? (
             <div className="col-span-2">
-              <label className="text-sm font-medium text-text-secondary">URL</label>
-              <p className="text-text-primary">
-                <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-hover transition-colors">
-                  {project.url}
-                </a>
-              </p>
+              <label className="text-sm font-medium text-text-secondary">URLs</label>
+              <div className="space-y-1">
+                {/* Show new urls array if available */}
+                {project.urls && project.urls.length > 0 ? (
+                  project.urls.map((url, index) => (
+                    <p key={index} className="text-text-primary">
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-hover transition-colors">
+                        {url}
+                      </a>
+                    </p>
+                  ))
+                ) : (
+                  /* Fallback to legacy url field */
+                  project.url && (
+                    <p className="text-text-primary">
+                      <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-hover transition-colors">
+                        {project.url}
+                      </a>
+                    </p>
+                  )
+                )}
+              </div>
             </div>
-          )}
+          ) : null}
         </div>
       </Card>
 
@@ -163,76 +206,102 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
       {project.stages && project.stages.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-text-primary">Stages</h3>
-          {project.stages.map((stage, index) => (
-            <Card key={index} className="p-4">
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-lg font-semibold text-text-primary">
-                    Stage {index + 1}: {stage.name}
-                  </h4>
+          {project.stages.map((stage, index) => {
+            const isExpanded = expandedStages.has(index);
+            return (
+              <Card key={index} className="p-4">
+                {/* Collapsible Header */}
+                <button
+                  onClick={() => toggleStage(index)}
+                  className="w-full flex items-center justify-between mb-2 hover:opacity-80 transition-opacity"
+                >
+                  <div className="flex items-center gap-2 flex-1 text-left">
+                    <svg
+                      className={`w-4 h-4 text-text-secondary transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <h4 className="text-lg font-semibold text-text-primary">
+                      Stage {index + 1}: {stage.name}
+                    </h4>
+                  </div>
                   <span className={`text-xs px-2 py-1 rounded ${
-                    stage.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    stage.status === 'in-development' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                     stage.status === 'in-review' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                    stage.status === 'complete' ? 'bg-border text-text-secondary' :
+                    stage.status === 'launched' ? 'bg-border text-text-secondary' :
                     'bg-primary-light text-primary-dark'
                   }`}>
-                    {stage.status}
+                    {stage.status === 'in-development' ? 'In Development' :
+                     stage.status === 'in-review' ? 'In Review' :
+                     stage.status === 'launched' ? 'Launched' :
+                     'Planning'}
                   </span>
-                </div>
-                {stage.description && (
-                  <p className="text-text-secondary mb-3">{stage.description}</p>
+                </button>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="mb-4">
+                    {stage.description && (
+                      <p className="text-text-secondary mb-3">{stage.description}</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <label className="text-xs font-medium text-text-secondary">Start Date</label>
+                        <p className="text-text-primary">{formatDate(new Date(stage.startDate))}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-text-secondary">End Date</label>
+                        <p className="text-text-primary">{formatDate(new Date(stage.endDate))}</p>
+                      </div>
+                      {stage.estimatedHours && (
+                        <div>
+                          <label className="text-xs font-medium text-text-secondary">Estimated Hours</label>
+                          <p className="text-text-primary">{stage.estimatedHours}h</p>
+                        </div>
+                      )}
+                      {stage.assignedTo && (
+                        <div>
+                          <label className="text-xs font-medium text-text-secondary">Assigned To</label>
+                          <p className="text-text-primary">{stage.assignedTo}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          router.push(`/assets?projectId=${project._id}&stageIndex=${index}`);
+                          onClose();
+                        }}
+                      >
+                        View Assets
+                      </Button>
+                    </div>
+                  </div>
                 )}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <label className="text-xs font-medium text-text-secondary">Start Date</label>
-                    <p className="text-text-primary">{formatDate(new Date(stage.startDate))}</p>
+                
+                {/* Comments */}
+                {isExpanded && (
+                  <div className="border-t border-border pt-4 mt-4">
+                    <CommentThread
+                      entityType="projectStage"
+                      entityId={project._id.toString()}
+                      stageIndex={index}
+                      currentUserId={currentUserId}
+                      showHeading={true}
+                    />
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-text-secondary">End Date</label>
-                    <p className="text-text-primary">{formatDate(new Date(stage.endDate))}</p>
-                  </div>
-                  {stage.estimatedHours && (
-                    <div>
-                      <label className="text-xs font-medium text-text-secondary">Estimated Hours</label>
-                      <p className="text-text-primary">{stage.estimatedHours}h</p>
-                    </div>
-                  )}
-                  {stage.assignedTo && (
-                    <div>
-                      <label className="text-xs font-medium text-text-secondary">Assigned To</label>
-                      <p className="text-text-primary">{stage.assignedTo}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Comments */}
-              <div className="border-t border-border pt-4 mt-4">
-                <CommentThread
-                  entityType="projectStage"
-                  entityId={project._id.toString()}
-                  stageIndex={index}
-                  currentUserId={currentUserId}
-                  showHeading={true}
-                />
-              </div>
-            </Card>
-          ))}
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex gap-2 pt-4 border-t border-border">
-        <Button
-          variant="secondary"
-          onClick={() => {
-            router.push(`/assets?projectId=${project._id}`);
-            onClose();
-          }}
-        >
-          View Assets
-        </Button>
-      </div>
     </div>
   );
 }

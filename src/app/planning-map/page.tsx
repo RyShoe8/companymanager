@@ -310,6 +310,7 @@ export default function PlanningMapPage() {
           }}
           title="Project Details"
           maxWidth="4xl"
+          hideCloseButton={true}
           headerActions={
             viewingProject ? (
               <>
@@ -327,7 +328,7 @@ export default function PlanningMapPage() {
                     </Button>
                   </>
                 )}
-                {!isManagerOrAdmin && viewingProject.status === 'active' && (
+                {!isManagerOrAdmin && viewingProject.status === 'in-development' && (
                   <Button 
                     variant="secondary" 
                     size="sm" 

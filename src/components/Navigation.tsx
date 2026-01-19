@@ -15,6 +15,7 @@ export default function Navigation() {
   const [user, setUser] = useState<{ name: string; email: string; profilePicture: string | null; isAdmin: boolean } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showOrganizationModal, setShowOrganizationModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -108,82 +109,56 @@ export default function Navigation() {
     },
   ];
 
+  const navLinks = [
+    { href: '/planning-map', label: 'Planning' },
+    { href: '/assets', label: 'Assets' },
+    { href: '/projects', label: 'Projects' },
+    { href: '/operations', label: 'Operations' },
+    { href: '/employees', label: 'Employees' },
+  ];
+
   return (
     <>
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 mb-[10px]">
+      <nav className="bg-white border-b border-gray-200 mb-[10px]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <Link href="/planning-map" className="flex items-center gap-3">
-                  <Image
-                    src="/images/icon.png"
-                    alt="Nucleas Logo"
-                    width={32}
-                    height={32}
-                    className="h-8 w-auto"
-                    priority
-                    unoptimized
-                  />
-                  <span className="text-xl font-bold text-gray-900 dark:text-white">
-                    Nucleas
-                  </span>
-                </Link>
-              </div>
-              <div className="ml-6 flex space-x-8">
-                <Link
-                  href="/planning-map"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname === '/planning-map'
-                      ? 'border-blue-500 text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
-                >
-                  Planning
-                </Link>
-                <Link
-                  href="/assets"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname === '/assets'
-                      ? 'border-blue-500 text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
-                >
-                  Assets
-                </Link>
-                <Link
-                  href="/projects"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname === '/projects'
-                      ? 'border-blue-500 text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
-                >
-                  Projects
-                </Link>
-                <Link
-                  href="/operations"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname === '/operations'
-                      ? 'border-blue-500 text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
-                >
-                  Operations
-                </Link>
-                <Link
-                  href="/employees"
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname === '/employees'
-                      ? 'border-blue-500 text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
-                >
-                  Employees
-                </Link>
-              </div>
-            </div>
+          <div className="flex justify-between items-center h-16">
+            {/* Logo */}
             <div className="flex items-center">
+              <Link href="/planning-map" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
+                <Image
+                  src="/images/icon.png"
+                  alt="Nucleas Logo"
+                  width={32}
+                  height={32}
+                  className="h-8 w-auto"
+                  priority
+                  unoptimized
+                />
+                <span className="text-xl font-bold text-gray-900">
+                  Nucleas
+                </span>
+              </Link>
+            </div>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex md:items-center md:space-x-8">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
+                    pathname === link.href
+                      ? 'border-blue-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+
+            {/* Desktop User Menu */}
+            <div className="hidden md:flex md:items-center">
               <Dropdown
                 trigger={
                   <div className="flex items-center gap-2 cursor-pointer">
@@ -200,7 +175,7 @@ export default function Navigation() {
                     <div className={`w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-medium ${user?.profilePicture ? 'hidden' : ''}`}>
                       {userInitials}
                     </div>
-                    <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -209,8 +184,71 @@ export default function Navigation() {
                 align="right"
               />
             </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden flex items-center gap-3">
+              <Dropdown
+                trigger={
+                  <div className="flex items-center gap-2 cursor-pointer">
+                    {user?.profilePicture ? (
+                      <img
+                        src={user.profilePicture}
+                        alt={user.name || user.email}
+                        className="w-8 h-8 rounded-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-medium ${user?.profilePicture ? 'hidden' : ''}`}>
+                      {userInitials}
+                    </div>
+                  </div>
+                }
+                items={dropdownItems}
+                align="right"
+              />
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-500"
+                aria-expanded="false"
+              >
+                <span className="sr-only">Open main menu</span>
+                {mobileMenuOpen ? (
+                  <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200">
+            <div className="px-2 pt-2 pb-3 space-y-1">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                    pathname === link.href
+                      ? 'bg-gray-100 text-gray-900'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       <Modal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} title="Profile">

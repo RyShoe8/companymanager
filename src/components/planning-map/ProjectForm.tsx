@@ -20,7 +20,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const router = useRouter();
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
-  const [url, setUrl] = useState(project?.url || '');
+  // Support both legacy url and new urls array
+  const [urls, setUrls] = useState<string[]>(
+    project?.urls && project.urls.length > 0 
+      ? project.urls 
+      : project?.url 
+        ? [project.url] 
+        : []
+  );
   const [startDate, setStartDate] = useState(
     project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : ''
   );
@@ -101,12 +108,26 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     setStages(updated);
   };
 
+  const addUrl = () => {
+    setUrls([...urls, '']);
+  };
+
+  const removeUrl = (index: number) => {
+    setUrls(urls.filter((_, i) => i !== index));
+  };
+
+  const updateUrl = (index: number, value: string) => {
+    const updated = [...urls];
+    updated[index] = value;
+    setUrls(updated);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const submitData: Partial<IProject> = {
       name,
       description,
-      url: url || undefined,
+      urls: urls.filter(url => url.trim() !== ''),
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       timeframeType,
@@ -158,14 +179,51 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         onChange={(e) => setDescription(e.target.value)}
         disabled={isRegularUser}
       />
-      <Input
-        label="URL (optional)"
-        type="url"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://example.com"
-        disabled={isRegularUser}
-      />
+      {/* URLs Section */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            URLs (optional)
+          </label>
+          {!isRegularUser && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={addUrl}
+            >
+              + Add URL
+            </Button>
+          )}
+        </div>
+        {urls.length === 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            No URLs added. Click "Add URL" to add one.
+          </p>
+        )}
+        {urls.map((url, index) => (
+          <div key={index} className="flex gap-2 mb-2">
+            <Input
+              type="url"
+              value={url}
+              onChange={(e) => updateUrl(index, e.target.value)}
+              placeholder="https://example.com"
+              disabled={isRegularUser}
+              className="flex-1"
+            />
+            {!isRegularUser && (
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => removeUrl(index)}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <Input
           label="Start Date or Single Date"
@@ -218,18 +276,18 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           label="Status"
           value={status}
           onChange={(e) => setStatus(e.target.value as ProjectStatus)}
-          disabled={isRegularUser && project?.status !== 'active'}
+          disabled={isRegularUser && project?.status !== 'in-development'}
           options={
-            isRegularUser && project?.status === 'active'
+            isRegularUser && project?.status === 'in-development'
               ? [
-                  { value: 'active', label: 'Active' },
+                  { value: 'in-development', label: 'In Development' },
                   { value: 'in-review', label: 'In Review' },
                 ]
               : [
                   { value: 'planning', label: 'Planning' },
-                  { value: 'active', label: 'Active' },
+                  { value: 'in-development', label: 'In Development' },
                   { value: 'in-review', label: 'In Review' },
-                  { value: 'complete', label: 'Complete' },
+                  { value: 'launched', label: 'Launched' },
                 ]
           }
         />
@@ -331,9 +389,9 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   onChange={(e) => updateStage(index, 'status', e.target.value as ProjectStatus)}
                   options={[
                     { value: 'planning', label: 'Planning' },
-                    { value: 'active', label: 'Active' },
+                    { value: 'in-development', label: 'In Development' },
                     { value: 'in-review', label: 'In Review' },
-                    { value: 'complete', label: 'Complete' },
+                    { value: 'launched', label: 'Launched' },
                   ]}
                 />
               </div>

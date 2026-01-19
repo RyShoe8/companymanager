@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type TimeframeType = 'today' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-export type ProjectStatus = 'planning' | 'active' | 'in-review' | 'complete';
+export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review';
 
 export interface IProjectStage {
   name: string;
@@ -16,7 +16,8 @@ export interface IProjectStage {
 export interface IProject extends Document {
   name: string;
   description?: string;
-  url?: string;
+  url?: string; // Legacy field, kept for backward compatibility
+  urls?: string[]; // New field for multiple URLs
   startDate: Date;
   endDate: Date;
   timeframeType: TimeframeType;
@@ -45,6 +46,10 @@ const ProjectSchema: Schema = new Schema(
       type: String,
       trim: true,
     },
+    urls: {
+      type: [String],
+      default: [],
+    },
     startDate: {
       type: Date,
       required: true,
@@ -65,7 +70,7 @@ const ProjectSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['planning', 'active', 'in-review', 'complete'],
+      enum: ['planning', 'in-development', 'launched', 'in-review'],
       default: 'planning',
     },
     estimatedHours: {
@@ -105,7 +110,7 @@ const ProjectSchema: Schema = new Schema(
         },
         status: {
           type: String,
-          enum: ['planning', 'active', 'in-review', 'complete'],
+          enum: ['planning', 'in-development', 'launched', 'in-review'],
           default: 'planning',
         },
       },

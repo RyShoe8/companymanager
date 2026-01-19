@@ -10,7 +10,7 @@ interface AssetFormProps {
   asset?: IAsset;
   projects?: Array<{ _id: string; name: string }>;
   operations?: Array<{ _id: string; name: string }>;
-  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; file?: File }) => void;
+  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectStageIndex?: number; file?: File }) => void;
   onCancel: () => void;
 }
 
@@ -24,7 +24,9 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
   const [category, setCategory] = useState(asset?.category || '');
   const [tags, setTags] = useState(asset?.tags?.join(', ') || '');
   const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || '');
+  const [linkedProjectStageIndex, setLinkedProjectStageIndex] = useState(asset?.linkedProjectStageIndex?.toString() || '');
   const [linkedOperationId, setLinkedOperationId] = useState(asset?.linkedOperationId?.toString() || '');
+  const [selectedProjectStages, setSelectedProjectStages] = useState<Array<{ index: number; name: string }>>([]);
 
   // Reset file and textContent when type changes
   useEffect(() => {
@@ -39,6 +41,39 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
     }
   }, [type]);
 
+  // Fetch project stages when a project is selected
+  useEffect(() => {
+    const fetchProjectStages = async () => {
+      if (linkedProjectId) {
+        try {
+          const response = await fetch(`/api/projects/${linkedProjectId}`);
+          if (response.ok) {
+            const project = await response.json();
+            if (project.stages && project.stages.length > 0) {
+              setSelectedProjectStages(
+                project.stages.map((stage: any, index: number) => ({
+                  index,
+                  name: stage.name,
+                }))
+              );
+            } else {
+              setSelectedProjectStages([]);
+            }
+          } else {
+            setSelectedProjectStages([]);
+          }
+        } catch (error) {
+          console.error('Error fetching project stages:', error);
+          setSelectedProjectStages([]);
+        }
+      } else {
+        setSelectedProjectStages([]);
+        setLinkedProjectStageIndex('');
+      }
+    };
+    fetchProjectStages();
+  }, [linkedProjectId]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const tagArray = tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
@@ -50,6 +85,7 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
       category: category || undefined,
       tags: tagArray,
       linkedProjectId: linkedProjectId || undefined,
+      linkedProjectStageIndex: linkedProjectStageIndex ? parseInt(linkedProjectStageIndex) : undefined,
       linkedOperationId: linkedOperationId || undefined,
     };
 
@@ -178,6 +214,20 @@ export default function AssetForm({ asset, projects = [], operations = [], onSub
           onChange={(e) => setLinkedProjectId(e.target.value)}
           options={projectOptions}
         />
+        {linkedProjectId && selectedProjectStages.length > 0 && (
+          <Select
+            label="Linked Stage (optional)"
+            value={linkedProjectStageIndex}
+            onChange={(e) => setLinkedProjectStageIndex(e.target.value)}
+            options={[
+              { value: '', label: 'None' },
+              ...selectedProjectStages.map((stage) => ({
+                value: stage.index.toString(),
+                label: `Stage ${stage.index + 1}: ${stage.name}`,
+              })),
+            ]}
+          />
+        )}
         <Select
           label="Linked Operation (optional)"
           value={linkedOperationId}
