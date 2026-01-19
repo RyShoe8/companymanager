@@ -1245,7 +1245,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       // Don't filter by hours - show all assigned projects regardless of hours in current timeframe
                       const hasIncompleteTasks = assignedTasks.length > 0;
                       const hasOperations = finalAssignedOperations.length > 0;
-                      const showProject = (isAssignedToProject && (hasIncompleteTasks || hasOperations)) || hasIncompleteTasks || hasOperations;
+                      // Show project if:
+                      // 1. Employee is assigned to project (regardless of tasks/operations)
+                      // 2. Employee has incomplete tasks assigned
+                      // 3. Employee has operations assigned
+                      const showProject = isAssignedToProject || hasIncompleteTasks || hasOperations;
                       
                       if (!showProject) {
                         return null;
