@@ -200,13 +200,62 @@ export default function PlanningMapPage() {
     }
   };
 
-  // Filter projects and operations based on toggle
-  const filteredProjects = showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)
-    ? projects.filter((project) => {
-        // Show if assigned to user (check by ID first, then name)
+  // Filter projects and operations for CalendarView:
+  // - Regular Users: Always see only their assignments
+  // - Managers/Admins: Filter based on "Show only my assignments" toggle
+  const filteredProjects = (() => {
+    // Regular users always see only their assignments
+    if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
+      return projects.filter((project) => {
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
-        // Show if any task is assigned to user
+        if (project.tasks && project.tasks.some(task => {
+          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+          return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+        })) return true;
+        return false;
+      });
+    }
+    // Managers/Admins: Filter based on toggle
+    if (showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)) {
+      return projects.filter((project) => {
+        const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
+        if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
+        if (project.tasks && project.tasks.some(task => {
+          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+          return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+        })) return true;
+        return false;
+      });
+    }
+    // Managers/Admins with toggle off: show all projects
+    return projects;
+  })();
+
+  const filteredOperations = (() => {
+    // Regular users always see only their assignments
+    if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
+      return operations.filter((operation) => {
+        const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
+        return opAssignedToId === currentUserEmployeeId || operation.assignedTo === currentUserEmployeeName;
+      });
+    }
+    // Managers/Admins: Filter based on toggle
+    if (showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)) {
+      return operations.filter((operation) => {
+        const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
+        return opAssignedToId === currentUserEmployeeId || operation.assignedTo === currentUserEmployeeName;
+      });
+    }
+    // Managers/Admins with toggle off: show all operations
+    return operations;
+  })();
+
+  // For EmployeeSidebar: Regular users see only their projects, Managers/Admins see all projects
+  const sidebarProjects = currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)
+    ? projects.filter((project) => {
+        const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
+        if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
         if (project.tasks && project.tasks.some(task => {
           const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
           return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
@@ -215,7 +264,7 @@ export default function PlanningMapPage() {
       })
     : projects;
 
-  const filteredOperations = showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)
+  const sidebarOperations = currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)
     ? operations.filter((operation) => {
         const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
         return opAssignedToId === currentUserEmployeeId || operation.assignedTo === currentUserEmployeeName;
@@ -252,11 +301,13 @@ export default function PlanningMapPage() {
           <div className="lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Calendar View</h2>
-              <Toggle
-                label="Show only my assignments"
-                checked={showOnlyMyAssignments}
-                onChange={setShowOnlyMyAssignments}
-              />
+              {(currentUserRole === 'Manager' || currentUserRole === 'Administrator') && (
+                <Toggle
+                  label="Show only my assignments"
+                  checked={showOnlyMyAssignments}
+                  onChange={setShowOnlyMyAssignments}
+                />
+              )}
             </div>
             <CalendarView
               projects={filteredProjects}
@@ -276,8 +327,8 @@ export default function PlanningMapPage() {
           <div className="lg:col-span-1">
             <EmployeeSidebar
               employees={employees}
-              projects={projects}
-              operations={operations}
+              projects={sidebarProjects}
+              operations={sidebarOperations}
               timeframe={timeframe}
               currentDate={currentDate}
               currentUserRole={currentUserRole}
