@@ -296,9 +296,27 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
   const getProjectsForEmployee = (employee: IEmployee) => {
     const result = projects.filter((project) => {
-      // Check if project is assigned to this employee by ID
+      const employeeIdStr = employee._id.toString();
+      
+      // Check if project is assigned to this employee by multiple IDs array (new preferred method)
+      const projectAssignedToIds = (project as any).assignedToEmployeeIds;
+      if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
+        if (projectAssignedToIds.some((id: any) => id?.toString() === employeeIdStr)) {
+          return true;
+        }
+      }
+      
+      // Check if project is assigned to this employee by multiple names array
+      const projectAssignedToNames = (project as any).assignedToNames;
+      if (projectAssignedToNames && Array.isArray(projectAssignedToNames)) {
+        if (projectAssignedToNames.includes(employee.name)) {
+          return true;
+        }
+      }
+      
+      // Check if project is assigned to this employee by single ID (legacy)
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-      if (projectAssignedToId === employee._id.toString()) {
+      if (projectAssignedToId === employeeIdStr) {
         return true;
       }
       

@@ -52,9 +52,11 @@ export async function GET(request: NextRequest) {
         query.$or = [
           { userId: { $in: orgUserIds } },
           { assignedToEmployeeId: employeeId },
+          { assignedToEmployeeIds: employeeId },
           { 'tasks.assignedToEmployeeId': employeeId },
           // Legacy support for name-based assignments
           { assignedTo: currentUserEmployee.name },
+          { assignedToNames: currentUserEmployee.name },
           { 'tasks.assignedTo': currentUserEmployee.name },
           { 'stages.assignedTo': currentUserEmployee.name }
         ];
@@ -71,9 +73,11 @@ export async function GET(request: NextRequest) {
           {
             $or: [
               { assignedToEmployeeId: employeeId },
+              { assignedToEmployeeIds: employeeId },
               { 'tasks.assignedToEmployeeId': employeeId },
               // Legacy support for name-based assignments
               { assignedTo: currentUserEmployee.name },
+              { assignedToNames: currentUserEmployee.name },
               { 'tasks.assignedTo': currentUserEmployee.name },
               { 'stages.assignedTo': currentUserEmployee.name }
             ]
@@ -144,7 +148,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, tasks } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks } = body;
 
     if (!name || !startDate || !endDate || !timeframeType) {
       return NextResponse.json(
@@ -169,18 +173,29 @@ export async function POST(request: NextRequest) {
       projectData.estimatedHours = estimatedHours;
     }
 
-    // Handle employee assignment - prefer employeeId over name
-    if (assignedToEmployeeId) {
+    // Handle multiple employee assignments (preferred)
+    const Employee = (await import('@/lib/models/Employee')).default;
+    if (assignedToEmployeeIds && Array.isArray(assignedToEmployeeIds) && assignedToEmployeeIds.length > 0) {
+      projectData.assignedToEmployeeIds = assignedToEmployeeIds.map((id: string) => new Types.ObjectId(id));
+      if (assignedToNames && Array.isArray(assignedToNames) && assignedToNames.length > 0) {
+        projectData.assignedToNames = assignedToNames;
+      } else {
+        // Fetch names from employee records
+        const assignedEmployees = await Employee.find({ _id: { $in: projectData.assignedToEmployeeIds } });
+        projectData.assignedToNames = assignedEmployees.map(emp => emp.name);
+      }
+      // Keep legacy fields for backward compatibility (use first assignment)
+      projectData.assignedToEmployeeId = projectData.assignedToEmployeeIds[0];
+      projectData.assignedTo = projectData.assignedToNames[0];
+    } else if (assignedToEmployeeId) {
+      // Legacy single assignment support
       projectData.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
-      // Also set name for backward compatibility if employee exists
-      const Employee = (await import('@/lib/models/Employee')).default;
       const assignedEmployee = await Employee.findById(assignedToEmployeeId);
       if (assignedEmployee) {
         projectData.assignedTo = assignedEmployee.name;
       }
     } else if (assignedTo) {
       // Legacy support: if name provided, try to find employee and set ID
-      const Employee = (await import('@/lib/models/Employee')).default;
       const assignedEmployee = await Employee.findOne({ 
         name: assignedTo, 
         organizationId: user.organizationId 

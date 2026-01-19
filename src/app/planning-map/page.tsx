@@ -211,6 +211,20 @@ export default function PlanningMapPage() {
     // Regular users always see only their assignments
     if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
       return projects.filter((project) => {
+        // Check multiple assignments array (new preferred method)
+        const projectAssignedToIds = (project as any).assignedToEmployeeIds;
+        if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
+          if (projectAssignedToIds.some((id: any) => id?.toString() === currentUserEmployeeId)) {
+            return true;
+          }
+        }
+        const projectAssignedToNames = (project as any).assignedToNames;
+        if (projectAssignedToNames && Array.isArray(projectAssignedToNames)) {
+          if (projectAssignedToNames.includes(currentUserEmployeeName)) {
+            return true;
+          }
+        }
+        // Check single assignment (legacy)
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
         if (project.tasks && project.tasks.some(task => {
@@ -223,6 +237,20 @@ export default function PlanningMapPage() {
     // Managers/Admins: Filter based on toggle
     if (showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)) {
       return projects.filter((project) => {
+        // Check multiple assignments array (new preferred method)
+        const projectAssignedToIds = (project as any).assignedToEmployeeIds;
+        if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
+          if (projectAssignedToIds.some((id: any) => id?.toString() === currentUserEmployeeId)) {
+            return true;
+          }
+        }
+        const projectAssignedToNames = (project as any).assignedToNames;
+        if (projectAssignedToNames && Array.isArray(projectAssignedToNames)) {
+          if (projectAssignedToNames.includes(currentUserEmployeeName)) {
+            return true;
+          }
+        }
+        // Check single assignment (legacy)
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
         if (project.tasks && project.tasks.some(task => {
@@ -268,6 +296,20 @@ export default function PlanningMapPage() {
     // Regular users see only their projects
     if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
       return projects.filter((project) => {
+        // Check multiple assignments array (new preferred method)
+        const projectAssignedToIds = (project as any).assignedToEmployeeIds;
+        if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
+          if (projectAssignedToIds.some((id: any) => id?.toString() === currentUserEmployeeId)) {
+            return true;
+          }
+        }
+        const projectAssignedToNames = (project as any).assignedToNames;
+        if (projectAssignedToNames && Array.isArray(projectAssignedToNames)) {
+          if (projectAssignedToNames.includes(currentUserEmployeeName)) {
+            return true;
+          }
+        }
+        // Check single assignment (legacy)
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
         if (project.tasks && project.tasks.some(task => {

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { IProject, TimeframeType, ProjectStatus, TaskStatus, IProjectTask } from '@/lib/models/Project';
 import { IOperation, RecurrenceType, OperationStatus } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import MultiSelect from '@/components/ui/MultiSelect';
 import Button from '@/components/ui/Button';
 import { Types } from 'mongoose';
 
@@ -43,12 +44,21 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const [assignedToEmployeeId, setAssignedToEmployeeId] = useState(
     project?.assignedToEmployeeId?.toString() || ''
   );
+  const [assignedToEmployeeIds, setAssignedToEmployeeIds] = useState<string[]>(
+    project?.assignedToEmployeeIds?.map(id => id.toString()) || 
+    (project?.assignedToEmployeeId ? [project.assignedToEmployeeId.toString()] : [])
+  );
+  const [assignedToNames, setAssignedToNames] = useState<string[]>(
+    project?.assignedToNames || 
+    (project?.assignedTo ? [project.assignedTo] : [])
+  );
   const [tasks, setTasks] = useState<IProjectTask[]>(project?.tasks || []);
   const [operations, setOperations] = useState<IOperation[]>([]);
   const [showTasks, setShowTasks] = useState(false);
   const [showOperations, setShowOperations] = useState(false);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
   const [isAddingOperation, setIsAddingOperation] = useState(false);
+  const [operationLocalState, setOperationLocalState] = useState<Record<string, { name: string; description: string }>>({});
   const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
   const isRegularUser = userRole === 'User';
   const isLaunched = project?.status === 'launched';
@@ -255,7 +265,23 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     }
   };
 
-  const updateOperation = async (operationId: string, updates: Partial<IOperation>) => {
+  const debounceTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const updateOperationLocalState = useCallback((operationId: string, field: 'name' | 'description', value: string) => {
+    setOperationLocalState(prev => {
+      const currentOperation = operations.find(op => op._id?.toString() === operationId);
+      return {
+        ...prev,
+        [operationId]: {
+          name: prev[operationId]?.name ?? currentOperation?.name ?? '',
+          description: prev[operationId]?.description ?? currentOperation?.description ?? '',
+          [field]: value,
+        }
+      };
+    });
+  }, [operations]);
+
+  const performOperationUpdate = useCallback(async (operationId: string, updates: Partial<IOperation>) => {
     try {
       // If updating assignedTo by name, convert to employeeId
       const updateData: any = { ...updates };
@@ -277,14 +303,50 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       });
       if (response.ok) {
         const updated = await response.json();
-        setOperations(operations.map(op => 
+        setOperations(prev => prev.map(op => 
           op._id?.toString() === operationId ? updated : op
         ));
+        // Clear local state after successful update
+        setOperationLocalState(prev => {
+          const newState = { ...prev };
+          delete newState[operationId];
+          return newState;
+        });
       }
     } catch (error) {
       // Error updating operation
     }
-  };
+  }, [employees]);
+
+  const updateOperation = useCallback(async (operationId: string, updates: Partial<IOperation>, debounce: boolean = false) => {
+    // Update local state immediately for name and description to ensure responsive UI
+    if (updates.name !== undefined) {
+      updateOperationLocalState(operationId, 'name', updates.name);
+    }
+    if (updates.description !== undefined) {
+      updateOperationLocalState(operationId, 'description', updates.description || '');
+    }
+
+    // Clear existing timeout for this operation
+    if (debounceTimeouts.current[operationId]) {
+      clearTimeout(debounceTimeouts.current[operationId]);
+    }
+
+    // If debouncing, use setTimeout to delay the API call
+    if (debounce) {
+      debounceTimeouts.current[operationId] = setTimeout(() => {
+        performOperationUpdate(operationId, updates);
+        delete debounceTimeouts.current[operationId];
+      }, 500);
+    } else {
+      // Clear any pending debounced call
+      if (debounceTimeouts.current[operationId]) {
+        clearTimeout(debounceTimeouts.current[operationId]);
+        delete debounceTimeouts.current[operationId];
+      }
+      await performOperationUpdate(operationId, updates);
+    }
+  }, [performOperationUpdate, updateOperationLocalState]);
 
   const updateTask = (index: number, field: keyof IProjectTask, value: any) => {
     const updated = [...tasks];
@@ -338,9 +400,17 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       submitData.estimatedHours = parseFloat(estimatedHours);
     }
 
-    // Handle employee assignment - prefer employeeId over name
-    if (assignedToEmployeeId) {
+    // Handle multiple assignments (preferred)
+    if (assignedToEmployeeIds && assignedToEmployeeIds.length > 0) {
+      submitData.assignedToEmployeeIds = assignedToEmployeeIds.map(id => new Types.ObjectId(id));
+      submitData.assignedToNames = assignedToNames.filter(name => name).length > 0 ? assignedToNames : undefined;
+      // Keep legacy fields for backward compatibility (use first assignment)
+      submitData.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeIds[0]);
+      submitData.assignedTo = assignedToNames[0] || employees.find(e => e._id.toString() === assignedToEmployeeIds[0])?.name;
+    } else if (assignedToEmployeeId) {
+      // Legacy single assignment support
       submitData.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
+      submitData.assignedTo = assignedTo;
     } else if (assignedTo) {
       submitData.assignedTo = assignedTo;
     }
@@ -457,27 +527,27 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           placeholder="e.g., 40"
           disabled={isRegularUser}
         />
-        <Select
+        <MultiSelect
           label="Assigned To (optional)"
-          value={assignedToEmployeeId || assignedTo}
-          onChange={(e) => {
-            const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
-            if (selectedEmployee) {
-              setAssignedToEmployeeId(e.target.value);
-              setAssignedTo(selectedEmployee.name);
+          value={assignedToEmployeeIds}
+          onChange={(selectedIds) => {
+            setAssignedToEmployeeIds(selectedIds);
+            const selectedEmployees = employees.filter(emp => selectedIds.includes(emp._id.toString()));
+            setAssignedToNames(selectedEmployees.map(emp => emp.name));
+            // Update legacy fields for backward compatibility
+            if (selectedIds.length > 0) {
+              setAssignedToEmployeeId(selectedIds[0]);
+              setAssignedTo(selectedEmployees[0]?.name || '');
             } else {
               setAssignedToEmployeeId('');
-              setAssignedTo(e.target.value);
+              setAssignedTo('');
             }
           }}
           disabled={isRegularUser}
-          options={[
-            { value: '', label: 'None' },
-            ...employees.map(emp => ({ 
-              value: emp._id.toString(), 
-              label: emp.name 
-            }))
-          ]}
+          options={employees.map(emp => ({ 
+            value: emp._id.toString(), 
+            label: emp.name 
+          }))}
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -556,14 +626,16 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   </div>
                   <Input
                     label="Operation Name"
-                    value={operation.name}
-                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { name: e.target.value })}
+                    value={operationLocalState[operation._id?.toString() || '']?.name ?? operation.name}
+                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { name: e.target.value }, true)}
+                    onBlur={(e) => operation._id && updateOperation(operation._id.toString(), { name: e.target.value }, false)}
                     required
                   />
                   <Input
                     label="Description (optional)"
-                    value={operation.description || ''}
-                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { description: e.target.value || undefined })}
+                    value={operationLocalState[operation._id?.toString() || '']?.description ?? (operation.description || '')}
+                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { description: e.target.value || undefined }, true)}
+                    onBlur={(e) => operation._id && updateOperation(operation._id.toString(), { description: e.target.value || undefined }, false)}
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <Input

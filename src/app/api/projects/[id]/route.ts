@@ -63,7 +63,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, tasks } = body;
+    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks } = body;
 
     await connectDB();
     const { id } = await params;
@@ -104,7 +104,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
           startDate !== undefined || endDate !== undefined || timeframeType !== undefined || 
           color !== undefined || estimatedHours !== undefined || assignedTo !== undefined || 
-          assignedToEmployeeId !== undefined || tasks !== undefined) {
+          assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined || 
+          assignedToNames !== undefined || tasks !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
       }
     }
@@ -122,17 +123,40 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (estimatedHours !== undefined) {
       project.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
     }
-    // Handle employee assignment - prefer employeeId over name
-    if (assignedToEmployeeId !== undefined) {
-      if (assignedToEmployeeId === null || assignedToEmployeeId === '') {
+    // Handle multiple employee assignments (preferred)
+    if (assignedToEmployeeIds !== undefined) {
+      if (assignedToEmployeeIds === null || !Array.isArray(assignedToEmployeeIds) || assignedToEmployeeIds.length === 0) {
+        project.assignedToEmployeeIds = [];
+        project.assignedToNames = [];
         project.assignedToEmployeeId = undefined;
         project.assignedTo = undefined;
       } else {
+        project.assignedToEmployeeIds = assignedToEmployeeIds.map((id: string) => new Types.ObjectId(id));
+        if (assignedToNames && Array.isArray(assignedToNames) && assignedToNames.length > 0) {
+          project.assignedToNames = assignedToNames;
+        } else {
+          // Fetch names from employee records
+          const assignedEmployees = await Employee.find({ _id: { $in: project.assignedToEmployeeIds } });
+          project.assignedToNames = assignedEmployees.map(emp => emp.name);
+        }
+        // Keep legacy fields for backward compatibility (use first assignment)
+        project.assignedToEmployeeId = project.assignedToEmployeeIds[0];
+        project.assignedTo = project.assignedToNames[0];
+      }
+    } else if (assignedToEmployeeId !== undefined) {
+      // Legacy single assignment support
+      if (assignedToEmployeeId === null || assignedToEmployeeId === '') {
+        project.assignedToEmployeeId = undefined;
+        project.assignedTo = undefined;
+        project.assignedToEmployeeIds = [];
+        project.assignedToNames = [];
+      } else {
         project.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
-        // Also set name for backward compatibility
         const assignedEmployee = await Employee.findById(assignedToEmployeeId);
         if (assignedEmployee) {
           project.assignedTo = assignedEmployee.name;
+          project.assignedToEmployeeIds = [project.assignedToEmployeeId];
+          project.assignedToNames = [assignedEmployee.name];
         }
       }
     } else if (assignedTo !== undefined) {
@@ -140,6 +164,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (assignedTo === null || assignedTo === '') {
         project.assignedTo = undefined;
         project.assignedToEmployeeId = undefined;
+        project.assignedToEmployeeIds = [];
+        project.assignedToNames = [];
       } else {
         const assignedEmployee = await Employee.findOne({ 
           name: assignedTo, 
@@ -147,6 +173,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         });
         if (assignedEmployee) {
           project.assignedToEmployeeId = assignedEmployee._id;
+          project.assignedToEmployeeIds = [assignedEmployee._id];
+          project.assignedToNames = [assignedEmployee.name];
         }
         project.assignedTo = assignedTo;
       }

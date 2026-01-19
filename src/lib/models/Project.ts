@@ -27,7 +27,9 @@ export interface IProject extends Document {
   status: ProjectStatus;
   estimatedHours?: number;
   assignedTo?: string; // Legacy - kept for backward compatibility
-  assignedToEmployeeId?: Types.ObjectId; // New field using employee ID
+  assignedToEmployeeId?: Types.ObjectId; // Legacy single assignment - kept for backward compatibility
+  assignedToEmployeeIds?: Types.ObjectId[]; // New field for multiple assignments using employee IDs
+  assignedToNames?: string[]; // New field for multiple assignments using names (for backward compatibility)
   tasks?: IProjectTask[];
   userId: Types.ObjectId;
   createdAt: Date;
@@ -87,6 +89,15 @@ const ProjectSchema: Schema = new Schema(
     assignedToEmployeeId: {
       type: Schema.Types.ObjectId,
       ref: 'Employee',
+    },
+    assignedToEmployeeIds: {
+      type: [Schema.Types.ObjectId],
+      ref: 'Employee',
+      default: [],
+    },
+    assignedToNames: {
+      type: [String],
+      default: [],
     },
     // Keep stages for backward compatibility during migration
     stages: [
