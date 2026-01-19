@@ -436,7 +436,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
               taskEnd,
               task.estimatedHours
             );
-            console.log(`[DEBUG] Task "${task.name}" (project: "${project.name}"): ${task.estimatedHours}h total, ${hours}h in range (${taskStart.toISOString().split('T')[0]} to ${taskEnd.toISOString().split('T')[0]})`);
             return sum + hours;
           }, 0);
         totalHours += taskHoursInRange;
@@ -470,23 +469,17 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             projectEnd,
             remainingProjectHours
           );
-          console.log(`[DEBUG] Project "${project.name}" assigned to employee: ${project.estimatedHours}h total, ${otherEmployeeTaskHours}h assigned to others via tasks, ${remainingProjectHours}h remaining, ${hours}h in range`);
           totalHours += hours;
-        } else {
-          console.log(`[DEBUG] Project "${project.name}" assigned to employee but no remaining hours (all tasks assigned to others)`);
         }
-      } else if (isProjectAssignedToEmployee && hasEmployeeTasks) {
-        console.log(`[DEBUG] Project "${project.name}" assigned to employee but has tasks assigned to employee, skipping project-level hours`);
+      }
       }
     });
 
     // Calculate hours from operations
-    console.log(`[DEBUG] Processing ${employeeOperations.length} operations for ${employee.name}`);
     employeeOperations.forEach((instance) => {
       const operation = instance.operation;
       // Skip completed operations - they don't count toward committed hours
       if (operation.status === 'complete') {
-        console.log(`[DEBUG] Skipping completed operation "${operation.name}"`);
         return;
       }
       
@@ -509,13 +502,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             instanceEnd,
             hours
           );
-          console.log(`[DEBUG] Operation "${operation.name}" (projectId: ${operation.projectId?.toString() || 'none'}): ${hours}h total, ${hoursInRange}h in range (${instanceStart.toISOString().split('T')[0]} to ${instanceEnd.toISOString().split('T')[0]})`);
           totalHours += hoursInRange;
-        } else {
-          console.log(`[DEBUG] Operation "${operation.name}" has invalid estimatedHours: ${operation.estimatedHours}`);
         }
-      } else {
-        console.log(`[DEBUG] Operation "${operation.name}" has no estimatedHours`);
       }
     });
 
@@ -536,17 +524,6 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       });
     }
 
-    // Debug logging
-    console.log(`[DEBUG] getCommittedHours for ${employee.name}:`, {
-      totalHours: totalHours,
-      rounded: Math.round(totalHours * 100) / 100,
-      timeframe,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-      projectCount: employeeProjects.length,
-      operationCount: employeeOperations.length,
-      opsWithoutDateCount: opsWithoutDate.length
-    });
 
     // Round to 2 decimal places for display
     return Math.round(totalHours * 100) / 100;
@@ -1228,21 +1205,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       const hasOperations = finalAssignedOperations.length > 0;
                       const showProject = (isAssignedToProject && (hasIncompleteTasks || hasOperations)) || hasIncompleteTasks || hasOperations;
                       
-                      // Debug logging for project display
-                      console.log(`[DEBUG] Project "${project.name}":`, {
-                        status: project.status,
-                        isAssignedToProject,
-                        assignedTasksCount: assignedTasks.length,
-                        taskHoursListCount: taskHoursList.length,
-                        taskHoursList: taskHoursList.map(t => ({ name: t.name, hours: t.hours })),
-                        finalAssignedOperationsCount: finalAssignedOperations.length,
-                        hasIncompleteTasks,
-                        hasOperations,
-                        showProject
-                      });
-                      
                       if (!showProject) {
-                        console.log(`[DEBUG] Hiding project "${project.name}" - not assigned to employee, no incomplete tasks, no operations`);
                         return null;
                       }
                       
