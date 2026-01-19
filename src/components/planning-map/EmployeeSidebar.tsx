@@ -1203,11 +1203,9 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       });
                       const operationHoursList = Array.from(operationHoursMap.values());
                       
-                      // Only show project if it has hours in the current timeframe
-                      // Check if there are project hours, task hours, or operation hours > 0
-                      const hasProjectHours = totalProjectHours > 0;
-                      const hasTaskHours = taskHoursList.some(task => task.hours > 0);
-                      const hasOperationHours = operationHoursList.some(op => op.hours > 0);
+                      // Show project if employee is assigned to it, has tasks assigned, or has operations assigned
+                      // Don't filter by hours - show all assigned projects regardless of hours in current timeframe
+                      const showProject = isAssignedToProject || assignedTasks.length > 0 || finalAssignedOperations.length > 0;
                       
                       // Debug logging for project display
                       console.log(`[DEBUG] Project "${project.name}":`, {
@@ -1216,27 +1214,13 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         assignedTasksCount: assignedTasks.length,
                         taskHoursListCount: taskHoursList.length,
                         taskHoursList: taskHoursList.map(t => ({ name: t.name, hours: t.hours })),
-                        hasProjectHours,
-                        hasTaskHours,
-                        hasOperationHours,
-                        totalProjectHours,
-                        finalAssignedOperationsCount: finalAssignedOperations.length
+                        finalAssignedOperationsCount: finalAssignedOperations.length,
+                        showProject
                       });
                       
-                      // If project is launched, only show if there are operations with hours
-                      if (project.status === 'launched') {
-                        if (!hasOperationHours && operationHoursList.length === 0) {
-                          console.log(`[DEBUG] Hiding launched project "${project.name}" - no operation hours`);
-                          return null;
-                        }
-                      }
-                      
-                      // For non-launched projects, only show if there are hours in the timeframe
-                      if (project.status !== 'launched') {
-                        if (!hasProjectHours && !hasTaskHours && !hasOperationHours) {
-                          console.log(`[DEBUG] Hiding non-launched project "${project.name}" - no hours (project: ${hasProjectHours}, tasks: ${hasTaskHours}, operations: ${hasOperationHours})`);
-                          return null;
-                        }
+                      if (!showProject) {
+                        console.log(`[DEBUG] Hiding project "${project.name}" - not assigned to employee, no tasks, no operations`);
+                        return null;
                       }
                       
                       // Show project name if employee is assigned to project, has tasks assigned, or has operations assigned
