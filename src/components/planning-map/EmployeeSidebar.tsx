@@ -498,18 +498,22 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       }
     });
 
-    // Add hours from operations without startDate (they represent committed hours even without dates)
-    opsWithoutDate.forEach((operation) => {
-      if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
-        const hours = typeof operation.estimatedHours === 'number' 
-          ? operation.estimatedHours 
-          : parseFloat(operation.estimatedHours);
-        
-        if (!isNaN(hours)) {
-          totalHours += hours;
+    // Add hours from operations without startDate
+    // For "today" timeframe, operations without dates shouldn't count (they have no specific day assignment)
+    // For week/month timeframes, count them as full hours (they represent ongoing work)
+    if (timeframe !== 'today') {
+      opsWithoutDate.forEach((operation) => {
+        if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
+          const hours = typeof operation.estimatedHours === 'number' 
+            ? operation.estimatedHours 
+            : parseFloat(operation.estimatedHours);
+          
+          if (!isNaN(hours)) {
+            totalHours += hours;
+          }
         }
-      }
-    });
+      });
+    }
 
     // Round to 1 decimal place for display
     return Math.round(totalHours * 10) / 10;
