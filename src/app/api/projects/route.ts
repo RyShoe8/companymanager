@@ -4,6 +4,7 @@ import Project from '@/lib/models/Project';
 import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, cleanupLaunchedProjectTasks } from '@/lib/utils/apiHelpers';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,16 +46,24 @@ export async function GET(request: NextRequest) {
       // Administrators see all projects - no additional filtering needed
     } else if (userRole === 'Manager') {
       // Managers see only projects they created
-      query.userId = session.userId;
+      query.userId = new Types.ObjectId(session.userId);
     } else {
       // Users see only projects they're assigned to
       if (currentUserEmployee) {
         const employeeName = currentUserEmployee.name;
-        query.$or = [
-          { assignedTo: employeeName },
-          { 'tasks.assignedTo': employeeName },
-          { 'stages.assignedTo': employeeName } // Backward compatibility
+        // Keep the userId filter and add assignment filters
+        query.$and = [
+          { userId: { $in: orgUserIds } },
+          {
+            $or: [
+              { assignedTo: employeeName },
+              { 'tasks.assignedTo': employeeName },
+              { 'stages.assignedTo': employeeName } // Backward compatibility
+            ]
+          }
         ];
+        // Remove the userId filter from top level since it's now in $and
+        delete query.userId;
       } else {
         // If no employee record, return empty array
         query._id = { $exists: false };

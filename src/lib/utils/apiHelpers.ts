@@ -12,7 +12,13 @@ export async function getOrganizationUserIds(userId: string | Types.ObjectId, or
   // organizationId is stored as string in User model, so convert ObjectId to string if needed
   const orgId = typeof organizationId === 'string' ? organizationId : organizationId.toString();
   const orgUsers = await User.find({ organizationId: orgId });
-  return orgUsers.map(u => u._id);
+  // Ensure we return proper ObjectIds - convert string IDs to ObjectId if needed
+  return orgUsers.map(u => {
+    if (typeof u._id === 'string') {
+      return new Types.ObjectId(u._id);
+    }
+    return u._id;
+  });
 }
 
 /**

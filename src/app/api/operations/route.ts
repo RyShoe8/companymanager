@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       // Administrators see all operations - no additional filtering needed
     } else if (userRole === 'Manager') {
       // Managers see only operations they created
-      query.userId = session.userId;
+      query.userId = new Types.ObjectId(session.userId);
     } else {
       // Users see only operations they're assigned to
       if (currentUserEmployee) {
