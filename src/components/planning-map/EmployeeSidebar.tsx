@@ -663,8 +663,19 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // Filter to only employees with userId (registered users)
     const employeesWithUserId = employees.filter(employee => employee.userId != null);
     
+    // Debug logging (temporary)
+    console.log('[EmployeeSidebar] Role filtering:', {
+      currentUserRole,
+      currentUserEmployeeId,
+      totalEmployees: employees.length,
+      employeesWithUserId: employeesWithUserId.length,
+      employeeNames: employeesWithUserId.map(e => e.name),
+      employeeRoles: employeesWithUserId.map(e => ({ name: e.name, role: e.role, userId: e.userId?.toString() }))
+    });
+    
     // If role is not set yet, show all employees with userId (safer default)
     if (!currentUserRole) {
+      console.log('[EmployeeSidebar] No role set, showing all employees with userId');
       return employeesWithUserId;
     }
     
@@ -674,20 +685,25 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // - Users: see only themselves
     if (currentUserRole === 'User') {
       if (!currentUserEmployeeId) {
+        console.log('[EmployeeSidebar] User role but no employeeId, returning empty');
         return [];
       }
-      return employeesWithUserId.filter(employee => {
+      const filtered = employeesWithUserId.filter(employee => {
         const employeeId = employee._id.toString();
         return employeeId === currentUserEmployeeId;
       });
+      console.log('[EmployeeSidebar] User role, showing only self:', filtered.map(e => e.name));
+      return filtered;
     }
     
     // Managers and Administrators see all employees
     if (currentUserRole === 'Manager' || currentUserRole === 'Administrator') {
+      console.log('[EmployeeSidebar] Manager/Admin role, showing all employees:', employeesWithUserId.map(e => e.name));
       return employeesWithUserId;
     }
     
     // Fallback: if role is something unexpected, show all
+    console.log('[EmployeeSidebar] Unexpected role, showing all employees');
     return employeesWithUserId;
   }, [employees, currentUserRole, currentUserEmployeeId]);
 
