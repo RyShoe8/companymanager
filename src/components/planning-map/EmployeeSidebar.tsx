@@ -465,7 +465,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             projectEnd,
             remainingProjectHours
           );
+          console.log(`[DEBUG] Project "${project.name}" assigned to employee: ${project.estimatedHours}h total, ${otherEmployeeTaskHours}h assigned to others via tasks, ${remainingProjectHours}h remaining, ${hours}h in range`);
           totalHours += hours;
+        } else {
+          console.log(`[DEBUG] Project "${project.name}" assigned to employee but no remaining hours (all tasks assigned to others)`);
         }
       }
     });
