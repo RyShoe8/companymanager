@@ -354,7 +354,16 @@ export default function PlanningMapPage() {
         <div className="mb-1">
           <div className="flex flex-row items-center gap-4 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold text-white whitespace-nowrap">Planning</h1>
-            <TimeHorizonSelector selected={timeframe} onSelect={setTimeframe} />
+            <TimeHorizonSelector 
+              selected={timeframe} 
+              onSelect={(newTimeframe) => {
+                setTimeframe(newTimeframe);
+                // If clicking "Today" while already in today view, reset date to actual today
+                if (newTimeframe === 'today' && timeframe === 'today') {
+                  setCurrentDate(new Date());
+                }
+              }} 
+            />
             {isManagerOrAdmin && (
               <div className="flex gap-2 flex-shrink-0">
                 <Button onClick={handleCreateProject}>+ New Project</Button>
