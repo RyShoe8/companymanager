@@ -521,7 +521,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           label="Estimated Hours (optional)"
           type="number"
           min="0"
-          step="0.5"
+          step="0.25"
           value={estimatedHours}
           onChange={(e) => setEstimatedHours(e.target.value)}
           placeholder="e.g., 40"
@@ -656,7 +656,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                       label="Estimated Hours (optional)"
                       type="number"
                       min="0"
-                      step="0.5"
+                      step="0.25"
                       value={operation.estimatedHours?.toString() || ''}
                       onChange={(e) => operation._id && updateOperation(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined })}
                     />
@@ -798,7 +798,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     label="Estimated Hours (optional)"
                     type="number"
                     min="0"
-                    step="0.5"
+                    step="0.25"
                     value={task.estimatedHours?.toString() || ''}
                     onChange={(e) => updateTask(index, 'estimatedHours', e.target.value ? parseFloat(e.target.value) : undefined)}
                   />
