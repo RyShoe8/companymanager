@@ -298,20 +298,32 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
   };
 
   const getProjectsForEmployee = (employee: IEmployee) => {
-    return projects.filter((project) => {
+    const result = projects.filter((project) => {
       // Check if project is assigned to this employee by ID
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-      if (projectAssignedToId === employee._id.toString()) return true;
+      if (projectAssignedToId === employee._id.toString()) {
+        console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - assigned by ID`);
+        return true;
+      }
       
       // Check if project is assigned by legacy name field
-      if (project.assignedTo && project.assignedTo === employee.name) return true;
+      if (project.assignedTo && project.assignedTo === employee.name) {
+        console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - assigned by name: "${project.assignedTo}"`);
+        return true;
+      }
       
       // Check if any task is assigned to this employee by ID
       if (project.tasks && project.tasks.some(task => {
         const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-        if (taskAssignedToId === employee._id.toString()) return true;
+        if (taskAssignedToId === employee._id.toString()) {
+          console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - task "${task.name}" assigned by ID`);
+          return true;
+        }
         // Check legacy name field
-        if (task.assignedTo && task.assignedTo === employee.name) return true;
+        if (task.assignedTo && task.assignedTo === employee.name) {
+          console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - task "${task.name}" assigned by name: "${task.assignedTo}"`);
+          return true;
+        }
         return false;
       })) {
         return true;
@@ -322,14 +334,33 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
         const isOpAssignedById = opAssignedToId === employee._id.toString();
         const isOpAssignedByName = op.assignedTo && op.assignedTo === employee.name;
-        return op.projectId?.toString() === project._id.toString() && 
-          (isOpAssignedById || isOpAssignedByName);
+        if (op.projectId?.toString() === project._id.toString() && (isOpAssignedById || isOpAssignedByName)) {
+          console.log(`[getProjectsForEmployee] ${employee.name}: Found project "${project.name}" - operation "${op.name}" assigned`);
+          return true;
+        }
+        return false;
       })) {
         return true;
       }
       
       return false;
     });
+    
+    if (result.length === 0) {
+      console.log(`[getProjectsForEmployee] ${employee.name}: No projects found. Employee ID: ${employee._id.toString()}, Employee name: "${employee.name}"`);
+      console.log(`[getProjectsForEmployee] ${employee.name}: Available projects:`, projects.map(p => ({
+        name: p.name,
+        assignedToId: (p as any).assignedToEmployeeId?.toString(),
+        assignedToName: p.assignedTo,
+        tasks: p.tasks?.map(t => ({
+          name: t.name,
+          assignedToId: (t as any).assignedToEmployeeId?.toString(),
+          assignedToName: t.assignedTo
+        }))
+      })));
+    }
+    
+    return result;
   };
 
   const getOperationsForEmployee = (employee: IEmployee) => {
