@@ -894,7 +894,6 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           </div>
                         );
                       })()}
-                    </div>
                   </div>
                 );
               })}
