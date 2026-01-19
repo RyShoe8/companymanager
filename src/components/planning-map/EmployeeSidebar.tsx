@@ -1238,7 +1238,38 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       
                       const finalAssignedOperations = assignedOperations;
                       
-                      // Calculate operation hours first to determine if we should show project-level hours
+                      // Calculate task hours first
+                      const taskHoursList = assignedTasks.map(task => {
+                        if (!task.estimatedHours) return null;
+                        const taskStart = new Date(task.startDate);
+                        const taskEnd = new Date(task.endDate);
+                        // Normalize dates for overlap check
+                        const normalizedTaskStart = normalizeToStartOfDay(taskStart);
+                        const normalizedTaskEnd = normalizeToEndOfDay(taskEnd);
+                        const normalizedRangeStart = normalizeToStartOfDay(startDate);
+                        const normalizedRangeEnd = normalizeToEndOfDay(endDate);
+                        
+                        // Check if task overlaps with the timeframe
+                        const overlaps = normalizedTaskStart <= normalizedRangeEnd && normalizedTaskEnd >= normalizedRangeStart;
+                        if (!overlaps) return null;
+                        
+                        const hours = calculateHoursForDateRange(
+                          startDate,
+                          endDate,
+                          taskStart,
+                          taskEnd,
+                          task.estimatedHours
+                        );
+                        const roundedHours = Math.round(hours * 100) / 100;
+                        // Include tasks that overlap the timeframe, even if hours round to 0
+                        // This ensures tasks spanning multiple months show up correctly
+                        return {
+                          name: task.name,
+                          hours: Math.max(0, roundedHours), // Ensure non-negative
+                          dueDate: taskEnd
+                        };
+                      }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
+                      
                       // Calculate operation hours - for recurring operations, sum hours from all instances
                       const operationHoursMap = new Map<string, { name: string; hours: number; dueDate: Date | null; operationId: string }>();
                       finalAssignedOperations.forEach(instance => {
@@ -1290,73 +1321,22 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         }
                       });
                       const operationHoursList = Array.from(operationHoursMap.values());
-                      // Filter to only operations with hours > 0 for project-level hours check
+                      // Filter to only operations with hours > 0
                       const operationsWithHours = operationHoursList.filter(op => op.hours > 0);
                       
-                      // Calculate project-level hours (remaining after ALL task assignments)
-                      // Only calculate project-level hours if:
-                      // 1. Employee is assigned to project AND
-                      // 2. There are NO tasks assigned to this employee for this timeframe AND
-                      // 3. There are NO operations with hours > 0 assigned to this employee for this timeframe
-                      // If there are tasks or operations with hours, those are shown separately and project-level hours shouldn't be counted
+                      // Calculate project hours as the sum of task hours + operation hours for this project in the timeframe
+                      // Project hours should be an aggregate of operations and task hours, not remaining project hours
                       let totalProjectHours = 0;
-                      if (isAssignedToProject && project.estimatedHours && assignedTasks.length === 0 && operationsWithHours.length === 0) {
-                        // Calculate total hours assigned via tasks (to anyone, including this employee)
-                        let totalTaskHours = 0;
-                        if (project.tasks && project.tasks.length > 0) {
-                          project.tasks.forEach((task) => {
-                            if (task.assignedTo && task.estimatedHours && task.status !== 'complete') {
-                              totalTaskHours += task.estimatedHours;
-                            }
-                          });
-                        }
-                        
-                        // Project hours minus ALL task hours (tasks are shown separately)
-                        const remainingProjectHours = Math.max(0, project.estimatedHours - totalTaskHours);
-                        
-                        if (remainingProjectHours > 0) {
-                          totalProjectHours = calculateHoursForDateRange(
-                            startDate,
-                            endDate,
-                            projectStart,
-                            projectEnd,
-                            remainingProjectHours
-                          );
-                          totalProjectHours = Math.round(totalProjectHours * 100) / 100;
-                        }
-                      }
                       
-                      // Calculate task hours
-                      const taskHoursList = assignedTasks.map(task => {
-                        if (!task.estimatedHours) return null;
-                        const taskStart = new Date(task.startDate);
-                        const taskEnd = new Date(task.endDate);
-                        // Normalize dates for overlap check
-                        const normalizedTaskStart = normalizeToStartOfDay(taskStart);
-                        const normalizedTaskEnd = normalizeToEndOfDay(taskEnd);
-                        const normalizedRangeStart = normalizeToStartOfDay(startDate);
-                        const normalizedRangeEnd = normalizeToEndOfDay(endDate);
-                        
-                        // Check if task overlaps with the timeframe
-                        const overlaps = normalizedTaskStart <= normalizedRangeEnd && normalizedTaskEnd >= normalizedRangeStart;
-                        if (!overlaps) return null;
-                        
-                        const hours = calculateHoursForDateRange(
-                          startDate,
-                          endDate,
-                          taskStart,
-                          taskEnd,
-                          task.estimatedHours
-                        );
-                        const roundedHours = Math.round(hours * 100) / 100;
-                        // Include tasks that overlap the timeframe, even if hours round to 0
-                        // This ensures tasks spanning multiple months show up correctly
-                        return {
-                          name: task.name,
-                          hours: Math.max(0, roundedHours), // Ensure non-negative
-                          dueDate: taskEnd
-                        };
-                      }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
+                      // Sum up task hours for this project in the timeframe
+                      const taskHoursSum = taskHoursList.reduce((sum, task) => sum + task.hours, 0);
+                      
+                      // Sum up operation hours for this project in the timeframe
+                      const operationHoursSum = operationsWithHours.reduce((sum, op) => sum + op.hours, 0);
+                      
+                      // Project hours = sum of task hours + operation hours
+                      totalProjectHours = taskHoursSum + operationHoursSum;
+                      totalProjectHours = Math.round(totalProjectHours * 100) / 100;
                       
                       // Show project if employee is assigned to it, has incomplete tasks assigned, or has operations assigned
                       // Don't show if only assigned to project but all tasks are completed
