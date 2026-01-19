@@ -1056,27 +1056,29 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         : [];
                       
                       // Get operations linked to this project that are assigned to this employee
-                      // Deduplicate by operation ID to avoid showing the same operation twice
-                      const assignedOperationsMap = new Map<string, IOperation>();
-                      operations.forEach(op => {
+                      // Use operation instances to get correct dates for recurring operations
+                      const assignedOperationsMap = new Map<string, { operation: IOperation; startDate: Date; endDate: Date }>();
+                      operationInstances.forEach(instance => {
+                        const op = instance.operation;
                         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
                         if (op.projectId?.toString() === project._id.toString() &&
                             opAssignedToId === employee._id.toString() &&
                             op.status !== 'complete') {
                           const opId = op._id?.toString();
                           if (opId && !assignedOperationsMap.has(opId)) {
-                            assignedOperationsMap.set(opId, op);
+                            assignedOperationsMap.set(opId, instance);
                           }
                         }
                       });
                       const assignedOperations = Array.from(assignedOperationsMap.values());
                       
                       // Additional safety check: deduplicate by operation ID, and also by name+projectId+endDate to catch true duplicates
-                      const uniqueOperationsMap = new Map<string, IOperation>();
+                      const uniqueOperationsMap = new Map<string, { operation: IOperation; startDate: Date; endDate: Date }>();
                       const seenCompositeKeys = new Set<string>();
-                      assignedOperations.forEach(op => {
+                      assignedOperations.forEach(instance => {
+                        const op = instance.operation;
                         const opId = op._id?.toString();
-                        const endDateStr = op.endDate ? new Date(op.endDate).toISOString().split('T')[0] : 'no-date';
+                        const endDateStr = instance.endDate ? new Date(instance.endDate).toISOString().split('T')[0] : 'no-date';
                         const compositeKey = `${op.name}-${project._id.toString()}-${endDateStr}`;
                         
                         // Skip if we've already seen this composite key (same name, project, and end date)
@@ -1088,13 +1090,13 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         // Primary deduplication by operation ID
                         if (opId) {
                           if (!uniqueOperationsMap.has(opId)) {
-                            uniqueOperationsMap.set(opId, op);
+                            uniqueOperationsMap.set(opId, instance);
                             seenCompositeKeys.add(compositeKey);
                           }
                         } else {
                           // Fallback: use composite key as map key if no ID
                           if (!uniqueOperationsMap.has(compositeKey)) {
-                            uniqueOperationsMap.set(compositeKey, op);
+                            uniqueOperationsMap.set(compositeKey, instance);
                             seenCompositeKeys.add(compositeKey);
                           }
                         }
@@ -1154,7 +1156,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       
                       // Calculate operation hours - deduplicate by operation ID to prevent duplicates
                       const operationHoursMap = new Map<string, { name: string; hours: number; dueDate: Date | null; operationId: string }>();
-                      finalAssignedOperations.forEach(op => {
+                      finalAssignedOperations.forEach(instance => {
+                        const op = instance.operation;
                         if (!op.estimatedHours) return;
                         const opId = op._id?.toString();
                         if (!opId) return; // Skip if no ID
@@ -1162,20 +1165,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         // Skip if we've already processed this operation
                         if (operationHoursMap.has(opId)) return;
                         
-                        const opStart = op.startDate ? normalizeToStartOfDay(new Date(op.startDate)) : null;
-                        const opEnd = op.endDate ? normalizeToEndOfDay(new Date(op.endDate)) : null;
-                        let hours = 0;
-                        if (opStart && opEnd) {
-                          hours = calculateHoursForDateRange(
-                            startDate,
-                            endDate,
-                            opStart,
-                            opEnd,
-                            op.estimatedHours
-                          );
-                        } else {
-                          hours = op.estimatedHours;
-                        }
+                        // Use instance dates for proper calculation and display
+                        const opStart = normalizeToStartOfDay(instance.startDate);
+                        const opEnd = normalizeToEndOfDay(instance.endDate);
+                        const hours = calculateHoursForDateRange(
+                          startDate,
+                          endDate,
+                          opStart,
+                          opEnd,
+                          op.estimatedHours
+                        );
                         const roundedHours = Math.round(hours * 10) / 10;
                         // Only include operations with hours > 0 in the timeframe
                         if (roundedHours <= 0) return;
@@ -1183,7 +1182,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         operationHoursMap.set(opId, {
                           name: op.name,
                           hours: roundedHours,
-                          dueDate: op.endDate ? new Date(op.endDate) : null,
+                          dueDate: new Date(instance.endDate), // Use instance endDate for correct display
                           operationId: opId
                         });
                       });
