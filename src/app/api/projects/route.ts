@@ -174,7 +174,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle multiple employee assignments (preferred)
-    const Employee = (await import('@/lib/models/Employee')).default;
     if (assignedToEmployeeIds && Array.isArray(assignedToEmployeeIds) && assignedToEmployeeIds.length > 0) {
       projectData.assignedToEmployeeIds = assignedToEmployeeIds.map((id: string) => new Types.ObjectId(id));
       if (assignedToNames && Array.isArray(assignedToNames) && assignedToNames.length > 0) {
@@ -207,7 +206,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (tasks && Array.isArray(tasks)) {
-      const Employee = (await import('@/lib/models/Employee')).default;
       projectData.tasks = await Promise.all(tasks.map(async (task: any) => {
         const taskData: any = {
           ...task,
