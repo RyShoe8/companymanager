@@ -45,7 +45,18 @@ export async function GET(request: NextRequest) {
     // - Managers: see only operations they created (filter by userId)
     // - Users: see only operations they're assigned to
     if (userRole === 'Administrator') {
-      // Administrators see all operations - no additional filtering needed
+      // Administrators see all operations in their organization
+      // But if they have an employee record, also include operations assigned to them
+      if (currentUserEmployee) {
+        const employeeName = currentUserEmployee.name;
+        // Use $or to include both org operations AND operations assigned to them
+        query.$or = [
+          { userId: { $in: orgUserIds } },
+          { assignedTo: employeeName }
+        ];
+        // Remove the userId filter from top level since it's now in $or
+        delete query.userId;
+      }
     } else if (userRole === 'Manager') {
       // Managers see only operations they created
       query.userId = new Types.ObjectId(session.userId);
