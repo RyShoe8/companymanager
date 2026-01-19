@@ -13,9 +13,11 @@ interface EmployeeSidebarProps {
   operations: IOperation[];
   timeframe: TimeframeType;
   currentDate: Date;
+  currentUserRole?: 'Administrator' | 'Manager' | 'User';
+  currentUserEmployeeId?: string | null;
 }
 
-export default function EmployeeSidebar({ employees, projects, operations, timeframe, currentDate }: EmployeeSidebarProps) {
+export default function EmployeeSidebar({ employees, projects, operations, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   const range = getTimeframeRange(timeframe, currentDate);
   
@@ -652,9 +654,29 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     );
   }
 
-  // Calculate team totals - only include employees with userId (registered users)
-  // This matches the display filter and ensures deleted employees aren't counted
-  const teamTotals = employees.filter(employee => employee.userId != null).reduce((totals, employee) => {
+  // Helper function to filter employees based on role
+  const getVisibleEmployees = (employeesList: IEmployee[]) => {
+    return employeesList.filter(employee => {
+      // Include employees that have a userId (registered users)
+      if (employee.userId == null) return false;
+      
+      // Role-based filtering:
+      // - Administrators: see all employees
+      // - Managers: see all employees (users, managers, and admins)
+      // - Users: see only themselves
+      if (currentUserRole === 'User') {
+        const employeeId = employee._id.toString();
+        return employeeId === currentUserEmployeeId;
+      }
+      
+      // Managers and Administrators see all employees
+      return true;
+    });
+  };
+
+  // Calculate team totals - only include visible employees (based on role)
+  const visibleEmployees = getVisibleEmployees(employees);
+  const teamTotals = visibleEmployees.reduce((totals, employee) => {
     const employeeProjects = getProjectsForEmployee(employee);
     const employeeOperations = getOperationsForEmployee(employee);
     let committedHours = 0;
@@ -777,8 +799,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     return totals;
   }, { totalAvailable: 0, totalCommitted: 0 });
 
-  // Calculate team completed hours - only include employees with userId (registered users)
-  const teamCompleted = employees.filter(employee => employee.userId != null).reduce((total, employee) => {
+  // Calculate team completed hours - only include visible employees (based on role)
+  const teamCompleted = visibleEmployees.reduce((total, employee) => {
     return total + getCompletedHours(employee);
   }, 0);
   const teamCompletedRounded = Math.round(teamCompleted * 100) / 100;
@@ -812,11 +834,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
           </div>
         </div>
       </div>
-      {employees.filter(employee => {
-        // Include employees that have a userId (registered users)
-        // Check if userId exists (handles ObjectId, null, undefined)
-        return employee.userId != null;
-      }).map((employee) => {
+      {visibleEmployees.map((employee) => {
         const employeeProjects = getProjectsForEmployee(employee);
         const committedHours = getCommittedHours(employee);
         const completedHours = getCompletedHours(employee);

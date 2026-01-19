@@ -272,6 +272,8 @@ export default function PlanningMapPage() {
               operations={filteredOperations}
               timeframe={timeframe}
               currentDate={currentDate}
+              currentUserRole={currentUserRole}
+              currentUserEmployeeId={currentUserEmployeeId}
             />
           </div>
         </div>
