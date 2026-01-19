@@ -177,8 +177,8 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         recurrenceType: 'none',
         status: 'planning',
         projectId: project._id.toString(),
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
+        startDate: startDate ? new Date(startDate).toISOString().split('T')[0] : undefined,
+        endDate: endDate ? new Date(endDate).toISOString().split('T')[0] : undefined,
       };
 
       const response = await fetch('/api/operations', {
@@ -197,11 +197,15 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
             op.projectId?.toString() === project._id.toString()
           );
           setOperations(projectOperations);
+          // Ensure operations section is visible after adding
+          if (!showOperations) {
+            setShowOperations(true);
+          }
         }
       } else {
         const errorData = await response.json();
-        // Failed to create operation
-        alert('Failed to create operation. Please try again.');
+        const errorMessage = errorData.error || 'Failed to create operation. Please try again.';
+        alert(errorMessage);
       }
     } catch (error) {
       // Error creating operation
@@ -526,7 +530,11 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={addOperation}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    addOperation();
+                  }}
                 >
                   + Add Operation
                 </Button>
