@@ -661,17 +661,28 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                       onChange={(e) => operation._id && updateOperation(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined })}
                     />
                     <Select
-                      label="Status"
-                      value={operation.status || 'planning'}
-                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { status: e.target.value as OperationStatus })}
+                      label="Recurrence"
+                      value={operation.recurrenceType || 'none'}
+                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { recurrenceType: e.target.value as RecurrenceType })}
                       options={[
-                        { value: 'planning', label: 'Planning' },
-                        { value: 'active', label: 'Active' },
-                        { value: 'in-review', label: 'In Review' },
-                        { value: 'complete', label: 'Complete' },
+                        { value: 'none', label: 'None' },
+                        { value: 'weekly', label: 'Weekly' },
+                        { value: 'bi-weekly', label: 'Bi-weekly' },
+                        { value: 'monthly', label: 'Monthly' },
                       ]}
                     />
                   </div>
+                  <Select
+                    label="Status"
+                    value={operation.status || 'planning'}
+                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { status: e.target.value as OperationStatus })}
+                    options={[
+                      { value: 'planning', label: 'Planning' },
+                      { value: 'active', label: 'Active' },
+                      { value: 'in-review', label: 'In Review' },
+                      { value: 'complete', label: 'Complete' },
+                    ]}
+                  />
                   <Select
                     label="Assigned To (optional)"
                     value={(operation as any).assignedToEmployeeId?.toString() || operation.assignedTo || ''}

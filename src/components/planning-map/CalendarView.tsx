@@ -889,27 +889,102 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         op.projectId?.toString() === project._id.toString() && op.startDate
                       );
                       
-                      const todayOperations = projectOperations.filter((op) => {
-                        const opStart = new Date(op.startDate!);
-                        opStart.setHours(0, 0, 0, 0);
-                        const opEnd = op.endDate ? new Date(op.endDate) : new Date(opStart);
-                        opEnd.setHours(23, 59, 59, 999);
+                      // Generate recurring instances for project operations
+                      const projectOperationInstances: Array<{ operation: IOperation; startDate: Date; endDate: Date }> = [];
+                      
+                      projectOperations.forEach((operation) => {
+                        if (!operation.startDate) return;
                         
+                        // Parse date to avoid timezone issues
+                        const startDateObj = new Date(operation.startDate);
+                        const startDateStr = startDateObj.toISOString().split('T')[0];
+                        const [year, month, day] = startDateStr.split('-').map(Number);
+                        const operationStart = new Date(year, month - 1, day);
+                        operationStart.setHours(0, 0, 0, 0);
+                        
+                        // Calculate duration
+                        let durationDays: number;
+                        if (operation.endDate) {
+                          const endDateObj = new Date(operation.endDate);
+                          const endDateStr = endDateObj.toISOString().split('T')[0];
+                          const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+                          const operationEnd = new Date(endYear, endMonth - 1, endDay);
+                          operationEnd.setHours(23, 59, 59, 999);
+                          const diffMs = operationEnd.getTime() - operationStart.getTime();
+                          durationDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
+                        } else {
+                          durationDays = 1;
+                        }
+                        
+                        // Generate recurring instances
+                        let currentDate = new Date(operationStart);
+                        const todayNormalized = new Date(today);
+                        todayNormalized.setHours(0, 0, 0, 0);
+                        const maxDate = new Date(todayNormalized);
+                        maxDate.setDate(maxDate.getDate() + 365); // Look ahead 1 year for recurring instances
+                        
+                        if (operation.recurrenceType === 'none') {
+                          // Single instance
+                          const instanceEnd = new Date(currentDate);
+                          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+                          instanceEnd.setHours(23, 59, 59, 999);
+                          if (currentDate <= maxDate) {
+                            projectOperationInstances.push({
+                              operation,
+                              startDate: new Date(currentDate),
+                              endDate: instanceEnd
+                            });
+                          }
+                        } else {
+                          // Generate recurring instances
+                          while (currentDate <= maxDate) {
+                            const instanceEnd = new Date(currentDate);
+                            instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
+                            instanceEnd.setHours(23, 59, 59, 999);
+                            
+                            // Check if this instance overlaps with today
+                            if (todayNormalized >= currentDate && todayNormalized <= instanceEnd) {
+                              projectOperationInstances.push({
+                                operation,
+                                startDate: new Date(currentDate),
+                                endDate: instanceEnd
+                              });
+                            }
+                            
+                            // Move to next occurrence
+                            if (operation.recurrenceType === 'weekly') {
+                              currentDate.setDate(currentDate.getDate() + 7);
+                            } else if (operation.recurrenceType === 'bi-weekly') {
+                              currentDate.setDate(currentDate.getDate() + 14);
+                            } else if (operation.recurrenceType === 'monthly') {
+                              currentDate.setMonth(currentDate.getMonth() + 1);
+                            } else {
+                              break;
+                            }
+                          }
+                        }
+                      });
+                      
+                      const todayOperations = projectOperationInstances.filter((instance) => {
+                        const instanceStart = new Date(instance.startDate);
+                        instanceStart.setHours(0, 0, 0, 0);
+                        const instanceEnd = new Date(instance.endDate);
+                        instanceEnd.setHours(23, 59, 59, 999);
                         const todayNormalized = new Date(today);
                         todayNormalized.setHours(0, 0, 0, 0);
                         
-                        const isTodayInRange = todayNormalized >= opStart && todayNormalized <= opEnd;
+                        const isTodayInRange = todayNormalized >= instanceStart && todayNormalized <= instanceEnd;
                         
                         // If toggle is on, only show operations assigned to current user
                         if (showOnlyMyAssignments) {
                           if (!currentUserEmployeeName && !currentUserEmployeeId) return false;
-                          const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
-                          const isAssignedToUser = opAssignedToId === currentUserEmployeeId || op.assignedTo === currentUserEmployeeName;
+                          const opAssignedToId = (instance.operation as any).assignedToEmployeeId?.toString();
+                          const isAssignedToUser = opAssignedToId === currentUserEmployeeId || instance.operation.assignedTo === currentUserEmployeeName;
                           return isTodayInRange && isAssignedToUser;
                         }
                         
                         return isTodayInRange;
-                      });
+                      }).map(instance => instance.operation);
 
                       if (todayOperations.length === 0) return null;
 
