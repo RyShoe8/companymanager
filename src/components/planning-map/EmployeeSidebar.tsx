@@ -908,7 +908,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
             {/* Assigned Operations - Only show when expanded */}
             {isExpanded && (() => {
               // Get instances for operations with startDate - these are already filtered by timeframe
-              const employeeOps = getOperationsForEmployee(employee.name);
+              const employeeOps = getOperationsForEmployee(employee);
               const instanceMap = new Map();
               employeeOps.forEach(instance => {
                 instanceMap.set(instance.operation._id.toString(), instance);
