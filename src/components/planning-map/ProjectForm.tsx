@@ -115,7 +115,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       name: '',
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      status: 'planning' as ProjectStatus,
+      status: 'planning' as TaskStatus,
     };
     setTasks([...tasks, newTask]);
   };
