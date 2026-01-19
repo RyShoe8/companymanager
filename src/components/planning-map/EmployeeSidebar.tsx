@@ -273,7 +273,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const dayOfWeek = today.getDay();
       if (dayOfWeek >= 1 && dayOfWeek <= 5) {
         // Today is a weekday = weeklyHours / 5
-        return Math.round((employee.weeklyHours / 5) * 10) / 10;
+        return Math.round((employee.weeklyHours / 5) * 100) / 100;
       } else {
         // Today is a weekend = 0 hours
         return 0;
@@ -288,7 +288,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     const weekdays = countWeekdays(startDate, endDate);
     const weeks = weekdays / 5;
     const hours = employee.weeklyHours * weeks;
-    return Math.round(hours * 10) / 10; // Round to 1 decimal
+    return Math.round(hours * 100) / 100; // Round to 2 decimals
   };
 
   const getProjectsForEmployee = (employee: IEmployee) => {
@@ -521,7 +521,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     // Debug logging
     console.log(`[DEBUG] getCommittedHours for ${employee.name}:`, {
       totalHours: totalHours,
-      rounded: Math.round(totalHours * 10) / 10,
+      rounded: Math.round(totalHours * 100) / 100,
       timeframe,
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0],
@@ -530,14 +530,14 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       opsWithoutDateCount: opsWithoutDate.length
     });
 
-    // Round to 1 decimal place for display
-    return Math.round(totalHours * 10) / 10;
+    // Round to 2 decimal places for display
+    return Math.round(totalHours * 100) / 100;
   };
 
   const getAvailableHours = (employee: IEmployee) => {
     const available = totalAvailableHours(employee);
     const committed = getCommittedHours(employee);
-    return Math.round(Math.max(0, available - committed) * 10) / 10; // Round to 1 decimal
+    return Math.round(Math.max(0, available - committed) * 100) / 100; // Round to 2 decimals
   };
 
   // Calculate completed hours for an employee (only items with status 'complete')
@@ -646,7 +646,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       }
     });
 
-    return Math.round(totalHours * 10) / 10;
+    return Math.round(totalHours * 100) / 100;
   };
 
   if (employees.length === 0) {
@@ -1024,7 +1024,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                               {operation.name}
                             </span>
                             {hoursInRange > 0 && (
-                              <span className="text-gray-600 ml-2">{hoursInRange.toFixed(1)}h</span>
+                              <span className="text-gray-600 ml-2">{hoursInRange.toFixed(2)}h</span>
                             )}
                           </div>
                           <div className="text-gray-500 dark:text-gray-500 text-[10px] mt-0.5">
@@ -1143,7 +1143,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                             projectEnd,
                             remainingProjectHours
                           );
-                          totalProjectHours = Math.round(totalProjectHours * 10) / 10;
+                          totalProjectHours = Math.round(totalProjectHours * 100) / 100;
                         }
                       }
                       
@@ -1159,7 +1159,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           taskEnd,
                           task.estimatedHours
                         );
-                        const roundedHours = Math.round(hours * 10) / 10;
+                        const roundedHours = Math.round(hours * 100) / 100;
                         // Only include tasks with hours > 0 in the timeframe
                         if (roundedHours <= 0) return null;
                         return {
@@ -1190,7 +1190,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           opEnd,
                           op.estimatedHours
                         );
-                        const roundedHours = Math.round(hours * 10) / 10;
+                        const roundedHours = Math.round(hours * 100) / 100;
                         // Only include operations with hours > 0 in the timeframe
                         if (roundedHours <= 0) return;
                         

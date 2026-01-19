@@ -301,7 +301,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       }, 0);
       
       // Round to 1 decimal place for consistency
-      return Math.round(totalOperationHours * 10) / 10;
+      return Math.round(totalOperationHours * 100) / 100;
     }
     
     // For non-launched projects, sum tasks' estimatedHours (excluding completed tasks)
@@ -317,7 +317,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       }, 0);
       
       // Round to 1 decimal place for consistency
-      return Math.round(totalTaskHours * 10) / 10;
+      return Math.round(totalTaskHours * 100) / 100;
     }
     
     // If no tasks, return 0 (or project.estimatedHours if you want to keep that as fallback)
