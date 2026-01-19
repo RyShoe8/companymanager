@@ -1322,13 +1322,23 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                           op.estimatedHours
                         );
                         const roundedHours = Math.round(hours * 100) / 100;
-                        // Only include operations with hours > 0 in the timeframe
-                        if (roundedHours <= 0) return;
+                        // Include operations that overlap the timeframe, even if hours round to 0
+                        // This ensures small operations (like 0.5h) show up correctly
+                        // Check if operation overlaps with timeframe
+                        const normalizedOpStart = normalizeToStartOfDay(opStart);
+                        const normalizedOpEnd = normalizeToEndOfDay(opEnd);
+                        const normalizedRangeStart = normalizeToStartOfDay(startDate);
+                        const normalizedRangeEnd = normalizeToEndOfDay(endDate);
+                        const overlaps = normalizedOpStart <= normalizedRangeEnd && normalizedOpEnd >= normalizedRangeStart;
+                        if (!overlaps) return;
+                        
+                        // Use Math.max to ensure we don't have negative values, but include even very small positive values
+                        const finalHours = Math.max(0, roundedHours);
                         
                         // For recurring operations, accumulate hours from all instances
                         if (operationHoursMap.has(opId)) {
                           const existing = operationHoursMap.get(opId)!;
-                          existing.hours += roundedHours;
+                          existing.hours += finalHours;
                           existing.hours = Math.round(existing.hours * 100) / 100;
                           // Update due date to the latest instance's end date
                           if (instance.endDate > (existing.dueDate || new Date(0))) {
@@ -1337,7 +1347,7 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                         } else {
                           operationHoursMap.set(opId, {
                             name: op.name,
-                            hours: roundedHours,
+                            hours: finalHours,
                             dueDate: new Date(instance.endDate), // Use instance endDate for correct display
                             operationId: opId
                           });
