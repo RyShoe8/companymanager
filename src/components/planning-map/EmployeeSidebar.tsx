@@ -664,9 +664,12 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
     const employeesWithUserId = employees.filter(employee => employee.userId != null);
     
     // Debug logging (temporary)
+    const currentEmployeeRecord = employeesWithUserId.find(e => e._id.toString() === currentUserEmployeeId);
     console.log('[EmployeeSidebar] Role filtering:', {
       currentUserRole,
       currentUserEmployeeId,
+      currentEmployeeName: currentEmployeeRecord?.name,
+      currentEmployeeRoleInDB: currentEmployeeRecord?.role,
       totalEmployees: employees.length,
       employeesWithUserId: employeesWithUserId.length,
       employeeNames: employeesWithUserId.map(e => e.name),
