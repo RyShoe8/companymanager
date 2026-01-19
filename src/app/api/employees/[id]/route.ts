@@ -209,6 +209,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const employeeName = employee.name;
     const employeeEmail = employee.email;
+    const employeeUserId = employee.userId;
 
     // Delete associated invitations
     const Invitation = (await import('@/lib/models/Invitation')).default;
@@ -222,6 +223,20 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Delete the employee from the database
     await Employee.deleteOne({ _id: id, organizationId: user.organizationId });
+
+    // Delete associated User account if employee has one
+    // Don't delete if they're the organization admin or a system admin
+    if (employeeUserId) {
+      const associatedUser = await User.findById(employeeUserId);
+      if (associatedUser) {
+        // Check if user is organization admin (their userId matches their organizationId)
+        const isOrgAdmin = associatedUser._id.toString() === associatedUser.organizationId;
+        // Don't delete organization admins or system admins
+        if (!isOrgAdmin && !associatedUser.isAdmin) {
+          await User.findByIdAndDelete(employeeUserId);
+        }
+      }
+    }
 
     // Remove from Brevo if email exists
     if (employeeEmail) {

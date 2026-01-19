@@ -196,7 +196,26 @@ export async function GET(request: NextRequest) {
 
       // Handle employee record
       if (invitationToken && employeeId) {
-        const employee = await Employee.findById(employeeId);
+        let employee = await Employee.findById(employeeId);
+        
+        // If not found by ID, try to find by email and organizationId
+        if (!employee) {
+          employee = await Employee.findOne({
+            email: email.toLowerCase(),
+            organizationId: organizationId,
+            userId: { $exists: false },
+          });
+        }
+        
+        // If still not found, try case-insensitive email search as fallback
+        if (!employee) {
+          employee = await Employee.findOne({
+            email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            organizationId: organizationId,
+            userId: { $exists: false },
+          });
+        }
+        
         if (employee) {
           // Check if employee already has a userId (prevent duplicates)
           if (employee.userId) {
@@ -204,24 +223,15 @@ export async function GET(request: NextRequest) {
           }
           employee.userId = user._id;
           if (name) employee.name = name;
-          await employee.save();
-        } else {
-          // Employee record not found - check if one exists by email/organization
-          const existingEmployee = await Employee.findOne({
-            email: email.toLowerCase(),
-            organizationId: organizationId,
-          });
-          if (existingEmployee) {
-            if (existingEmployee.userId) {
-              return NextResponse.redirect(new URL('/login?error=invitation_already_accepted', request.url));
-            }
-            // Link existing employee
-            existingEmployee.userId = user._id;
-            if (name) {
-              existingEmployee.name = name;
-            }
-            await existingEmployee.save();
+          // Ensure organizationId matches (in case of any mismatch)
+          if (employee.organizationId !== organizationId) {
+            employee.organizationId = organizationId;
           }
+          // Ensure email is set
+          if (!employee.email) {
+            employee.email = email.toLowerCase();
+          }
+          await employee.save();
         }
       } else if (isJoiningExistingOrg) {
         // Check if employee already exists before creating
