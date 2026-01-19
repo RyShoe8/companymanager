@@ -1099,7 +1099,11 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       const assignedTasks = project.tasks 
                         ? project.tasks.filter(task => {
                             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                            return taskAssignedToId === employee._id.toString() && task.status !== 'complete';
+                            const taskAssignedToName = task.assignedTo;
+                            // Check both employeeId and legacy name-based assignment
+                            const isAssignedById = taskAssignedToId === employee._id.toString();
+                            const isAssignedByName = taskAssignedToName && taskAssignedToName === employee.name;
+                            return (isAssignedById || isAssignedByName) && task.status !== 'complete';
                           })
                         : [];
                       
