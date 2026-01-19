@@ -95,7 +95,7 @@ export async function migrateAssignmentsToEmployeeId() {
       
       const operations = await Operation.find({ 
         userId: { $in: orgUserIds },
-        assignedTo: { $exists: true, $ne: null, $ne: '' },
+        assignedTo: { $exists: true, $ne: null, $nin: [''] },
         assignedToEmployeeId: { $exists: false }
       });
       
