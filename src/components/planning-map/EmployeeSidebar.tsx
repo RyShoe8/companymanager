@@ -1065,8 +1065,10 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
                       // Deduplicate by operation ID to avoid showing the same operation twice
                       const assignedOperationsMap = new Map<string, IOperation>();
                       operations.forEach(op => {
+                        const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
+                        const isAssignedToOp = opAssignedToId === employee._id.toString() || op.assignedTo === employee.name;
                         if (op.projectId?.toString() === project._id.toString() &&
-                            op.assignedTo === employee.name &&
+                            isAssignedToOp &&
                             op.status !== 'complete') {
                           const opId = op._id?.toString();
                           if (opId && !assignedOperationsMap.has(opId)) {
