@@ -235,11 +235,20 @@ export async function GET(request: NextRequest) {
         }
       } else if (isJoiningExistingOrg) {
         // Check if employee already exists before creating
-        const existingEmployee = await Employee.findOne({
+        let existingEmployee = await Employee.findOne({
           email: email.toLowerCase(),
           organizationId: organizationId,
         });
-        if (!existingEmployee) {
+        
+        if (existingEmployee) {
+          // Link existing employee to user if not already linked
+          if (!existingEmployee.userId) {
+            existingEmployee.userId = user._id;
+            if (name) existingEmployee.name = name;
+            await existingEmployee.save();
+          }
+        } else {
+          // Create new employee record
           await Employee.create({
             name: name || email.split('@')[0],
             role: 'User',
@@ -247,6 +256,7 @@ export async function GET(request: NextRequest) {
             employeeType: 'full-time',
             userId: user._id,
             organizationId: organizationId,
+            email: email.toLowerCase(),
           });
         }
       } else if (!invitationToken) {

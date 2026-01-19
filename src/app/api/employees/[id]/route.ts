@@ -43,7 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, role, jobTitle, team, weeklyHours, employeeType, email } = body;
+    let { name, role, jobTitle, team, weeklyHours, employeeType, email, userId } = body;
 
     await connectDB();
     const { id } = await params;
@@ -119,6 +119,32 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
       }
       employee.email = email || undefined;
+    }
+    if (userId !== undefined) {
+      // Only allow setting userId if it's not already set, or if admin is explicitly updating it
+      if (userId && isValidObjectId(userId)) {
+        // Verify the user exists and is in the same organization
+        const targetUser = await User.findById(userId);
+        if (!targetUser) {
+          return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+        if (targetUser.organizationId !== user.organizationId) {
+          return NextResponse.json({ error: 'User is not in the same organization' }, { status: 400 });
+        }
+        // Check if another employee already has this userId
+        const existingEmployeeWithUserId = await Employee.findOne({
+          userId: userId,
+          organizationId: user.organizationId,
+          _id: { $ne: id },
+        });
+        if (existingEmployeeWithUserId) {
+          return NextResponse.json({ error: 'Another employee already has this user account linked' }, { status: 400 });
+        }
+        employee.userId = userId;
+      } else if (userId === null || userId === '') {
+        // Allow clearing userId
+        employee.userId = undefined;
+      }
     }
 
     await employee.save();
