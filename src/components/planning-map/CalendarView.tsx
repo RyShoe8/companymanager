@@ -23,7 +23,30 @@ export default function CalendarView({ projects, operations, timeframe, currentD
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  
+  // Load expanded projects from localStorage on mount
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('calendar-expanded-projects');
+      if (saved) {
+        try {
+          const projectIds = JSON.parse(saved);
+          return new Set(projectIds);
+        } catch (e) {
+          return new Set();
+        }
+      }
+    }
+    return new Set();
+  });
+  
+  // Save expanded projects to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const projectIds = Array.from(expandedProjects);
+      localStorage.setItem('calendar-expanded-projects', JSON.stringify(projectIds));
+    }
+  }, [expandedProjects]);
 
   // Fetch employees to resolve names from IDs
   useEffect(() => {
@@ -47,6 +70,20 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       const commentMap = new Map<string, Date>();
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      // Load manually collapsed projects from localStorage
+      const manuallyCollapsed = new Set<string>();
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('calendar-manually-collapsed-projects');
+        if (saved) {
+          try {
+            const projectIds = JSON.parse(saved);
+            manuallyCollapsed.add(...projectIds);
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
       
       // Fetch comments for all projects
       const commentPromises = projects.map(async (project) => {
@@ -72,16 +109,18 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               const latestComment = new Date(Math.max(...timestamps.map(t => t.getTime())));
               commentMap.set(project._id.toString(), latestComment);
               
-              // If project was updated in last 7 days, expand it by default
-              if (latestComment >= sevenDaysAgo) {
-                setExpandedProjects(prev => new Set(prev).add(project._id.toString()));
+              // If project was updated in last 7 days AND hasn't been manually collapsed, expand it
+              const projectId = project._id.toString();
+              if (latestComment >= sevenDaysAgo && !manuallyCollapsed.has(projectId)) {
+                setExpandedProjects(prev => new Set(prev).add(projectId));
               }
             }
             
-            // Also check project.updatedAt - if it's recent, expand it
+            // Also check project.updatedAt - if it's recent AND hasn't been manually collapsed, expand it
             const projectUpdatedAt = new Date((project as any).updatedAt || project.createdAt);
-            if (projectUpdatedAt >= sevenDaysAgo) {
-              setExpandedProjects(prev => new Set(prev).add(project._id.toString()));
+            const projectId = project._id.toString();
+            if (projectUpdatedAt >= sevenDaysAgo && !manuallyCollapsed.has(projectId)) {
+              setExpandedProjects(prev => new Set(prev).add(projectId));
             }
           }
         } catch (error) {
@@ -134,8 +173,24 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       const newSet = new Set(prev);
       if (newSet.has(projectId)) {
         newSet.delete(projectId);
+        // Track manually collapsed projects
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('calendar-manually-collapsed-projects');
+          const manuallyCollapsed = saved ? new Set(JSON.parse(saved)) : new Set<string>();
+          manuallyCollapsed.add(projectId);
+          localStorage.setItem('calendar-manually-collapsed-projects', JSON.stringify(Array.from(manuallyCollapsed)));
+        }
       } else {
         newSet.add(projectId);
+        // Remove from manually collapsed if it was there
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('calendar-manually-collapsed-projects');
+          if (saved) {
+            const manuallyCollapsed = new Set(JSON.parse(saved));
+            manuallyCollapsed.delete(projectId);
+            localStorage.setItem('calendar-manually-collapsed-projects', JSON.stringify(Array.from(manuallyCollapsed)));
+          }
+        }
       }
       return newSet;
     });
