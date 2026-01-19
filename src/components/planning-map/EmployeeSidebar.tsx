@@ -879,6 +879,16 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
 
         const employeeId = employee._id.toString();
         const isExpanded = expandedEmployees.has(employeeId);
+        
+        // Debug logging
+        console.log(`[EmployeeSidebar] ${employee.name}:`, {
+          employeeId,
+          isExpanded,
+          employeeProjectsCount: employeeProjects.length,
+          projectNames: employeeProjects.map(p => p.name),
+          committedHours,
+          totalHours
+        });
 
         return (
           <Card key={employeeId} className="p-4">
