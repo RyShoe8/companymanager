@@ -415,20 +415,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
       
-      // Calculate total task hours assigned to this employee
-      let employeeTaskHours = 0;
+      // Calculate task hours assigned to this employee (count independently of project hours)
       if (project.tasks && project.tasks.length > 0) {
-        project.tasks.forEach((task) => {
-          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-          if (taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'complete') {
-            employeeTaskHours += task.estimatedHours;
-          }
-        });
-      }
-      
-      // If employee has tasks assigned, count those task hours
-      if (employeeTaskHours > 0 && project.estimatedHours && project.tasks) {
-        // Calculate the proportion of task hours in the timeframe
         const taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
@@ -665,20 +653,8 @@ export default function EmployeeSidebar({ employees, projects, operations, timef
       const projectStart = new Date(project.startDate);
       const projectEnd = new Date(project.endDate);
       
-      // Calculate total task hours assigned to this employee
-      let employeeTaskHours = 0;
+      // Calculate task hours assigned to this employee (count independently of project hours)
       if (project.tasks && project.tasks.length > 0) {
-        project.tasks.forEach((task) => {
-          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-          if (taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'complete') {
-            employeeTaskHours += task.estimatedHours;
-          }
-        });
-      }
-      
-      // If employee has tasks assigned, count those task hours
-      if (employeeTaskHours > 0 && project.estimatedHours && project.tasks) {
-        // Calculate the proportion of task hours in the timeframe
         const taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
