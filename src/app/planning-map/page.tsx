@@ -204,6 +204,10 @@ export default function PlanningMapPage() {
   // - Regular Users: Always see only their assignments
   // - Managers/Admins: Filter based on "Show only my assignments" toggle
   const filteredProjects = (() => {
+    // If role not set yet, show all projects (safer default)
+    if (!currentUserRole) {
+      return projects;
+    }
     // Regular users always see only their assignments
     if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
       return projects.filter((project) => {
@@ -233,6 +237,10 @@ export default function PlanningMapPage() {
   })();
 
   const filteredOperations = (() => {
+    // If role not set yet, show all operations (safer default)
+    if (!currentUserRole) {
+      return operations;
+    }
     // Regular users always see only their assignments
     if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
       return operations.filter((operation) => {
@@ -252,8 +260,23 @@ export default function PlanningMapPage() {
   })();
 
   // For EmployeeSidebar: Regular users see only their projects, Managers/Admins see all projects
-  const sidebarProjects = currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)
-    ? projects.filter((project) => {
+  const sidebarProjects = (() => {
+    console.log('[PlanningMapPage] sidebarProjects calculation:', {
+      currentUserRole,
+      currentUserEmployeeName,
+      currentUserEmployeeId,
+      totalProjects: projects.length,
+      projectNames: projects.map(p => p.name)
+    });
+    
+    // If role not set yet, show all projects (safer default)
+    if (!currentUserRole) {
+      console.log('[PlanningMapPage] No role set, returning all projects');
+      return projects;
+    }
+    // Regular users see only their projects
+    if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
+      const filtered = projects.filter((project) => {
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
         if (project.tasks && project.tasks.some(task => {
@@ -261,15 +284,30 @@ export default function PlanningMapPage() {
           return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
         })) return true;
         return false;
-      })
-    : projects;
+      });
+      console.log('[PlanningMapPage] User role, filtered projects:', filtered.length);
+      return filtered;
+    }
+    // Managers/Admins see all projects
+    console.log('[PlanningMapPage] Manager/Admin role, returning all projects');
+    return projects;
+  })();
 
-  const sidebarOperations = currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)
-    ? operations.filter((operation) => {
+  const sidebarOperations = (() => {
+    // If role not set yet, show all operations (safer default)
+    if (!currentUserRole) {
+      return operations;
+    }
+    // Regular users see only their operations
+    if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
+      return operations.filter((operation) => {
         const opAssignedToId = (operation as any).assignedToEmployeeId?.toString();
         return opAssignedToId === currentUserEmployeeId || operation.assignedTo === currentUserEmployeeName;
-      })
-    : operations;
+      });
+    }
+    // Managers/Admins see all operations
+    return operations;
+  })();
 
   if (loading) {
     return (
