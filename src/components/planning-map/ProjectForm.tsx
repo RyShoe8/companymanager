@@ -484,7 +484,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
               {operations.map((operation) => (
                 <div key={operation._id?.toString()} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-gray-900 dark:text-white">{operation.name}</h4>
+                    <h4 className="font-medium text-gray-900 dark:text-white">Operation</h4>
                     <Button
                       type="button"
                       variant="danger"
@@ -494,84 +494,78 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                       Delete
                     </Button>
                   </div>
-                  {operation.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{operation.description}</p>
-                  )}
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Status</label>
-                      <Select
-                        value={operation.status || 'planning'}
-                        onChange={(e) => operation._id && updateOperation(operation._id.toString(), { status: e.target.value as OperationStatus })}
-                        options={[
-                          { value: 'planning', label: 'Planning' },
-                          { value: 'active', label: 'Active' },
-                          { value: 'in-review', label: 'In Review' },
-                          { value: 'complete', label: 'Complete' },
-                        ]}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Assigned To</label>
-                      <Select
-                        value={(operation as any).assignedToEmployeeId?.toString() || operation.assignedTo || ''}
-                        onChange={(e) => {
-                          if (operation._id) {
-                            const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
-                            if (selectedEmployee) {
-                              updateOperation(operation._id.toString(), { 
-                                assignedToEmployeeId: selectedEmployee._id.toString() as any,
-                                assignedTo: selectedEmployee.name 
-                              });
-                            } else {
-                              updateOperation(operation._id.toString(), { 
-                                assignedTo: e.target.value || undefined 
-                              });
-                            }
-                          }
-                        }}
-                        options={[
-                          { value: '', label: 'None' },
-                          ...employees.map(emp => ({ 
-                            value: emp._id.toString(), 
-                            label: emp.name 
-                          }))
-                        ]}
-                      />
-                    </div>
-                    {operation.startDate && (
-                      <div>
-                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Start Date</label>
-                        <Input
-                          type="date"
-                          value={operation.startDate ? new Date(operation.startDate).toISOString().split('T')[0] : ''}
-                          onChange={(e) => operation._id && updateOperation(operation._id.toString(), { startDate: e.target.value ? new Date(e.target.value) : undefined })}
-                        />
-                      </div>
-                    )}
-                    {operation.endDate && (
-                      <div>
-                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">End Date</label>
-                        <Input
-                          type="date"
-                          value={operation.endDate ? new Date(operation.endDate).toISOString().split('T')[0] : ''}
-                          onChange={(e) => operation._id && updateOperation(operation._id.toString(), { endDate: e.target.value ? new Date(e.target.value) : undefined })}
-                        />
-                      </div>
-                    )}
-                    {operation.estimatedHours !== undefined && (
-                      <div>
-                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Estimated Hours</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          value={operation.estimatedHours?.toString() || ''}
-                          onChange={(e) => operation._id && updateOperation(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        />
-                      </div>
-                    )}
+                  <Input
+                    label="Operation Name"
+                    value={operation.name}
+                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { name: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Description (optional)"
+                    value={operation.description || ''}
+                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { description: e.target.value || undefined })}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Start Date"
+                      type="date"
+                      value={operation.startDate ? new Date(operation.startDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { startDate: e.target.value ? new Date(e.target.value) : undefined })}
+                    />
+                    <Input
+                      label="End Date"
+                      type="date"
+                      value={operation.endDate ? new Date(operation.endDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { endDate: e.target.value ? new Date(e.target.value) : undefined })}
+                    />
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Estimated Hours (optional)"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={operation.estimatedHours?.toString() || ''}
+                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { estimatedHours: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    />
+                    <Select
+                      label="Status"
+                      value={operation.status || 'planning'}
+                      onChange={(e) => operation._id && updateOperation(operation._id.toString(), { status: e.target.value as OperationStatus })}
+                      options={[
+                        { value: 'planning', label: 'Planning' },
+                        { value: 'active', label: 'Active' },
+                        { value: 'in-review', label: 'In Review' },
+                        { value: 'complete', label: 'Complete' },
+                      ]}
+                    />
+                  </div>
+                  <Select
+                    label="Assigned To (optional)"
+                    value={(operation as any).assignedToEmployeeId?.toString() || operation.assignedTo || ''}
+                    onChange={(e) => {
+                      if (operation._id) {
+                        const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
+                        if (selectedEmployee) {
+                          updateOperation(operation._id.toString(), { 
+                            assignedToEmployeeId: selectedEmployee._id.toString() as any,
+                            assignedTo: selectedEmployee.name 
+                          });
+                        } else {
+                          updateOperation(operation._id.toString(), { 
+                            assignedTo: e.target.value || undefined 
+                          });
+                        }
+                      }
+                    }}
+                    options={[
+                      { value: '', label: 'None' },
+                      ...employees.map(emp => ({ 
+                        value: emp._id.toString(), 
+                        label: emp.name 
+                      }))
+                    ]}
+                  />
                 </div>
               ))}
             </div>
