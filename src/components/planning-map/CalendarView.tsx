@@ -15,6 +15,7 @@ interface CalendarViewProps {
   onOperationClick: (operation: IOperation) => void;
   onDateChange?: (date: Date) => void;
   currentUserEmployeeName?: string | null;
+  currentUserEmployeeId?: string | null;
   isManagerOrAdmin?: boolean;
 }
 
