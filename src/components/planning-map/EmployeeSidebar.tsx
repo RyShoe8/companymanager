@@ -564,7 +564,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     const employeeOperations = getOperationsForEmployeeCalc(employee);
     // Also get operations without startDate for hours calculation
     const directOps = getOperationsForEmployeeDirectCalc(employee);
-    const opsWithoutDate = directOps.filter(op => !op.startDate && op.status !== 'complete');
+    const opsWithoutDate = directOps.filter(op => !op.startDate && op.status !== 'completed');
     let totalHours = 0;
 
     // Calculate hours from projects
@@ -647,7 +647,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeOperations.forEach((instance) => {
       const operation = instance.operation;
       // Skip completed operations - they don't count toward committed hours
-      if (operation.status === 'complete') {
+      if (operation.status === 'completed') {
         return;
       }
       
@@ -952,7 +952,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeOperations.forEach((instance) => {
       const operation = instance.operation;
       // Only count completed operations
-      if (operation.status !== 'complete') return;
+      if (operation.status !== 'completed') return;
       
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // Calculate hours the same way as tasks - spread across duration using weekdays
@@ -1097,7 +1097,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeOperations.forEach((instance) => {
       const operation = instance.operation;
       // Skip completed operations - they don't count toward committed hours
-      if (operation.status === 'complete') return;
+      if (operation.status === 'completed') return;
       
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // Calculate hours the same way as tasks - spread across duration using weekdays
@@ -1411,7 +1411,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
               // 2. Don't have a startDate (ongoing commitments)
               const directOps = getOperationsForEmployeeDirect(employee);
               const activeOps = directOps.filter(op => {
-                if (op.status === 'complete') return false; // Note: Operations still use 'complete'
+                if (op.status === 'completed') return false;
                 // Only show operations that aren't linked to a project
                 if (op.projectId) return false;
                 // Show if it has an instance in the current timeframe
@@ -1572,7 +1572,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                         
                         if (op.projectId?.toString() === project._id.toString() &&
                             isAssignedToEmployee &&
-                            op.status !== 'complete') {
+                            op.status !== 'completed') {
                           // Check if this instance overlaps with the current timeframe
                           const instanceStart = normalizeToStartOfDay(instance.startDate);
                           const instanceEnd = normalizeToEndOfDay(instance.endDate);
