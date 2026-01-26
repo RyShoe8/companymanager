@@ -131,8 +131,8 @@ export default function ProjectsPage() {
   };
 
   const selectedProject = projects.find(p => p._id.toString() === selectedProjectId);
-  const activeTasks = selectedProject?.tasks?.filter(t => t.status !== 'complete') || [];
-  const completedTasks = selectedProject?.tasks?.filter(t => t.status === 'complete') || [];
+  const activeTasks = selectedProject?.tasks?.filter(t => t.status !== 'completed') || [];
+  const completedTasks = selectedProject?.tasks?.filter(t => t.status === 'completed') || [];
 
   // Calculate employee utilization for the selected project
   const calculateEmployeeUtilization = () => {
@@ -165,7 +165,7 @@ export default function ProjectsPage() {
         let totalTaskHours = 0;
         if (selectedProject.tasks) {
           selectedProject.tasks.forEach(task => {
-            if (task.assignedTo && task.estimatedHours && task.status !== 'complete') {
+            if (task.assignedTo && task.estimatedHours && task.status !== 'completed') {
               totalTaskHours += task.estimatedHours;
             }
           });
@@ -178,7 +178,7 @@ export default function ProjectsPage() {
       if (selectedProject.tasks) {
         selectedProject.tasks.forEach(task => {
           if (task.assignedTo === employeeName && task.estimatedHours) {
-            if (task.status === 'complete') {
+            if (task.status === 'completed') {
               completedHours += task.estimatedHours;
             } else {
               taskHours += task.estimatedHours;
