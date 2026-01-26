@@ -49,7 +49,24 @@ export default function ProjectBlock({ project, onClick, onDelete }: ProjectBloc
             <p className="text-sm text-text-secondary mb-2">{project.description}</p>
           )}
           <p className="text-xs text-text-secondary">
-            {formatDate(new Date(project.startDate))} - {formatDate(new Date(project.endDate))}
+            {(() => {
+              // Projects don't have startDate - use createdAt or earliest task startDate
+              let startDate: Date;
+              if (project.tasks && project.tasks.length > 0) {
+                const earliestTask = project.tasks.reduce((earliest, task) => {
+                  return new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest;
+                });
+                startDate = new Date(earliestTask.startDate);
+              } else {
+                startDate = new Date(project.createdAt);
+              }
+              
+              if (project.endDate) {
+                return `${formatDate(startDate)} - ${formatDate(new Date(project.endDate))}`;
+              } else {
+                return `Created: ${formatDate(startDate)}`;
+              }
+            })()}
           </p>
         </div>
         {onDelete && (

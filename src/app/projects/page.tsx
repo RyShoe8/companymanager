@@ -269,18 +269,30 @@ export default function ProjectsPage() {
                       <span className="text-gray-500 dark:text-gray-400">Dates: </span>
                       <span className="text-gray-900 dark:text-white">
                         {(() => {
-                          // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
-                          const startDateObj = new Date(selectedProject.startDate);
-                          const startDateStr = startDateObj.toISOString().split('T')[0];
+                          // Projects don't have startDate - use createdAt or earliest task startDate
+                          let startDate: Date;
+                          if (selectedProject.tasks && selectedProject.tasks.length > 0) {
+                            const earliestTask = selectedProject.tasks.reduce((earliest, task) => {
+                              return new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest;
+                            });
+                            startDate = new Date(earliestTask.startDate);
+                          } else {
+                            startDate = new Date(selectedProject.createdAt);
+                          }
+                          
+                          const startDateStr = startDate.toISOString().split('T')[0];
                           const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
                           const localStartDate = new Date(startYear, startMonth - 1, startDay);
                           
-                          const endDateObj = new Date(selectedProject.endDate);
-                          const endDateStr = endDateObj.toISOString().split('T')[0];
-                          const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-                          const localEndDate = new Date(endYear, endMonth - 1, endDay);
-                          
-                          return `${formatDate(localStartDate)} - ${formatDate(localEndDate)}`;
+                          if (selectedProject.endDate) {
+                            const endDateObj = new Date(selectedProject.endDate);
+                            const endDateStr = endDateObj.toISOString().split('T')[0];
+                            const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+                            const localEndDate = new Date(endYear, endMonth - 1, endDay);
+                            return `${formatDate(localStartDate)} - ${formatDate(localEndDate)}`;
+                          } else {
+                            return `Created: ${formatDate(localStartDate)}`;
+                          }
                         })()}
                       </span>
                     </div>
