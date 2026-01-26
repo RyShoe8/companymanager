@@ -1849,8 +1849,17 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       <div className="space-y-6 p-6">
         {months.map(([monthStart, monthEnd], idx) => {
           const monthProjects = sortProjectsByLatestUpdate(projects.filter((p) => {
-            const pStart = new Date(p.startDate);
-            const pEnd = new Date(p.endDate);
+            // Projects don't have startDate - use createdAt or earliest task startDate
+            let pStart: Date;
+            if (p.tasks && p.tasks.length > 0) {
+              const earliestTask = p.tasks.reduce((earliest, task) => {
+                return new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest;
+              });
+              pStart = new Date(earliestTask.startDate);
+            } else {
+              pStart = new Date(p.createdAt);
+            }
+            const pEnd = p.endDate ? new Date(p.endDate) : new Date(pStart.getTime() + 30 * 24 * 60 * 60 * 1000); // Default to 30 days if no endDate
             return pStart <= monthEnd && pEnd >= monthStart;
           }));
 
