@@ -50,13 +50,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const body = await request.json();
     let { name, description, url, recurrenceType, status, assignedTo, assignedToEmployeeId, estimatedHours, startDate, endDate } = body;
     
+    await connectDB();
+    const { id } = await params;
+    
     // Debug: Log received status to verify it's being sent
     if (status !== undefined) {
       console.log('Received operation status update:', { operationId: id, status });
     }
-
-    await connectDB();
-    const { id } = await params;
 
     // Validate ObjectId format
     if (!isValidObjectId(id)) {
