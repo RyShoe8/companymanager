@@ -10,7 +10,7 @@ export default function GoogleSignInButton({ invitationToken, text = 'Continue w
   const handleGoogleSignIn = () => {
     const params = new URLSearchParams();
     if (invitationToken) {
-      params.set('invitationToken', invitationToken);
+      params.set('invitation', invitationToken);
     }
     const url = `/api/auth/google${params.toString() ? `?${params.toString()}` : ''}`;
     window.location.href = url;
