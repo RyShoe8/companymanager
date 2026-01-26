@@ -136,21 +136,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
-    // Validate dates if provided
-    if (startDate) {
-      const start = new Date(startDate);
-      if (isNaN(start.getTime())) {
-        return NextResponse.json({ error: 'Invalid start date format' }, { status: 400 });
-      }
+    // Parse and validate dates if provided
+    const parsedStartDate = startDate ? parseDateSafe(startDate) : undefined;
+    const parsedEndDate = endDate ? parseDateSafe(endDate) : undefined;
+    
+    if (startDate && !parsedStartDate) {
+      return NextResponse.json({ error: 'Invalid start date format' }, { status: 400 });
     }
-    if (endDate) {
-      const end = new Date(endDate);
-      if (isNaN(end.getTime())) {
-        return NextResponse.json({ error: 'Invalid end date format' }, { status: 400 });
-      }
-      if (startDate && new Date(startDate) > end) {
-        return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
-      }
+    if (endDate && !parsedEndDate) {
+      return NextResponse.json({ error: 'Invalid end date format' }, { status: 400 });
+    }
+    if (parsedStartDate && parsedEndDate && parsedEndDate < parsedStartDate) {
+      return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
     }
 
     const operationData: any = {
