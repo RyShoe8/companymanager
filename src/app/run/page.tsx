@@ -33,6 +33,7 @@ export default function RunPage() {
   const [loading, setLoading] = useState(true);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [showProjectDetail, setShowProjectDetail] = useState(false);
+  const [showOperationForm, setShowOperationForm] = useState(false);
   const [showOperationDetail, setShowOperationDetail] = useState(false);
   const [editingProject, setEditingProject] = useState<IProject | undefined>();
   const [editingOperation, setEditingOperation] = useState<IOperation | undefined>();
