@@ -4,6 +4,7 @@ import Project from '@/lib/models/Project';
 import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, cleanupLaunchedProjectTasks } from '@/lib/utils/apiHelpers';
+import { getDefaultTaskDates, parseDateSafe } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const projects = await Project.find(query).sort({ startDate: 1 }).lean();
+    const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
     
     // Migrate stages to tasks for backward compatibility and clean up launched projects
     const migratedProjects = await Promise.all(projects.map(async (project: any) => {
@@ -148,11 +149,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, startDate, endDate, timeframeType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks } = body;
+    const { name, description, url, urls, projectType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks } = body;
 
-    if (!name || !startDate || !endDate || !timeframeType) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Name, startDate, endDate, and timeframeType are required' },
+        { error: 'Name is required' },
         { status: 400 }
       );
     }
@@ -161,13 +162,15 @@ export async function POST(request: NextRequest) {
       name,
       description,
       urls: urls || [],
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      timeframeType,
+      projectType: projectType || 'generic',
       color: color || '#3b82f6',
       status: status || 'planning',
       userId: session.userId,
     };
+
+    if (endDate !== undefined && endDate !== null && endDate !== '') {
+      projectData.endDate = new Date(endDate);
+    }
 
     if (estimatedHours !== undefined) {
       projectData.estimatedHours = estimatedHours;
@@ -207,10 +210,19 @@ export async function POST(request: NextRequest) {
 
     if (tasks && Array.isArray(tasks)) {
       projectData.tasks = await Promise.all(tasks.map(async (task: any) => {
+        const defaultDates = getDefaultTaskDates();
+        const startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
+        const endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
+        
+        // Validate end date is after start date
+        if (endDate < startDate) {
+          throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after start date`);
+        }
+        
         const taskData: any = {
           ...task,
-          startDate: new Date(task.startDate),
-          endDate: new Date(task.endDate),
+          startDate,
+          endDate,
         };
         
         // Handle employee assignment for tasks - prefer employeeId over name
@@ -240,7 +252,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
-    // Create project error
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error creating project:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

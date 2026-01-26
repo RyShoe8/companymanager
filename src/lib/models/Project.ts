@@ -1,8 +1,9 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type TimeframeType = 'today' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
-export type TaskStatus = 'planning' | 'active' | 'in-review' | 'complete';
+export type ProjectType = 'website' | 'store' | 'app' | 'generic';
+export type ProjectClientType = 'internal' | 'client';
+export type TaskStatus = 'active' | 'completed' | 'in-review';
 
 export interface IProjectTask {
   name: string;
@@ -20,11 +21,10 @@ export interface IProject extends Document {
   description?: string;
   url?: string; // Legacy field, kept for backward compatibility
   urls?: string[]; // New field for multiple URLs
-  startDate: Date;
-  endDate: Date;
-  timeframeType: TimeframeType;
+  projectType: ProjectType;
   color: string;
   status: ProjectStatus;
+  endDate?: Date; // Optional end date - project stops appearing on status page after this date
   estimatedHours?: number;
   assignedTo?: string; // Legacy - kept for backward compatibility
   assignedToEmployeeId?: Types.ObjectId; // Legacy single assignment - kept for backward compatibility
@@ -55,18 +55,11 @@ const ProjectSchema: Schema = new Schema(
       type: [String],
       default: [],
     },
-    startDate: {
-      type: Date,
-      required: true,
-    },
-    endDate: {
-      type: Date,
-      required: true,
-    },
-    timeframeType: {
+    projectType: {
       type: String,
-      enum: ['today', 'weekly', 'monthly', 'quarterly', 'yearly'],
+      enum: ['website', 'store', 'app', 'generic'],
       required: true,
+      default: 'generic',
     },
     color: {
       type: String,
@@ -77,6 +70,10 @@ const ProjectSchema: Schema = new Schema(
       type: String,
       enum: ['planning', 'in-development', 'launched', 'in-review', 'completed'],
       default: 'planning',
+    },
+    endDate: {
+      type: Date,
+      required: false,
     },
     estimatedHours: {
       type: Number,
@@ -167,8 +164,8 @@ const ProjectSchema: Schema = new Schema(
         },
         status: {
           type: String,
-          enum: ['planning', 'active', 'in-review', 'complete'],
-          default: 'planning',
+          enum: ['active', 'completed', 'in-review'],
+          default: 'active',
         },
       },
     ],
@@ -184,6 +181,15 @@ const ProjectSchema: Schema = new Schema(
 );
 
 // Migration logic has been moved to src/lib/utils/apiHelpers.ts
+
+// Add indexes for better query performance
+ProjectSchema.index({ userId: 1 });
+ProjectSchema.index({ status: 1 });
+ProjectSchema.index({ projectType: 1 });
+ProjectSchema.index({ assignedToEmployeeId: 1 });
+ProjectSchema.index({ assignedToEmployeeIds: 1 });
+ProjectSchema.index({ 'tasks.assignedToEmployeeId': 1 });
+ProjectSchema.index({ createdAt: -1 });
 
 const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);
 

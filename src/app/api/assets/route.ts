@@ -45,11 +45,11 @@ export async function GET(request: NextRequest) {
       query.linkedOperationId = linkedOperationId;
     }
 
-    const assets = await Asset.find(query).sort({ createdAt: -1 });
+    const assets = await Asset.find(query).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json(assets);
   } catch (error) {
-    // Get assets error
+    console.error('Error fetching assets:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
-    // Create asset error
+    console.error('Error creating asset:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

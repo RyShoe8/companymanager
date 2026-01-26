@@ -481,32 +481,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
       {/* Project Details */}
       <Card className="p-4">
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-text-secondary">Start Date</label>
-            <p className="text-text-primary">
-              {(() => {
-                // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
-                const startDateObj = new Date(project.startDate);
-                const startDateStr = startDateObj.toISOString().split('T')[0];
-                const [year, month, day] = startDateStr.split('-').map(Number);
-                const localDate = new Date(year, month - 1, day);
-                return formatDate(localDate);
-              })()}
-            </p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-text-secondary">End Date</label>
-            <p className="text-text-primary">
-              {(() => {
-                // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
-                const endDateObj = new Date(project.endDate);
-                const endDateStr = endDateObj.toISOString().split('T')[0];
-                const [year, month, day] = endDateStr.split('-').map(Number);
-                const localDate = new Date(year, month - 1, day);
-                return formatDate(localDate);
-              })()}
-            </p>
-          </div>
+          {/* Projects don't have dates - only tasks and operations do */}
           <div className="col-span-2">
             <div className="flex gap-2 mb-2">
               {projectAssets.length > 0 && (

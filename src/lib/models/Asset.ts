@@ -78,6 +78,14 @@ const AssetSchema: Schema = new Schema(
   }
 );
 
+// Add indexes for better query performance
+AssetSchema.index({ userId: 1 });
+AssetSchema.index({ linkedProjectId: 1 });
+AssetSchema.index({ linkedOperationId: 1 });
+AssetSchema.index({ type: 1 });
+AssetSchema.index({ tags: 1 });
+AssetSchema.index({ createdAt: -1 });
+
 const Asset: Model<IAsset> = mongoose.models.Asset || mongoose.model<IAsset>('Asset', AssetSchema);
 
 export default Asset;

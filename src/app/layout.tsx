@@ -5,6 +5,7 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import OrganizationSetupCheck from "@/components/OrganizationSetupCheck";
+import MobileBottomNav from "@/components/ui/MobileBottomNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -114,10 +115,11 @@ export default function RootLayout({
         />
         <OrganizationSetupCheck>
           <Navigation />
-          <main className="flex-1">
+          <main className="flex-1 pb-16 md:pb-0">
             {children}
           </main>
           <Footer />
+          <MobileBottomNav />
         </OrganizationSetupCheck>
       </body>
     </html>

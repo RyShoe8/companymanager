@@ -4,6 +4,7 @@ import Asset from '@/lib/models/Asset';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { escapeRegex, sanitizeString } from '@/lib/utils/security';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,8 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     // Search in name, description, and tags with escaped query
     const assets = await Asset.find({
@@ -46,11 +46,11 @@ export async function GET(request: NextRequest) {
         { description: { $regex: escapedQuery, $options: 'i' } },
         { tags: { $in: [new RegExp(escapedQuery, 'i')] } },
       ],
-    }).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json(assets);
   } catch (error) {
-    // Search assets error
+    console.error('Error searching assets:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

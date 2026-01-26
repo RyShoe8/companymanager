@@ -73,6 +73,11 @@ const EmployeeSchema: Schema = new Schema(
   }
 );
 
+// Add indexes for better query performance
+EmployeeSchema.index({ userId: 1 });
+EmployeeSchema.index({ organizationId: 1, role: 1 });
+EmployeeSchema.index({ email: 1 });
+
 const Employee: Model<IEmployee> = mongoose.models.Employee || mongoose.model<IEmployee>('Employee', EmployeeSchema);
 
 export default Employee;

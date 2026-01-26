@@ -4,6 +4,7 @@ import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { sanitizeString } from '@/lib/utils/security';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { parseDateSafe } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const operations = await Operation.find(query).sort({ createdAt: -1 });
+    const operations = await Operation.find(query).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json(operations);
   } catch (error) {
@@ -118,6 +119,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name and recurrenceType are required' }, { status: 400 });
     }
 
+    // Operations must be associated with a project
+    if (!projectId) {
+      return NextResponse.json({ error: 'projectId is required. Operations must be created within a project.' }, { status: 400 });
+    }
+
     // Validate recurrenceType
     const validRecurrenceTypes = ['none', 'weekly', 'bi-weekly', 'monthly'];
     if (!validRecurrenceTypes.includes(recurrenceType)) {
@@ -152,7 +158,7 @@ export async function POST(request: NextRequest) {
       description,
       url,
       recurrenceType,
-      status: status || 'planning',
+      status: status || 'active',
       userId: session.userId,
     };
 
@@ -178,11 +184,11 @@ export async function POST(request: NextRequest) {
     if (estimatedHours !== undefined) {
       operationData.estimatedHours = estimatedHours;
     }
-    if (startDate) {
-      operationData.startDate = new Date(startDate);
+    if (parsedStartDate) {
+      operationData.startDate = parsedStartDate;
     }
-    if (endDate) {
-      operationData.endDate = new Date(endDate);
+    if (parsedEndDate) {
+      operationData.endDate = parsedEndDate;
     }
     if (projectId) {
       operationData.projectId = new Types.ObjectId(projectId);
@@ -192,7 +198,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(operation, { status: 201 });
   } catch (error) {
-    // Create operation error
+    console.error('Error creating operation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

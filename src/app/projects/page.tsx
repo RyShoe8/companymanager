@@ -8,7 +8,6 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import ProjectForm from '@/components/planning-map/ProjectForm';
-import { TimeframeType } from '@/lib/utils/dateUtils';
 import { IEmployee } from '@/lib/models/Employee';
 import { formatDate } from '@/lib/utils/dateUtils';
 import Select from '@/components/ui/Select';
@@ -97,7 +96,7 @@ export default function ProjectsPage() {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, timeframeType: 'monthly' }),
+        body: JSON.stringify(data),
       });
 
       if (response.ok) {
@@ -1029,7 +1028,6 @@ export default function ProjectsPage() {
         <Modal isOpen={showProjectForm} onClose={() => setShowProjectForm(false)}>
           <ProjectForm
             project={editingProject}
-            timeframeType="monthly"
             onSubmit={handleSubmitProject}
             onCancel={() => setShowProjectForm(false)}
             userRole={currentUserRole}

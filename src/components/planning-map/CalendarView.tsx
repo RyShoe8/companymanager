@@ -525,27 +525,60 @@ export default function CalendarView({ projects, operations, timeframe, currentD
     handleDateChange(today);
   };
 
+  // Projects always exist in their stage view - they don't have dates themselves
+  // We also want to show projects with completed tasks/operations from previous weeks to see accomplished work
   const getProjectsForDay = (day: Date) => {
-    return projects.filter((project) => {
-      // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
-      const startDateObj = new Date(project.startDate);
-      const startDateStr = startDateObj.toISOString().split('T')[0];
-      const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-      const projectStart = new Date(startYear, startMonth - 1, startDay);
-      projectStart.setHours(0, 0, 0, 0);
+    const dayStart = new Date(day);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+    
+    // Get the current view's date range to check for completed tasks/operations
+    const viewRange = getDateRange();
+    const viewStart = new Date(viewRange.start);
+    viewStart.setHours(0, 0, 0, 0);
+    const viewEnd = new Date(viewRange.end);
+    viewEnd.setHours(23, 59, 59, 999);
+    
+    return projects.filter(project => {
+      // Projects always show in their stage view - they don't need dates
+      // But we also want to include projects that have completed tasks/operations within the view range
+      // to show accomplished work from previous timeframes
       
-      const endDateObj = new Date(project.endDate);
-      const endDateStr = endDateObj.toISOString().split('T')[0];
-      const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-      const projectEnd = new Date(endYear, endMonth - 1, endDay);
-      projectEnd.setHours(23, 59, 59, 999);
+      // Check if project has tasks (including completed ones) that fall within the view range
+      if (project.tasks && project.tasks.length > 0) {
+        const hasTaskInViewRange = project.tasks.some(task => {
+          if (!task.startDate || !task.endDate) return false;
+          const taskStart = new Date(task.startDate);
+          taskStart.setHours(0, 0, 0, 0);
+          const taskEnd = new Date(task.endDate);
+          taskEnd.setHours(23, 59, 59, 999);
+          // Include tasks that overlap with the view range (including completed ones)
+          return taskStart <= viewEnd && taskEnd >= viewStart;
+        });
+        if (hasTaskInViewRange) return true;
+      }
       
-      const dayStart = new Date(day);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(day);
-      dayEnd.setHours(23, 59, 59, 999);
+      // Check if project has operations (including completed ones) that fall within the view range
+      if (project.status === 'launched') {
+        const projectOperations = operations.filter(op => 
+          op.projectId?.toString() === project._id.toString()
+        );
+        const hasOperationInViewRange = projectOperations.some(operation => {
+          if (!operation.startDate) return false;
+          const opStart = new Date(operation.startDate);
+          opStart.setHours(0, 0, 0, 0);
+          const opEnd = operation.endDate ? new Date(operation.endDate) : new Date(operation.startDate);
+          opEnd.setHours(23, 59, 59, 999);
+          // Include operations that overlap with the view range (including completed ones)
+          return opStart <= viewEnd && opEnd >= viewStart;
+        });
+        if (hasOperationInViewRange) return true;
+      }
       
-      return projectStart <= dayEnd && projectEnd >= dayStart;
+      // Always show projects in their stage view, even if they have no tasks/operations
+      // or if their tasks/operations are outside the view range
+      return true;
     });
   };
 
@@ -678,20 +711,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {todayProjects.map((project) => {
-                // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
-                const startDateObj = new Date(project.startDate);
-                const startDateStr = startDateObj.toISOString().split('T')[0];
-                const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-                const projectStart = new Date(startYear, startMonth - 1, startDay);
-                projectStart.setHours(0, 0, 0, 0);
-                
-                const endDateObj = new Date(project.endDate);
-                const endDateStr = endDateObj.toISOString().split('T')[0];
-                const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-                const projectEnd = new Date(endYear, endMonth - 1, endDay);
-                projectEnd.setHours(23, 59, 59, 999);
-                
-                const totalDays = Math.ceil((projectEnd.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                // Projects don't have dates - they just exist in their stage
                 const displayColor = project.status === 'in-review' ? '#ef4444' : project.color; // Red for in-review
                 const projectId = project._id.toString();
                 const isExpanded = expandedProjects.has(projectId);
@@ -705,7 +725,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     key={projectId}
                     className="p-6 rounded-lg border-2 border-border"
                     style={{
-                      backgroundColor: displayColor + '20',
+                      backgroundColor: displayColor + 'F0',
                       borderColor: displayColor,
                     }}
                   >
@@ -713,7 +733,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       className="flex items-start justify-between cursor-pointer"
                       onClick={() => onProjectClick(project)}
                     >
-                      <h4 className={`text-xl font-bold text-text-primary ${project.status === 'completed' ? 'line-through opacity-60' : ''}`} style={{ color: displayColor }}>
+                      <h4 className={`text-xl font-bold text-white ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}>
                         {project.name}
                       </h4>
                       <div className="flex items-center gap-2">
@@ -729,7 +749,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               e.stopPropagation();
                               toggleProjectExpanded(projectId);
                             }}
-                            className="text-text-secondary hover:text-text-primary transition-colors"
+                            className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
                             aria-label={isExpanded ? 'Collapse' : 'Expand'}
                           >
                             {isExpanded ? '▼' : '▶'}
@@ -741,22 +761,16 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     {isExpanded && (
                       <>
                         {project.description && (
-                          <p className="text-text-secondary mb-3 mt-3">{project.description}</p>
+                          <p className="text-white opacity-90 mb-3 mt-3">{project.description}</p>
                         )}
 
                         <div className="space-y-2 mt-3">
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-text-secondary">
-                              <strong>Duration:</strong> {formatDate(projectStart)} - {formatDate(projectEnd)} ({totalDays} {totalDays === 1 ? 'day' : 'days'})
-                            </span>
-                          </div>
-                          
-                          <div className="text-sm text-text-secondary">
+                          <div className="text-sm text-white opacity-90">
                             <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
                           </div>
                           
                           {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
-                            <div className="text-sm text-text-secondary">
+                            <div className="text-sm text-white opacity-90">
                               <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
                             </div>
                           )}
@@ -767,7 +781,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     {/* Show tasks for non-launched projects */}
                     {hasTasks && (
                       <div className="mt-4">
-                        <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
+                        <p className="text-sm font-semibold text-white mb-2">Tasks:</p>
                         {isExpanded ? (
                           <div className="space-y-2">
                             {/* Show all tasks for managers/admins (unless toggle is on), or tasks assigned to current user */}
@@ -872,7 +886,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                 return (
                                   <div 
                                     key={`${project._id.toString()}-task-${idx}`} 
-                                    className={`text-sm text-text-secondary ${task.status === 'complete' ? 'line-through opacity-60' : ''}`}
+                                    className={`text-sm text-white ${task.status === 'complete' ? 'line-through opacity-60' : ''}`}
                                   >
                                     {task.name}
                                   </div>
@@ -1096,7 +1110,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
             return (
               <div
                 key={dayIdx}
-                className={`p-4 min-h-[360px] relative ${isCurrentDay ? 'bg-primary-light' : ''}`}
+                className={`p-4 min-h-[1200px] relative z-0 ${isCurrentDay ? 'bg-primary-light' : ''}`}
               >
                 <div
                   className={`text-lg font-semibold mb-3 ${
@@ -1105,13 +1119,15 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 >
                   {day.getDate()}
                 </div>
-                <div className="space-y-2 relative" style={{ minHeight: '300px' }}>
+                <div className="space-y-2 relative" style={{ minHeight: '840px', backgroundColor: 'transparent' }}>
                   {/* Projects will be rendered as absolute positioned elements */}
                 </div>
               </div>
             );
           })}
           {/* Render operations and projects spanning across days */}
+          <div className="absolute inset-0 z-10 pointer-events-none">
+            <div className="relative w-full h-full pointer-events-auto">
           {(() => {
             // Get all unique operation instances for this week
             const weekOperationInstances = new Map<string, typeof operationInstances[0]>();
@@ -1142,26 +1158,19 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               });
             });
             
-            // Add projects (sorted by latest update)
+            // Add projects (sorted by latest update) - projects span the full week since they have no dates
+            const weekStart = new Date(days[0]);
+            weekStart.setHours(0, 0, 0, 0);
+            const weekEnd = new Date(days[6]);
+            weekEnd.setHours(23, 59, 59, 999);
+            
             sortProjectsByLatestUpdate(Array.from(weekProjects.values())).forEach(project => {
-              // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
-              const startDateObj = new Date(project.startDate);
-              const startDateStr = startDateObj.toISOString().split('T')[0];
-              const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-              const projectStart = new Date(startYear, startMonth - 1, startDay);
-              projectStart.setHours(0, 0, 0, 0);
-              
-              const endDateObj = new Date(project.endDate);
-              const endDateStr = endDateObj.toISOString().split('T')[0];
-              const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-              const projectEnd = new Date(endYear, endMonth - 1, endDay);
-              projectEnd.setHours(23, 59, 59, 999);
-              
+              // Projects always exist - they span the full visible timeframe
               allItems.push({
                 type: 'project',
                 project: project,
-                startDate: projectStart,
-                endDate: projectEnd,
+                startDate: weekStart,
+                endDate: weekEnd,
               });
             });
             
@@ -1213,34 +1222,115 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               };
             }).filter((pos): pos is NonNullable<typeof pos> => pos !== null);
 
-            // Calculate vertical stacking positions
+            // Calculate card heights first
+            const cardHeights = itemPositions.map((pos) => {
+              const isOperation = pos.type === 'operation';
+              if (isOperation) return 60; // Operations need space for name + status badge + padding
+              
+              const project = pos.project!;
+              const hasTasks = project.tasks && project.tasks.length > 0 && project.status !== 'launched';
+              const hasOperations = project.status === 'launched' && operations.some((op) => 
+                op.projectId?.toString() === project._id.toString() && op.startDate
+              );
+              
+              let taskCount = 0;
+              if (hasTasks) {
+                taskCount = project.tasks!.filter((task) => {
+                  const taskStart = new Date(task.startDate);
+                  taskStart.setHours(0, 0, 0, 0);
+                  const taskEnd = new Date(task.endDate);
+                  taskEnd.setHours(23, 59, 59, 999);
+                  const weekStart = new Date(days[0]);
+                  weekStart.setHours(0, 0, 0, 0);
+                  const weekEnd = new Date(days[6]);
+                  weekEnd.setHours(23, 59, 59, 999);
+                  return taskStart <= weekEnd && taskEnd >= weekStart;
+                }).length;
+              } else if (hasOperations) {
+                const projectOps = operations.filter((op) => 
+                  op.projectId?.toString() === project._id.toString() && op.startDate
+                );
+                taskCount = projectOps.length;
+              }
+              
+              // Height calculation: header (project name + status badge) + padding + tasks
+              // Match today view exactly: p-6 = 24px padding, header ~60px, each task card ~80px
+              const projectId = pos.project!._id.toString();
+              const isExpanded = expandedProjects.has(projectId);
+              
+              const topPadding = 24; // p-6 top padding
+              const headerHeight = 60; // Project name + status badge + spacing
+              const bottomPadding = 24; // p-6 bottom padding
+              
+              if (!isExpanded) {
+                // Calculate collapsed height: header + collapsed task/operation list
+                const weekStart = new Date(days[0]);
+                weekStart.setHours(0, 0, 0, 0);
+                const weekEnd = new Date(days[6]);
+                weekEnd.setHours(23, 59, 59, 999);
+                
+                let collapsedItemsHeight = 0;
+                if (hasTasks) {
+                  const visibleTasks = project.tasks!.filter((task) => {
+                    const taskStart = new Date(task.startDate);
+                    taskStart.setHours(0, 0, 0, 0);
+                    const taskEnd = new Date(task.endDate);
+                    taskEnd.setHours(23, 59, 59, 999);
+                    return taskStart <= weekEnd && taskEnd >= weekStart;
+                  });
+                  const collapsedTaskCount = Math.min(visibleTasks.length, 5);
+                  const collapsedTaskHeight = 20; // Each collapsed task line ~20px
+                  collapsedItemsHeight = collapsedTaskCount > 0 ? (collapsedTaskCount * collapsedTaskHeight) + 8 : 0; // +8 for spacing
+                } else if (hasOperations) {
+                  const visibleOps = operations.filter((op) => 
+                    op.projectId?.toString() === project._id.toString() && op.startDate
+                  );
+                  const collapsedOpCount = Math.min(visibleOps.length, 5);
+                  const collapsedOpHeight = 20; // Each collapsed operation line ~20px
+                  collapsedItemsHeight = collapsedOpCount > 0 ? (collapsedOpCount * collapsedOpHeight) + 8 : 0; // +8 for spacing
+                }
+                
+                return topPadding + headerHeight + collapsedItemsHeight + bottomPadding;
+              }
+              
+              // Expanded height calculation
+              const visibleCount = Math.min(taskCount, 3);
+              const descriptionHeight = project.description ? 40 : 0; // Description if present
+              const estimatedHoursHeight = 48; // Estimated hours section + assigned to (space-y-2)
+              const tasksSectionPadding = 16; // mt-4 = 16px
+              const tasksHeaderHeight = 24; // "Tasks:" label + mb-2
+              const taskHeight = 80; // Each task card height (matches today view)
+              return topPadding + headerHeight + descriptionHeight + estimatedHoursHeight + tasksSectionPadding + tasksHeaderHeight + (visibleCount * taskHeight) + bottomPadding;
+            });
+            
+            // Calculate vertical stacking positions with variable heights
             const stackPositions: number[] = new Array(itemPositions.length).fill(0);
-            const rowHeight = 24; // Height of each row in pixels
-            const baseTop = 60; // Base top position
+            const topPositions: number[] = new Array(itemPositions.length).fill(0);
+            const baseTop = 60; // Base top position (increased from 60 to accommodate larger cards)
 
             for (let i = 0; i < itemPositions.length; i++) {
               const current = itemPositions[i];
               let stackLevel = 0;
+              let topPosition = baseTop;
               
               // Check all previous items to see if they overlap
               for (let j = 0; j < i; j++) {
                 const previous = itemPositions[j];
                 // Check if items overlap in time
                 if (current.displayStart <= previous.displayEnd && current.displayEnd >= previous.displayStart) {
-                  // They overlap, so this item needs to be on a higher stack level
-                  stackLevel = Math.max(stackLevel, stackPositions[j] + 1);
+                  // They overlap, so this item needs to be below the previous one
+                  const previousBottom = topPositions[j] + cardHeights[j];
+                  topPosition = Math.max(topPosition, previousBottom + 2); // 2px gap
                 }
               }
               
               stackPositions[i] = stackLevel;
+              topPositions[i] = topPosition;
             }
 
             return itemPositions.map((pos, idx) => {
-              const topPosition = baseTop + (stackPositions[idx] * rowHeight);
               const isOperation = pos.type === 'operation';
               const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
-              const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
-              const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
               const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
               const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
               const assignedToId = isOperation 
@@ -1258,28 +1348,245 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                 }
               }
               
+              const cardHeight = cardHeights[idx];
+              const topPosition = topPositions[idx];
+              
+              // Use the same color logic as today view
+              const displayColor = isOperation 
+                ? (status === 'in-review' ? '#FFAB00' : '#9ca3af')
+                : (status === 'in-review' ? '#ef4444' : (pos.project?.color || '#3b82f6'));
+              
+              // Check if project is expanded for weekly view
+              const projectId = !isOperation ? pos.project!._id.toString() : null;
+              const isExpanded = projectId ? expandedProjects.has(projectId) : false;
+              
               return (
                 <div
                   key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-weekly` : `${pos.project!._id.toString()}-weekly`}
-                  onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                  className={`absolute text-xs px-2 py-1 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? status === 'complete' : status === 'completed') ? 'line-through opacity-60' : ''}`}
+                  className={`absolute rounded-lg border-2 border-border ${(isOperation ? (status === 'complete' || status === 'completed') : (status === 'completed')) ? 'line-through opacity-60' : ''}`}
                   style={{
-                    backgroundColor: color,
-                    color: 'white',
-                    left: `calc(${pos.startCol * (100 / 7)}% + ${pos.startCol * 1}px)`,
-                    width: `calc(${pos.span * (100 / 7)}% - ${pos.span * 1}px)`,
+                    backgroundColor: displayColor + 'F0',
+                    borderColor: displayColor,
+                    left: `calc(${pos.startCol * (100 / 7)}% + 4px)`,
+                    width: `calc(${pos.span * (100 / 7)}% - 8px)`,
                     top: `${topPosition}px`,
-                    height: `${rowHeight - 2}px`,
-                    overflow: 'hidden',
-                    lineHeight: `${rowHeight - 4}px`,
+                    height: `${cardHeight}px`,
                   }}
                   title={`${name}${durationText}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                 >
-                  <div className="font-medium truncate">{name}</div>
+                  <div 
+                    className="flex items-start justify-between cursor-pointer p-6"
+                    onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
+                  >
+                    <h4 className={`text-xl font-bold text-white ${(isOperation ? (status === 'complete' || status === 'completed') : (status === 'completed')) ? 'line-through opacity-60' : ''}`}>
+                      {name}
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      {!isOperation && pos.project && (() => {
+                        const project = pos.project!;
+                        const hasTasks = project.tasks && project.tasks.length > 0 && project.status !== 'launched';
+                        const hasOperations = project.status === 'launched' && operations.some((op) => 
+                          op.projectId?.toString() === project._id.toString() && op.startDate
+                        );
+                        return (hasTasks || hasOperations) ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleProjectExpanded(projectId!);
+                            }}
+                            className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
+                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                          >
+                            {isExpanded ? '▼' : '▶'}
+                          </button>
+                        ) : null;
+                      })()}
+                      <span
+                        className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                        style={{ backgroundColor: displayColor }}
+                      >
+                        {status}
+                      </span>
+                    </div>
+                  </div>
+                  {!isOperation && pos.project && (() => {
+                    const project = pos.project!;
+                    const hasTasks = project.tasks && project.tasks.length > 0 && project.status !== 'launched';
+                    const hasOperations = project.status === 'launched' && operations.some((op) => 
+                      op.projectId?.toString() === project._id.toString() && op.startDate
+                    );
+                    
+                    // Show collapsed task/operation list when not expanded
+                    if (!isExpanded) {
+                      const weekStart = new Date(days[0]);
+                      weekStart.setHours(0, 0, 0, 0);
+                      const weekEnd = new Date(days[6]);
+                      weekEnd.setHours(23, 59, 59, 999);
+                      
+                      if (hasTasks) {
+                        const visibleTasks = project.tasks!.filter((task) => {
+                          const taskStart = new Date(task.startDate);
+                          taskStart.setHours(0, 0, 0, 0);
+                          const taskEnd = new Date(task.endDate);
+                          taskEnd.setHours(23, 59, 59, 999);
+                          return taskStart <= weekEnd && taskEnd >= weekStart;
+                        });
+                        
+                        return (
+                          <div className="px-6 pb-6">
+                            <div className="space-y-1">
+                              {visibleTasks.slice(0, 5).map((task, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className={`text-sm text-white ${task.status === 'complete' || task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                >
+                                  {task.name}
+                                </div>
+                              ))}
+                              {visibleTasks.length > 5 && (
+                                <div className="text-xs text-white italic opacity-80">+{visibleTasks.length - 5} more</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      } else if (hasOperations) {
+                        const visibleOps = operations.filter((op) => 
+                          op.projectId?.toString() === project._id.toString() && op.startDate
+                        );
+                        
+                        return (
+                          <div className="px-6 pb-6">
+                            <div className="space-y-1">
+                              {visibleOps.slice(0, 5).map((op, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className={`text-sm text-white ${op.status === 'complete' || op.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                >
+                                  {op.name}
+                                </div>
+                              ))}
+                              {visibleOps.length > 5 && (
+                                <div className="text-xs text-white italic opacity-80">+{visibleOps.length - 5} more</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }
+                    
+                    // Show expanded view
+                    if (!isExpanded) return null;
+                    
+                    return (
+                      <>
+                        {project.description && (
+                          <p className="text-white opacity-90 mb-3 mt-3 px-6">{project.description}</p>
+                        )}
+
+                        <div className="space-y-2 mt-3 px-6">
+                          <div className="text-sm text-white opacity-90">
+                            <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
+                          </div>
+                          
+                          {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
+                            <div className="text-sm text-white opacity-90">
+                              <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {hasTasks && (() => {
+                          const weekStart = new Date(days[0]);
+                          weekStart.setHours(0, 0, 0, 0);
+                          const weekEnd = new Date(days[6]);
+                          weekEnd.setHours(23, 59, 59, 999);
+                          
+                          const visibleTasks = project.tasks!.filter((task) => {
+                            const taskStart = new Date(task.startDate);
+                            taskStart.setHours(0, 0, 0, 0);
+                            const taskEnd = new Date(task.endDate);
+                            taskEnd.setHours(23, 59, 59, 999);
+                            return taskStart <= weekEnd && taskEnd >= weekStart;
+                          });
+                          
+                          const displayedTasks = visibleTasks.slice(0, 3); // Limit to 3 tasks for better fit in weekly view
+                          
+                          return (
+                            <div className="mt-4 px-6 pb-6">
+                              <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
+                              <div className="space-y-2">
+                                {displayedTasks.map((task, taskIdx) => (
+                                  <div
+                                    key={taskIdx}
+                                    className="p-3 rounded border border-border bg-background-card"
+                                  >
+                                    <div className={`font-medium text-text-primary ${task.status === 'complete' || task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                    {task.description && (
+                                      <p className="text-sm text-text-secondary mt-1">{task.description}</p>
+                                    )}
+                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                      {task.estimatedHours && <span>{task.estimatedHours}h</span>}
+                                      {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
+                                        <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
+                                      )}
+                                      <span className="capitalize">{task.status}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {visibleTasks.length > 3 && (
+                                  <div className="text-xs text-text-secondary italic">+{visibleTasks.length - 3} more tasks</div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        
+                        {hasOperations && (() => {
+                          const projectOps = operations.filter((op) => 
+                            op.projectId?.toString() === project._id.toString() && op.startDate
+                          );
+                          
+                          const displayedOps = projectOps.slice(0, 3); // Limit to 3 operations for better fit in weekly view
+                          
+                          return (
+                            <div className="mt-4 px-6 pb-6">
+                              <p className="text-sm font-semibold text-white mb-2">Operations:</p>
+                              <div className="space-y-2">
+                                {displayedOps.map((op, opIdx) => (
+                                  <div
+                                    key={opIdx}
+                                    className="p-3 rounded border border-border bg-background-card"
+                                  >
+                                    <div className={`font-medium text-text-primary ${op.status === 'complete' || op.status === 'completed' ? 'line-through opacity-60' : ''}`}>{op.name}</div>
+                                    {op.description && (
+                                      <p className="text-sm text-text-secondary mt-1">{op.description}</p>
+                                    )}
+                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                      {op.estimatedHours && <span>{op.estimatedHours}h</span>}
+                                      {getEmployeeName((op as any).assignedToEmployeeId?.toString(), op.assignedTo) && (
+                                        <span>Assigned: {getEmployeeName((op as any).assignedToEmployeeId?.toString(), op.assignedTo)}</span>
+                                      )}
+                                      <span className="capitalize">{op.status}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {projectOps.length > 3 && (
+                                  <div className="text-xs text-text-secondary italic">+{projectOps.length - 3} more operations</div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    );
+                  })()}
                 </div>
               );
             });
           })()}
+            </div>
+          </div>
         </div>
       </>
     );
@@ -1386,26 +1693,19 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                   });
                 });
                 
-                // Add projects
+                // Add projects - projects span the full week since they have no dates
+                const weekStart = new Date(week[0]);
+                weekStart.setHours(0, 0, 0, 0);
+                const weekEnd = new Date(week[6]);
+                weekEnd.setHours(23, 59, 59, 999);
+                
                 Array.from(weekProjects.values()).forEach(project => {
-                  // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
-                  const startDateObj = new Date(project.startDate);
-                  const startDateStr = startDateObj.toISOString().split('T')[0];
-                  const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-                  const projectStart = new Date(startYear, startMonth - 1, startDay);
-                  projectStart.setHours(0, 0, 0, 0);
-                  
-                  const endDateObj = new Date(project.endDate);
-                  const endDateStr = endDateObj.toISOString().split('T')[0];
-                  const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-                  const projectEnd = new Date(endYear, endMonth - 1, endDay);
-                  projectEnd.setHours(23, 59, 59, 999);
-                  
+                  // Projects always exist - they span the full visible timeframe
                   allItems.push({
                     type: 'project',
                     project: project,
-                    startDate: projectStart,
-                    endDate: projectEnd,
+                    startDate: weekStart,
+                    endDate: weekEnd,
                   });
                 });
                 
@@ -1652,26 +1952,19 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         });
                       });
                       
-                      // Add projects
+                      // Add projects - projects span the full week since they have no dates
+                      const weekStart = new Date(week[0]);
+                      weekStart.setHours(0, 0, 0, 0);
+                      const weekEnd = new Date(week[6]);
+                      weekEnd.setHours(23, 59, 59, 999);
+                      
                       Array.from(weekProjects.values()).forEach(project => {
-                        // Parse dates to avoid timezone issues - extract YYYY-MM-DD and create local date
-                        const startDateObj = new Date(project.startDate);
-                        const startDateStr = startDateObj.toISOString().split('T')[0];
-                        const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-                        const projectStart = new Date(startYear, startMonth - 1, startDay);
-                        projectStart.setHours(0, 0, 0, 0);
-                        
-                        const endDateObj = new Date(project.endDate);
-                        const endDateStr = endDateObj.toISOString().split('T')[0];
-                        const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-                        const projectEnd = new Date(endYear, endMonth - 1, endDay);
-                        projectEnd.setHours(23, 59, 59, 999);
-                        
+                        // Projects always exist - they span the full visible timeframe
                         allItems.push({
                           type: 'project',
                           project: project,
-                          startDate: projectStart,
-                          endDate: projectEnd,
+                          startDate: weekStart,
+                          endDate: weekEnd,
                         });
                       });
                       
@@ -1769,7 +2062,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           <div
                             key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-q${idx}-w${weekIdx}` : `${pos.project!._id.toString()}-q${idx}-w${weekIdx}`}
                             onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                            className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? status === 'complete' : status === 'completed') ? 'line-through opacity-60' : ''}`}
+                            className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? (status === 'complete' || status === 'completed') : (status === 'completed')) ? 'line-through opacity-60' : ''}`}
                             style={{
                               backgroundColor: color,
                               color: 'white',
@@ -1817,12 +2110,8 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               return instance.startDate <= monthEnd && instance.endDate >= monthStart;
             });
 
-            // Get projects for this month
-            const monthProjects = projects.filter((p) => {
-              const pStart = new Date(p.startDate);
-              const pEnd = new Date(p.endDate);
-              return pStart <= monthEnd && pEnd >= monthStart;
-            });
+            // Get all projects - projects always exist in their stage without date filtering
+            const monthProjects = projects;
 
             return (
               <div

@@ -69,11 +69,6 @@ export default function OperationsPage() {
     }
   };
 
-  const handleCreateOperation = () => {
-    setEditingOperation(undefined);
-    setShowOperationForm(true);
-  };
-
   const handleEditOperation = (operation: IOperation) => {
     setEditingOperation(operation);
     setShowOperationForm(true);
@@ -174,7 +169,6 @@ export default function OperationsPage() {
               />
             )}
           </div>
-          <Button onClick={handleCreateOperation}>+ New Operation</Button>
         </div>
 
         {(showOnlyAssigned && currentUserEmployeeName
@@ -183,7 +177,7 @@ export default function OperationsPage() {
         ).length === 0 ? (
           <Card className="p-8 text-center">
             <p className="text-gray-300 mb-4">No active operations found.</p>
-            <Button onClick={handleCreateOperation}>Create Your First Operation</Button>
+            <p className="text-gray-400 text-sm">Operations are created within projects. Navigate to a project in the Run stage to create operations.</p>
           </Card>
         ) : (
           <div className="space-y-4">

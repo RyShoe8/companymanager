@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type RecurrenceType = 'none' | 'weekly' | 'bi-weekly' | 'monthly';
-export type OperationStatus = 'planning' | 'active' | 'in-review' | 'complete';
+export type OperationStatus = 'active' | 'completed' | 'in-review';
 
 export interface IOperation extends Document {
   name: string;
@@ -43,8 +43,8 @@ const OperationSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['planning', 'active', 'in-review', 'complete'],
-      default: 'planning',
+      enum: ['active', 'completed', 'in-review'],
+      default: 'active',
     },
     assignedTo: {
       type: String,
@@ -78,6 +78,14 @@ const OperationSchema: Schema = new Schema(
     timestamps: true,
   }
 );
+
+// Add indexes for better query performance
+OperationSchema.index({ userId: 1 });
+OperationSchema.index({ status: 1 });
+OperationSchema.index({ recurrenceType: 1 });
+OperationSchema.index({ assignedToEmployeeId: 1 });
+OperationSchema.index({ projectId: 1 });
+OperationSchema.index({ createdAt: -1 });
 
 const Operation: Model<IOperation> =
   mongoose.models.Operation || mongoose.model<IOperation>('Operation', OperationSchema);

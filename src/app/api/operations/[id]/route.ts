@@ -4,6 +4,8 @@ import Operation from '@/lib/models/Operation';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { parseDateSafe } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,8 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const operation = await Operation.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!operation) {
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(operation);
   } catch (error) {
-    // Get operation error
+    console.error('Error fetching operation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -48,14 +49,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const body = await request.json();
     let { name, description, url, recurrenceType, status, assignedTo, assignedToEmployeeId, estimatedHours, startDate, endDate } = body;
+    
+    // Debug: Log received status to verify it's being sent
+    if (status !== undefined) {
+      console.log('Received operation status update:', { operationId: id, status });
+    }
 
     await connectDB();
     const { id } = await params;
-
-    // Validate ObjectId format
-    if (!isValidObjectId(id)) {
-      return NextResponse.json({ error: 'Invalid operation ID' }, { status: 400 });
-    }
 
     // Validate ObjectId format
     if (!isValidObjectId(id)) {
@@ -69,8 +70,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const operation = await Operation.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!operation) {
@@ -127,17 +127,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       operation.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
     }
     if (startDate !== undefined) {
-      operation.startDate = startDate === '' ? undefined : new Date(startDate);
+      operation.startDate = startDate === '' ? undefined : parseDateSafe(startDate);
     }
     if (endDate !== undefined) {
-      operation.endDate = endDate === '' ? undefined : new Date(endDate);
+      const parsedEndDate = endDate === '' ? undefined : parseDateSafe(endDate);
+      operation.endDate = parsedEndDate;
+      // Validate end date is after start date if both are provided
+      if (parsedEndDate && operation.startDate && parsedEndDate < operation.startDate) {
+        return NextResponse.json({ error: 'End date must be after start date' }, { status: 400 });
+      }
     }
 
     await operation.save();
 
-    return NextResponse.json(operation);
+    // Reload the operation to ensure we return the latest data
+    const savedOperation = await Operation.findById(id).lean();
+    if (!savedOperation) {
+      return NextResponse.json({ error: 'Operation not found after save' }, { status: 404 });
+    }
+
+    return NextResponse.json(savedOperation);
   } catch (error) {
-    // Update operation error
+    console.error('Error updating operation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -172,7 +183,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ message: 'Operation deleted successfully' });
   } catch (error) {
-    // Delete operation error
+    console.error('Error deleting operation:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

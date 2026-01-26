@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { IProject, TimeframeType, ProjectStatus, TaskStatus, IProjectTask } from '@/lib/models/Project';
+import { IProject, ProjectStatus, ProjectType, TaskStatus, IProjectTask } from '@/lib/models/Project';
 import { IOperation, RecurrenceType, OperationStatus } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
@@ -13,13 +13,12 @@ import { Types } from 'mongoose';
 
 interface ProjectFormProps {
   project?: IProject;
-  timeframeType: TimeframeType;
   onSubmit: (data: Partial<IProject>) => void;
   onCancel: () => void;
   userRole?: 'Administrator' | 'Manager' | 'User';
 }
 
-export default function ProjectForm({ project, timeframeType, onSubmit, onCancel, userRole }: ProjectFormProps) {
+export default function ProjectForm({ project, onSubmit, onCancel, userRole }: ProjectFormProps) {
   const router = useRouter();
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
@@ -31,12 +30,7 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         ? [project.url] 
         : []
   );
-  const [startDate, setStartDate] = useState(
-    project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : ''
-  );
-  const [endDate, setEndDate] = useState(
-    project?.endDate ? new Date(project.endDate).toISOString().split('T')[0] : ''
-  );
+  const [projectType, setProjectType] = useState<ProjectType>(project?.projectType || 'generic');
   const [color, setColor] = useState(project?.color || '#3b82f6');
   const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planning');
   const [estimatedHours, setEstimatedHours] = useState(project?.estimatedHours?.toString() || '');
@@ -57,7 +51,6 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
   const [showTasks, setShowTasks] = useState(false);
   const [showOperations, setShowOperations] = useState(false);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
-  const [isAddingOperation, setIsAddingOperation] = useState(false);
   const [operationLocalState, setOperationLocalState] = useState<Record<string, { name: string; description: string; estimatedHours?: string }>>({});
   const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
   const isRegularUser = userRole === 'User';
@@ -98,39 +91,16 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
     }
   }, [isLaunched, project?._id]);
 
-  useEffect(() => {
-    if (!project) {
-      // Set default dates based on timeframe
-      const today = new Date();
-      const start = new Date(today);
-      const end = new Date(today);
-      
-      switch (timeframeType) {
-        case 'weekly':
-          end.setDate(today.getDate() + 7);
-          break;
-        case 'monthly':
-          end.setMonth(today.getMonth() + 1);
-          break;
-        case 'quarterly':
-          end.setMonth(today.getMonth() + 3);
-          break;
-        case 'yearly':
-          end.setFullYear(today.getFullYear() + 1);
-          break;
-      }
-      
-      setStartDate(start.toISOString().split('T')[0]);
-      setEndDate(end.toISOString().split('T')[0]);
-    }
-  }, [timeframeType, project]);
 
   const addTask = () => {
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + 7); // Default to 7 days from now
     const newTask: IProjectTask = {
       name: '',
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      status: 'planning' as TaskStatus,
+      startDate: today,
+      endDate: endDate,
+      status: 'active' as TaskStatus,
     };
     setTasks([...tasks, newTask]);
   };
@@ -186,10 +156,8 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         name: 'New Operation',
         description: '',
         recurrenceType: 'none',
-        status: 'planning',
+        status: 'active',
         projectId: project._id.toString(),
-        startDate: startDate ? new Date(startDate).toISOString().split('T')[0] : undefined,
-        endDate: endDate ? new Date(endDate).toISOString().split('T')[0] : undefined,
       };
 
       const response = await fetch('/api/operations', {
@@ -411,11 +379,10 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
       name,
       description,
       urls: urls.filter(url => url.trim() !== ''),
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      timeframeType,
+      projectType,
       color,
       status,
+      endDate: endDate ? new Date(endDate) : undefined,
     };
 
     if (estimatedHours) {
@@ -469,6 +436,38 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         required
         disabled={isRegularUser}
       />
+
+      {/* Project Type - Required at creation */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+          Project Type {!project && <span className="text-red-500">*</span>}
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { value: 'website', label: 'Website', icon: '🌐', desc: 'Web presence' },
+            { value: 'store', label: 'Store', icon: '🛒', desc: 'E-commerce' },
+            { value: 'app', label: 'App', icon: '📱', desc: 'Application' },
+            { value: 'generic', label: 'Generic', icon: '📁', desc: 'Other' },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => !isRegularUser && setProjectType(option.value as ProjectType)}
+              disabled={isRegularUser}
+              className={`p-3 rounded-lg border-2 transition-all text-center ${
+                projectType === option.value
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+              } ${isRegularUser ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span className="text-2xl block mb-1">{option.icon}</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white block">{option.label}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{option.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Input
         label="Description (optional)"
         value={description}
@@ -521,24 +520,16 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
         ))}
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="Start Date or Single Date"
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          required
+        <Select
+          label="Project Type"
+          value={projectType}
+          onChange={(e) => setProjectType(e.target.value as ProjectType)}
           disabled={isRegularUser}
+          options={[
+            { value: 'internal', label: 'Internal' },
+            { value: 'client', label: 'Client' },
+          ]}
         />
-        <Input
-          label="End Date"
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          required
-          disabled={isRegularUser}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
         <Input
           label="Estimated Hours (optional)"
           type="number"
@@ -549,29 +540,29 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           placeholder="e.g., 40 or 0.25"
           disabled={isRegularUser}
         />
-        <MultiSelect
-          label="Assigned To (optional)"
-          value={assignedToEmployeeIds}
-          onChange={(selectedIds) => {
-            setAssignedToEmployeeIds(selectedIds);
-            const selectedEmployees = employees.filter(emp => selectedIds.includes(emp._id.toString()));
-            setAssignedToNames(selectedEmployees.map(emp => emp.name));
-            // Update legacy fields for backward compatibility
-            if (selectedIds.length > 0) {
-              setAssignedToEmployeeId(selectedIds[0]);
-              setAssignedTo(selectedEmployees[0]?.name || '');
-            } else {
-              setAssignedToEmployeeId('');
-              setAssignedTo('');
-            }
-          }}
-          disabled={isRegularUser}
-          options={employees.map(emp => ({ 
-            value: emp._id.toString(), 
-            label: emp.name 
-          }))}
-        />
       </div>
+      <MultiSelect
+        label="Assigned To (optional)"
+        value={assignedToEmployeeIds}
+        onChange={(selectedIds) => {
+          setAssignedToEmployeeIds(selectedIds);
+          const selectedEmployees = employees.filter(emp => selectedIds.includes(emp._id.toString()));
+          setAssignedToNames(selectedEmployees.map(emp => emp.name));
+          // Update legacy fields for backward compatibility
+          if (selectedIds.length > 0) {
+            setAssignedToEmployeeId(selectedIds[0]);
+            setAssignedTo(selectedEmployees[0]?.name || '');
+          } else {
+            setAssignedToEmployeeId('');
+            setAssignedTo('');
+          }
+        }}
+        disabled={isRegularUser}
+        options={employees.map(emp => ({ 
+          value: emp._id.toString(), 
+          label: emp.name 
+        }))}
+      />
       <div className="grid grid-cols-2 gap-4">
         <Select
           label="Color"
@@ -601,6 +592,14 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
           }
         />
       </div>
+      <Input
+        label="End Date (optional) - Project stops appearing on status page after this date"
+        type="date"
+        value={endDate}
+        onChange={(e) => setEndDate(e.target.value)}
+        disabled={isRegularUser}
+        placeholder="No end date"
+      />
 
       {/* Operations Section for Launched Projects - Only for admins/managers */}
       {isManagerOrAdmin && isLaunched && (
@@ -718,13 +717,12 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                   </div>
                   <Select
                     label="Status"
-                    value={operation.status || 'planning'}
+                    value={operation.status || 'active'}
                     onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { status: e.target.value as OperationStatus }, false)}
                     options={[
-                      { value: 'planning', label: 'Planning' },
                       { value: 'active', label: 'Active' },
                       { value: 'in-review', label: 'In Review' },
-                      { value: 'complete', label: 'Complete' },
+                      { value: 'completed', label: 'Completed' },
                     ]}
                   />
                   <Select
@@ -881,17 +879,16 @@ export default function ProjectForm({ project, timeframeType, onSubmit, onCancel
                     ]}
                   />
                 </div>
-                <Select
-                  label="Status"
-                  value={task.status || 'planning'}
-                  onChange={(e) => updateTask(index, 'status', e.target.value as TaskStatus)}
-                  options={[
-                    { value: 'planning', label: 'Planning' },
-                    { value: 'active', label: 'Active' },
-                    { value: 'in-review', label: 'In Review' },
-                    { value: 'complete', label: 'Complete' },
-                  ]}
-                />
+                  <Select
+                    label="Status"
+                    value={task.status || 'active'}
+                    onChange={(e) => updateTask(index, 'status', e.target.value as TaskStatus)}
+                    options={[
+                      { value: 'active', label: 'Active' },
+                      { value: 'in-review', label: 'In Review' },
+                      { value: 'completed', label: 'Completed' },
+                    ]}
+                  />
               </div>
             ))}
           </div>

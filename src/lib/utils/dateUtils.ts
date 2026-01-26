@@ -145,3 +145,26 @@ export function isDateInRange(date: Date, range: DateRange): boolean {
 export function doRangesOverlap(range1: DateRange, range2: DateRange): boolean {
   return range1.start <= range2.end && range1.end >= range2.start;
 }
+
+/**
+ * Safely parse a date value, returning undefined if invalid
+ * @param dateValue - Date string, Date object, or undefined
+ * @returns Valid Date object or undefined
+ */
+export function parseDateSafe(dateValue: string | Date | undefined | null): Date | undefined {
+  if (!dateValue) return undefined;
+  if (dateValue instanceof Date) {
+    return isNaN(dateValue.getTime()) ? undefined : dateValue;
+  }
+  const parsed = new Date(dateValue);
+  return isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+/**
+ * Get default task dates (start: now, end: one week from now)
+ */
+export function getDefaultTaskDates(): { startDate: Date; endDate: Date } {
+  const now = new Date();
+  const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  return { startDate: now, endDate: oneWeekLater };
+}

@@ -22,11 +22,11 @@ export async function GET(request: NextRequest) {
 
     // Return all employees (including pending invitations)
     // The EmployeeSidebar component will filter out pending invitations for utilization
-    const employees = await Employee.find({ organizationId: user.organizationId }).sort({ name: 1 });
+    const employees = await Employee.find({ organizationId: user.organizationId }).sort({ name: 1 }).lean();
 
     return NextResponse.json(employees);
   } catch (error) {
-    // Get employees error
+    console.error('Error fetching employees:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(employee, { status: 201 });
   } catch (error) {
-    // Create employee error
+    console.error('Error creating employee:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
