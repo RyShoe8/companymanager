@@ -461,7 +461,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
     if (project.status === 'launched') {
       const projectOperations = operations.filter((op) => 
         op.projectId?.toString() === project._id.toString() && 
-        op.status !== 'complete' // Exclude completed operations
+        op.status !== 'completed' // Exclude completed operations
       );
       
       const totalOperationHours = projectOperations.reduce((sum, op) => {
@@ -481,7 +481,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
     // For non-launched projects, sum tasks' estimatedHours (excluding completed tasks)
     if (project.tasks && project.tasks.length > 0) {
       const totalTaskHours = project.tasks.reduce((sum, task) => {
-        if (task.status !== 'complete' && task.estimatedHours !== undefined && task.estimatedHours !== null) {
+        if (task.status !== 'completed' && task.estimatedHours !== undefined && task.estimatedHours !== null) {
           const hours = typeof task.estimatedHours === 'number' 
             ? task.estimatedHours 
             : parseFloat(task.estimatedHours);
@@ -661,7 +661,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         }}
                       >
                         <div className="flex items-start justify-between mb-3">
-                          <h4 className={`text-xl font-bold text-text-primary ${operation.status === 'complete' ? 'line-through' : ''}`} style={{ color: color }}>
+                          <h4 className={`text-xl font-bold text-text-primary ${operation.status === 'completed' ? 'line-through' : ''}`} style={{ color: color }}>
                             {operation.name}
                           </h4>
                           <span
@@ -837,7 +837,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                     key={taskKey}
                                     className="p-3 rounded border border-border bg-background-card"
                                   >
-                                    <div className={`font-medium text-text-primary ${task.status === 'complete' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                    <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
                                     {task.description && (
                                       <p className="text-sm text-text-secondary mt-1">{task.description}</p>
                                     )}
@@ -886,7 +886,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                 return (
                                   <div 
                                     key={`${project._id.toString()}-task-${idx}`} 
-                                    className={`text-sm text-white ${task.status === 'complete' ? 'line-through opacity-60' : ''}`}
+                                    className={`text-sm text-white ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                                   >
                                     {task.name}
                                   </div>
@@ -2134,7 +2134,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       <div
                         key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`}
                         onClick={() => onOperationClick(operation)}
-                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${operation.status === 'complete' ? 'line-through opacity-60' : ''}`}
+                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${operation.status === 'completed' ? 'line-through opacity-60' : ''}`}
                         style={{
                           backgroundColor: operationColor,
                           color: 'white',
