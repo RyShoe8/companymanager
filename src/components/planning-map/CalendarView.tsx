@@ -1363,7 +1363,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
               return (
                 <div
                   key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-weekly` : `${pos.project!._id.toString()}-weekly`}
-                  className={`absolute rounded-lg border-2 border-border ${(isOperation ? (status === 'complete' || status === 'completed') : (status === 'completed')) ? 'line-through opacity-60' : ''}`}
+                  className={`absolute rounded-lg border-2 border-border ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                   style={{
                     backgroundColor: displayColor + 'F0',
                     borderColor: displayColor,
@@ -1378,7 +1378,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     className="flex items-start justify-between cursor-pointer p-6"
                     onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
                   >
-                    <h4 className={`text-xl font-bold text-white ${(isOperation ? (status === 'complete' || status === 'completed') : (status === 'completed')) ? 'line-through opacity-60' : ''}`}>
+                    <h4 className={`text-xl font-bold text-white ${status === 'completed' ? 'line-through opacity-60' : ''}`}>
                       {name}
                     </h4>
                     <div className="flex items-center gap-2">
@@ -1438,7 +1438,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               {visibleTasks.slice(0, 5).map((task, idx) => (
                                 <div 
                                   key={idx} 
-                                  className={`text-sm text-white ${task.status === 'complete' || task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                  className={`text-sm text-white ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                                 >
                                   {task.name}
                                 </div>
@@ -1460,7 +1460,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               {visibleOps.slice(0, 5).map((op, idx) => (
                                 <div 
                                   key={idx} 
-                                  className={`text-sm text-white ${op.status === 'complete' || op.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                  className={`text-sm text-white ${op.status === 'completed' ? 'line-through opacity-60' : ''}`}
                                 >
                                   {op.name}
                                 </div>
@@ -1521,7 +1521,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                     key={taskIdx}
                                     className="p-3 rounded border border-border bg-background-card"
                                   >
-                                    <div className={`font-medium text-text-primary ${task.status === 'complete' || task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                    <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
                                     {task.description && (
                                       <p className="text-sm text-text-secondary mt-1">{task.description}</p>
                                     )}
@@ -1558,7 +1558,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                                     key={opIdx}
                                     className="p-3 rounded border border-border bg-background-card"
                                   >
-                                    <div className={`font-medium text-text-primary ${op.status === 'complete' || op.status === 'completed' ? 'line-through opacity-60' : ''}`}>{op.name}</div>
+                                    <div className={`font-medium text-text-primary ${op.status === 'completed' ? 'line-through opacity-60' : ''}`}>{op.name}</div>
                                     {op.description && (
                                       <p className="text-sm text-text-secondary mt-1">{op.description}</p>
                                     )}
@@ -1806,7 +1806,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                     <div
                       key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-${weekIdx}` : `${pos.project!._id.toString()}-${weekIdx}`}
                       onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                      className={`absolute text-xs px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? status === 'complete' : status === 'completed') ? 'line-through opacity-60' : ''}`}
+                      className={`absolute text-xs px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                       style={{
                         backgroundColor: color,
                         color: 'white',
@@ -2062,7 +2062,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                           <div
                             key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-q${idx}-w${weekIdx}` : `${pos.project!._id.toString()}-q${idx}-w${weekIdx}`}
                             onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                            className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${(isOperation ? (status === 'complete' || status === 'completed') : (status === 'completed')) ? 'line-through opacity-60' : ''}`}
+                            className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                             style={{
                               backgroundColor: color,
                               color: 'white',
