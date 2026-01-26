@@ -25,6 +25,8 @@ export default function PlanPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [projects, setProjects] = useState<IProject[]>([]);
   const [operations, setOperations] = useState<IOperation[]>([]);
+  const [allProjects, setAllProjects] = useState<IProject[]>([]);
+  const [allOperations, setAllOperations] = useState<IOperation[]>([]);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProjectForm, setShowProjectForm] = useState(false);
