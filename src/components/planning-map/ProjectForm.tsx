@@ -33,6 +33,9 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
   const [projectType, setProjectType] = useState<ProjectType>(project?.projectType || 'generic');
   const [color, setColor] = useState(project?.color || '#3b82f6');
   const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planning');
+  const [endDate, setEndDate] = useState(
+    project?.endDate ? new Date(project.endDate).toISOString().split('T')[0] : ''
+  );
   const [estimatedHours, setEstimatedHours] = useState(project?.estimatedHours?.toString() || '');
   const [assignedTo, setAssignedTo] = useState(project?.assignedTo || '');
   const [assignedToEmployeeId, setAssignedToEmployeeId] = useState(
