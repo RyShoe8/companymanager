@@ -582,7 +582,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'complete' && task.status !== 'completed';
+            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'completed';
           })
           .reduce((sum, task) => {
             hasEmployeeTasks = true;
@@ -630,7 +630,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && task.status !== 'complete' && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
+            if (task.estimatedHours && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -722,7 +722,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'complete' && task.status !== 'completed';
+            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'completed';
           })
           .reduce((sum, task) => {
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
@@ -755,7 +755,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && task.status !== 'complete' && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
+            if (task.estimatedHours && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -813,7 +813,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         const taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && (task.status === 'complete' || task.status === 'completed');
+            return taskAssignedToId === employee._id.toString() && task.estimatedHours && (task.status === 'completed');
           })
           .reduce((sum, task) => {
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
@@ -830,7 +830,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && (task.status === 'complete' || task.status === 'completed') && taskAssignedToId !== employee._id.toString()) {
+            if (task.estimatedHours && (task.status === 'completed') && taskAssignedToId !== employee._id.toString()) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -899,7 +899,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       if (project.tasks && project.tasks.length > 0) {
         project.tasks.forEach((task) => {
           const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-          if (taskAssignedToId === employee._id.toString() && task.estimatedHours && (task.status === 'complete' || task.status === 'completed')) {
+          if (taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status === 'completed') {
             employeeTaskHours += task.estimatedHours;
           }
         });
@@ -910,7 +910,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         const taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && (task.status === 'complete' || task.status === 'completed');
+            return taskAssignedToId === employee._id.toString() && task.estimatedHours && (task.status === 'completed');
           })
           .reduce((sum, task) => {
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
@@ -935,7 +935,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && (task.status === 'complete' || task.status === 'completed') && taskAssignedToId !== employee._id.toString()) {
+            if (task.estimatedHours && (task.status === 'completed') && taskAssignedToId !== employee._id.toString()) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -1055,7 +1055,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         const taskHoursInRange = project.tasks
           .filter(task => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'complete' && task.status !== 'completed';
+            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'completed';
           })
           .reduce((sum, task) => {
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
@@ -1080,7 +1080,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
             const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && task.status !== 'complete' && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
+            if (task.estimatedHours && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -1550,7 +1550,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                             // Check both employeeId and legacy name-based assignment
                             const isAssignedById = taskAssignedToId === employee._id.toString();
                             const isAssignedByName = taskAssignedToName && taskAssignedToName === employee.name;
-                            return (isAssignedById || isAssignedByName) && task.status !== 'complete' && task.status !== 'completed';
+                            return (isAssignedById || isAssignedByName) && task.status !== 'completed';
                           })
                         : [];
                       
