@@ -23,7 +23,7 @@ import useIsMobile from '@/lib/hooks/useIsMobile';
 export default function RunPage() {
   const router = useRouter();
   const isMobile = useIsMobile();
-  const [timeframe, setTimeframe] = useState<TimeframeType>('monthly');
+  const [timeframe, setTimeframe] = useState<TimeframeType>('today');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [projects, setProjects] = useState<IProject[]>([]);
   const [operations, setOperations] = useState<IOperation[]>([]);
