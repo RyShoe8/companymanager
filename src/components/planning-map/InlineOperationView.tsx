@@ -57,7 +57,6 @@ export default function InlineOperationView({ operation, employees, projects, is
 
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex items-start gap-3">
-          <input type="color" value={localOp.color || '#8b5cf6'} onChange={(e) => handleFieldUpdate('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border-0 p-0" disabled={!isManagerOrAdmin} />
           <div className="flex-1 min-w-0">
             <EditableText value={localOp.name} onSave={(v) => handleFieldUpdate('name', v)} className="text-xl font-bold text-gray-900 dark:text-white block w-full" placeholder="Operation name" disabled={!isManagerOrAdmin} />
             <EditableText value={localOp.description || ''} onSave={(v) => handleFieldUpdate('description', v)} className="text-gray-600 dark:text-gray-400 mt-1 block w-full" placeholder="Add description..." multiline disabled={!isManagerOrAdmin} />
