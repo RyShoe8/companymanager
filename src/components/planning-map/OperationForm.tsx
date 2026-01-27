@@ -21,7 +21,7 @@ export default function OperationForm({ operation, recurrenceType = 'none', onSu
   const [name, setName] = useState(operation?.name || '');
   const [description, setDescription] = useState(operation?.description || '');
   const [url, setUrl] = useState(operation?.url || '');
-  const [status, setStatus] = useState<OperationStatus>(operation?.status || 'planning');
+  const [status, setStatus] = useState<OperationStatus>(operation?.status || 'active');
   const [assignedTo, setAssignedTo] = useState(operation?.assignedTo || '');
   const [assignedToEmployeeId, setAssignedToEmployeeId] = useState(
     (operation as any)?.assignedToEmployeeId?.toString() || ''
