@@ -614,12 +614,12 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                     <span className={`text-xs px-2 py-1 rounded ${
                       operation.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                       operation.status === 'in-review' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                      operation.status === 'complete' ? 'bg-border text-text-secondary' :
+                      operation.status === 'completed' ? 'bg-border text-text-secondary' :
                       'bg-primary-light text-primary-dark'
                     }`}>
                       {operation.status === 'active' ? 'Active' :
                        operation.status === 'in-review' ? 'In Review' :
-                       operation.status === 'complete' ? 'Complete' :
+                       operation.status === 'completed' ? 'Complete' :
                        'Planning'}
                     </span>
                   </div>
@@ -721,12 +721,12 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
             );
           })}
         </div>
-      ) : project.tasks && project.tasks.filter(t => t.status !== 'complete').length > 0 ? (
+      ) : project.tasks && project.tasks.filter(t => t.status !== 'completed').length > 0 ? (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-text-primary">Tasks</h3>
           {project.tasks
             .map((task, originalIndex) => ({ task, originalIndex }))
-            .filter(({ task }) => task.status !== 'complete')
+            .filter(({ task }) => task.status !== 'completed')
             .map(({ task, originalIndex: index }) => {
             const isExpanded = expandedTasks.has(index);
             return (
@@ -752,12 +752,12 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                   <span className={`text-xs px-2 py-1 rounded ${
                     task.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                     task.status === 'in-review' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                    task.status === 'complete' ? 'bg-border text-text-secondary' :
+                    task.status === 'completed' ? 'bg-border text-text-secondary' :
                     'bg-primary-light text-primary-dark'
                   }`}>
                     {task.status === 'active' ? 'Active' :
                      task.status === 'in-review' ? 'In Review' :
-                     task.status === 'complete' ? 'Complete' :
+                     task.status === 'completed' ? 'Complete' :
                      'Planning'}
                   </span>
                 </button>

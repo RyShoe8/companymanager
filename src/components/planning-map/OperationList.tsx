@@ -43,7 +43,7 @@ export default function OperationList({ operations, onEdit, onDelete }: Operatio
                 <span className={`text-xs px-2 py-1 rounded ${
                   operation.status === 'active' ? 'bg-success-light text-success-dark' :
                   operation.status === 'in-review' ? 'bg-warning-light text-warning-dark' :
-                  operation.status === 'complete' ? 'bg-border text-text-secondary' :
+                  operation.status === 'completed' ? 'bg-border text-text-secondary' :
                   'bg-accent-light text-accent-dark'
                 }`}>
                   {operation.status}
