@@ -80,8 +80,8 @@ export default function InlineOperationView({ operation, employees, projects, is
         {expandedSections.has('details') && (
           <div className="border-t border-gray-100 dark:border-gray-700 p-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><label className="block text-xs text-gray-500 mb-1">Start Date</label><EditableDate value={localOp.startDate} onSave={(v) => handleFieldUpdate('startDate', v)} placeholder="Set start date" disabled={!isManagerOrAdmin} /></div>
-              <div><label className="block text-xs text-gray-500 mb-1">End Date</label><EditableDate value={localOp.endDate} onSave={(v) => handleFieldUpdate('endDate', v)} placeholder="Set end date" disabled={!isManagerOrAdmin} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Start Date</label><EditableDate value={localOp.startDate ?? null} onSave={(v) => handleFieldUpdate('startDate', v)} placeholder="Set start date" disabled={!isManagerOrAdmin} /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">End Date</label><EditableDate value={localOp.endDate ?? null} onSave={(v) => handleFieldUpdate('endDate', v)} placeholder="Set end date" disabled={!isManagerOrAdmin} /></div>
             </div>
             <div><label className="block text-xs text-gray-500 mb-1">Recurrence</label><EditableSelect value={localOp.recurrenceType || 'none'} options={recurrenceOptions} onSave={(v) => handleFieldUpdate('recurrenceType', v)} disabled={!isManagerOrAdmin} /></div>
             <div><label className="block text-xs text-gray-500 mb-1">Estimated Hours</label><EditableNumber value={localOp.estimatedHours} onSave={(v) => handleFieldUpdate('estimatedHours', v)} suffix="h" min={0} disabled={!isManagerOrAdmin} /></div>
