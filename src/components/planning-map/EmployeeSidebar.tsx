@@ -606,7 +606,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       employeeOperations.forEach((instance) => {
         const operation = instance.operation;
         if (operation.projectId?.toString() === project._id.toString() && 
-            operation.status !== 'complete' && operation.status !== 'completed') {
+            operation.status !== 'completed') {
           // Check if this operation instance overlaps with the current timeframe
           const instanceStart = normalizeToStartOfDay(instance.startDate);
           const instanceEnd = normalizeToEndOfDay(instance.endDate);
@@ -711,7 +711,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     const employeeProjects = getProjectsForEmployeeCalc(employee);
     const employeeOperations = getOperationsForEmployeeCalc(employee);
     const directOps = getOperationsForEmployeeDirectCalc(employee);
-    const opsWithoutDate = directOps.filter(op => !op.startDate && op.status !== 'complete' && op.status !== 'completed');
+    const opsWithoutDate = directOps.filter(op => !op.startDate && op.status !== 'completed');
 
     employeeProjects.forEach((project) => {
       if (project.status === 'launched') return; // Skip completed projects
@@ -739,7 +739,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       employeeOperations.forEach((instance) => {
         const operation = instance.operation;
         if (operation.projectId?.toString() === project._id.toString() && 
-            operation.status !== 'complete' && operation.status !== 'completed') {
+            operation.status !== 'completed') {
           const instanceStart = normalizeToStartOfDay(instance.startDate);
           const instanceEnd = normalizeToEndOfDay(instance.endDate);
           const rangeStart = normalizeToStartOfDay(startDate);
@@ -767,7 +767,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
 
     employeeOperations.forEach((instance) => {
       const operation = instance.operation;
-      if (operation.status === 'complete' || operation.status === 'completed') return;
+      if (operation.status === 'completed') return;
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
@@ -842,7 +842,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
 
     employeeOperations.forEach((instance) => {
       const operation = instance.operation;
-      if (operation.status !== 'complete' && operation.status !== 'completed') return;
+      if (operation.status !== 'completed') return;
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
