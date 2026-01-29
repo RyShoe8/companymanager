@@ -18,16 +18,14 @@ interface ComponentDefinition {
 }
 
 const COMPONENT_TYPES: ComponentDefinition[] = [
-  { type: 'header', label: 'Header', icon: '📋', description: 'Page header section' },
-  { type: 'footer', label: 'Footer', icon: '📄', description: 'Page footer section' },
-  { type: 'nav', label: 'Navigation', icon: '🧭', description: 'Navigation menu' },
-  { type: 'content', label: 'Content Area', icon: '📝', description: 'Main content section' },
   { type: 'button', label: 'Button', icon: '🔘', description: 'Clickable button' },
   { type: 'form', label: 'Form', icon: '📋', description: 'Form with inputs' },
   { type: 'image', label: 'Image', icon: '🖼️', description: 'Image placeholder' },
   { type: 'text', label: 'Text', icon: '📝', description: 'Text block' },
   { type: 'container', label: 'Container', icon: '📦', description: 'Container div' },
   { type: 'link', label: 'Link', icon: '🔗', description: 'Navigation link' },
+  { type: 'logo', label: 'Logo', icon: '🎨', description: 'Logo image' },
+  { type: 'user-menu', label: 'User Menu', icon: '👤', description: 'User menu dropdown' },
 ];
 
 export default function ComponentPalette({ onComponentSelect, isOpen = true, onToggle }: ComponentPaletteProps) {
