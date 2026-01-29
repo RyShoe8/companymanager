@@ -3,6 +3,7 @@
 import { IProject } from '@/lib/models/Project';
 import { formatDate } from '@/lib/utils/dateUtils';
 import Card from '@/components/ui/Card';
+import Image from 'next/image';
 
 interface ProjectBlockProps {
   project: IProject;
@@ -26,10 +27,21 @@ export default function ProjectBlock({ project, onClick, onDelete }: ProjectBloc
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <div
-              className="w-4 h-4 rounded"
-              style={{ backgroundColor: project.color }}
-            />
+            {project.logo ? (
+              <Image
+                src={project.logo}
+                alt={`${project.name} logo`}
+                width={16}
+                height={16}
+                className="w-4 h-4 rounded object-cover"
+                unoptimized
+              />
+            ) : (
+              <div
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: project.color }}
+              />
+            )}
             <h3 className={`font-semibold text-text-primary ${project.status === 'completed' ? 'line-through opacity-75' : ''}`}>{project.name}</h3>
             <span className={`text-xs px-2 py-1 rounded ${
               project.status === 'completed' ? 'bg-border text-text-secondary' :

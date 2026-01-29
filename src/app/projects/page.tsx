@@ -11,6 +11,9 @@ import ProjectForm from '@/components/planning-map/ProjectForm';
 import { IEmployee } from '@/lib/models/Employee';
 import { formatDate } from '@/lib/utils/dateUtils';
 import Select from '@/components/ui/Select';
+import WireframeButton from '@/components/wireframes/WireframeButton';
+import WireframeViewer from '@/components/wireframes/WireframeViewer';
+import ProjectLogo from '@/components/projects/ProjectLogo';
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -23,6 +26,8 @@ export default function ProjectsPage() {
   const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
   const [employees, setEmployees] = useState<IEmployee[]>([]);
+  const [showWireframe, setShowWireframe] = useState(false);
+  const [wireframeProjectId, setWireframeProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -242,6 +247,26 @@ export default function ProjectsPage() {
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
+                    <ProjectLogo
+                      projectId={selectedProject._id.toString()}
+                      logo={selectedProject.logo}
+                      color={selectedProject.color}
+                      isManagerOrAdmin={currentUserRole === 'Administrator' || currentUserRole === 'Manager'}
+                      onLogoUpdate={async (logoUrl) => {
+                        try {
+                          const response = await fetch(`/api/projects/${selectedProject._id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ logo: logoUrl }),
+                          });
+                          if (response.ok) {
+                            await loadData();
+                          }
+                        } catch (error) {
+                          console.error('Error updating logo:', error);
+                        }
+                      }}
+                    />
                     <h1 className={`text-3xl font-bold text-gray-900 dark:text-white ${selectedProject.status === 'completed' ? 'line-through opacity-75' : ''}`}>
                       {selectedProject.name}
                     </h1>
@@ -342,6 +367,14 @@ export default function ProjectsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <WireframeButton
+                    projectId={selectedProject._id.toString()}
+                    isManagerOrAdmin={currentUserRole === 'Administrator' || currentUserRole === 'Manager'}
+                    onOpen={() => {
+                      setWireframeProjectId(selectedProject._id.toString());
+                      setShowWireframe(true);
+                    }}
+                  />
                   <Button variant="secondary" size="sm" onClick={() => handleEditProject(selectedProject)}>
                     Edit
                   </Button>
@@ -1045,6 +1078,18 @@ export default function ProjectsPage() {
             userRole={currentUserRole}
           />
         </Modal>
+
+        {/* Wireframe Viewer */}
+        {showWireframe && wireframeProjectId && (
+          <WireframeViewer
+            projectId={wireframeProjectId}
+            isManagerOrAdmin={currentUserRole === 'Administrator' || currentUserRole === 'Manager'}
+            onClose={() => {
+              setShowWireframe(false);
+              setWireframeProjectId(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );

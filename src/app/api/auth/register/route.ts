@@ -62,9 +62,10 @@ export async function POST(request: NextRequest) {
       organizationId = invitation.organizationId;
       employeeId = invitation.employeeId?.toString();
 
-      // Mark invitation as accepted
+      // Mark invitation as accepted and delete it (no longer needed)
       invitation.status = 'accepted';
       await invitation.save();
+      await Invitation.findByIdAndDelete(invitation._id);
     } else {
       // No invitation - create new organization (user is admin)
       organizationId = `temp-${Date.now()}`;

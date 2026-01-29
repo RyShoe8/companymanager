@@ -66,6 +66,10 @@ const ProjectSchema: Schema = new Schema(
       required: true,
       default: '#3b82f6', // blue-500
     },
+    logo: {
+      type: String,
+      trim: true,
+    },
     status: {
       type: String,
       enum: ['planning', 'in-development', 'launched', 'in-review', 'completed'],

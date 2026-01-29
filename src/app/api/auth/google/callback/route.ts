@@ -112,6 +112,8 @@ export async function GET(request: NextRequest) {
 
         invitation.status = 'accepted';
         await invitation.save();
+        // Delete invitation after acceptance (no longer needed)
+        await Invitation.findByIdAndDelete(invitation._id);
       } else {
         invitationToken = null; // Invalid invitation, treat as new user
         organizationId = undefined; // Reset organizationId

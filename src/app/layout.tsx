@@ -19,10 +19,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Nucleas - Plan and Manage Your Company's Work and Assets",
+    default: "Nucleas - Plan, Build and Manage Your Company",
     template: "%s | Nucleas",
   },
-  description: "Plan and manage your company's work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
+  description: "Plan and manage company work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
   keywords: ["project management", "planning map", "team collaboration", "asset management", "operations tracking", "company planning"],
   authors: [{ name: "Nucleas" }],
   creator: "Nucleas",
@@ -48,8 +48,8 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: 'https://nucleas.app',
     siteName: 'Nucleas',
-    title: "Nucleas - Plan and Manage Your Company's Work and Assets",
-    description: "Plan and manage your company's work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
+    title: "Nucleas - Plan, Build and Manage Your Company",
+    description: "Plan, build and manage your company. Visual planning map, project management, operations tracking, asset repository, and team management.",
     images: [
       {
         url: '/images/Nucleas.png',
@@ -61,8 +61,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Nucleas - Plan and Manage Your Company's Work and Assets",
-    description: "Plan and manage your company's work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
+    title: "Nucleas - Plan, Build and Manage Your Company",
+    description: "Plan, build and manage your company. Visual planning map, project management, operations tracking, asset repository, and team management.",
     images: ['/images/Nucleas.png'],
   },
   robots: {

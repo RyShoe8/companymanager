@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid JSON in request body', details: errorMessage }, { status: 400 });
     }
 
-    const { name, description, url, urls, projectType, color, status, endDate, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks } = body;
+    const { name, description, url, urls, projectType, color, logo, status, endDate, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks } = body;
 
     await connectDB();
     const { id } = await params;
@@ -124,7 +124,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       
       // Regular users cannot change other fields
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
-          projectType !== undefined || color !== undefined || endDate !== undefined || estimatedHours !== undefined || 
+          projectType !== undefined || color !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined || 
           assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined || 
           assignedToNames !== undefined || tasks !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
@@ -137,6 +137,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (urls !== undefined) project.urls = urls;
     if (projectType !== undefined) project.projectType = projectType;
     if (color !== undefined) project.color = color;
+    if (logo !== undefined) project.logo = logo || undefined;
     const previousStatus = project.status;
     if (status !== undefined) project.status = status;
     if (endDate !== undefined) {
@@ -211,12 +212,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         project.tasks = await Promise.all(tasks.map(async (task: any, index: number) => {
           // Handle dates - provide defaults if not specified or invalid
           const defaultDates = getDefaultTaskDates();
-          const startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
-          const endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
+          let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
+          let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
           
-          // Validate end date is after start date
+          // Normalize dates to midnight UTC for comparison (ignore time component)
+          if (startDate) {
+            startDate = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
+          }
+          if (endDate) {
+            endDate = new Date(Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()));
+          }
+          
+          // Validate end date is after or equal to start date (allow same day)
           if (endDate < startDate) {
-            throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after start date`);
+            throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after or equal to start date`);
           }
           
           // Preserve all task fields, especially status

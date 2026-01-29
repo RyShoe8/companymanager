@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, projectType, color, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate } = body;
+    const { name, description, url, urls, projectType, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -164,6 +164,7 @@ export async function POST(request: NextRequest) {
       urls: urls || [],
       projectType: projectType || 'generic',
       color: color || '#3b82f6',
+      logo: logo || undefined,
       status: status || 'planning',
       userId: session.userId,
     };
@@ -211,12 +212,20 @@ export async function POST(request: NextRequest) {
     if (tasks && Array.isArray(tasks)) {
       projectData.tasks = await Promise.all(tasks.map(async (task: any) => {
         const defaultDates = getDefaultTaskDates();
-        const startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
-        const endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
+        let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
+        let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
         
-        // Validate end date is after start date
+        // Normalize dates to midnight UTC for comparison (ignore time component)
+        if (startDate) {
+          startDate = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
+        }
+        if (endDate) {
+          endDate = new Date(Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()));
+        }
+        
+        // Validate end date is after or equal to start date (allow same day)
         if (endDate < startDate) {
-          throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after start date`);
+          throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after or equal to start date`);
         }
         
         const taskData: any = {

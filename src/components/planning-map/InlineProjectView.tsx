@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { IProject, TaskStatus } from '@/lib/models/Project';
+import { IOperation } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 import EditableText from '@/components/ui/EditableText';
 import EditableDate from '@/components/ui/EditableDate';
@@ -11,6 +12,10 @@ import SwipeableCard from '@/components/ui/SwipeableCard';
 import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import CommentThread from '@/components/comments/CommentThread';
+import WireframeButton from '@/components/wireframes/WireframeButton';
+import WireframeViewer from '@/components/wireframes/WireframeViewer';
+import ProjectLogo from '@/components/projects/ProjectLogo';
+import { formatDate } from '@/lib/utils/dateUtils';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -25,12 +30,16 @@ interface InlineProjectViewProps {
 
 export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['tasks']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
+    return new Set(project.status === 'launched' ? ['operations'] : ['tasks']);
+  });
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
   const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null);
   const [showTaskActions, setShowTaskActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showWireframe, setShowWireframe] = useState(false);
+  const [projectOperations, setProjectOperations] = useState<IOperation[]>([]);
   
   const toggleTaskComments = (taskIdx: number) => {
     setExpandedTaskComments(prev => {
@@ -40,7 +49,44 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     });
   };
 
-  useEffect(() => { setLocalProject(project); }, [project]);
+  useEffect(() => { 
+    setLocalProject(project);
+    // Update expanded sections based on project status
+    setExpandedSections(prev => {
+      const newSet = new Set(prev);
+      if (project.status === 'launched') {
+        newSet.delete('tasks');
+        newSet.add('operations');
+      } else {
+        newSet.delete('operations');
+        newSet.add('tasks');
+      }
+      return newSet;
+    });
+  }, [project]);
+
+  // Fetch operations for launched projects
+  useEffect(() => {
+    const fetchOperations = async () => {
+      if (localProject.status === 'launched') {
+        try {
+          const operationsRes = await fetch('/api/operations');
+          if (operationsRes.ok) {
+            const operationsData = await operationsRes.json();
+            const linkedOperations = operationsData.filter((o: IOperation) => 
+              o.projectId?.toString() === localProject._id.toString()
+            );
+            setProjectOperations(linkedOperations);
+          }
+        } catch (error) {
+          console.error('Error fetching operations:', error);
+        }
+      } else {
+        setProjectOperations([]);
+      }
+    };
+    fetchOperations();
+  }, [localProject.status, localProject._id]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => { const newSet = new Set(prev); newSet.has(section) ? newSet.delete(section) : newSet.add(section); return newSet; });
@@ -107,7 +153,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       {/* Project Header Card */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex items-start gap-3">
-          <input type="color" value={localProject.color || '#3b82f6'} onChange={(e) => handleFieldUpdate('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border-0 p-0" disabled={!isManagerOrAdmin} />
+          <ProjectLogo
+            projectId={localProject._id.toString()}
+            logo={localProject.logo}
+            color={localProject.color || '#3b82f6'}
+            isManagerOrAdmin={isManagerOrAdmin}
+            onLogoUpdate={(logoUrl) => handleFieldUpdate('logo', logoUrl)}
+          />
           <div className="flex-1 min-w-0">
             <EditableText value={localProject.name} onSave={(v) => handleFieldUpdate('name', v)} className="text-xl font-bold text-gray-900 dark:text-white block w-full" placeholder="Project name" disabled={!isManagerOrAdmin} />
             <EditableText value={localProject.description || ''} onSave={(v) => handleFieldUpdate('description', v)} className="text-gray-600 dark:text-gray-400 mt-1 block w-full" placeholder="Add description..." multiline disabled={!isManagerOrAdmin} />
@@ -118,67 +170,139 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Type:</span><EditableSelect value={localProject.projectType || 'generic'} options={projectTypeOptions} onSave={(v) => handleFieldUpdate('projectType', v)} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Est. Hours:</span><EditableNumber value={localProject.estimatedHours} onSave={(v) => handleFieldUpdate('estimatedHours', v)} suffix="h" min={0} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">End Date:</span><EditableDate value={localProject.endDate ?? null} onSave={(v) => handleFieldUpdate('endDate', v || undefined)} placeholder="No end date" disabled={!isManagerOrAdmin} /></div>
-          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Tasks:</span><span className="font-medium">{localProject.tasks?.length || 0}</span></div>
+          {localProject.status === 'launched' ? (
+            <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Operations:</span><span className="font-medium">{projectOperations.length}</span></div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Tasks:</span><span className="font-medium">{localProject.tasks?.length || 0}</span></div>
+          )}
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <WireframeButton
+            projectId={localProject._id.toString()}
+            isManagerOrAdmin={isManagerOrAdmin}
+            onOpen={() => setShowWireframe(true)}
+          />
         </div>
       </div>
 
-      {/* Tasks Section - Using div instead of button to avoid nesting issues */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="w-full flex items-center justify-between p-4">
-          <div onClick={() => toggleSection('tasks')} className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 cursor-pointer flex-1">
-            <span className="text-gray-500 text-sm">{expandedSections.has('tasks') ? '▼' : '▶'}</span>
-            Tasks ({localProject.tasks?.length || 0})
+      {/* Tasks or Operations Section */}
+      {localProject.status === 'launched' ? (
+        /* Operations Section for Launched Projects */
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="w-full flex items-center justify-between p-4">
+            <div onClick={() => toggleSection('operations')} className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 cursor-pointer flex-1">
+              <span className="text-gray-500 text-sm">{expandedSections.has('operations') ? '▼' : '▶'}</span>
+              Operations ({projectOperations.length})
+            </div>
           </div>
-          {isManagerOrAdmin && <Button size="sm" onClick={handleAddTask}>+ Add Task</Button>}
-        </div>
-        {expandedSections.has('tasks') && (
-          <div className="border-t border-gray-100 dark:border-gray-700">
-            {!localProject.tasks?.length ? <div className="p-4 text-center text-gray-500">No tasks yet.</div> : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {localProject.tasks.map((task, idx) => (
-                  <SwipeableCard key={idx} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                          <EditableText value={task.name} onSave={(v) => handleTaskUpdate(idx, 'name', v)} className="font-medium text-gray-900 dark:text-white" placeholder="Task name" disabled={!isManagerOrAdmin} />
-                          {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." disabled={!isManagerOrAdmin} />}
-                        </div>
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs" />
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          <EditableDate value={task.startDate} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} placeholder="Start" disabled={!isManagerOrAdmin} />
-                          <span>→</span>
-                          <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} placeholder="End" disabled={!isManagerOrAdmin} />
-                        </div>
-                        <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
-                        {employees.length > 0 && <EditableSelect value={(task as any).assignedToEmployeeId?.toString() || ''} options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]} onSave={(v) => handleTaskUpdate(idx, 'assignedToEmployeeId', v || undefined)} disabled={!isManagerOrAdmin} />}
-                      </div>
-                      {/* Task Comments Toggle */}
-                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
-                        <button 
-                          onClick={() => toggleTaskComments(idx)} 
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                        >
-                          <span className="text-xs">{expandedTaskComments.has(idx) ? '▼' : '▶'}</span>
-                          Comments
-                        </button>
-                        {expandedTaskComments.has(idx) && (
-                          <div className="mt-2">
-                            <CommentThread entityType="projectTask" entityId={project._id.toString()} taskIndex={idx} showHeading={false} />
+          {expandedSections.has('operations') && (
+            <div className="border-t border-gray-100 dark:border-gray-700">
+              {projectOperations.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">No operations yet.</div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {projectOperations.map((operation) => (
+                      <div key={operation._id.toString()} className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 dark:text-white">{operation.name}</div>
+                            {operation.description && (
+                              <div className="text-sm text-gray-500 mt-1">{operation.description}</div>
+                            )}
                           </div>
-                        )}
+                          <div>
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              operation.status === 'in-review' 
+                                ? 'bg-yellow-100 text-yellow-800' 
+                                : operation.status === 'completed'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {operation.status === 'in-review' ? 'In Review' : operation.status === 'completed' ? 'Completed' : 'Active'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
+                          {operation.startDate && operation.endDate && (
+                            <div className="flex items-center gap-1">
+                              <span>{formatDate(operation.startDate)}</span>
+                              <span>→</span>
+                              <span>{formatDate(operation.endDate)}</span>
+                            </div>
+                          )}
+                          {operation.estimatedHours && (
+                            <span>{operation.estimatedHours}h</span>
+                          )}
+                          {operation.assignedToEmployeeId && (
+                            <span>Assigned: {employees.find(e => e._id.toString() === operation.assignedToEmployeeId?.toString())?.name || operation.assignedTo}</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </SwipeableCard>
-                ))}
-              </div>
-            )}
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Tasks Section for Non-Launched Projects */
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="w-full flex items-center justify-between p-4">
+            <div onClick={() => toggleSection('tasks')} className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 cursor-pointer flex-1">
+              <span className="text-gray-500 text-sm">{expandedSections.has('tasks') ? '▼' : '▶'}</span>
+              Tasks ({localProject.tasks?.length || 0})
+            </div>
+            {isManagerOrAdmin && <Button size="sm" onClick={handleAddTask}>+ Add Task</Button>}
           </div>
-        )}
-      </div>
+          {expandedSections.has('tasks') && (
+            <div className="border-t border-gray-100 dark:border-gray-700">
+              {!localProject.tasks?.length ? <div className="p-4 text-center text-gray-500">No tasks yet.</div> : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {localProject.tasks.map((task, idx) => (
+                    <SwipeableCard key={idx} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                            <EditableText value={task.name} onSave={(v) => handleTaskUpdate(idx, 'name', v)} className="font-medium text-gray-900 dark:text-white" placeholder="Task name" disabled={!isManagerOrAdmin} />
+                            {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." disabled={!isManagerOrAdmin} />}
+                          </div>
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs" />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            <EditableDate value={task.startDate} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} placeholder="Start" disabled={!isManagerOrAdmin} />
+                            <span>→</span>
+                            <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} placeholder="End" disabled={!isManagerOrAdmin} />
+                          </div>
+                          <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
+                          {employees.length > 0 && <EditableSelect value={(task as any).assignedToEmployeeId?.toString() || ''} options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]} onSave={(v) => handleTaskUpdate(idx, 'assignedToEmployeeId', v || undefined)} disabled={!isManagerOrAdmin} />}
+                        </div>
+                        {/* Task Comments Toggle */}
+                        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => toggleTaskComments(idx)} 
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                          >
+                            <span className="text-xs">{expandedTaskComments.has(idx) ? '▼' : '▶'}</span>
+                            Comments
+                          </button>
+                          {expandedTaskComments.has(idx) && (
+                            <div className="mt-2">
+                              <CommentThread entityType="projectTask" entityId={project._id.toString()} taskIndex={idx} showHeading={false} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </SwipeableCard>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Comments Section */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -196,6 +320,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         <Button variant="secondary" onClick={onClose} className="flex-1">Close</Button>
         {isManagerOrAdmin && onDelete && <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>Delete</Button>}
       </div>
+
+      {/* Wireframe Viewer */}
+      {showWireframe && (
+        <WireframeViewer
+          projectId={localProject._id.toString()}
+          isManagerOrAdmin={isManagerOrAdmin}
+          onClose={() => setShowWireframe(false)}
+        />
+      )}
 
       {/* Task Actions Bottom Sheet */}
       <BottomSheet isOpen={showTaskActions && selectedTaskIndex !== null} onClose={() => { setShowTaskActions(false); setSelectedTaskIndex(null); }} title={selectedTaskIndex !== null ? localProject.tasks?.[selectedTaskIndex]?.name : 'Task Actions'}>

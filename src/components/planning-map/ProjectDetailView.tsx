@@ -11,6 +11,9 @@ import CommentThread from '@/components/comments/CommentThread';
 import Modal from '@/components/ui/Modal';
 import AssetForm from '@/components/assets/AssetForm';
 import { IAsset } from '@/lib/models/Asset';
+import WireframeButton from '@/components/wireframes/WireframeButton';
+import WireframeViewer from '@/components/wireframes/WireframeViewer';
+import ProjectLogo from '@/components/projects/ProjectLogo';
 
 interface ProjectDetailViewProps {
   project: IProject;
@@ -60,6 +63,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   const [projectScreenshots, setProjectScreenshots] = useState<IAsset[]>([]);
   const [taskScreenshots, setTaskScreenshots] = useState<Map<number, IAsset[]>>(new Map());
   const [projectOperations, setProjectOperations] = useState<IOperation[]>([]);
+  const [showWireframe, setShowWireframe] = useState(false);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -454,9 +458,29 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
       {/* Project Header */}
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <div
-            className="w-6 h-6 rounded"
-            style={{ backgroundColor: project.color }}
+          <ProjectLogo
+            projectId={project._id.toString()}
+            logo={project.logo}
+            color={project.color}
+            isManagerOrAdmin={isManagerOrAdmin || false}
+            onLogoUpdate={async (logoUrl) => {
+              // Update project logo via API
+              try {
+                const response = await fetch(`/api/projects/${project._id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ logo: logoUrl }),
+                });
+                if (response.ok) {
+                  // Reload or update local state if needed
+                  if (onEdit) {
+                    onEdit();
+                  }
+                }
+              } catch (error) {
+                console.error('Error updating logo:', error);
+              }
+            }}
           />
           <h2 className={`text-2xl font-bold text-text-primary ${project.status === 'completed' ? 'line-through opacity-75' : ''}`}>{project.name}</h2>
           <span className={`text-sm px-3 py-1 rounded ${
@@ -483,7 +507,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         <div className="grid grid-cols-2 gap-4">
           {/* Projects don't have dates - only tasks and operations do */}
           <div className="col-span-2">
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-2 mb-2 flex-wrap">
               {projectAssets.length > 0 && (
                 <Button
                   variant="secondary"
@@ -507,6 +531,11 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
               >
                 Add Screenshot
               </Button>
+              <WireframeButton
+                projectId={project._id.toString()}
+                isManagerOrAdmin={isManagerOrAdmin}
+                onOpen={() => setShowWireframe(true)}
+              />
             </div>
             {projectScreenshots.length > 0 && (
               <div className="mt-2">
@@ -880,6 +909,15 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           }}
         />
       </Modal>
+
+      {/* Wireframe Viewer */}
+      {showWireframe && (
+        <WireframeViewer
+          projectId={project._id.toString()}
+          isManagerOrAdmin={isManagerOrAdmin}
+          onClose={() => setShowWireframe(false)}
+        />
+      )}
     </div>
   );
 }
