@@ -23,6 +23,7 @@ export interface IProject extends Document {
   urls?: string[]; // New field for multiple URLs
   projectType: ProjectType;
   color: string;
+  logo?: string; // Project logo URL
   status: ProjectStatus;
   endDate?: Date; // Optional end date - project stops appearing on status page after this date
   estimatedHours?: number;
