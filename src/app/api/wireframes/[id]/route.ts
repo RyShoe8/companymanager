@@ -5,6 +5,7 @@ import Project from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -158,13 +159,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Update metadata
+    const userIdObjectId = new Types.ObjectId(session.userId);
     if (wireframe.metadata) {
       wireframe.metadata.version = (wireframe.metadata.version || 1) + 1;
-      wireframe.metadata.lastEditedBy = session.userId;
+      wireframe.metadata.lastEditedBy = userIdObjectId;
     } else {
       wireframe.metadata = {
         version: 1,
-        lastEditedBy: session.userId,
+        lastEditedBy: userIdObjectId,
       };
     }
 
