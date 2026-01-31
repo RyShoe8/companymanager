@@ -147,6 +147,8 @@ export default function WireframeCanvas({
       onSectionAdd({
         type: sectionType,
         label: sectionType.charAt(0).toUpperCase() + sectionType.slice(1),
+        x,
+        y,
         width: snapToGrid(size.width),
         height: snapToGrid(size.height),
         props: {},
