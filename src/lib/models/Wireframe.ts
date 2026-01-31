@@ -22,6 +22,7 @@ export interface IWireframeSection {
   id: string;
   type: SectionType;
   label: string;
+  description?: string;
   x: number;
   y: number;
   width: number;
