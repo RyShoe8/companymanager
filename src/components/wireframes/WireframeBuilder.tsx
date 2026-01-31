@@ -360,8 +360,8 @@ export default function WireframeBuilder({
       label: type === 'user-menu' ? 'User Menu' : type.charAt(0).toUpperCase() + type.slice(1),
       x: snapToGrid(400),
       y: snapToGrid(200),
-      width: snapToGrid(type === 'header' ? 1200 : type === 'footer' ? 1200 : type === 'button' ? 120 : type === 'user-menu' ? 50 : 300),
-      height: snapToGrid(type === 'header' ? 80 : type === 'footer' ? 100 : type === 'button' ? 40 : type === 'user-menu' ? 50 : 100),
+      width: snapToGrid(type === 'button' ? 120 : type === 'user-menu' ? 50 : 300),
+      height: snapToGrid(type === 'button' ? 40 : type === 'user-menu' ? 50 : 100),
     };
     handleComponentAdd(defaultComponent, defaultComponent.x, defaultComponent.y);
   };
