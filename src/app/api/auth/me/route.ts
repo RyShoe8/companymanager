@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
-import User from '@/lib/models/User';
+import User, { isAdminEmail } from '@/lib/models/User';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,13 +31,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Treat user as admin if flag is set OR email is in admin list (covers OAuth users who never had isAdmin set on save)
+    const isAdmin = !!(user.isAdmin || (user.email && isAdminEmail(user.email)));
+
     return NextResponse.json({
       id: user._id.toString(),
       email: user.email,
       name: user.name,
       profilePicture: user.profilePicture,
       organizationSetupComplete: user.organizationSetupComplete,
-      isAdmin: user.isAdmin,
+      isAdmin,
     });
   } catch (error) {
     // Get user error

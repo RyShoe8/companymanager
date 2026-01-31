@@ -66,10 +66,16 @@ const UserSchema: Schema = new Schema(
   }
 );
 
+// Admin emails - single source of truth for system admins
+export const ADMIN_EMAILS = ['ryanschumacher@themediashop.co', 'kellymcguire@themediashop.co'];
+
+export function isAdminEmail(email: string): boolean {
+  return ADMIN_EMAILS.includes(email.toLowerCase());
+}
+
 // Set admin users - check before save to avoid infinite loops
 UserSchema.pre('save', async function(this: IUser) {
-  const adminEmails = ['ryanschumacher@themediashop.co', 'kellymcguire@themediashop.co'];
-  if (adminEmails.includes(this.email.toLowerCase()) && !this.isAdmin) {
+  if (isAdminEmail(this.email) && !this.isAdmin) {
     this.isAdmin = true;
   }
   

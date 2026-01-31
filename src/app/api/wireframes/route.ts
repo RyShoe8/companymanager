@@ -5,6 +5,7 @@ import Project from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
@@ -157,16 +158,16 @@ export async function POST(request: NextRequest) {
 
     // Create wireframe
     const wireframe = await Wireframe.create({
-      projectId,
+      projectId: new Types.ObjectId(projectId),
       sourceType,
       externalUrl: sourceType === 'external' ? externalUrl : undefined,
       pages: pages || [],
       connections: connections || [],
       metadata: {
         version: 1,
-        lastEditedBy: session.userId,
+        lastEditedBy: new Types.ObjectId(session.userId),
       },
-      userId: session.userId,
+      userId: new Types.ObjectId(session.userId),
     });
 
     return NextResponse.json(wireframe, { status: 201 });

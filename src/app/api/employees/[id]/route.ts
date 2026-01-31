@@ -4,6 +4,7 @@ import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
 import { deleteBrevoContact } from '@/lib/services/email';
 import { isValidObjectId, sanitizeString, isValidEmail } from '@/lib/utils/security';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -140,7 +141,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         if (existingEmployeeWithUserId) {
           return NextResponse.json({ error: 'Another employee already has this user account linked' }, { status: 400 });
         }
-        employee.userId = userId;
+        employee.userId = new Types.ObjectId(userId);
       } else if (userId === null || userId === '') {
         // Allow clearing userId
         employee.userId = undefined;
