@@ -6,9 +6,9 @@ import { createPortal } from 'react-dom';
 // Track how many BottomSheets are open to manage body overflow correctly
 let openBottomSheetCount = 0;
 
-interface BottomSheetProps { isOpen: boolean; onClose: () => void; title?: string; children: ReactNode; showHandle?: boolean; maxHeight?: string; }
+interface BottomSheetProps { isOpen: boolean; onClose: () => void; title?: string; children: ReactNode; showHandle?: boolean; maxHeight?: string; hideCloseButton?: boolean; }
 
-export default function BottomSheet({ isOpen, onClose, title, children, showHandle = true, maxHeight = '80vh' }: BottomSheetProps) {
+export default function BottomSheet({ isOpen, onClose, title, children, showHandle = true, maxHeight = '80vh', hideCloseButton = false }: BottomSheetProps) {
   const [shouldRender, setShouldRender] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -73,7 +73,18 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
         style={{ maxHeight, transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined }}
       >
         {showHandle && <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}><div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" /></div>}
-        {title && <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700"><h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3></div>}
+        {title && (
+          <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+            {!hideCloseButton && (
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 -mr-1" aria-label="Close">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
         <div className="overflow-y-auto" style={{ maxHeight: `calc(${maxHeight} - 60px)` }}>{children}</div>
       </div>
     </div>,
