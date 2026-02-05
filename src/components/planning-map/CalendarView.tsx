@@ -789,7 +789,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               .filter((task) => {
                                 // If toggle is on, only show tasks assigned to current user
                                 if (showOnlyMyAssignments) {
-                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return false;
+                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return true; // Can't identify user -> show all
                                   const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
                                   return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
                                 }
@@ -858,7 +858,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                               .filter((task) => {
                                 // If toggle is on, only show tasks assigned to current user
                                 if (showOnlyMyAssignments) {
-                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return false;
+                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return true; // Can't identify user -> show all
                                   const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
                                   return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
                                 }
@@ -1012,7 +1012,7 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         
                         // If toggle is on, only show operations assigned to current user
                         if (showOnlyMyAssignments) {
-                          if (!currentUserEmployeeName && !currentUserEmployeeId) return false;
+                          if (!currentUserEmployeeName && !currentUserEmployeeId) return true; // Can't identify user -> show all
                           const opAssignedToId = (instance.operation as any).assignedToEmployeeId?.toString();
                           const isAssignedToUser = opAssignedToId === currentUserEmployeeId || instance.operation.assignedTo === currentUserEmployeeName;
                           return isTodayInRange && isAssignedToUser;

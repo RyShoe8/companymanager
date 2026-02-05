@@ -73,7 +73,10 @@ export default function RunPage() {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           if (userData && userData.id) {
-            const currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+            let currentEmployee = employeesData.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+            if (!currentEmployee && userData.email) {
+              currentEmployee = employeesData.find((emp: IEmployee) => emp.email?.toLowerCase() === userData.email?.toLowerCase());
+            }
             if (currentEmployee) {
               const role = currentEmployee.role || 'User';
               setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
