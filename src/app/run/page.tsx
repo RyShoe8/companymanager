@@ -198,6 +198,10 @@ export default function RunPage() {
         }
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
+        if (project.tasks?.some(task => {
+          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+          return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+        })) return true;
         return false;
       });
     }
@@ -210,6 +214,10 @@ export default function RunPage() {
         }
         const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
         if (projectAssignedToId === currentUserEmployeeId || project.assignedTo === currentUserEmployeeName) return true;
+        if (project.tasks?.some(task => {
+          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+          return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+        })) return true;
         return false;
       });
     }
