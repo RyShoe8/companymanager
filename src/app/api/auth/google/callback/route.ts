@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import User, { IUser } from '@/lib/models/User';
+import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
-import Organization from '@/lib/models/Organization';
 import { createSession } from '@/lib/auth/session';
 
 /**
@@ -133,41 +132,8 @@ export async function GET(request: NextRequest) {
       isNewUser = true;
       
       if (!invitationToken) {
-        // Check if there's an existing organization with matching domain
-        const emailDomain = email.split('@')[1]?.toLowerCase();
-
-        if (emailDomain) {
-          // First, try to find organization with matching domain
-          const existingOrganization = await Organization.findOne({ domain: emailDomain });
-          
-          if (existingOrganization) {
-            // Find the admin user for this organization
-            const existingOrgAdmin = await User.findById(existingOrganization.userId) as IUser | null;
-            
-            if (existingOrgAdmin && existingOrgAdmin.organizationId) {
-              // Join existing organization
-              organizationId = existingOrgAdmin.organizationId;
-              isJoiningExistingOrg = true;
-            }
-          } else {
-            // If no organization with domain found, check for ANY user with same domain
-            // This handles cases where domain wasn't set or second user signs up before domain is set
-            const existingUserWithDomain = await User.findOne({
-              email: { $regex: `@${emailDomain}$`, $options: 'i' },
-            });
-            
-            if (existingUserWithDomain && existingUserWithDomain.organizationId) {
-              // Join the organization of the first user found with same domain
-              organizationId = existingUserWithDomain.organizationId;
-              isJoiningExistingOrg = true;
-            }
-          }
-        }
-
-        // If no existing organization found, create new one
-        if (!organizationId) {
-          organizationId = `temp-${Date.now()}`;
-        }
+        // New user without invitation: always create new organization (no auto-join by domain)
+        organizationId = `temp-${Date.now()}`;
       }
 
       // Determine if organization setup is complete
