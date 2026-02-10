@@ -144,7 +144,27 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const statusOptions = [{ value: 'planning', label: 'Planning', color: '#3b82f6' }, { value: 'in-development', label: 'Building', color: '#22c55e' }, { value: 'launched', label: 'Running', color: '#a855f7' }];
   const projectTypeOptions = [{ value: 'website', label: 'Website' }, { value: 'store', label: 'Store' }, { value: 'app', label: 'App' }, { value: 'generic', label: 'Generic' }];
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
+  const operationStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
   const employeeOptions = employees.map(emp => ({ value: emp._id.toString(), label: emp.name }));
+
+  const handleOperationUpdate = async (operationId: string, updates: Partial<IOperation>) => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/operations/${operationId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update operation');
+      const updatedOp = await res.json();
+      setProjectOperations(prev => prev.map(op => op._id.toString() === operationId ? updatedOp : op));
+    } catch (error) {
+      console.error('Error updating operation:', error);
+      onRefresh();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-4 max-h-[85vh] overflow-y-auto">
@@ -202,39 +222,27 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {projectOperations.map((operation) => (
-                      <div key={operation._id.toString()} className="p-4">
+                      <div key={operation._id.toString()} className="p-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 dark:text-white">{operation.name}</div>
-                            {operation.description && (
-                              <div className="text-sm text-gray-500 mt-1">{operation.description}</div>
+                            <EditableText value={operation.name} onSave={(v) => handleOperationUpdate(operation._id.toString(), { name: v })} className="font-medium text-gray-900 dark:text-white" placeholder="Operation name" disabled={!isManagerOrAdmin} />
+                            {(operation.description || isManagerOrAdmin) && (
+                              <EditableText value={operation.description || ''} onSave={(v) => handleOperationUpdate(operation._id.toString(), { description: v })} className="text-sm text-gray-500 mt-1" placeholder="Add description..." multiline disabled={!isManagerOrAdmin} />
                             )}
                           </div>
                           <div>
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              operation.status === 'in-review' 
-                                ? 'bg-yellow-100 text-yellow-800' 
-                                : operation.status === 'completed'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {operation.status === 'in-review' ? 'In Review' : operation.status === 'completed' ? 'Completed' : 'Active'}
-                            </span>
+                            <EditableSelect value={operation.status || 'active'} options={operationStatusOptions} onSave={(v) => handleOperationUpdate(operation._id.toString(), { status: v as IOperation['status'] })} showColorDot className="text-xs" disabled={!isManagerOrAdmin} />
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
-                          {operation.startDate && operation.endDate && (
-                            <div className="flex items-center gap-1">
-                              <span>{formatDate(operation.startDate)}</span>
-                              <span>→</span>
-                              <span>{formatDate(operation.endDate)}</span>
-                            </div>
-                          )}
-                          {operation.estimatedHours && (
-                            <span>{operation.estimatedHours}h</span>
-                          )}
-                          {operation.assignedToEmployeeId && (
-                            <span>Assigned: {employees.find(e => e._id.toString() === operation.assignedToEmployeeId?.toString())?.name || operation.assignedTo}</span>
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500 items-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            <EditableDate value={operation.startDate ? new Date(operation.startDate) : null} onSave={(v) => handleOperationUpdate(operation._id.toString(), { startDate: v })} placeholder="Start" disabled={!isManagerOrAdmin} />
+                            <span>→</span>
+                            <EditableDate value={operation.endDate ? new Date(operation.endDate) : null} onSave={(v) => handleOperationUpdate(operation._id.toString(), { endDate: v })} placeholder="End" disabled={!isManagerOrAdmin} />
+                          </div>
+                          <EditableNumber value={operation.estimatedHours} onSave={(v) => handleOperationUpdate(operation._id.toString(), { estimatedHours: v })} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
+                          {employees.length > 0 && (
+                            <EditableSelect value={operation.assignedToEmployeeId?.toString() || ''} options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]} onSave={(v) => handleOperationUpdate(operation._id.toString(), { assignedToEmployeeId: (v === '' || !v) ? null : v })} disabled={!isManagerOrAdmin} />
                           )}
                         </div>
                       </div>
