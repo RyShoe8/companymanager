@@ -480,9 +480,9 @@ export default function RunPage() {
           )}
         </BottomSheet>
 
-        {/* New / Edit Operation */}
+        {/* New / Edit Operation - elevated so it appears above the project detail sheet */}
         {isMobile ? (
-          <BottomSheet isOpen={showOperationForm} onClose={closeOperationForm} title={editingOperation ? 'Edit Operation' : 'New Operation'}>
+          <BottomSheet isOpen={showOperationForm} onClose={closeOperationForm} title={editingOperation ? 'Edit Operation' : 'New Operation'} elevated>
             <div className="p-4">
               <OperationForm
                 operation={editingOperation}
@@ -492,7 +492,7 @@ export default function RunPage() {
             </div>
           </BottomSheet>
         ) : (
-          <Modal isOpen={showOperationForm} onClose={closeOperationForm} title={editingOperation ? 'Edit Operation' : 'New Operation'}>
+          <Modal isOpen={showOperationForm} onClose={closeOperationForm} title={editingOperation ? 'Edit Operation' : 'New Operation'} elevated>
             <OperationForm
               operation={editingOperation}
               onSubmit={handleSubmitOperation}

@@ -10,9 +10,11 @@ interface ModalProps {
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | 'full';
   headerActions?: React.ReactNode;
   hideCloseButton?: boolean;
+  /** Use higher z-index so this modal appears above other overlays (e.g. when opened from another modal). */
+  elevated?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children, maxWidth = '2xl', headerActions, hideCloseButton = false }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, maxWidth = '2xl', headerActions, hideCloseButton = false, elevated = false }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -26,11 +28,13 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '2x
 
   if (!isOpen) return null;
 
+  const zClass = elevated ? 'z-[60]' : 'z-50';
+
   if (maxWidth === 'full') {
     // Full-screen modal that stretches from navbar to bottom
     return (
       <div
-        className="fixed inset-x-0 top-16 bottom-0 z-50 bg-black bg-opacity-50"
+        className={`fixed inset-x-0 top-16 bottom-0 ${zClass} bg-black bg-opacity-50`}
         onClick={onClose}
         style={{ top: '4rem', height: 'calc(100vh - 4rem)' }}
       >
@@ -66,7 +70,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '2x
   // Regular centered modal
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+      className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black bg-opacity-50`}
       onClick={onClose}
     >
       <div

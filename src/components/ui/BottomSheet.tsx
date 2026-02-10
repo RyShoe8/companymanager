@@ -6,9 +6,9 @@ import { createPortal } from 'react-dom';
 // Track how many BottomSheets are open to manage body overflow correctly
 let openBottomSheetCount = 0;
 
-interface BottomSheetProps { isOpen: boolean; onClose: () => void; title?: string; children: ReactNode; showHandle?: boolean; maxHeight?: string; hideCloseButton?: boolean; }
+interface BottomSheetProps { isOpen: boolean; onClose: () => void; title?: string; children: ReactNode; showHandle?: boolean; maxHeight?: string; hideCloseButton?: boolean; /** Use higher z-index so this sheet appears above other overlays. */ elevated?: boolean; }
 
-export default function BottomSheet({ isOpen, onClose, title, children, showHandle = true, maxHeight = '80vh', hideCloseButton = false }: BottomSheetProps) {
+export default function BottomSheet({ isOpen, onClose, title, children, showHandle = true, maxHeight = '80vh', hideCloseButton = false, elevated = false }: BottomSheetProps) {
   const [shouldRender, setShouldRender] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -63,9 +63,10 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
 
   if (!mounted || !shouldRender) return null;
 
+  const zClass = elevated ? 'z-[60]' : 'z-50';
   return createPortal(
     <div 
-      className={`fixed inset-0 z-50 flex items-end justify-center transition-colors duration-300 ${isOpen ? 'bg-black/50' : 'bg-transparent pointer-events-none'}`} 
+      className={`fixed inset-0 ${zClass} flex items-end justify-center transition-colors duration-300 ${isOpen ? 'bg-black/50' : 'bg-transparent pointer-events-none'}`} 
       onClick={isOpen ? handleBackdropClick : undefined}
     >
       <div 
