@@ -26,9 +26,11 @@ interface InlineProjectViewProps {
   onDelete?: () => void;
   onClose: () => void;
   onRefresh: () => void;
+  /** Called when user clicks "+ Add Operation" for this project (launched only). */
+  onAddOperation?: (projectId: string) => void;
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddOperation }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     return new Set(project.status === 'launched' ? ['operations'] : ['tasks']);
@@ -214,6 +216,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <span className="text-gray-500 text-sm">{expandedSections.has('operations') ? '▼' : '▶'}</span>
               Operations ({projectOperations.length})
             </div>
+            {isManagerOrAdmin && onAddOperation && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onAddOperation(localProject._id.toString()); }}
+                className="shrink-0 text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+              >
+                + Add Operation
+              </button>
+            )}
           </div>
           {expandedSections.has('operations') && (
             <div className="border-t border-gray-100 dark:border-gray-700">

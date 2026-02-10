@@ -34,6 +34,7 @@ export default function RunPage() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [showProjectDetail, setShowProjectDetail] = useState(false);
   const [showOperationForm, setShowOperationForm] = useState(false);
+  const [operationFormProjectId, setOperationFormProjectId] = useState<string | null>(null);
   const [showOperationDetail, setShowOperationDetail] = useState(false);
   const [editingProject, setEditingProject] = useState<IProject | undefined>();
   const [editingOperation, setEditingOperation] = useState<IOperation | undefined>();
@@ -124,8 +125,9 @@ export default function RunPage() {
     setShowProjectForm(true);
   };
 
-  const handleCreateOperation = () => {
+  const handleCreateOperation = (projectId?: string) => {
     setEditingOperation(undefined);
+    setOperationFormProjectId(projectId ?? null);
     setShowOperationForm(true);
   };
 
@@ -188,6 +190,54 @@ export default function RunPage() {
     }
   };
 
+  const handleSubmitOperation = async (data: Partial<IOperation>) => {
+    try {
+      if (editingOperation) {
+        const res = await fetch(`/api/operations/${editingOperation._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        if (res.ok) {
+          setShowOperationForm(false);
+          setEditingOperation(undefined);
+          setOperationFormProjectId(null);
+          await loadData();
+        } else {
+          const text = await res.text();
+          alert(`Failed to update operation: ${text}`);
+        }
+      } else {
+        const projectId = operationFormProjectId;
+        if (!projectId) {
+          alert('Project is required to create an operation. Add an operation from a project view.');
+          return;
+        }
+        const res = await fetch('/api/operations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...data, projectId }),
+        });
+        if (res.ok) {
+          setShowOperationForm(false);
+          setOperationFormProjectId(null);
+          await loadData();
+        } else {
+          const text = await res.text();
+          alert(`Failed to create operation: ${text}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving operation:', error);
+      alert('Error saving operation. Please try again.');
+    }
+  };
+
+  const closeOperationForm = () => {
+    setShowOperationForm(false);
+    setEditingOperation(undefined);
+    setOperationFormProjectId(null);
+  };
 
   // Filter projects and operations based on user role and toggle
   const filteredProjects = (() => {
@@ -337,6 +387,7 @@ export default function RunPage() {
           {viewingProject && (
             <div className="p-4">
               <InlineProjectView project={viewingProject} employees={employees} isManagerOrAdmin={isManagerOrAdmin} currentUserEmployeeId={currentUserEmployeeId}
+                onAddOperation={(projectId) => handleCreateOperation(projectId)}
                 onUpdate={async (updates) => { 
                   try {
                     // Validate updates object
@@ -428,6 +479,27 @@ export default function RunPage() {
             </div>
           )}
         </BottomSheet>
+
+        {/* New / Edit Operation */}
+        {isMobile ? (
+          <BottomSheet isOpen={showOperationForm} onClose={closeOperationForm} title={editingOperation ? 'Edit Operation' : 'New Operation'}>
+            <div className="p-4">
+              <OperationForm
+                operation={editingOperation}
+                onSubmit={handleSubmitOperation}
+                onCancel={closeOperationForm}
+              />
+            </div>
+          </BottomSheet>
+        ) : (
+          <Modal isOpen={showOperationForm} onClose={closeOperationForm} title={editingOperation ? 'Edit Operation' : 'New Operation'}>
+            <OperationForm
+              operation={editingOperation}
+              onSubmit={handleSubmitOperation}
+              onCancel={closeOperationForm}
+            />
+          </Modal>
+        )}
       </div>
     </div>
   );
