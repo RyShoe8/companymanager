@@ -8,6 +8,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { validateImageFile, isValidObjectId } from '@/lib/utils/security';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { put, del } from '@vercel/blob';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -70,33 +71,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Invalid image file' }, { status: 400 });
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'projects');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    // Generate unique filename
     const timestamp = Date.now();
     const extension = file.type.split('/')[1]?.toLowerCase() || 'jpg';
     const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     const finalExtension = validExtensions.includes(extension) ? extension : 'jpg';
     const filename = `${id}-${timestamp}.${finalExtension}`;
-    const filepath = join(uploadsDir, filename);
 
-    // Convert file to buffer and save
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filepath, buffer);
+    let url: string;
 
-    // Verify file was written
-    const { existsSync: checkExists } = await import('fs');
-    if (!checkExists(filepath)) {
-      throw new Error('Failed to save file');
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      // Production (e.g. Vercel): use Blob storage (filesystem is read-only)
+      const blob = await put(`projects/${filename}`, file, {
+        access: 'public',
+        contentType: file.type,
+      });
+      url = blob.url;
+    } else {
+      // Local dev: use filesystem under public/uploads
+      const uploadsDir = join(process.cwd(), 'public', 'uploads', 'projects');
+      if (!existsSync(uploadsDir)) {
+        await mkdir(uploadsDir, { recursive: true });
+      }
+      const filepath = join(uploadsDir, filename);
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      await writeFile(filepath, buffer);
+      const { existsSync: checkExists } = await import('fs');
+      if (!checkExists(filepath)) {
+        throw new Error('Failed to save file');
+      }
+      url = `/uploads/projects/${filename}`;
     }
 
-    // Update project logo
-    const url = `/uploads/projects/${filename}`;
     project.logo = url;
     await project.save();
 
@@ -151,10 +157,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // Delete logo file if it exists
     if (project.logo) {
       try {
-        const { unlink } = await import('fs/promises');
-        const logoPath = join(process.cwd(), 'public', project.logo);
-        if (existsSync(logoPath)) {
-          await unlink(logoPath);
+        if (project.logo.startsWith('https://')) {
+          // Vercel Blob URL
+          await del(project.logo);
+        } else {
+          // Local filesystem path
+          const { unlink } = await import('fs/promises');
+          const logoPath = join(process.cwd(), 'public', project.logo);
+          if (existsSync(logoPath)) {
+            await unlink(logoPath);
+          }
         }
       } catch (error) {
         // Log but don't fail if file deletion fails

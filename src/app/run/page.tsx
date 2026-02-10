@@ -353,7 +353,8 @@ export default function RunPage() {
                       return;
                     }
 
-                    const res = await fetch(`/api/projects/${viewingProject._id}`, { 
+                    const projectId = viewingProject._id?.toString() ?? viewingProject._id;
+                    const res = await fetch(`/api/projects/${projectId}`, { 
                       method: 'PUT', 
                       headers: { 'Content-Type': 'application/json' }, 
                       body: body
@@ -361,6 +362,17 @@ export default function RunPage() {
                     
                     if (res.ok) { 
                       const updatedProject = await res.json();
+                      const newStatus = updatedProject.status;
+                      // If status changed to another stage, close sheet and refresh so user sees feedback
+                      if (newStatus && newStatus !== 'launched' && newStatus !== 'completed') {
+                        setShowProjectDetail(false);
+                        setViewingProject(undefined);
+                        await loadData();
+                        if (newStatus === 'in-development') {
+                          router.push(`/build/${updatedProject._id?.toString() ?? updatedProject._id}`);
+                        }
+                        return;
+                      }
                       // Update viewing project immediately
                       setViewingProject(updatedProject);
                       // Update projects array without full reload

@@ -77,6 +77,7 @@ export default function EditableSelect({ value, options, onSave, className = '',
       ref={dropdownRef}
       className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 max-h-48 overflow-auto"
       style={{ top: dropdownPosition.top, left: dropdownPosition.left, minWidth: dropdownPosition.width }}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {options.map((option, idx) => (
         <button key={option.value} type="button" onClick={() => handleSelect(option.value)} onMouseEnter={() => setHighlightedIndex(idx)}

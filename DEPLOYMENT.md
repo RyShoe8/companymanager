@@ -39,6 +39,11 @@ In the Vercel project settings, add the following environment variables:
 - `BREVO_SENDER_NAME`: Name to display as sender (optional)
   - Defaults to "Nucleas" if not set
 
+- `BLOB_READ_WRITE_TOKEN`: Vercel Blob store token for project logo uploads (required on Vercel)
+  - On Vercel the filesystem is read-only; project logos are stored in Vercel Blob when this is set.
+  - Create a Blob store in your Vercel project (Storage tab) and add the token as an environment variable.
+  - Leave unset for local development (logos are saved to `public/uploads/projects/`).
+
 ### 4. MongoDB Atlas Configuration
 
 1. Ensure your MongoDB Atlas cluster allows connections from anywhere (0.0.0.0/0) or add Vercel IPs
