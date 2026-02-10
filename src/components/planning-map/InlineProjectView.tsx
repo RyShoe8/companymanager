@@ -242,7 +242,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           </div>
                           <EditableNumber value={operation.estimatedHours} onSave={(v) => handleOperationUpdate(operation._id.toString(), { estimatedHours: v })} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
                           {employees.length > 0 && (
-                            <EditableSelect value={operation.assignedToEmployeeId?.toString() || ''} options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]} onSave={(v) => handleOperationUpdate(operation._id.toString(), { assignedToEmployeeId: (v === '' || !v) ? null : v })} disabled={!isManagerOrAdmin} />
+                            <EditableSelect value={operation.assignedToEmployeeId?.toString() || ''} options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]} onSave={(v) => handleOperationUpdate(operation._id.toString(), { assignedToEmployeeId: (v === '' || !v) ? (null as unknown as IOperation['assignedToEmployeeId']) : v })} disabled={!isManagerOrAdmin} />
                           )}
                         </div>
                       </div>
