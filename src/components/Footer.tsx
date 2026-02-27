@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function Footer() {
   return (
@@ -11,12 +10,13 @@ export default function Footer() {
           {/* Brand */}
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <Image
-                src="/images/Nucleas.png"
+              {/* Use same asset as nav; img avoids Next/Image filter quirks on dark bg */}
+              <img
+                src="/images/icon.png"
                 alt="Nucleas Logo"
+                className="h-9 w-auto object-contain brightness-0 invert opacity-95"
                 width={120}
                 height={36}
-                className="h-9 w-auto brightness-0 invert opacity-95"
               />
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-6">

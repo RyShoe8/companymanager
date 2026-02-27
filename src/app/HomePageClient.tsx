@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import InteractiveDemoBlock from '@/components/home/InteractiveDemoBlock';
 import AnimateIn from '@/components/home/AnimateIn';
 
@@ -24,14 +23,13 @@ export default function HomePageClient() {
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-32 text-center">
           <AnimateIn>
             <div className="flex justify-center mb-10">
-              <Image
-                src="/images/Nucleas.png"
+              {/* Use same asset as nav; img avoids Next/Image filter quirks on dark bg */}
+              <img
+                src="/images/icon.png"
                 alt="Nucleas"
-                width={200}
-                height={80}
-                priority
-                unoptimized
-                className="h-12 md:h-14 w-auto object-contain brightness-0 invert"
+                className="h-14 md:h-16 w-auto object-contain brightness-0 invert opacity-95"
+                width={120}
+                height={120}
               />
             </div>
           </AnimateIn>
