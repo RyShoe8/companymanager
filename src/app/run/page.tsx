@@ -55,6 +55,7 @@ export default function RunPage() {
   const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
   const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
   const [detailContentItemId, setDetailContentItemId] = useState<string | null>(null);
+  const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -414,7 +415,7 @@ export default function RunPage() {
         </div>
 
         <ContentItemCreateModal isOpen={!!addContentProject} onClose={() => { setAddContentProject(null); setAddContentDefaultDate(undefined); }} project={addContentProject} defaultPublishDate={addContentDefaultDate} employees={employees} onSuccess={fetchContentItems} />
-        <ContentItemDetailModal isOpen={!!detailContentItemId} onClose={() => setDetailContentItemId(null)} contentItemId={detailContentItemId} employees={employees} onSaved={fetchContentItems} />
+        <ContentItemDetailModal isOpen={!!detailContentItemId} onClose={() => setDetailContentItemId(null)} contentItemId={detailContentItemId} employees={employees} onSaved={() => { fetchContentItems(); setContentRefreshTrigger((t) => t + 1); }} onDeleted={() => { fetchContentItems(); setContentRefreshTrigger((t) => t + 1); }} />
 
         {/* Quick Project Creation */}
         {isMobile ? (
@@ -434,6 +435,8 @@ export default function RunPage() {
               <InlineProjectView project={viewingProject} employees={employees} isManagerOrAdmin={isManagerOrAdmin} currentUserEmployeeId={currentUserEmployeeId}
                 onAddOperation={(projectId) => handleCreateOperation(projectId)}
                 onAddContent={(proj) => { setAddContentProject(proj); setAddContentDefaultDate(undefined); }}
+                onContentItemClick={(item) => setDetailContentItemId(item._id.toString())}
+                contentRefreshTrigger={contentRefreshTrigger}
                 onUpdate={async (updates) => { 
                   if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) throw new Error('No changes to save');
                   const body = JSON.stringify(updates);

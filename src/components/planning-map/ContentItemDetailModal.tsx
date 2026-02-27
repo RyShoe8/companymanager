@@ -22,6 +22,7 @@ interface ContentItemDetailModalProps {
   contentItemId: string | null;
   employees: IEmployee[];
   onSaved: () => void;
+  onDeleted?: () => void;
 }
 
 export default function ContentItemDetailModal({
@@ -30,10 +31,12 @@ export default function ContentItemDetailModal({
   contentItemId,
   employees,
   onSaved,
+  onDeleted,
 }: ContentItemDetailModalProps) {
   const [item, setItem] = useState<IContentItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
@@ -112,6 +115,23 @@ export default function ContentItemDetailModal({
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!contentItemId || !confirm('Delete this content item? This cannot be undone.')) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/content-items/${contentItemId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      onDeleted?.();
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -219,9 +239,10 @@ export default function ContentItemDetailModal({
             />
           </div>
           {error && <div className="text-red-500 text-sm">{error}</div>}
-          <div className="flex gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Close</Button>
-            <Button type="submit" disabled={saving} className="flex-1">{saving ? 'Saving...' : 'Save'}</Button>
+          <div className="flex gap-2 pt-2 flex-wrap">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1 min-w-0">Close</Button>
+            <Button type="submit" disabled={saving} className="flex-1 min-w-0">{saving ? 'Saving...' : 'Save'}</Button>
+            <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1 min-w-0">{deleting ? 'Deleting...' : 'Delete'}</Button>
           </div>
         </form>
       )}
