@@ -317,50 +317,6 @@ export default function HomePageClient() {
         </div>
       </section>
 
-      {/* DEMO CTA REPEAT */}
-      <section className="py-24 md:py-32 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-2xl mx-auto text-center">
-          <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">
-              Try it with your own idea
-            </h2>
-            <p className="text-text-secondary mb-10 text-lg">
-              Type what you want to build and we&apos;ll generate a live workspace for it.
-            </p>
-            <InteractiveDemoBlock
-              buttonText="Generate Demo Workspace"
-              subtext="See how your entire operation would run inside Nucleas."
-            />
-          </AnimateIn>
-        </div>
-      </section>
-
-      {/* PRICING */}
-      <section className="py-24 md:py-32 bg-background-card border-y border-border">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">
-              Start free
-            </h2>
-            <p className="text-text-primary mb-6 text-lg">
-              Run one project with full features.
-            </p>
-            <p className="text-text-secondary mb-6">
-              Upgrade when you need: multiple projects, team workspaces, shared access, advanced features.
-            </p>
-            <p className="text-text-secondary mb-10">
-              Simple pricing. No per-seat complexity.
-            </p>
-            <Link
-              href="/register"
-              className="inline-flex items-center justify-center px-10 py-4 min-h-[52px] rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Start Free
-            </Link>
-          </AnimateIn>
-        </div>
-      </section>
-
       {/* FINAL CTA */}
       <section className="py-24 md:py-32 bg-gradient-to-br from-primary via-primary to-secondary">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
