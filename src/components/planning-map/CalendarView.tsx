@@ -3,12 +3,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { IProject } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
+import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, formatDate, getTimeframeRange } from '@/lib/utils/dateUtils';
 import Button from '@/components/ui/Button';
+import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 
 interface CalendarViewProps {
   projects: IProject[];
   operations: IOperation[];
+  contentItems?: IContentItem[];
+  showTasks?: boolean;
+  showContent?: boolean;
+  contentChannelFilter?: string;
   timeframe: TimeframeType;
   currentDate: Date;
   onProjectClick: (project: IProject) => void;
@@ -18,9 +24,35 @@ interface CalendarViewProps {
   currentUserEmployeeId?: string | null;
   isManagerOrAdmin?: boolean;
   showOnlyMyAssignments?: boolean;
+  onContentItemClick?: (item: IContentItem) => void;
+  onAddContent?: (project: IProject, defaultDate?: Date) => void;
+  onRefreshContent?: () => void;
 }
 
-export default function CalendarView({ projects, operations, timeframe, currentDate, onProjectClick, onOperationClick, onDateChange, currentUserEmployeeName, currentUserEmployeeId, isManagerOrAdmin = false, showOnlyMyAssignments = false }: CalendarViewProps) {
+export type MergedCalendarItem = 
+  | { type: 'task'; task: IProject['tasks'][0]; date: Date }
+  | { type: 'content'; content: IContentItem };
+
+export default function CalendarView({
+  projects,
+  operations,
+  contentItems = [],
+  showTasks = true,
+  showContent = true,
+  contentChannelFilter = 'All',
+  timeframe,
+  currentDate,
+  onProjectClick,
+  onOperationClick,
+  onDateChange,
+  currentUserEmployeeName,
+  currentUserEmployeeId,
+  isManagerOrAdmin = false,
+  showOnlyMyAssignments = false,
+  onContentItemClick,
+  onAddContent,
+  onRefreshContent,
+}: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
@@ -226,6 +258,92 @@ export default function CalendarView({ projects, operations, timeframe, currentD
   useEffect(() => {
     setViewDate(currentDate);
   }, [currentDate, timeframe]);
+
+  const [addMenuProjectId, setAddMenuProjectId] = useState<string | null>(null);
+  const [timeframeModalOpen, setTimeframeModalOpen] = useState<{
+    project: IProject;
+    startDate: Date;
+    endDate: Date;
+  } | null>(null);
+
+  function canAddContentToProject(project: IProject): boolean {
+    if (isManagerOrAdmin) return true;
+    if (!currentUserEmployeeId) return false;
+    const pid = (project as any).assignedToEmployeeId?.toString();
+    if (pid === currentUserEmployeeId) return true;
+    const ids = (project as any).assignedToEmployeeIds;
+    if (ids?.some((id: any) => id?.toString() === currentUserEmployeeId)) return true;
+    if (project.tasks?.some((t) => (t as any).assignedToEmployeeId?.toString() === currentUserEmployeeId)) return true;
+    return false;
+  }
+
+  function taskPassesAssignmentFilter(task: IProject['tasks'][0]): boolean {
+    if (showOnlyMyAssignments) {
+      if (!currentUserEmployeeName && !currentUserEmployeeId) return true;
+      const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+      return taskAssignedToId === currentUserEmployeeId || (task as any).assignedTo === currentUserEmployeeName;
+    }
+    if (isManagerOrAdmin) return true;
+    if (currentUserEmployeeName || currentUserEmployeeId) {
+      const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+      return taskAssignedToId === currentUserEmployeeId || (task as any).assignedTo === currentUserEmployeeName;
+    }
+    return true;
+  }
+
+  function getMergedItemsForProject(
+    project: IProject,
+    rangeStart: Date,
+    rangeEnd: Date,
+    options: { forTodayView?: boolean }
+  ): { merged: MergedCalendarItem[]; taskItems: TimeframeTaskItem[]; contentInRange: IContentItem[] } {
+    const start = new Date(rangeStart);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(rangeEnd);
+    end.setHours(23, 59, 59, 999);
+    const projectIdStr = project._id.toString();
+
+    const taskItems: TimeframeTaskItem[] = [];
+    if (showTasks && project.tasks && project.status !== 'launched') {
+      project.tasks.forEach((task) => {
+        const taskStart = new Date((task as any).startDate);
+        taskStart.setHours(0, 0, 0, 0);
+        const taskEnd = new Date((task as any).endDate);
+        taskEnd.setHours(23, 59, 59, 999);
+        if (taskStart <= end && taskEnd >= start) {
+          taskItems.push({ task, startDate: taskStart, endDate: taskEnd });
+        }
+      });
+    }
+
+    let contentInRange: IContentItem[] = [];
+    if (showContent && contentItems.length > 0) {
+      contentInRange = contentItems.filter((item) => {
+        if (item.projectId?.toString() !== projectIdStr) return false;
+        if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
+        if (!item.publishDate) return false;
+        const d = new Date(item.publishDate);
+        d.setHours(0, 0, 0, 0);
+        return d >= start && d <= end;
+      });
+    }
+
+    const merged: MergedCalendarItem[] = [];
+    taskItems.forEach(({ task, startDate: sd }) => {
+      merged.push({ type: 'task', task, date: sd });
+    });
+    contentInRange.forEach((c) => {
+      merged.push({ type: 'content', content: c });
+    });
+    merged.sort((a, b) => {
+      const dateA = a.type === 'task' ? a.date.getTime() : new Date(a.content.publishDate!).getTime();
+      const dateB = b.type === 'task' ? b.date.getTime() : new Date(b.content.publishDate!).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return a.type === 'task' ? -1 : 1;
+    });
+
+    return { merged, taskItems, contentInRange };
+  }
 
   // Generate recurring instances of operations for the current view
   const operationInstances = useMemo(() => {
@@ -737,6 +855,35 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                         {project.name}
                       </h4>
                       <div className="flex items-center gap-2">
+                        {onAddContent && canAddContentToProject(project) && (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(prev => prev === projectId ? null : projectId); }}
+                              className="text-white hover:opacity-100 opacity-90 px-2 py-1 rounded border border-white/50 text-sm"
+                            >
+                              + Add
+                            </button>
+                            {addMenuProjectId === projectId && (
+                              <div className="absolute right-0 top-full mt-1 py-1 bg-background-card border border-border rounded shadow-lg z-10 min-w-[120px]">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onProjectClick(project); }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
+                                >
+                                  Add Task
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onAddContent(project, today); }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
+                                >
+                                  Add Content
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <span
                           className="px-3 py-1 rounded-full text-sm font-medium text-white"
                           style={{ backgroundColor: displayColor }}
@@ -778,124 +925,95 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       </>
                     )}
 
-                    {/* Show tasks for non-launched projects */}
-                    {hasTasks && (
-                      <div className="mt-4">
-                        <p className="text-sm font-semibold text-white mb-2">Tasks:</p>
-                        {isExpanded ? (
-                          <div className="space-y-2">
-                            {/* Show all tasks for managers/admins (unless toggle is on), or tasks assigned to current user */}
-                            {project.tasks!
-                              .filter((task) => {
-                                // If toggle is on, only show tasks assigned to current user
-                                if (showOnlyMyAssignments) {
-                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return true; // Can't identify user -> show all
-                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+                    {/* Unified tasks + content for today */}
+                    {(() => {
+                      const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, today, today, {});
+                      const displayList = merged.filter((item): item is MergedCalendarItem => 
+                        item.type === 'content' || taskPassesAssignmentFilter(item.task)
+                      );
+                      const visible = displayList.slice(0, 5);
+                      const moreCount = displayList.length - 5;
+                      const hasAny = visible.length > 0 || moreCount > 0;
+                      if (!hasAny) return null;
+                      return (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-white mb-2">Tasks &amp; Content</p>
+                          {isExpanded ? (
+                            <div className="space-y-2">
+                              {visible.map((item, idx) => {
+                                if (item.type === 'task') {
+                                  const task = item.task;
+                                  const taskKey = `${projectId}-task-${idx}-${task.name}`;
+                                  return (
+                                    <div key={taskKey} className="p-3 rounded border border-border bg-background-card">
+                                      <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                      {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
+                                      <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                        {(task as any).estimatedHours && <span>{(task as any).estimatedHours}h</span>}
+                                        {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo) && (
+                                          <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo)}</span>
+                                        )}
+                                        <span className="capitalize">{(task as any).status}</span>
+                                      </div>
+                                    </div>
+                                  );
                                 }
-                                // If user is manager/admin, show all tasks
-                                if (isManagerOrAdmin) {
-                                  return true;
-                                }
-                                // If currentUserEmployeeName is set, only show tasks assigned to that user
-                                // Check by employeeId (preferred) or name (legacy)
-                                if (currentUserEmployeeName) {
-                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
-                                }
-                                // Otherwise show all tasks
-                                return true;
-                              })
-                              .map((task, idx) => {
-                                // Normalize dates to midnight for accurate date-only comparison
-                                const taskStart = new Date(task.startDate);
-                                taskStart.setHours(0, 0, 0, 0);
-                                const taskEnd = new Date(task.endDate);
-                                taskEnd.setHours(23, 59, 59, 999); // End of day
-                                
-                                const todayNormalized = new Date(today);
-                                todayNormalized.setHours(0, 0, 0, 0);
-                                
-                                const taskDays = Math.ceil((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                                const isTodayInTask = todayNormalized >= taskStart && todayNormalized <= taskEnd;
-
-                                // Show task if it includes today OR if user is manager/admin OR if it's assigned to the current user
-                                // Check assignment by employeeId (preferred) or name (legacy)
-                                const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                const isAssignedToUser = currentUserEmployeeName && (
-                                  taskAssignedToId === currentUserEmployeeId || 
-                                  task.assignedTo === currentUserEmployeeName
-                                );
-                                if (!isTodayInTask && !isManagerOrAdmin && !isAssignedToUser) return null;
-
-                                // Use a stable key based on task name, dates, and index to ensure uniqueness
-                                // This prevents issues when tasks have the same name and dates
-                                const taskKey = `${project._id.toString()}-task-${idx}-${task.name}-${taskStart.getTime()}-${taskEnd.getTime()}`;
-
+                                const c = item.content;
                                 return (
                                   <div
-                                    key={taskKey}
-                                    className="p-3 rounded border border-border bg-background-card"
+                                    key={c._id.toString()}
+                                    className={`p-3 rounded border border-dashed border-border bg-background-card ${c.status === 'published' ? 'opacity-60' : ''}`}
                                   >
-                                    <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
-                                    {task.description && (
-                                      <p className="text-sm text-text-secondary mt-1">{task.description}</p>
-                                    )}
-                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                      {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                                      {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
-                                        <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
-                                      )}
-                                      <span className="capitalize">{task.status}</span>
+                                    <button type="button" onClick={() => onContentItemClick?.(c)} className="text-left w-full">
+                                      <span className="mr-2" aria-hidden>📝</span>
+                                      <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>{c.title}</span>
+                                      <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">{c.channel}</span>
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              {moreCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
+                                  className="text-sm text-white underline hover:no-underline"
+                                >
+                                  +{moreCount} more
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {visible.map((item, idx) => {
+                                if (item.type === 'task') {
+                                  return (
+                                    <div key={`${projectId}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                      {item.task.name}
                                     </div>
-                                  </div>
-                                );
-                              })}
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            {project.tasks!
-                              .filter((task) => {
-                                // If toggle is on, only show tasks assigned to current user
-                                if (showOnlyMyAssignments) {
-                                  if (!currentUserEmployeeName && !currentUserEmployeeId) return true; // Can't identify user -> show all
-                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
+                                  );
                                 }
-                                if (isManagerOrAdmin) return true;
-                                if (currentUserEmployeeName) {
-                                  const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                  return taskAssignedToId === currentUserEmployeeId || task.assignedTo === currentUserEmployeeName;
-                                }
-                                return true;
-                              })
-                              .map((task, idx) => {
-                                const taskStart = new Date(task.startDate);
-                                taskStart.setHours(0, 0, 0, 0);
-                                const taskEnd = new Date(task.endDate);
-                                taskEnd.setHours(23, 59, 59, 999);
-                                const todayNormalized = new Date(today);
-                                todayNormalized.setHours(0, 0, 0, 0);
-                                const isTodayInTask = todayNormalized >= taskStart && todayNormalized <= taskEnd;
-                                const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                                const isAssignedToUser = currentUserEmployeeName && (
-                                  taskAssignedToId === currentUserEmployeeId || 
-                                  task.assignedTo === currentUserEmployeeName
-                                );
-                                if (!isTodayInTask && !isManagerOrAdmin && !isAssignedToUser) return null;
                                 return (
-                                  <div 
-                                    key={`${project._id.toString()}-task-${idx}`} 
-                                    className={`text-sm text-white ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
-                                  >
-                                    {task.name}
+                                  <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
+                                    <span className="mr-1" aria-hidden>📝</span>
+                                    {item.content.title}
+                                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
                                   </div>
                                 );
                               })}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                              {moreCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
+                                  className="text-xs text-white italic opacity-80 hover:opacity-100"
+                                >
+                                  +{moreCount} more
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Show operations for launched projects */}
                     {hasOperations && (() => {
@@ -1416,52 +1534,63 @@ export default function CalendarView({ projects, operations, timeframe, currentD
                       op.projectId?.toString() === project._id.toString() && op.startDate
                     );
                     
-                    // Show collapsed task/operation list when not expanded
+                    // Show collapsed task/content/operation list when not expanded
                     if (!isExpanded) {
                       const weekStart = new Date(days[0]);
                       weekStart.setHours(0, 0, 0, 0);
                       const weekEnd = new Date(days[6]);
                       weekEnd.setHours(23, 59, 59, 999);
                       
-                      if (hasTasks) {
-                        const visibleTasks = project.tasks!.filter((task) => {
-                          const taskStart = new Date(task.startDate);
-                          taskStart.setHours(0, 0, 0, 0);
-                          const taskEnd = new Date(task.endDate);
-                          taskEnd.setHours(23, 59, 59, 999);
-                          return taskStart <= weekEnd && taskEnd >= weekStart;
-                        });
-                        
+                      const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, weekStart, weekEnd, {});
+                      const displayList = merged.filter((item): item is MergedCalendarItem =>
+                        item.type === 'content' || taskPassesAssignmentFilter(item.task)
+                      );
+                      const visible = displayList.slice(0, 5);
+                      const moreCount = displayList.length - 5;
+                      const hasOpsOnly = !hasTasks && hasOperations;
+                      const visibleOps = hasOpsOnly ? operations.filter((op) => 
+                        op.projectId?.toString() === project._id.toString() && op.startDate
+                      ) : [];
+
+                      if (displayList.length > 0) {
                         return (
                           <div className="px-6 pb-6">
                             <div className="space-y-1">
-                              {visibleTasks.slice(0, 5).map((task, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className={`text-sm text-white ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                              {visible.map((item, idx) => {
+                                if (item.type === 'task') {
+                                  return (
+                                    <div key={`${project._id}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                      {item.task.name}
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
+                                    <span className="mr-1" aria-hidden>📝</span>
+                                    {item.content.title}
+                                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
+                                  </div>
+                                );
+                              })}
+                              {moreCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd }); }}
+                                  className="text-xs text-white italic opacity-80 hover:opacity-100"
                                 >
-                                  {task.name}
-                                </div>
-                              ))}
-                              {visibleTasks.length > 5 && (
-                                <div className="text-xs text-white italic opacity-80">+{visibleTasks.length - 5} more</div>
+                                  +{moreCount} more
+                                </button>
                               )}
                             </div>
                           </div>
                         );
-                      } else if (hasOperations) {
-                        const visibleOps = operations.filter((op) => 
-                          op.projectId?.toString() === project._id.toString() && op.startDate
-                        );
-                        
+                      }
+                      if (hasOpsOnly && visibleOps.length > 0) {
                         return (
                           <div className="px-6 pb-6">
                             <div className="space-y-1">
                               {visibleOps.slice(0, 5).map((op, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className={`text-sm text-white ${op.status === 'completed' ? 'line-through opacity-60' : ''}`}
-                                >
+                                <div key={`op-${idx}`} className={`text-sm text-white ${op.status === 'completed' ? 'line-through opacity-60' : ''}`}>
                                   {op.name}
                                 </div>
                               ))}
@@ -2204,6 +2333,18 @@ export default function CalendarView({ projects, operations, timeframe, currentD
       {timeframe === 'monthly' && renderMonthlyView()}
       {timeframe === 'quarterly' && renderQuarterlyView()}
       {timeframe === 'yearly' && renderYearlyView()}
+
+      <ProjectTimeframeItemsModal
+        isOpen={!!timeframeModalOpen}
+        onClose={() => setTimeframeModalOpen(null)}
+        project={timeframeModalOpen?.project ?? null}
+        startDate={timeframeModalOpen?.startDate ?? new Date()}
+        endDate={timeframeModalOpen?.endDate ?? new Date()}
+        tasks={timeframeModalOpen ? getMergedItemsForProject(timeframeModalOpen.project, timeframeModalOpen.startDate, timeframeModalOpen.endDate, {}).taskItems : []}
+        contentItems={timeframeModalOpen ? getMergedItemsForProject(timeframeModalOpen.project, timeframeModalOpen.startDate, timeframeModalOpen.endDate, {}).contentInRange : []}
+        onContentItemClick={(item) => { onContentItemClick?.(item); setTimeframeModalOpen(null); }}
+        getEmployeeName={getEmployeeName}
+      />
     </div>
   );
 }

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { IProject } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
-import { TimeframeType } from '@/lib/utils/dateUtils';
+import { IContentItem } from '@/lib/models/ContentItem';
+import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
 import { getProjectsForStage } from '@/lib/utils/statusMapping';
 import useIsMobile from '@/lib/hooks/useIsMobile';
 import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
@@ -13,6 +14,8 @@ import CalendarView from '@/components/planning-map/CalendarView';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
+import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
+import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import Modal from '@/components/ui/Modal';
 import BottomSheet from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
@@ -38,10 +41,42 @@ export default function PlanPage() {
   const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
   const [currentUserEmployeeId, setCurrentUserEmployeeId] = useState<string | null>(null);
   const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
+  const [contentItems, setContentItems] = useState<IContentItem[]>([]);
+  const [showTasks, setShowTasks] = useState(true);
+  const [showContent, setShowContent] = useState(true);
+  const [contentChannelFilter, setContentChannelFilter] = useState<string>('All');
+  const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
+  const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
+  const [detailContentItemId, setDetailContentItemId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const fetchContentItems = async () => {
+    const { start, end } = getTimeframeRange(timeframe, currentDate);
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    try {
+      const res = await fetch(`/api/content-items?start=${startStr}&end=${endStr}`);
+      if (res.ok) {
+        const data = await res.json();
+        setContentItems(data);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    const { start, end } = getTimeframeRange(timeframe, currentDate);
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    fetch(`/api/content-items?start=${startStr}&end=${endStr}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setContentItems)
+      .catch(() => {});
+  }, [timeframe, currentDate]);
 
   const loadData = async () => {
     setLoading(true);
@@ -92,6 +127,15 @@ export default function PlanPage() {
       setAllOperations(operationsData);
       setOperations(operationsData);
       setEmployees(employeesData);
+
+      const { start, end } = getTimeframeRange(timeframe, currentDate);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+      const contentRes = await fetch(`/api/content-items?start=${startStr}&end=${endStr}`);
+      if (contentRes.ok) {
+        const contentData = await contentRes.json();
+        setContentItems(contentData);
+      }
     } catch (error) {
       // Error loading data
     } finally {
@@ -222,19 +266,41 @@ export default function PlanPage() {
         {/* Two column layout with sidebar on right */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center gap-4 justify-between">
               <h2 className="text-xl font-semibold text-white">Projects in Planning</h2>
-              {(currentUserRole === 'Manager' || currentUserRole === 'Administrator') && (
-                <Toggle
-                  label="Show only my assignments"
-                  checked={showOnlyMyAssignments}
-                  onChange={setShowOnlyMyAssignments}
-                />
-              )}
+              <div className="flex flex-wrap items-center gap-4">
+                <Toggle label="Show Tasks" checked={showTasks} onChange={setShowTasks} />
+                <Toggle label="Show Content" checked={showContent} onChange={setShowContent} />
+                <select
+                  value={contentChannelFilter}
+                  onChange={(e) => setContentChannelFilter(e.target.value)}
+                  className="rounded border border-border bg-background-card text-text-primary px-2 py-1 text-sm"
+                >
+                  <option value="All">All channels</option>
+                  <option value="SEO">SEO</option>
+                  <option value="X">X</option>
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="TikTok">TikTok</option>
+                  <option value="Email">Email</option>
+                  <option value="Other">Other</option>
+                </select>
+                {(currentUserRole === 'Manager' || currentUserRole === 'Administrator') && (
+                  <Toggle
+                    label="Show only my assignments"
+                    checked={showOnlyMyAssignments}
+                    onChange={setShowOnlyMyAssignments}
+                  />
+                )}
+              </div>
             </div>
             <CalendarView
               projects={filteredProjects}
               operations={[]}
+              contentItems={contentItems}
+              showTasks={showTasks}
+              showContent={showContent}
+              contentChannelFilter={contentChannelFilter}
               timeframe={timeframe}
               currentDate={currentDate}
               onProjectClick={handleViewProject}
@@ -244,6 +310,12 @@ export default function PlanPage() {
               currentUserEmployeeId={currentUserEmployeeId}
               isManagerOrAdmin={isManagerOrAdmin}
               showOnlyMyAssignments={showOnlyMyAssignments}
+              onRefreshContent={fetchContentItems}
+              onAddContent={(project, defaultDate) => {
+                setAddContentProject(project);
+                setAddContentDefaultDate(defaultDate);
+              }}
+              onContentItemClick={(item) => setDetailContentItemId(item._id.toString())}
             />
           </div>
 
@@ -262,6 +334,22 @@ export default function PlanPage() {
           </div>
         </div>
 
+        <ContentItemCreateModal
+          isOpen={!!addContentProject}
+          onClose={() => { setAddContentProject(null); setAddContentDefaultDate(undefined); }}
+          project={addContentProject}
+          defaultPublishDate={addContentDefaultDate}
+          employees={employees}
+          onSuccess={fetchContentItems}
+        />
+        <ContentItemDetailModal
+          isOpen={!!detailContentItemId}
+          onClose={() => setDetailContentItemId(null)}
+          contentItemId={detailContentItemId}
+          employees={employees}
+          onSaved={fetchContentItems}
+        />
+
         {/* Quick Project Creation */}
         {isMobile ? (
           <BottomSheet isOpen={showProjectForm} onClose={() => { setShowProjectForm(false); setEditingProject(undefined); }} title="New Project">
@@ -278,6 +366,7 @@ export default function PlanPage() {
           {viewingProject && (
             <div className="p-4">
               <InlineProjectView project={viewingProject} employees={employees} isManagerOrAdmin={isManagerOrAdmin} currentUserEmployeeId={currentUserEmployeeId}
+                onAddContent={(proj) => { setAddContentProject(proj); setAddContentDefaultDate(undefined); }}
                 onUpdate={async (updates) => { 
                   if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) {
                     throw new Error('No changes to save');

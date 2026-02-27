@@ -29,9 +29,22 @@ interface InlineProjectViewProps {
   onRefresh: () => void;
   /** Called when user clicks "+ Add Operation" for this project (launched only). */
   onAddOperation?: (projectId: string) => void;
+  /** Called when user clicks "Add Content"; parent should open ContentItemCreateModal and refresh on success. */
+  onAddContent?: (project: IProject) => void;
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddOperation }: InlineProjectViewProps) {
+function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, currentUserEmployeeId: string | null | undefined): boolean {
+  if (isManagerOrAdmin) return true;
+  if (!currentUserEmployeeId) return false;
+  const pid = (project as any).assignedToEmployeeId?.toString();
+  if (pid === currentUserEmployeeId) return true;
+  const ids = (project as any).assignedToEmployeeIds;
+  if (ids?.some((id: any) => id?.toString() === currentUserEmployeeId)) return true;
+  if (project.tasks?.some((t) => (t as any).assignedToEmployeeId?.toString() === currentUserEmployeeId)) return true;
+  return false;
+}
+
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddOperation, onAddContent }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     return new Set(project.status === 'launched' ? ['operations'] : ['tasks']);
@@ -345,6 +358,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               Tasks ({localProject.tasks?.length || 0})
             </div>
             {isManagerOrAdmin && <Button size="sm" onClick={handleAddTask}>+ Add Task</Button>}
+            {onAddContent && canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && (
+              <Button size="sm" variant="secondary" onClick={() => onAddContent(localProject)}>+ Add Content</Button>
+            )}
           </div>
           {expandedSections.has('tasks') && (
             <div className="border-t border-gray-100 dark:border-gray-700">

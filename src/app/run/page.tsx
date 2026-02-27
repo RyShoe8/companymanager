@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { IProject } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
-import { TimeframeType } from '@/lib/utils/dateUtils';
+import { IContentItem } from '@/lib/models/ContentItem';
+import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
 import { getProjectsForStage } from '@/lib/utils/statusMapping';
 import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import CalendarView from '@/components/planning-map/CalendarView';
@@ -14,6 +15,8 @@ import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import InlineOperationView from '@/components/planning-map/InlineOperationView';
 import OperationForm from '@/components/planning-map/OperationForm';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
+import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
+import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import Modal from '@/components/ui/Modal';
 import BottomSheet from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
@@ -45,10 +48,33 @@ export default function RunPage() {
   const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
   const [currentUserEmployeeId, setCurrentUserEmployeeId] = useState<string | null>(null);
   const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
+  const [contentItems, setContentItems] = useState<IContentItem[]>([]);
+  const [showTasks, setShowTasks] = useState(true);
+  const [showContent, setShowContent] = useState(true);
+  const [contentChannelFilter, setContentChannelFilter] = useState<string>('All');
+  const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
+  const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
+  const [detailContentItemId, setDetailContentItemId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const fetchContentItems = async () => {
+    const { start, end } = getTimeframeRange(timeframe, currentDate);
+    try {
+      const res = await fetch(`/api/content-items?start=${start.toISOString().split('T')[0]}&end=${end.toISOString().split('T')[0]}`);
+      if (res.ok) setContentItems(await res.json());
+    } catch {}
+  };
+
+  useEffect(() => {
+    const { start, end } = getTimeframeRange(timeframe, currentDate);
+    fetch(`/api/content-items?start=${start.toISOString().split('T')[0]}&end=${end.toISOString().split('T')[0]}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setContentItems)
+      .catch(() => {});
+  }, [timeframe, currentDate]);
 
   const loadData = async () => {
     setLoading(true);
@@ -99,7 +125,10 @@ export default function RunPage() {
       setAllOperations(operationsData);
       setOperations(operationsData);
       setEmployees(employeesData);
-      
+      const { start, end } = getTimeframeRange(timeframe, currentDate);
+      const contentRes = await fetch(`/api/content-items?start=${start.toISOString().split('T')[0]}&end=${end.toISOString().split('T')[0]}`);
+      if (contentRes.ok) setContentItems(await contentRes.json());
+
       // Update viewing project/operation if they exist to reflect latest data
       if (viewingProject?._id) {
         const updatedProject = runProjects.find((p: IProject) => p._id.toString() === viewingProject._id.toString());
@@ -333,19 +362,27 @@ export default function RunPage() {
         {/* Two column layout with sidebar on right */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center gap-4 justify-between">
               <h2 className="text-xl font-semibold text-white">Launched Projects & Operations</h2>
-              {(currentUserRole === 'Manager' || currentUserRole === 'Administrator') && (
-                <Toggle
-                  label="Show only my assignments"
-                  checked={showOnlyMyAssignments}
-                  onChange={setShowOnlyMyAssignments}
-                />
-              )}
+              <div className="flex flex-wrap items-center gap-4">
+                <Toggle label="Show Tasks" checked={showTasks} onChange={setShowTasks} />
+                <Toggle label="Show Content" checked={showContent} onChange={setShowContent} />
+                <select value={contentChannelFilter} onChange={(e) => setContentChannelFilter(e.target.value)} className="rounded border border-border bg-background-card text-text-primary px-2 py-1 text-sm">
+                  <option value="All">All channels</option>
+                  <option value="SEO">SEO</option><option value="X">X</option><option value="LinkedIn">LinkedIn</option><option value="Instagram">Instagram</option><option value="TikTok">TikTok</option><option value="Email">Email</option><option value="Other">Other</option>
+                </select>
+                {(currentUserRole === 'Manager' || currentUserRole === 'Administrator') && (
+                  <Toggle label="Show only my assignments" checked={showOnlyMyAssignments} onChange={setShowOnlyMyAssignments} />
+                )}
+              </div>
             </div>
             <CalendarView
               projects={filteredProjects}
               operations={filteredOperations}
+              contentItems={contentItems}
+              showTasks={showTasks}
+              showContent={showContent}
+              contentChannelFilter={contentChannelFilter}
               timeframe={timeframe}
               currentDate={currentDate}
               onProjectClick={handleViewProject}
@@ -355,6 +392,9 @@ export default function RunPage() {
               currentUserEmployeeId={currentUserEmployeeId}
               isManagerOrAdmin={isManagerOrAdmin}
               showOnlyMyAssignments={showOnlyMyAssignments}
+              onRefreshContent={fetchContentItems}
+              onAddContent={(project, defaultDate) => { setAddContentProject(project); setAddContentDefaultDate(defaultDate); }}
+              onContentItemClick={(item) => setDetailContentItemId(item._id.toString())}
             />
           </div>
 
@@ -373,6 +413,9 @@ export default function RunPage() {
           </div>
         </div>
 
+        <ContentItemCreateModal isOpen={!!addContentProject} onClose={() => { setAddContentProject(null); setAddContentDefaultDate(undefined); }} project={addContentProject} defaultPublishDate={addContentDefaultDate} employees={employees} onSuccess={fetchContentItems} />
+        <ContentItemDetailModal isOpen={!!detailContentItemId} onClose={() => setDetailContentItemId(null)} contentItemId={detailContentItemId} employees={employees} onSaved={fetchContentItems} />
+
         {/* Quick Project Creation */}
         {isMobile ? (
           <BottomSheet isOpen={showProjectForm} onClose={() => { setShowProjectForm(false); setEditingProject(undefined); }} title="New Project">
@@ -390,6 +433,7 @@ export default function RunPage() {
             <div className="p-4">
               <InlineProjectView project={viewingProject} employees={employees} isManagerOrAdmin={isManagerOrAdmin} currentUserEmployeeId={currentUserEmployeeId}
                 onAddOperation={(projectId) => handleCreateOperation(projectId)}
+                onAddContent={(proj) => { setAddContentProject(proj); setAddContentDefaultDate(undefined); }}
                 onUpdate={async (updates) => { 
                   if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) throw new Error('No changes to save');
                   const body = JSON.stringify(updates);
