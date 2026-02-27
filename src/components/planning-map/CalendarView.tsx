@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { IProject } from '@/lib/models/Project';
+import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, formatDate, getTimeframeRange } from '@/lib/utils/dateUtils';
@@ -30,7 +30,7 @@ interface CalendarViewProps {
 }
 
 export type MergedCalendarItem = 
-  | { type: 'task'; task: IProject['tasks'][0]; date: Date }
+  | { type: 'task'; task: IProjectTask; date: Date }
   | { type: 'content'; content: IContentItem };
 
 export default function CalendarView({
@@ -277,7 +277,7 @@ export default function CalendarView({
     return false;
   }
 
-  function taskPassesAssignmentFilter(task: IProject['tasks'][0]): boolean {
+  function taskPassesAssignmentFilter(task: IProjectTask): boolean {
     if (showOnlyMyAssignments) {
       if (!currentUserEmployeeName && !currentUserEmployeeId) return true;
       const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();

@@ -1,12 +1,12 @@
 'use client';
 
-import { IProject } from '@/lib/models/Project';
+import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { formatDate } from '@/lib/utils/dateUtils';
 import Modal from '@/components/ui/Modal';
 
 export interface TimeframeTaskItem {
-  task: IProject['tasks'][0];
+  task: IProjectTask;
   startDate: Date;
   endDate: Date;
 }
