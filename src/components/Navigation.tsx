@@ -17,20 +17,21 @@ export default function Navigation() {
   const [showOrganizationModal, setShowOrganizationModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
+
   useEffect(() => {
+    if (isAuthPage) return; // no need to fetch on login/register
     const fetchUser = async () => {
       try {
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
-          // Only set user if we have valid user data (not null or error)
           if (data && !data.error && data.id) {
             setUser(data);
           } else {
             setUser(null);
           }
         } else {
-          // 404 = session exists but user not found; treat as logged out
           setUser(null);
         }
       } catch (error) {
@@ -38,7 +39,7 @@ export default function Navigation() {
       }
     };
     fetchUser();
-  }, []);
+  }, [pathname, isAuthPage]);
 
   const handleLogout = async () => {
     try {
@@ -59,8 +60,6 @@ export default function Navigation() {
       setUser(null);
     }
   };
-
-  const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
 
   if (isAuthPage) {
     return null;

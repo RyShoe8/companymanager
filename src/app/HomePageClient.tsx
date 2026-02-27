@@ -25,11 +25,12 @@ export default function HomePageClient() {
           <AnimateIn>
             <div className="flex justify-center mb-10">
               <Image
-                src="/images/Nucleas.png"
+                src="/images/icon.png"
                 alt="Nucleas"
-                width={200}
-                height={60}
+                width={120}
+                height={120}
                 priority
+                unoptimized
                 className="h-14 md:h-16 w-auto brightness-0 invert opacity-95"
               />
             </div>
