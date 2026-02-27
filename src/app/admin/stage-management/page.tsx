@@ -83,7 +83,7 @@ export default function StageManagementPage() {
   const updateEntry = (index: number, field: keyof CatalogEntry, value: string | number | string[] | undefined) => {
     setEntries((prev) => {
       const updated = [...prev];
-      (updated[index] as Record<string, unknown>)[field] = value;
+      (updated[index] as unknown as Record<string, unknown>)[field] = value;
       return updated;
     });
   };
