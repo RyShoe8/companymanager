@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface AnimateInProps {
   children: React.ReactNode;
   className?: string;
   delay?: number;
-  as?: keyof JSX.IntrinsicElements;
+  as?: keyof React.JSX.IntrinsicElements;
 }
 
 export default function AnimateIn({ children, className = '', delay = 0, as: Tag = 'div' }: AnimateInProps) {
