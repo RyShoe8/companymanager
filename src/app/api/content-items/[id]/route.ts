@@ -8,7 +8,7 @@ import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { isValidObjectId } from '@/lib/utils/security';
 import { Types } from 'mongoose';
 
-const CHANNELS = ['SEO', 'X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Other'] as const;
+const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
 const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
 
 async function getContentItemWithAccess(id: string, session: { userId: string }) {

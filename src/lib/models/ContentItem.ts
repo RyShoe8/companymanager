@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type ContentChannel = 'SEO' | 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Email' | 'Other';
+export type ContentChannel = 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Email' | 'Article' | 'Video' | 'Reddit' | 'Bluesky' | 'Other';
 export type ContentStatus = 'idea' | 'planned' | 'in_progress' | 'ready' | 'published';
 
 export interface IContentItem extends Document {
@@ -26,7 +26,7 @@ const ContentItemSchema: Schema = new Schema(
     channel: {
       type: String,
       required: true,
-      enum: ['SEO', 'X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Other'],
+      enum: ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'],
     },
     status: {
       type: String,

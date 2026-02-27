@@ -6,7 +6,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 
-const CHANNELS: ContentChannel[] = ['SEO', 'X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Other'];
+const CHANNELS: ContentChannel[] = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'];
 const STATUSES: ContentStatus[] = ['idea', 'planned', 'in_progress', 'ready', 'published'];
 
 function toInputDate(d: Date): string {

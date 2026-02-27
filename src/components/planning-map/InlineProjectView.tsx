@@ -427,8 +427,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           <EditableText value={task.name} onSave={(v) => handleTaskUpdate(idx, 'name', v)} className="font-medium text-gray-900 dark:text-white" placeholder="Task name" disabled={!isManagerOrAdmin} />
                           {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." disabled={!isManagerOrAdmin} />}
                         </div>
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                           <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs" />
+                          {isManagerOrAdmin && (
+                            <button type="button" onClick={() => { if (confirm('Delete this task? This cannot be undone.')) handleDeleteTask(idx); }} className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm px-2 py-1">Delete</button>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>

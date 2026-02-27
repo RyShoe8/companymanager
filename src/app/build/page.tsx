@@ -261,7 +261,7 @@ export default function BuildPage() {
                 <Toggle label="Show Content" checked={showContent} onChange={setShowContent} />
                 <select value={contentChannelFilter} onChange={(e) => setContentChannelFilter(e.target.value)} className="rounded border border-border bg-background-card text-text-primary px-2 py-1 text-sm">
                   <option value="All">All channels</option>
-                  <option value="SEO">SEO</option><option value="X">X</option><option value="LinkedIn">LinkedIn</option><option value="Instagram">Instagram</option><option value="TikTok">TikTok</option><option value="Email">Email</option><option value="Other">Other</option>
+                  <option value="X">X</option><option value="LinkedIn">LinkedIn</option><option value="Instagram">Instagram</option><option value="TikTok">TikTok</option><option value="Email">Email</option><option value="Article">Article</option><option value="Video">Video</option><option value="Reddit">Reddit</option><option value="Bluesky">Bluesky</option><option value="Other">Other</option>
                 </select>
                 {(currentUserRole === 'Manager' || currentUserRole === 'Administrator') && (
                   <Toggle label="Show only my assignments" checked={showOnlyMyAssignments} onChange={setShowOnlyMyAssignments} />

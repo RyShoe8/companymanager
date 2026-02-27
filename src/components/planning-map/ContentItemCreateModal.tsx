@@ -13,7 +13,7 @@ function toInputDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-const CHANNELS: ContentChannel[] = ['SEO', 'X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Other'];
+const CHANNELS: ContentChannel[] = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'];
 const STATUSES: ContentStatus[] = ['idea', 'planned', 'in_progress', 'ready', 'published'];
 
 interface ContentItemCreateModalProps {

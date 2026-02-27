@@ -7,7 +7,7 @@ import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { Types } from 'mongoose';
 import { isValidObjectId } from '@/lib/utils/security';
 
-const CHANNELS = ['SEO', 'X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Other'] as const;
+const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
 const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
 
 function isUserAssignedToProject(project: { assignedToEmployeeId?: Types.ObjectId; assignedToEmployeeIds?: Types.ObjectId[]; tasks?: { assignedToEmployeeId?: Types.ObjectId }[] }, employeeId: Types.ObjectId): boolean {
