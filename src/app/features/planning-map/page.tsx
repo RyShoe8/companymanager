@@ -3,15 +3,19 @@ import Card from '@/components/ui/Card';
 import { StructuredData } from '@/components/StructuredData';
 import MarketingPageHeader from '@/components/home/MarketingPageHeader';
 
+const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
+
 export const metadata = {
-  title: 'Planning Map - Visual Calendar View | Nucleas',
+  title: 'Planning Map - Visual Calendar View',
   description: 'Visualize and manage your projects across multiple time horizons with Nucleas Planning Map. Plan for Today, Weekly, Monthly, Quarterly, and Yearly views.',
   keywords: 'planning map, project planning, calendar view, project management, visual planning',
   openGraph: {
     title: 'Planning Map - Visual Calendar View | Nucleas',
     description: 'Visualize and manage your projects across multiple time horizons with Nucleas Planning Map.',
     type: 'website',
+    url: `${baseUrl}/features/planning-map`,
   },
+  alternates: { canonical: '/features/planning-map' },
 };
 
 export default function PlanningMapPage() {

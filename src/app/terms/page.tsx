@@ -1,23 +1,34 @@
 import Card from '@/components/ui/Card';
+import { StructuredData } from '@/components/StructuredData';
+
+const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
-  title: 'Terms of Service - Nucleas',
-  description: 'Terms of Service for Nucleas platform.',
-  keywords: 'terms of service, legal, Nucleas terms',
+  title: 'Terms of Service',
+  description: 'Terms of Service for Nucleas. Acceptance of terms, use license, user accounts, content, prohibited uses, disclaimer, and limitations.',
+  keywords: 'terms of service, legal, Nucleas terms, use license',
   openGraph: {
-    title: 'Terms of Service - Nucleas',
+    title: 'Terms of Service | Nucleas',
     description: 'Terms of Service for Nucleas platform.',
     type: 'website',
-    url: 'https://nucleas.app/terms',
+    url: `${baseUrl}/terms`,
   },
-  alternates: {
-    canonical: 'https://nucleas.app/terms',
-  },
+  alternates: { canonical: '/terms' },
 };
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-12">
+    <>
+      <StructuredData
+        type="WebPage"
+        data={{
+          name: 'Terms of Service | Nucleas',
+          description: 'Terms of Service for Nucleas platform.',
+          url: `${baseUrl}/terms`,
+          publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl },
+        }}
+      />
+      <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-12">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold text-text-primary mb-6">Terms of Service</h1>
         <p className="text-text-secondary mb-8">Last updated: {new Date().toLocaleDateString()}</p>
@@ -115,5 +126,6 @@ export default function TermsPage() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

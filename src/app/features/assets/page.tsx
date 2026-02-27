@@ -1,21 +1,36 @@
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import MarketingPageHeader from '@/components/home/MarketingPageHeader';
+import { StructuredData } from '@/components/StructuredData';
+
+const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
-  title: 'Assets - Centralized Resource Directory | Nucleas',
+  title: 'Assets - Centralized Resource Directory',
   description: 'Create a centralized directory of tools, documents, and resources. Organize and access all your company assets in one place. Link to projects and tasks.',
   keywords: 'asset management, resource directory, document management, tool repository, company assets',
   openGraph: {
     title: 'Assets - Centralized Resource Directory | Nucleas',
     description: 'Create a centralized directory of tools, documents, and resources.',
     type: 'website',
+    url: `${baseUrl}/features/assets`,
   },
+  alternates: { canonical: '/features/assets' },
 };
 
 export default function AssetsPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <StructuredData
+        type="WebPage"
+        data={{
+          name: 'Assets | Nucleas',
+          description: 'Centralized directory of tools, documents, and resources. Link to projects and tasks.',
+          url: `${baseUrl}/features/assets`,
+          publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl },
+        }}
+      />
+      <div className="min-h-screen bg-background">
       <MarketingPageHeader
         badge="Across Plan, Build & Run"
         title="Assets"
@@ -80,5 +95,6 @@ export default function AssetsPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

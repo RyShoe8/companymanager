@@ -1,21 +1,36 @@
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import MarketingPageHeader from '@/components/home/MarketingPageHeader';
+import { StructuredData } from '@/components/StructuredData';
+
+const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
-  title: 'Team - Capacity & Workload | Nucleas',
+  title: 'Team - Capacity & Workload',
   description: 'Track team capacity, workload, and assignments. Manage your team effectively with role-based access, hours tracking, and workload visibility.',
   keywords: 'employee management, team management, capacity planning, workload tracking, team capacity',
   openGraph: {
     title: 'Team - Capacity & Workload | Nucleas',
     description: 'Track team capacity, workload, and assignments with Nucleas.',
     type: 'website',
+    url: `${baseUrl}/features/employees`,
   },
+  alternates: { canonical: '/features/employees' },
 };
 
 export default function EmployeesPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <StructuredData
+        type="WebPage"
+        data={{
+          name: 'Team | Nucleas',
+          description: 'Track team capacity, workload, and assignments. Role-based access and workload visibility.',
+          url: `${baseUrl}/features/employees`,
+          publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl },
+        }}
+      />
+      <div className="min-h-screen bg-background">
       <MarketingPageHeader
         badge="Organization"
         title="Team"
@@ -80,5 +95,6 @@ export default function EmployeesPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

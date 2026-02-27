@@ -3,36 +3,31 @@ import Card from '@/components/ui/Card';
 import { StructuredData } from '@/components/StructuredData';
 import MarketingPageHeader from '@/components/home/MarketingPageHeader';
 
+const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
+
 export const metadata = {
-  title: 'About Us - Nucleas',
+  title: 'About Us',
   description: 'Learn about Nucleas and our mission to help teams plan, build, and run their projects from one command center.',
   keywords: 'about Nucleas, company planning, project management, team collaboration, command center',
   openGraph: {
-    title: 'About Us - Nucleas',
+    title: 'About Us | Nucleas',
     description: 'Learn about Nucleas and our mission to help teams plan, build, and run their work.',
     type: 'website',
-    url: 'https://nucleas.app/about',
+    url: `${baseUrl}/about`,
   },
-  alternates: {
-    canonical: 'https://nucleas.app/about',
-  },
+  alternates: { canonical: '/about' },
 };
 
 export default function AboutPage() {
   return (
     <>
       <StructuredData
-        type="Organization"
+        type="WebPage"
         data={{
-          name: 'Nucleas',
-          url: 'https://nucleas.app',
-          logo: 'https://nucleas.app/images/Nucleas.png',
-          contactPoint: {
-            '@type': 'ContactPoint',
-            email: 'theteam@nucleas.app',
-            contactType: 'Customer Service',
-          },
-          sameAs: ['https://themediashop.co'],
+          name: 'About Us | Nucleas',
+          description: 'Learn about Nucleas and our mission to help teams plan, build, and run their projects from one command center.',
+          url: `${baseUrl}/about`,
+          publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl },
         }}
       />
       <div className="min-h-screen bg-background">

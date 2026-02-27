@@ -1,21 +1,36 @@
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import MarketingPageHeader from '@/components/home/MarketingPageHeader';
+import { StructuredData } from '@/components/StructuredData';
+
+const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
-  title: 'Projects & Tasks - Track Execution | Nucleas',
+  title: 'Projects & Tasks - Track Execution',
   description: 'Create and manage projects with tasks, estimated hours, team assignments, and status tracking. Plan, build, and run from one place.',
   keywords: 'project management, project tracking, project tasks, team collaboration, project planning',
   openGraph: {
     title: 'Projects & Tasks - Track Execution | Nucleas',
     description: 'Create and manage projects with tasks, estimated hours, and team assignments.',
     type: 'website',
+    url: `${baseUrl}/features/projects`,
   },
+  alternates: { canonical: '/features/projects' },
 };
 
 export default function ProjectsPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <StructuredData
+        type="WebPage"
+        data={{
+          name: 'Projects & Tasks | Nucleas',
+          description: 'Create and manage projects with tasks, estimated hours, team assignments, and status tracking.',
+          url: `${baseUrl}/features/projects`,
+          publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl },
+        }}
+      />
+      <div className="min-h-screen bg-background">
       <MarketingPageHeader
         badge="Plan & Build"
         title="Projects & Tasks"
@@ -82,5 +97,6 @@ export default function ProjectsPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -1,23 +1,34 @@
 import Card from '@/components/ui/Card';
+import { StructuredData } from '@/components/StructuredData';
+
+const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
-  title: 'Privacy Policy - Nucleas',
-  description: 'Privacy Policy for Nucleas platform.',
-  keywords: 'privacy policy, data protection, privacy, Nucleas privacy',
+  title: 'Privacy Policy',
+  description: 'Privacy Policy for Nucleas. How we collect, use, and protect your information. Data storage, sharing, your rights, and retention.',
+  keywords: 'privacy policy, data protection, privacy, Nucleas privacy, GDPR',
   openGraph: {
-    title: 'Privacy Policy - Nucleas',
+    title: 'Privacy Policy | Nucleas',
     description: 'Privacy Policy for Nucleas platform.',
     type: 'website',
-    url: 'https://nucleas.app/privacy',
+    url: `${baseUrl}/privacy`,
   },
-  alternates: {
-    canonical: 'https://nucleas.app/privacy',
-  },
+  alternates: { canonical: '/privacy' },
 };
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-12">
+    <>
+      <StructuredData
+        type="WebPage"
+        data={{
+          name: 'Privacy Policy | Nucleas',
+          description: 'Privacy Policy for Nucleas platform. How we collect, use, and protect your information.',
+          url: `${baseUrl}/privacy`,
+          publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl },
+        }}
+      />
+      <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-12">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold text-text-primary mb-6">Privacy Policy</h1>
         <p className="text-text-secondary mb-8">Last updated: {new Date().toLocaleDateString()}</p>
@@ -159,5 +170,6 @@ export default function PrivacyPage() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

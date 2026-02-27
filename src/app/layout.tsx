@@ -6,6 +6,7 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import OrganizationSetupCheck from "@/components/OrganizationSetupCheck";
 import MobileBottomNav from "@/components/ui/MobileBottomNav";
+import { StructuredData } from "@/components/StructuredData";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -83,12 +84,28 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
         suppressHydrationWarning
       >
+        <StructuredData
+          type="Organization"
+          data={{
+            name: 'Nucleas',
+            url: baseUrl,
+            logo: `${baseUrl}/images/Nucleas.png`,
+            description: 'The operating system for planning, building, and running every project you own. Plan, build, and run from one command center.',
+            contactPoint: {
+              '@type': 'ContactPoint',
+              email: 'theteam@nucleas.app',
+              contactType: 'Customer Service',
+              url: `${baseUrl}/contact`,
+            },
+          }}
+        />
         {/* Google tag (gtag.js) */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-C71LD7T8PT"
