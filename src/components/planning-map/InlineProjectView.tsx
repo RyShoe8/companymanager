@@ -262,7 +262,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         actionButtons={actionButtons}
         dismissedChecklistIds={(localProject.dismissedChecklistIds || []).map((id) => id.toString())}
         isManagerOrAdmin={isManagerOrAdmin}
-        onUpdate={onUpdate}
+        onUpdate={async (updates) => {
+          await onUpdate(updates as Partial<IProject>);
+          if (updates.dismissedChecklistIds !== undefined) {
+            setLocalProject((prev) => ({
+              ...prev,
+              dismissedChecklistIds: updates.dismissedChecklistIds as IProject['dismissedChecklistIds'],
+            }));
+          }
+        }}
         onRefreshButtons={async () => {
           const res = await fetch(`/api/projects/${localProject._id}/buttons`);
           if (res.ok) {
