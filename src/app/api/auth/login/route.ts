@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/mongodb';
-import User from '@/lib/models/User';
+import User, { isAdminEmail } from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { createSession } from '@/lib/auth/session';
 import { isValidEmail, sanitizeString } from '@/lib/utils/security';
@@ -61,9 +61,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    // Set admin users
-    const adminEmails = ['ryanschumacher@themediashop.co', 'kellymcguire@themediashop.co'];
-    if (adminEmails.includes(user.email.toLowerCase()) && !user.isAdmin) {
+    // Set admin users (single source of truth in User model)
+    if (isAdminEmail(user.email) && !user.isAdmin) {
       user.isAdmin = true;
     }
 

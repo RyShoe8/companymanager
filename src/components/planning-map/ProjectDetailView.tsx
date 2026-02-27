@@ -11,8 +11,6 @@ import CommentThread from '@/components/comments/CommentThread';
 import Modal from '@/components/ui/Modal';
 import AssetForm from '@/components/assets/AssetForm';
 import { IAsset } from '@/lib/models/Asset';
-import WireframeButton from '@/components/wireframes/WireframeButton';
-import WireframeViewer from '@/components/wireframes/WireframeViewer';
 import ProjectLogo from '@/components/projects/ProjectLogo';
 
 interface ProjectDetailViewProps {
@@ -54,16 +52,21 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   }, [expandedOperations, project._id]);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [assetFormTaskIndex, setAssetFormTaskIndex] = useState<number | undefined>(undefined);
+  const [assetFormTaskId, setAssetFormTaskId] = useState<string | undefined>(undefined);
   const [assetFormOperationId, setAssetFormOperationId] = useState<string | undefined>(undefined);
   const [operationScreenshots, setOperationScreenshots] = useState<Map<string, IAsset[]>>(new Map());
   const [projects, setProjects] = useState<Array<{ _id: string; name: string }>>([]);
   const [operations, setOperations] = useState<Array<{ _id: string; name: string }>>([]);
   const [projectAssets, setProjectAssets] = useState<IAsset[]>([]);
-  const [taskAssets, setTaskAssets] = useState<Map<number, IAsset[]>>(new Map());
+  /** Key = taskId (stable) or `index-${index}` for legacy. */
+  const [taskAssets, setTaskAssets] = useState<Map<string, IAsset[]>>(new Map());
   const [projectScreenshots, setProjectScreenshots] = useState<IAsset[]>([]);
-  const [taskScreenshots, setTaskScreenshots] = useState<Map<number, IAsset[]>>(new Map());
+  const [taskScreenshots, setTaskScreenshots] = useState<Map<string, IAsset[]>>(new Map());
   const [projectOperations, setProjectOperations] = useState<IOperation[]>([]);
-  const [showWireframe, setShowWireframe] = useState(false);
+  const [actionButtons, setActionButtons] = useState<{ label: string; url: string }[]>([]);
+  const [newButtonLabel, setNewButtonLabel] = useState('');
+  const [newButtonUrl, setNewButtonUrl] = useState('');
+  const [addingButton, setAddingButton] = useState(false);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -80,6 +83,20 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
       }
     };
     fetchCurrentUser();
+
+    // Fetch project action buttons
+    const fetchButtons = async () => {
+      try {
+        const res = await fetch(`/api/projects/${project._id}/buttons`);
+        if (res.ok) {
+          const data = await res.json();
+          setActionButtons(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchButtons();
 
     // Fetch projects and operations for asset form
     const fetchData = async () => {
@@ -111,6 +128,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           const projectOnlyAssets = assetsData.filter((asset: IAsset) => 
             asset.linkedProjectId?.toString() === project._id.toString() && 
             asset.linkedProjectTaskIndex === undefined &&
+            asset.linkedProjectTaskId == null &&
             asset.linkedOperationId === undefined
           );
           setProjectAssets(projectOnlyAssets);
@@ -119,29 +137,25 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           const projectOnlyScreenshots = assetsData.filter((asset: IAsset) => 
             asset.linkedProjectId?.toString() === project._id.toString() && 
             asset.linkedProjectTaskIndex === undefined &&
+            asset.linkedProjectTaskId == null &&
             asset.linkedOperationId === undefined &&
             asset.type === 'screenshot'
           );
           setProjectScreenshots(projectOnlyScreenshots);
 
-          // Group assets by task index
-          const taskAssetsMap = new Map<number, IAsset[]>();
-          const taskScreenshotsMap = new Map<number, IAsset[]>();
+          // Group assets by task (stable taskId or legacy index)
+          const taskAssetsMap = new Map<string, IAsset[]>();
+          const taskScreenshotsMap = new Map<string, IAsset[]>();
           assetsData.forEach((asset: IAsset) => {
-            if (asset.linkedProjectId?.toString() === project._id.toString() && 
-                asset.linkedProjectTaskIndex !== undefined) {
-              const taskIdx = asset.linkedProjectTaskIndex;
-              if (asset.type === 'screenshot') {
-                if (!taskScreenshotsMap.has(taskIdx)) {
-                  taskScreenshotsMap.set(taskIdx, []);
-                }
-                taskScreenshotsMap.get(taskIdx)!.push(asset);
-              } else {
-                if (!taskAssetsMap.has(taskIdx)) {
-                  taskAssetsMap.set(taskIdx, []);
-                }
-                taskAssetsMap.get(taskIdx)!.push(asset);
-              }
+            if (asset.linkedProjectId?.toString() !== project._id.toString()) return;
+            const taskKey = asset.linkedProjectTaskId?.toString() ?? (asset.linkedProjectTaskIndex !== undefined ? `index-${asset.linkedProjectTaskIndex}` : null);
+            if (!taskKey) return;
+            if (asset.type === 'screenshot') {
+              if (!taskScreenshotsMap.has(taskKey)) taskScreenshotsMap.set(taskKey, []);
+              taskScreenshotsMap.get(taskKey)!.push(asset);
+            } else {
+              if (!taskAssetsMap.has(taskKey)) taskAssetsMap.set(taskKey, []);
+              taskAssetsMap.get(taskKey)!.push(asset);
             }
           });
           setTaskAssets(taskAssetsMap);
@@ -229,6 +243,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
 
   const handleAddAsset = (taskIndex?: number, operationId?: string) => {
     setAssetFormTaskIndex(taskIndex);
+    setAssetFormTaskId(taskIndex !== undefined && project.tasks?.[taskIndex]?._id ? project.tasks[taskIndex]._id!.toString() : undefined);
     setAssetFormOperationId(operationId);
     setShowAssetForm(true);
   };
@@ -249,6 +264,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
 
   const handleUploadScreenshots = async (files: File[], taskIndex?: number, operationId?: string) => {
     try {
+      const taskId = taskIndex !== undefined && project.tasks?.[taskIndex]?._id ? project.tasks[taskIndex]._id!.toString() : undefined;
       const uploadPromises = files.map(async (file) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -258,7 +274,9 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
           formData.append('linkedOperationId', operationId);
         } else {
           formData.append('linkedProjectId', project._id.toString());
-          if (taskIndex !== undefined) {
+          if (taskId) {
+            formData.append('linkedProjectTaskId', taskId);
+          } else if (taskIndex !== undefined) {
             formData.append('linkedProjectTaskIndex', taskIndex.toString());
           }
         }
@@ -284,36 +302,31 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         const projectOnlyAssets = assetsData.filter((asset: IAsset) => 
           asset.linkedProjectId?.toString() === project._id.toString() && 
           asset.linkedProjectTaskIndex === undefined &&
+          asset.linkedProjectTaskId == null &&
           asset.type !== 'screenshot'
         );
         setProjectAssets(projectOnlyAssets);
 
-        // Filter screenshots for the project (without task)
         const projectOnlyScreenshots = assetsData.filter((asset: IAsset) => 
           asset.linkedProjectId?.toString() === project._id.toString() && 
           asset.linkedProjectTaskIndex === undefined &&
+          asset.linkedProjectTaskId == null &&
           asset.type === 'screenshot'
         );
         setProjectScreenshots(projectOnlyScreenshots);
 
-        // Group assets by task index
-        const taskAssetsMap = new Map<number, IAsset[]>();
-        const taskScreenshotsMap = new Map<number, IAsset[]>();
+        const taskAssetsMap = new Map<string, IAsset[]>();
+        const taskScreenshotsMap = new Map<string, IAsset[]>();
         assetsData.forEach((asset: IAsset) => {
-          if (asset.linkedProjectId?.toString() === project._id.toString() && 
-              asset.linkedProjectTaskIndex !== undefined) {
-            const taskIdx = asset.linkedProjectTaskIndex;
-            if (asset.type === 'screenshot') {
-              if (!taskScreenshotsMap.has(taskIdx)) {
-                taskScreenshotsMap.set(taskIdx, []);
-              }
-              taskScreenshotsMap.get(taskIdx)!.push(asset);
-            } else {
-              if (!taskAssetsMap.has(taskIdx)) {
-                taskAssetsMap.set(taskIdx, []);
-              }
-              taskAssetsMap.get(taskIdx)!.push(asset);
-            }
+          if (asset.linkedProjectId?.toString() !== project._id.toString()) return;
+          const taskKey = asset.linkedProjectTaskId?.toString() ?? (asset.linkedProjectTaskIndex !== undefined ? `index-${asset.linkedProjectTaskIndex}` : null);
+          if (!taskKey) return;
+          if (asset.type === 'screenshot') {
+            if (!taskScreenshotsMap.has(taskKey)) taskScreenshotsMap.set(taskKey, []);
+            taskScreenshotsMap.get(taskKey)!.push(asset);
+          } else {
+            if (!taskAssetsMap.has(taskKey)) taskAssetsMap.set(taskKey, []);
+            taskAssetsMap.get(taskKey)!.push(asset);
           }
         });
         setTaskAssets(taskAssetsMap);
@@ -325,22 +338,23 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
     }
   };
 
-  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; file?: File }) => {
+  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string; file?: File }) => {
     try {
-      // Set the project/task/operation if provided
-      const submitData: any = {
-        ...data,
-      };
+      const submitData: any = { ...data };
       if (assetFormOperationId) {
         submitData.linkedOperationId = assetFormOperationId;
       } else {
         submitData.linkedProjectId = project._id.toString();
-        submitData.linkedProjectTaskIndex = assetFormTaskIndex;
+        if (assetFormTaskId) {
+          submitData.linkedProjectTaskId = assetFormTaskId;
+          // Prefer stable taskId; do not send taskIndex when taskId is set
+        } else if (assetFormTaskIndex !== undefined) {
+          submitData.linkedProjectTaskIndex = assetFormTaskIndex;
+        }
       }
 
       let response;
       if (data.file) {
-        // Use FormData for file uploads
         const formData = new FormData();
         formData.append('file', data.file);
         formData.append('name', submitData.name);
@@ -353,7 +367,9 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         if (submitData.linkedProjectId) {
           formData.append('linkedProjectId', submitData.linkedProjectId);
         }
-        if (submitData.linkedProjectTaskIndex !== undefined) {
+        if (submitData.linkedProjectTaskId) {
+          formData.append('linkedProjectTaskId', submitData.linkedProjectTaskId);
+        } else if (submitData.linkedProjectTaskIndex !== undefined) {
           formData.append('linkedProjectTaskIndex', submitData.linkedProjectTaskIndex.toString());
         }
         if (submitData.linkedOperationId) {
@@ -377,49 +393,43 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
       if (response.ok) {
         setShowAssetForm(false);
         setAssetFormTaskIndex(undefined);
+        setAssetFormTaskId(undefined);
         setAssetFormOperationId(undefined);
         
-        // Refresh assets
         try {
           const assetsRes = await fetch(`/api/assets?linkedProjectId=${project._id}`);
           if (assetsRes.ok) {
             const assetsData = await assetsRes.json();
-            // Filter assets for the project (without task)
             const projectOnlyAssets = assetsData.filter((asset: IAsset) => 
               asset.linkedProjectId?.toString() === project._id.toString() && 
               asset.linkedProjectTaskIndex === undefined &&
+              asset.linkedProjectTaskId == null &&
               asset.linkedOperationId === undefined &&
               asset.type !== 'screenshot'
             );
             setProjectAssets(projectOnlyAssets);
 
-            // Filter screenshots for the project (without task)
             const projectOnlyScreenshots = assetsData.filter((asset: IAsset) => 
               asset.linkedProjectId?.toString() === project._id.toString() && 
               asset.linkedProjectTaskIndex === undefined &&
+              asset.linkedProjectTaskId == null &&
               asset.linkedOperationId === undefined &&
               asset.type === 'screenshot'
             );
             setProjectScreenshots(projectOnlyScreenshots);
 
-            // Group assets by task index
-            const taskAssetsMap = new Map<number, IAsset[]>();
-            const taskScreenshotsMap = new Map<number, IAsset[]>();
+            const taskAssetsMap = new Map<string, IAsset[]>();
+            const taskScreenshotsMap = new Map<string, IAsset[]>();
             assetsData.forEach((asset: IAsset) => {
-              if (asset.linkedProjectId?.toString() === project._id.toString() && 
-                  asset.linkedProjectTaskIndex !== undefined) {
-                const taskIdx = asset.linkedProjectTaskIndex;
-                if (asset.type === 'screenshot') {
-                  if (!taskScreenshotsMap.has(taskIdx)) {
-                    taskScreenshotsMap.set(taskIdx, []);
-                  }
-                  taskScreenshotsMap.get(taskIdx)!.push(asset);
-                } else {
-                  if (!taskAssetsMap.has(taskIdx)) {
-                    taskAssetsMap.set(taskIdx, []);
-                  }
-                  taskAssetsMap.get(taskIdx)!.push(asset);
-                }
+              if (asset.linkedProjectId?.toString() !== project._id.toString()) return;
+              const taskKey = asset.linkedProjectTaskId?.toString() ?? (asset.linkedProjectTaskIndex !== undefined ? `index-${asset.linkedProjectTaskIndex}` : null);
+              if (!taskKey) return;
+              if (asset.type === 'screenshot') {
+                if (!taskScreenshotsMap.has(taskKey)) taskScreenshotsMap.set(taskKey, []);
+                taskScreenshotsMap.get(taskKey)!.push(asset);
+              } else {
+                if (!taskAssetsMap.has(taskKey)) taskAssetsMap.set(taskKey, []);
+                taskAssetsMap.get(taskKey)!.push(asset);
               }
             });
             setTaskAssets(taskAssetsMap);
@@ -531,11 +541,6 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
               >
                 Add Screenshot
               </Button>
-              <WireframeButton
-                projectId={project._id.toString()}
-                isManagerOrAdmin={isManagerOrAdmin}
-                onOpen={() => setShowWireframe(true)}
-              />
             </div>
             {projectScreenshots.length > 0 && (
               <div className="mt-2">
@@ -597,6 +602,72 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
             </div>
           ) : null}
         </div>
+      </Card>
+
+      {/* Smart buttons (action buttons) */}
+      <Card className="p-4">
+        <h3 className="text-lg font-semibold text-text-primary mb-2">Smart buttons</h3>
+        <p className="text-sm text-text-secondary mb-3">Launch your tools (hosting, analytics, docs, etc.) in one click. Add buttons below to link out from this project.</p>
+        {actionButtons.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {actionButtons.map((btn, idx) => (
+              <a
+                key={idx}
+                href={btn.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-light text-primary-dark hover:bg-primary hover:text-white transition-colors text-sm font-medium"
+              >
+                {btn.label}
+              </a>
+            ))}
+          </div>
+        )}
+        {isManagerOrAdmin && (
+          <form
+            className="flex flex-col sm:flex-row gap-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const label = newButtonLabel.trim();
+              const url = newButtonUrl.trim();
+              if (!label || !url) return;
+              setAddingButton(true);
+              try {
+                const res = await fetch(`/api/projects/${project._id}/buttons`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ label, url }),
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  setActionButtons(Array.isArray(data) ? data : []);
+                  setNewButtonLabel('');
+                  setNewButtonUrl('');
+                }
+              } finally {
+                setAddingButton(false);
+              }
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Label (e.g. Vercel, Analytics)"
+              value={newButtonLabel}
+              onChange={(e) => setNewButtonLabel(e.target.value)}
+              className="flex-1 min-w-0 px-3 py-2 border border-border rounded-lg bg-background text-text-primary text-sm"
+            />
+            <input
+              type="url"
+              placeholder="https://..."
+              value={newButtonUrl}
+              onChange={(e) => setNewButtonUrl(e.target.value)}
+              className="flex-1 min-w-0 px-3 py-2 border border-border rounded-lg bg-background text-text-primary text-sm"
+            />
+            <Button type="submit" size="sm" disabled={addingButton}>
+              {addingButton ? 'Adding...' : 'Add button'}
+            </Button>
+          </form>
+        )}
       </Card>
 
       {/* Comments */}
@@ -757,9 +828,10 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
             .map((task, originalIndex) => ({ task, originalIndex }))
             .filter(({ task }) => task.status !== 'completed')
             .map(({ task, originalIndex: index }) => {
+            const taskKey = (task as { _id?: { toString: () => string } })._id?.toString() ?? `index-${index}`;
             const isExpanded = expandedTasks.has(index);
             return (
-              <Card key={index} className="p-4">
+              <Card key={taskKey} className="p-4">
                 {/* Collapsible Header */}
                 <button
                   onClick={() => toggleTask(index)}
@@ -821,15 +893,19 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                     </div>
                     <div className="mt-4">
                       <div className="flex gap-2 mb-2">
-                        {taskAssets.get(index) && taskAssets.get(index)!.length > 0 && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              router.push(`/assets?projectId=${project._id}&taskIndex=${index}`);
-                              onClose();
-                            }}
-                          >
+                        {taskAssets.get(taskKey) && taskAssets.get(taskKey)!.length > 0 && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const taskId = (task as { _id?: { toString: () => string } })._id?.toString();
+                            const params = new URLSearchParams({ projectId: project._id.toString() });
+                            if (taskId) params.set('taskId', taskId);
+                            else params.set('taskIndex', index.toString());
+                            router.push(`/assets?${params}`);
+                            onClose();
+                          }}
+                        >
                             View Assets
                           </Button>
                         )}
@@ -848,11 +924,11 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                           Add Screenshot
                         </Button>
                       </div>
-                      {taskScreenshots.get(index) && taskScreenshots.get(index)!.length > 0 && (
+                      {taskScreenshots.get(taskKey) && taskScreenshots.get(taskKey)!.length > 0 && (
                         <div className="mt-2">
                           <label className="text-xs font-medium text-text-secondary mb-1 block">Screenshots</label>
                           <div className="grid grid-cols-4 gap-2">
-                            {taskScreenshots.get(index)!.map((screenshot) => (
+                            {taskScreenshots.get(taskKey)!.map((screenshot) => (
                               <div key={screenshot._id.toString()} className="relative group">
                                 <img
                                   src={screenshot.fileUrl}
@@ -879,6 +955,7 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                       entityType="projectTask"
                       entityId={project._id.toString()}
                       taskIndex={index}
+                      taskId={(task as { _id?: { toString: () => string } })._id?.toString()}
                       currentUserId={currentUserId}
                       showHeading={true}
                     />
@@ -896,28 +973,25 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
         onClose={() => {
           setShowAssetForm(false);
           setAssetFormTaskIndex(undefined);
+          setAssetFormTaskId(undefined);
         }}
         title="New Asset"
       >
         <AssetForm
           projects={projects}
           operations={operations}
+          linkedProjectId={project._id.toString()}
+          linkedProjectTaskIndex={assetFormTaskIndex}
+          linkedProjectTaskId={assetFormTaskId}
           onSubmit={handleSubmitAsset}
           onCancel={() => {
             setShowAssetForm(false);
             setAssetFormTaskIndex(undefined);
+            setAssetFormTaskId(undefined);
           }}
         />
       </Modal>
 
-      {/* Wireframe Viewer */}
-      {showWireframe && (
-        <WireframeViewer
-          projectId={project._id.toString()}
-          isManagerOrAdmin={isManagerOrAdmin}
-          onClose={() => setShowWireframe(false)}
-        />
-      )}
     </div>
   );
 }

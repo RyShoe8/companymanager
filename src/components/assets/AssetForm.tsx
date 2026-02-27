@@ -12,12 +12,14 @@ interface AssetFormProps {
   operations?: Array<{ _id: string; name: string }>;
   linkedProjectId?: string;
   linkedProjectTaskIndex?: number;
+  /** Stable task reference (prefer over linkedProjectTaskIndex). */
+  linkedProjectTaskId?: string;
   linkedOperationId?: string;
-  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; file?: File }) => void;
+  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string; file?: File }) => void;
   onCancel: () => void;
 }
 
-export default function AssetForm({ asset, projects = [], operations = [], linkedProjectId: initialLinkedProjectId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedOperationId: initialLinkedOperationId, onSubmit, onCancel }: AssetFormProps) {
+export default function AssetForm({ asset, projects = [], operations = [], linkedProjectId: initialLinkedProjectId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedProjectTaskId: initialLinkedProjectTaskId, linkedOperationId: initialLinkedOperationId, onSubmit, onCancel }: AssetFormProps) {
   const [name, setName] = useState(asset?.name || '');
   const [type, setType] = useState<AssetType>(asset?.type || 'link');
   const [url, setUrl] = useState(asset?.url || '');
@@ -27,9 +29,10 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
   const [category, setCategory] = useState(asset?.category || '');
   const [tags, setTags] = useState(asset?.tags?.join(', ') || '');
   const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || initialLinkedProjectId || '');
-  const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() || initialLinkedProjectTaskIndex?.toString() || '');
+  const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() ?? asset?.linkedProjectTaskId ? '' : initialLinkedProjectTaskIndex?.toString() || '');
+  const [linkedProjectTaskId, setLinkedProjectTaskId] = useState(asset?.linkedProjectTaskId?.toString() || initialLinkedProjectTaskId || '');
   const [linkedOperationId, setLinkedOperationId] = useState(asset?.linkedOperationId?.toString() || initialLinkedOperationId || '');
-  const [selectedProjectTasks, setSelectedProjectTasks] = useState<Array<{ index: number; name: string }>>([]);
+  const [selectedProjectTasks, setSelectedProjectTasks] = useState<Array<{ index: number; id?: string; name: string }>>([]);
 
   // Reset file and textContent when type changes
   useEffect(() => {
@@ -56,6 +59,7 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
               setSelectedProjectTasks(
                 project.tasks.map((task: any, index: number) => ({
                   index,
+                  id: task._id?.toString(),
                   name: task.name,
                 }))
               );
@@ -88,6 +92,7 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
       category: category || undefined,
       tags: tagArray,
       linkedProjectId: linkedProjectId || undefined,
+      linkedProjectTaskId: linkedProjectTaskId || undefined,
       linkedProjectTaskIndex: linkedProjectTaskIndex ? parseInt(linkedProjectTaskIndex) : undefined,
       linkedOperationId: linkedOperationId || undefined,
     };
@@ -220,12 +225,26 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
         {linkedProjectId && selectedProjectTasks.length > 0 && (
           <Select
             label="Linked Task (optional)"
-            value={linkedProjectTaskIndex}
-            onChange={(e) => setLinkedProjectTaskIndex(e.target.value)}
+            value={linkedProjectTaskId || (linkedProjectTaskIndex !== '' ? `index-${linkedProjectTaskIndex}` : '')}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) {
+                setLinkedProjectTaskId('');
+                setLinkedProjectTaskIndex('');
+                return;
+              }
+              if (v.startsWith('index-')) {
+                setLinkedProjectTaskIndex(v.slice(6));
+                setLinkedProjectTaskId('');
+              } else {
+                setLinkedProjectTaskId(v);
+                setLinkedProjectTaskIndex('');
+              }
+            }}
             options={[
               { value: '', label: 'None' },
               ...selectedProjectTasks.map((task) => ({
-                value: task.index.toString(),
+                value: task.id || `index-${task.index}`,
                 label: `Task ${task.index + 1}: ${task.name}`,
               })),
             ]}

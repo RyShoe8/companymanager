@@ -23,13 +23,18 @@ export default function Navigation() {
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const data = await response.json();
-          // Only set user if data exists (not null)
-          if (data && !data.error) {
+          // Only set user if we have valid user data (not null or error)
+          if (data && !data.error && data.id) {
             setUser(data);
+          } else {
+            setUser(null);
           }
+        } else {
+          // 404 = session exists but user not found; treat as logged out
+          setUser(null);
         }
       } catch (error) {
-        // Error fetching user
+        setUser(null);
       }
     };
     fetchUser();
@@ -49,7 +54,9 @@ export default function Navigation() {
     const response = await fetch('/api/auth/me');
     if (response.ok) {
       const data = await response.json();
-      setUser(data);
+      setUser(data && data.id ? data : null);
+    } else {
+      setUser(null);
     }
   };
 
@@ -160,57 +167,93 @@ export default function Navigation() {
               ))}
             </div>
 
-            {/* Desktop User Menu */}
+            {/* Desktop: User menu when logged in, Login/Register when not */}
             <div className="hidden md:flex md:items-center">
-              <Dropdown
-                trigger={
-                  <div className="flex items-center gap-2 cursor-pointer">
-                    {user?.profilePicture ? (
-                      <img
-                        src={user.profilePicture}
-                        alt={user.name || user.email}
-                        className="w-8 h-8 rounded-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    ) : null}
-                    <div className={`w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-medium ${user?.profilePicture ? 'hidden' : ''}`}>
-                      {userInitials}
+              {user ? (
+                <Dropdown
+                  trigger={
+                    <div className="flex items-center gap-2 cursor-pointer">
+                      {user?.profilePicture ? (
+                        <img
+                          src={user.profilePicture}
+                          alt={user.name || user.email}
+                          className="w-8 h-8 rounded-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : null}
+                      <div className={`w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-medium ${user?.profilePicture ? 'hidden' : ''}`}>
+                        {userInitials}
+                      </div>
+                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
-                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                }
-                items={dropdownItems}
-                align="right"
-              />
+                  }
+                  items={dropdownItems}
+                  align="right"
+                />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/login"
+                    className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                  >
+                    Register
+                  </Link>
+                </div>
+              )}
             </div>
 
-            {/* Mobile menu button */}
+            {/* Mobile: User menu when logged in, Login/Register when not */}
             <div className="md:hidden flex items-center gap-3">
-              <Dropdown
-                trigger={
-                  <div className="flex items-center gap-2 cursor-pointer">
-                    {user?.profilePicture ? (
-                      <img
-                        src={user.profilePicture}
-                        alt={user.name || user.email}
-                        className="w-8 h-8 rounded-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    ) : null}
-                    <div className={`w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-medium ${user?.profilePicture ? 'hidden' : ''}`}>
-                      {userInitials}
+              {user ? (
+                <Dropdown
+                  trigger={
+                    <div className="flex items-center gap-2 cursor-pointer">
+                      {user?.profilePicture ? (
+                        <img
+                          src={user.profilePicture}
+                          alt={user.name || user.email}
+                          className="w-8 h-8 rounded-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : null}
+                      <div className={`w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-medium ${user?.profilePicture ? 'hidden' : ''}`}>
+                        {userInitials}
+                      </div>
                     </div>
-                  </div>
-                }
-                items={dropdownItems}
-                align="right"
-              />
+                  }
+                  items={dropdownItems}
+                  align="right"
+                />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/login"
+                    className="text-sm font-medium text-gray-500 hover:text-gray-900"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-blue-500 text-white hover:bg-blue-600"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Register
+                  </Link>
+                </div>
+              )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="inline-flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-500"

@@ -11,8 +11,6 @@ import ProjectForm from '@/components/planning-map/ProjectForm';
 import { IEmployee } from '@/lib/models/Employee';
 import { formatDate } from '@/lib/utils/dateUtils';
 import Select from '@/components/ui/Select';
-import WireframeButton from '@/components/wireframes/WireframeButton';
-import WireframeViewer from '@/components/wireframes/WireframeViewer';
 import ProjectLogo from '@/components/projects/ProjectLogo';
 
 export default function ProjectsPage() {
@@ -26,9 +24,6 @@ export default function ProjectsPage() {
   const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
   const [employees, setEmployees] = useState<IEmployee[]>([]);
-  const [showWireframe, setShowWireframe] = useState(false);
-  const [wireframeProjectId, setWireframeProjectId] = useState<string | null>(null);
-
   useEffect(() => {
     loadData();
   }, []);
@@ -121,13 +116,13 @@ export default function ProjectsPage() {
     }
   };
 
-  const getProjectAssets = (projectId: string, taskIndex?: number) => {
+  const getProjectAssets = (projectId: string, taskIndex?: number, taskId?: string) => {
     return assets.filter((asset) => {
       if (asset.linkedProjectId?.toString() !== projectId) return false;
-      if (taskIndex !== undefined) {
-        return asset.linkedProjectTaskIndex === taskIndex;
+      if (taskIndex !== undefined || taskId) {
+        return asset.linkedProjectTaskIndex === taskIndex || asset.linkedProjectTaskId?.toString() === taskId;
       }
-      return asset.linkedProjectTaskIndex === undefined;
+      return asset.linkedProjectTaskIndex === undefined && asset.linkedProjectTaskId == null;
     });
   };
 
@@ -367,14 +362,6 @@ export default function ProjectsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <WireframeButton
-                    projectId={selectedProject._id.toString()}
-                    isManagerOrAdmin={currentUserRole === 'Administrator' || currentUserRole === 'Manager'}
-                    onOpen={() => {
-                      setWireframeProjectId(selectedProject._id.toString());
-                      setShowWireframe(true);
-                    }}
-                  />
                   <Button variant="secondary" size="sm" onClick={() => handleEditProject(selectedProject)}>
                     Edit
                   </Button>
@@ -600,7 +587,8 @@ export default function ProjectsPage() {
                       t.startDate.toString() === task.startDate.toString() &&
                       t.endDate.toString() === task.endDate.toString()
                     ) ?? -1;
-                    const taskAssets = originalTaskIndex >= 0 ? getProjectAssets(selectedProject._id.toString(), originalTaskIndex) : [];
+                    const taskId = originalTaskIndex >= 0 ? (selectedProject.tasks?.[originalTaskIndex] as { _id?: { toString: () => string } })?._id?.toString() : undefined;
+                    const taskAssets = originalTaskIndex >= 0 ? getProjectAssets(selectedProject._id.toString(), originalTaskIndex, taskId) : [];
                     
                     return (
                       <div key={`active-task-${originalTaskIndex >= 0 ? originalTaskIndex : idx}-${task.name}`} className="pl-4 border-l-2 border-gray-200 dark:border-gray-700">
@@ -809,7 +797,8 @@ export default function ProjectsPage() {
                       t.startDate.toString() === task.startDate.toString() &&
                       t.endDate.toString() === task.endDate.toString()
                     ) ?? -1;
-                    const taskAssets = originalTaskIndex >= 0 ? getProjectAssets(selectedProject._id.toString(), originalTaskIndex) : [];
+                    const taskId = originalTaskIndex >= 0 ? (selectedProject.tasks?.[originalTaskIndex] as { _id?: { toString: () => string } })?._id?.toString() : undefined;
+                    const taskAssets = originalTaskIndex >= 0 ? getProjectAssets(selectedProject._id.toString(), originalTaskIndex, taskId) : [];
                     
                     return (
                       <div key={`completed-task-${originalTaskIndex >= 0 ? originalTaskIndex : idx}-${task.name}`} className="pl-4 border-l-2 border-gray-200 dark:border-gray-700 opacity-75">
@@ -1079,17 +1068,6 @@ export default function ProjectsPage() {
           />
         </Modal>
 
-        {/* Wireframe Viewer */}
-        {showWireframe && wireframeProjectId && (
-          <WireframeViewer
-            projectId={wireframeProjectId}
-            isManagerOrAdmin={currentUserRole === 'Administrator' || currentUserRole === 'Manager'}
-            onClose={() => {
-              setShowWireframe(false);
-              setWireframeProjectId(null);
-            }}
-          />
-        )}
       </div>
     </div>
   );

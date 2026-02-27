@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IOperation } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 import { IProject } from '@/lib/models/Project';
@@ -18,27 +18,32 @@ export default function InlineOperationView({ operation, employees, projects, is
   const [localOp, setLocalOp] = useState(operation);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['details']));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setLocalOp(operation); }, [operation]);
+  useEffect(() => () => { if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current); }, []);
+
+  const clearSaveStatusAfterDelay = (status: 'saved' | 'failed' = 'saved') => {
+    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    savedTimeoutRef.current = setTimeout(() => setSaveStatus('idle'), status === 'failed' ? 2500 : 1200);
+  };
 
   const toggleSection = (section: string) => { setExpandedSections(prev => { const newSet = new Set(prev); newSet.has(section) ? newSet.delete(section) : newSet.add(section); return newSet; }); };
 
   const handleFieldUpdate = async (field: string, value: any) => {
-    // Debug: Log the update to verify status is included
-    if (field === 'status') {
-      console.log('Updating operation status:', { oldStatus: localOp.status, newStatus: value });
-    }
-    
-    setIsSaving(true);
+    setSaveStatus('saving');
     setLocalOp(prev => ({ ...prev, [field]: value } as IOperation));
     try { 
       await onUpdate({ [field]: value }); 
+      setSaveStatus('saved');
+      clearSaveStatusAfterDelay();
     } catch (error) {
       console.error('Error updating operation:', error);
       setLocalOp(operation); 
-    } finally { 
-      setIsSaving(false); 
+      setSaveStatus('failed');
+      clearSaveStatusAfterDelay('failed');
+      alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
 
@@ -53,7 +58,14 @@ export default function InlineOperationView({ operation, employees, projects, is
 
   return (
     <div className="space-y-4 max-h-[85vh] overflow-y-auto">
-      {isSaving && <div className="fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm animate-pulse z-50">Saving...</div>}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed top-4 right-4 px-3 py-1.5 rounded-lg text-sm font-medium z-50 shadow-lg ${
+          saveStatus === 'saving' ? 'bg-blue-500 text-white animate-pulse' :
+          saveStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+        }`}>
+          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'failed' ? 'Save failed' : 'Saved'}
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex items-start gap-3">

@@ -1165,6 +1165,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     <div className="space-y-4">
       <div className="mb-3">
         <h3 className="text-lg font-semibold text-white mb-2">Team Capacity</h3>
+        <p className="text-xs text-gray-400 mb-2">Hours for selected time period (same on Plan, Build, Run)</p>
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
             <span className="text-gray-300">Available:</span>
@@ -1193,6 +1194,8 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         const availableHours = getAvailableHours(employee);
         const totalHours = totalAvailableHours(employee);
         const utilizationPercent = totalHours > 0 ? Math.round((committedHours / totalHours) * 100) : 0;
+        const committedHoursRounded = Math.round(committedHours * 100) / 100;
+        const totalHoursRounded = Math.round(totalHours * 100) / 100;
 
         const employeeId = employee._id.toString();
         const isExpanded = expandedEmployees.has(employeeId);
@@ -1227,11 +1230,11 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                 </div>
               </div>
               
-              {/* Utilization Bar - Always visible */}
+              {/* Utilization (hours for selected period) - Always visible */}
               <div className="mb-2">
                 <div className="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>Utilization</span>
-                  <span>{utilizationPercent}%</span>
+                  <span>Utilization (this period)</span>
+                  <span>{committedHoursRounded}h / {totalHoursRounded}h{totalHours > 0 ? ` (${utilizationPercent}%)` : ''}</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div

@@ -23,6 +23,7 @@ function AssetsPageContent() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
   const [taskIndexFilter, setTaskIndexFilter] = useState<number | null>(null);
+  const [taskIdFilter, setTaskIdFilter] = useState<string | null>(null);
   const [operationFilter, setOperationFilter] = useState<string | null>(null);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<IAsset | undefined>();
@@ -31,14 +32,20 @@ function AssetsPageContent() {
     // Get filter parameters from URL
     const projectId = searchParams?.get('projectId');
     const taskIndex = searchParams?.get('taskIndex');
+    const taskId = searchParams?.get('taskId');
     const operationId = searchParams?.get('operationId');
     if (projectId) {
       setProjectFilter(projectId);
     }
-    if (taskIndex) {
+    if (taskId) {
+      setTaskIdFilter(taskId);
+      setTaskIndexFilter(null);
+    } else if (taskIndex) {
       setTaskIndexFilter(parseInt(taskIndex));
+      setTaskIdFilter(null);
     } else {
       setTaskIndexFilter(null);
+      setTaskIdFilter(null);
     }
     if (operationId) {
       setOperationFilter(operationId);
@@ -48,7 +55,7 @@ function AssetsPageContent() {
 
   useEffect(() => {
     filterAssets();
-  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, taskIndexFilter, operationFilter]);
+  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, taskIndexFilter, taskIdFilter, operationFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -87,7 +94,11 @@ function AssetsPageContent() {
         const linkedProjectId = asset.linkedProjectId?.toString();
         if (linkedProjectId !== projectFilter) return false;
         
-        // If taskIndexFilter is set, also filter by task
+        // If taskIdFilter is set, filter by stable task ID
+        if (taskIdFilter) {
+          return asset.linkedProjectTaskId?.toString() === taskIdFilter;
+        }
+        // If taskIndexFilter is set (legacy), filter by task index
         if (taskIndexFilter !== null) {
           return asset.linkedProjectTaskIndex === taskIndexFilter;
         }
@@ -149,7 +160,7 @@ function AssetsPageContent() {
     }
   };
 
-  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number }) => {
+  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string }) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';
@@ -200,6 +211,8 @@ function AssetsPageContent() {
               setTypeFilter('');
               setCategoryFilter('');
               setProjectFilter(null);
+              setTaskIndexFilter(null);
+              setTaskIdFilter(null);
               setOperationFilter(null);
               router.push('/assets');
             }}

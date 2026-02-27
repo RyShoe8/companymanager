@@ -7,7 +7,10 @@ export interface IComment extends Document {
   parentId?: Types.ObjectId; // For threading - references another comment
   entityType: 'project' | 'projectTask' | 'operation';
   entityId: Types.ObjectId; // ID of the project, task, or operation
-  taskIndex?: number; // For project tasks - which task in the project
+  /** @deprecated Use taskId for projectTask comments. */
+  taskIndex?: number;
+  /** Stable reference to project task (for entityType 'projectTask'). */
+  taskId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +49,9 @@ const CommentSchema: Schema = new Schema(
     taskIndex: {
       type: Number,
     },
+    taskId: {
+      type: Schema.Types.ObjectId,
+    },
   },
   {
     timestamps: true,
@@ -54,6 +60,7 @@ const CommentSchema: Schema = new Schema(
 
 // Compound index for efficient queries
 CommentSchema.index({ entityType: 1, entityId: 1, taskIndex: 1 });
+CommentSchema.index({ entityType: 1, entityId: 1, taskId: 1 });
 
 const Comment: Model<IComment> = mongoose.models.Comment || mongoose.model<IComment>('Comment', CommentSchema);
 

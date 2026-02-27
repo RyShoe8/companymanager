@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid JSON in request body', details: errorMessage }, { status: 400 });
     }
 
-    const { name, description, url, urls, projectType, color, logo, status, endDate, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks } = body;
+    const { name, description, url, urls, projectType, color, logo, status, endDate, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, dismissedChecklistIds } = body;
 
     await connectDB();
     const { id } = await params;
@@ -126,7 +126,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
           projectType !== undefined || color !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined || 
           assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined || 
-          assignedToNames !== undefined || tasks !== undefined) {
+          assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
       }
     }
@@ -302,6 +302,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Explicitly mark tasks array as modified to ensure Mongoose saves it
     if (tasks !== undefined) {
       project.markModified('tasks');
+    }
+
+    if (dismissedChecklistIds !== undefined) {
+      if (Array.isArray(dismissedChecklistIds)) {
+        project.dismissedChecklistIds = dismissedChecklistIds
+          .filter((id: unknown) => id && Types.ObjectId.isValid(id as string))
+          .map((id: string) => new Types.ObjectId(id));
+      } else {
+        project.dismissedChecklistIds = [];
+      }
     }
     
     // Save the project

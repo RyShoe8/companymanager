@@ -2,10 +2,10 @@ import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
 export type ProjectType = 'website' | 'store' | 'app' | 'generic';
-export type ProjectClientType = 'internal' | 'client';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
 
 export interface IProjectTask {
+  _id?: Types.ObjectId; // Mongoose adds by default; use for stable task references (project.tasks.id(taskId))
   name: string;
   description?: string;
   startDate: Date;
@@ -14,6 +14,13 @@ export interface IProjectTask {
   assignedTo?: string; // Legacy - kept for backward compatibility
   assignedToEmployeeId?: Types.ObjectId; // New field using employee ID
   status?: TaskStatus;
+}
+
+/** Smart button on a project (Available vs Active lists; referralSourceId links to catalog). */
+export interface IProjectActionButton {
+  label: string;
+  url: string;
+  referralSourceId?: Types.ObjectId; // FK to PartnerCatalog or catalog entry
 }
 
 export interface IProject extends Document {
@@ -32,6 +39,10 @@ export interface IProject extends Document {
   assignedToEmployeeIds?: Types.ObjectId[]; // New field for multiple assignments using employee IDs
   assignedToNames?: string[]; // New field for multiple assignments using names (for backward compatibility)
   tasks?: IProjectTask[];
+  /** Smart buttons: Available vs Active; no duplicates in Active, removed from Available. */
+  actionButtons?: IProjectActionButton[];
+  /** Dismissed checklist template item IDs (ReferralCatalog entry IDs) - user can re-add via Add button. */
+  dismissedChecklistIds?: Types.ObjectId[];
   userId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -174,6 +185,17 @@ const ProjectSchema: Schema = new Schema(
         },
       },
     ],
+    actionButtons: [
+      {
+        label: { type: String, required: true, trim: true },
+        url: { type: String, required: true, trim: true },
+        referralSourceId: { type: Schema.Types.ObjectId, ref: 'PartnerCatalog' },
+      },
+    ],
+    dismissedChecklistIds: {
+      type: [Schema.Types.ObjectId],
+      default: [],
+    },
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',

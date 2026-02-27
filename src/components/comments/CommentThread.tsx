@@ -10,6 +10,8 @@ interface CommentThreadProps {
   entityType: 'project' | 'projectTask' | 'operation';
   entityId: string;
   taskIndex?: number;
+  /** Stable task reference (prefer over taskIndex). */
+  taskId?: string;
   currentUserId?: string;
   showHeading?: boolean;
 }
@@ -18,18 +20,31 @@ interface CommentWithReplies extends IComment {
   replies?: CommentWithReplies[];
 }
 
-export default function CommentThread({ entityType, entityId, taskIndex, currentUserId, showHeading = true }: CommentThreadProps) {
+export default function CommentThread({ entityType, entityId, taskIndex, taskId, currentUserId: currentUserIdProp, showHeading = true }: CommentThreadProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [screenshots, setScreenshots] = useState<IAsset[]>([]);
+  const [fetchedUserId, setFetchedUserId] = useState<string | undefined>();
+  const currentUserId = currentUserIdProp ?? fetchedUserId;
+
+  useEffect(() => {
+    if (currentUserIdProp == null) {
+      fetch('/api/auth/me')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => data?.id && setFetchedUserId(data.id))
+        .catch(() => {});
+    }
+  }, [currentUserIdProp]);
 
   useEffect(() => {
     loadComments();
     loadScreenshots();
-  }, [entityType, entityId, taskIndex]);
+  }, [entityType, entityId, taskIndex, taskId]);
 
   const loadComments = async () => {
     try {
@@ -37,7 +52,9 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
         entityType,
         entityId,
       });
-      if (taskIndex !== undefined) {
+      if (taskId) {
+        params.append('taskId', taskId);
+      } else if (taskIndex !== undefined) {
         params.append('taskIndex', taskIndex.toString());
       }
 
@@ -58,7 +75,9 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
       let url = '/api/assets?type=screenshot';
       if (entityType === 'project') {
         url += `&linkedProjectId=${entityId}`;
-        if (taskIndex !== undefined) {
+        if (taskId) {
+          url += `&linkedProjectTaskId=${taskId}`;
+        } else if (taskIndex !== undefined) {
           url += `&linkedProjectTaskIndex=${taskIndex}`;
         }
       } else if (entityType === 'operation') {
@@ -99,7 +118,9 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
         
         if (entityType === 'project') {
           formData.append('linkedProjectId', entityId);
-          if (taskIndex !== undefined) {
+          if (taskId) {
+            formData.append('linkedProjectTaskId', taskId);
+          } else if (taskIndex !== undefined) {
             formData.append('linkedProjectTaskIndex', taskIndex.toString());
           }
         } else if (entityType === 'operation') {
@@ -143,7 +164,9 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
         body.parentId = parentId;
       }
 
-      if (taskIndex !== undefined) {
+      if (taskId) {
+        body.taskId = taskId;
+      } else if (taskIndex !== undefined) {
         body.taskIndex = taskIndex;
       }
 
@@ -164,6 +187,27 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
     }
   };
 
+  const handleEditComment = async (commentId: string) => {
+    const content = editContent.trim();
+    if (!content) return;
+
+    try {
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+
+      if (response.ok) {
+        setEditingCommentId(null);
+        setEditContent('');
+        loadComments();
+      }
+    } catch (error) {
+      // Error editing comment
+    }
+  };
+
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm('Are you sure you want to delete this comment?')) return;
 
@@ -173,11 +217,25 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
       });
 
       if (response.ok) {
+        setEditingCommentId(null);
+        setEditContent('');
         loadComments();
       }
     } catch (error) {
       // Error deleting comment
     }
+  };
+
+  const openImageFullSize = (url: string) => {
+    if (!url) return;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const escaped = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    w.document.write(
+      '<!DOCTYPE html><html><head><title>Image</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a1a">' +
+      '<img src="' + escaped + '" style="max-width:100%;max-height:100vh;object-fit:contain" alt="" /></body></html>'
+    );
+    w.document.close();
   };
 
   const formatDate = (date: Date | string) => {
@@ -209,19 +267,67 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
                 </span>
               </div>
             </div>
-            {isAuthor && (
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => handleDeleteComment(comment._id.toString())}
-              >
-                Delete
-              </Button>
+            {isAuthor && editingCommentId !== comment._id.toString() && (
+              <div className="flex gap-1">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setEditingCommentId(comment._id.toString());
+                    setEditContent(comment.content);
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDeleteComment(comment._id.toString())}
+                >
+                  Delete
+                </Button>
+              </div>
             )}
           </div>
-          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-            {comment.content}
-          </p>
+          {editingCommentId === comment._id.toString() ? (
+            <div className="space-y-2">
+              <Input
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="Edit comment..."
+                className="w-full text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setEditingCommentId(null);
+                    setEditContent('');
+                  }
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleEditComment(comment._id.toString());
+                  }
+                }}
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => handleEditComment(comment._id.toString())}>
+                  Save
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setEditingCommentId(null);
+                    setEditContent('');
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+              {comment.content}
+            </p>
+          )}
           {depth < maxDepth && (
             <button
               onClick={() => setReplyingTo(replyingTo === comment._id.toString() ? null : comment._id.toString())}
@@ -297,7 +403,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, current
                   src={screenshot.fileUrl}
                   alt={screenshot.name}
                   className="w-full h-20 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => window.open(screenshot.fileUrl, '_blank')}
+                  onClick={() => openImageFullSize(screenshot.fileUrl!)}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate" title={screenshot.name}>
                   {screenshot.name}

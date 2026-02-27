@@ -5,9 +5,25 @@ import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 
+type TaskLike = { status: string; assignedTo?: string; assignedToEmployeeId?: { toString: () => string } };
+
+/** Resolve task by stable taskId or legacy taskIndex. Returns { task, index } or null. */
+function getTaskByProject(project: { tasks?: unknown[] }, taskId?: string, taskIndex?: number): { task: TaskLike; index: number } | null {
+  if (!project.tasks || !project.tasks.length) return null;
+  if (taskId) {
+    const index = (project.tasks as { _id?: { toString: () => string } }[]).findIndex((t) => t._id?.toString() === taskId);
+    if (index === -1 || !project.tasks[index]) return null;
+    return { task: project.tasks[index] as TaskLike, index };
+  }
+  if (taskIndex !== undefined && project.tasks[taskIndex]) {
+    return { task: project.tasks[taskIndex] as TaskLike, index: taskIndex };
+  }
+  return null;
+}
+
 /**
  * POST /api/tasks/[id]/review
- * Submit a task for review
+ * Submit a task for review. Accepts projectId + taskId (stable) or projectId + taskIndex (legacy).
  */
 export async function POST(
   request: NextRequest,
@@ -18,13 +34,12 @@ export async function POST(
     if (session instanceof NextResponse) return session;
 
     await connectDB();
-    const { id } = await params;
     const body = await request.json();
-    const { projectId, taskIndex } = body;
+    const { projectId, taskIndex, taskId } = body;
 
-    if (!projectId || taskIndex === undefined) {
+    if (!projectId || (taskIndex === undefined && !taskId)) {
       return NextResponse.json(
-        { error: 'projectId and taskIndex are required' },
+        { error: 'projectId and (taskId or taskIndex) are required' },
         { status: 400 }
       );
     }
@@ -34,16 +49,16 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Check if user is assigned to this task
     const user = await User.findById(session.userId);
     const employee = await Employee.findOne({ userId: session.userId, organizationId: user?.organizationId });
-    
-    if (!project.tasks || !project.tasks[taskIndex]) {
+
+    const resolved = getTaskByProject(project, taskId, taskIndex);
+    if (!resolved) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    const task = project.tasks[taskIndex];
-    const isAssigned = 
+    const { task, index } = resolved;
+    const isAssigned =
       task.assignedToEmployeeId?.toString() === employee?._id.toString() ||
       task.assignedTo === employee?.name;
 
@@ -54,11 +69,10 @@ export async function POST(
       );
     }
 
-    // Update task status to in-review
-    project.tasks[taskIndex].status = 'in-review';
+    (project.tasks as { status: string }[])[index].status = 'in-review';
     await project.save();
 
-    return NextResponse.json({ success: true, task: project.tasks[taskIndex] });
+    return NextResponse.json({ success: true, task: project.tasks[index] });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -66,7 +80,7 @@ export async function POST(
 
 /**
  * PUT /api/tasks/[id]/review
- * Approve or decline a task review
+ * Approve or decline a task review. Accepts projectId + taskId (stable) or projectId + taskIndex (legacy).
  */
 export async function PUT(
   request: NextRequest,
@@ -77,13 +91,12 @@ export async function PUT(
     if (session instanceof NextResponse) return session;
 
     await connectDB();
-    const { id } = await params;
     const body = await request.json();
-    const { projectId, taskIndex, approved } = body;
+    const { projectId, taskIndex, taskId, approved } = body;
 
-    if (!projectId || taskIndex === undefined || approved === undefined) {
+    if (!projectId || approved === undefined || (taskIndex === undefined && !taskId)) {
       return NextResponse.json(
-        { error: 'projectId, taskIndex, and approved are required' },
+        { error: 'projectId, approved, and (taskId or taskIndex) are required' },
         { status: 400 }
       );
     }
@@ -93,10 +106,9 @@ export async function PUT(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Check if user is a Manager or Administrator assigned to the project
     const user = await User.findById(session.userId);
     const employee = await Employee.findOne({ userId: session.userId, organizationId: user?.organizationId });
-    
+
     if (!employee || (employee.role !== 'Manager' && employee.role !== 'Administrator')) {
       return NextResponse.json(
         { error: 'Only Managers and Administrators can approve reviews' },
@@ -104,9 +116,8 @@ export async function PUT(
       );
     }
 
-    // Check if employee is assigned to the project
-    const isAssignedToProject = 
-      project.assignedToEmployeeIds?.some((id: any) => id.toString() === employee._id.toString()) ||
+    const isAssignedToProject =
+      project.assignedToEmployeeIds?.some((id: unknown) => id && (id as { toString: () => string }).toString() === employee._id.toString()) ||
       project.assignedToEmployeeId?.toString() === employee._id.toString() ||
       project.assignedToNames?.includes(employee.name) ||
       project.assignedTo === employee.name;
@@ -118,20 +129,16 @@ export async function PUT(
       );
     }
 
-    if (!project.tasks || !project.tasks[taskIndex]) {
+    const resolved = getTaskByProject(project, taskId, taskIndex);
+    if (!resolved) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    // Update task status
-    if (approved) {
-      project.tasks[taskIndex].status = 'completed';
-    } else {
-      project.tasks[taskIndex].status = 'active';
-    }
-    
+    const { index } = resolved;
+    (project.tasks as { status: string }[])[index].status = approved ? 'completed' : 'active';
     await project.save();
 
-    return NextResponse.json({ success: true, task: project.tasks[taskIndex] });
+    return NextResponse.json({ success: true, task: project.tasks[index] });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

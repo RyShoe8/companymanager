@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { getSession, deleteSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
 import User, { isAdminEmail } from '@/lib/models/User';
 
@@ -17,7 +17,9 @@ export async function GET(request: NextRequest) {
     const user = await User.findById(session.userId);
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      // Stale session: cookie exists but user was deleted or invalid. Clear it so the client shows Login/Register.
+      await deleteSession();
+      return NextResponse.json(null, { status: 200 });
     }
 
     // Auto-complete organization setup for existing users who have an organization

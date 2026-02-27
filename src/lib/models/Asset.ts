@@ -12,7 +12,10 @@ export interface IAsset extends Document {
   category?: string;
   tags: string[];
   linkedProjectId?: Types.ObjectId;
-  linkedProjectTaskIndex?: number; // Index of the task in the project's tasks array
+  /** @deprecated Use linkedProjectTaskId for stable references. */
+  linkedProjectTaskIndex?: number;
+  /** Stable reference to project task (use project.tasks.id(linkedProjectTaskId) for lookup). */
+  linkedProjectTaskId?: Types.ObjectId;
   linkedOperationId?: Types.ObjectId;
   userId: Types.ObjectId;
   createdAt: Date;
@@ -63,6 +66,10 @@ const AssetSchema: Schema = new Schema(
       type: Number,
       min: 0,
     },
+    linkedProjectTaskId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Project.tasks',
+    },
     linkedOperationId: {
       type: Schema.Types.ObjectId,
       ref: 'Operation',
@@ -81,6 +88,7 @@ const AssetSchema: Schema = new Schema(
 // Add indexes for better query performance
 AssetSchema.index({ userId: 1 });
 AssetSchema.index({ linkedProjectId: 1 });
+AssetSchema.index({ linkedProjectTaskId: 1 });
 AssetSchema.index({ linkedOperationId: 1 });
 AssetSchema.index({ type: 1 });
 AssetSchema.index({ tags: 1 });

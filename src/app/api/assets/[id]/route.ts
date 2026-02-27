@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedOperationId } = body;
+    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedOperationId } = body;
 
     await connectDB();
     const { id } = await params;
@@ -62,6 +62,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     if (linkedOperationId && !isValidObjectId(linkedOperationId)) {
       return NextResponse.json({ error: 'Invalid operation ID' }, { status: 400 });
+    }
+    if (linkedProjectTaskId && !isValidObjectId(linkedProjectTaskId)) {
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
 
     // Validate ObjectId format
@@ -105,8 +108,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       asset.tags = tags.map((tag: any) => sanitizeString(String(tag), 50)).filter((tag: string) => tag.length > 0);
     }
     if (linkedProjectId !== undefined) asset.linkedProjectId = linkedProjectId;
-    if (linkedProjectTaskIndex !== undefined) {
-      asset.linkedProjectTaskIndex = linkedProjectTaskIndex === null || linkedProjectTaskIndex === '' ? undefined : parseInt(linkedProjectTaskIndex);
+    // Prefer stable taskId over taskIndex
+    if (linkedProjectTaskId !== undefined && linkedProjectTaskId !== null && linkedProjectTaskId !== '') {
+      asset.linkedProjectTaskId = linkedProjectTaskId;
+      asset.linkedProjectTaskIndex = undefined;
+    } else if (linkedProjectTaskIndex !== undefined && linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== '') {
+      asset.linkedProjectTaskIndex = typeof linkedProjectTaskIndex === 'number' ? linkedProjectTaskIndex : parseInt(linkedProjectTaskIndex);
+      asset.linkedProjectTaskId = undefined;
+    } else if (linkedProjectTaskId !== undefined || linkedProjectTaskIndex !== undefined) {
+      // Explicitly clearing
+      asset.linkedProjectTaskId = undefined;
+      asset.linkedProjectTaskIndex = undefined;
     }
     if (linkedOperationId !== undefined) asset.linkedOperationId = linkedOperationId;
 

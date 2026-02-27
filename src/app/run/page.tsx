@@ -363,6 +363,8 @@ export default function RunPage() {
               employees={employees}
               projects={filteredProjects}
               operations={filteredOperations}
+              allProjects={allProjects}
+              allOperations={allOperations}
               timeframe={timeframe}
               currentDate={currentDate}
               currentUserRole={currentUserRole}
@@ -383,60 +385,39 @@ export default function RunPage() {
         )}
 
         {/* Inline Project View - Full width bottom sheet on all devices */}
-        <BottomSheet isOpen={showProjectDetail} onClose={() => { setShowProjectDetail(false); setViewingProject(undefined); }} title={viewingProject?.name || 'Project'} maxHeight="90vh">
+        <BottomSheet isOpen={showProjectDetail} onClose={() => { setShowProjectDetail(false); setViewingProject(undefined); }} title={viewingProject?.name || 'Project'} maxHeight="90vh" hideCloseButton>
           {viewingProject && (
             <div className="p-4">
               <InlineProjectView project={viewingProject} employees={employees} isManagerOrAdmin={isManagerOrAdmin} currentUserEmployeeId={currentUserEmployeeId}
                 onAddOperation={(projectId) => handleCreateOperation(projectId)}
                 onUpdate={async (updates) => { 
-                  try {
-                    // Validate updates object
-                    if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) {
-                      console.error('Invalid updates object:', updates);
-                      alert('Error: No changes to save');
-                      return;
-                    }
+                  if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) throw new Error('No changes to save');
+                  const body = JSON.stringify(updates);
+                  if (!body || body === '{}') throw new Error('No changes to save');
 
-                    const body = JSON.stringify(updates);
-                    if (!body || body === '{}') {
-                      console.error('Empty updates body:', updates);
-                      alert('Error: No changes to save');
-                      return;
-                    }
-
-                    const projectId = viewingProject._id?.toString() ?? viewingProject._id;
-                    const res = await fetch(`/api/projects/${projectId}`, { 
-                      method: 'PUT', 
-                      headers: { 'Content-Type': 'application/json' }, 
-                      body: body
-                    }); 
-                    
-                    if (res.ok) { 
-                      const updatedProject = await res.json();
-                      const newStatus = updatedProject.status;
-                      // If status changed to another stage, close sheet and refresh so user sees feedback
-                      if (newStatus && newStatus !== 'launched' && newStatus !== 'completed') {
-                        setShowProjectDetail(false);
-                        setViewingProject(undefined);
-                        await loadData();
-                        if (newStatus === 'in-development') {
-                          router.push(`/build/${updatedProject._id?.toString() ?? updatedProject._id}`);
-                        }
-                        return;
-                      }
-                      // Update viewing project immediately
-                      setViewingProject(updatedProject);
-                      // Update projects array without full reload
-                      setProjects(prev => prev.map(p => p._id.toString() === updatedProject._id.toString() ? updatedProject : p));
-                    } else {
-                      const errorText = await res.text();
-                      console.error('Failed to update project:', errorText);
-                      alert(`Failed to save changes: ${errorText}`);
-                    }
-                  } catch (error) {
-                    console.error('Error updating project:', error);
-                    alert(`Error saving changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  const projectId = viewingProject._id?.toString() ?? viewingProject._id;
+                  const res = await fetch(`/api/projects/${projectId}`, { 
+                    method: 'PUT', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: body
+                  }); 
+                  if (!res.ok) { 
+                    const errorText = await res.text();
+                    throw new Error(errorText || 'Failed to save');
                   }
+                  const updatedProject = await res.json();
+                  const newStatus = updatedProject.status;
+                  if (newStatus && newStatus !== 'launched' && newStatus !== 'completed') {
+                    setShowProjectDetail(false);
+                    setViewingProject(undefined);
+                    await loadData();
+                    if (newStatus === 'in-development') {
+                      router.push(`/build/${updatedProject._id?.toString() ?? updatedProject._id}`);
+                    }
+                    return;
+                  }
+                  setViewingProject(updatedProject);
+                  setProjects(prev => prev.map(p => p._id.toString() === updatedProject._id.toString() ? updatedProject : p));
                 }}
                 onDelete={() => handleDeleteProject(viewingProject._id.toString())}
                 onClose={() => { setShowProjectDetail(false); setViewingProject(undefined); }} onRefresh={loadData} />
@@ -450,29 +431,17 @@ export default function RunPage() {
             <div className="p-4">
               <InlineOperationView operation={viewingOperation} employees={employees} projects={projects} isManagerOrAdmin={isManagerOrAdmin} currentUserEmployeeId={currentUserEmployeeId}
                 onUpdate={async (updates) => { 
-                  try {
-                    const res = await fetch(`/api/operations/${viewingOperation._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }); 
-                    if (res.ok) { 
-                      const updatedOperation = await res.json();
-                      // Update local state immediately for optimistic UI
-                      setViewingOperation(updatedOperation);
-                      // Then refresh all data to ensure consistency
-                      await loadData();
-                      // After loadData completes, update viewing state with fresh data
-                      const freshOperations = await fetch('/api/operations').then(r => r.json());
-                      const freshOperation = freshOperations.find((op: IOperation) => op._id.toString() === viewingOperation._id.toString());
-                      if (freshOperation) {
-                        setViewingOperation(freshOperation);
-                      }
-                    } else {
-                      const errorText = await res.text();
-                      console.error('Failed to update operation:', errorText);
-                      alert(`Failed to save changes: ${errorText}`);
-                    }
-                  } catch (error) {
-                    console.error('Error updating operation:', error);
-                    alert('Error saving changes. Please try again.');
+                  const res = await fetch(`/api/operations/${viewingOperation._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }); 
+                  if (!res.ok) { 
+                    const errorText = await res.text();
+                    throw new Error(errorText || 'Failed to save');
                   }
+                  const updatedOperation = await res.json();
+                  setViewingOperation(updatedOperation);
+                  await loadData();
+                  const freshOperations = await fetch('/api/operations').then(r => r.json());
+                  const freshOperation = freshOperations.find((op: IOperation) => op._id.toString() === viewingOperation._id.toString());
+                  if (freshOperation) setViewingOperation(freshOperation);
                 }}
                 onDelete={() => handleDeleteOperation(viewingOperation._id.toString())}
                 onClose={() => { setShowOperationDetail(false); setViewingOperation(undefined); }} onRefresh={loadData} />

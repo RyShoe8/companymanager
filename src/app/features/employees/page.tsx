@@ -1,107 +1,82 @@
+import Link from 'next/link';
 import Card from '@/components/ui/Card';
+import MarketingPageHeader from '@/components/home/MarketingPageHeader';
 
 export const metadata = {
-  title: 'Employee Management - Team Capacity & Workload | Nucleas',
-  description: 'Track employee capacity, workload, and assignments. Manage your team effectively with role-based access, hours tracking, and workload visibility.',
+  title: 'Team - Capacity & Workload | Nucleas',
+  description: 'Track team capacity, workload, and assignments. Manage your team effectively with role-based access, hours tracking, and workload visibility.',
   keywords: 'employee management, team management, capacity planning, workload tracking, team capacity',
   openGraph: {
-    title: 'Employee Management - Team Capacity & Workload | Nucleas',
-    description: 'Track employee capacity, workload, and assignments with Nucleas.',
+    title: 'Team - Capacity & Workload | Nucleas',
+    description: 'Track team capacity, workload, and assignments with Nucleas.',
     type: 'website',
   },
 };
 
 export default function EmployeesPage() {
   return (
-    <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-12">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-text-primary mb-4">Employee Management</h1>
-          <p className="text-xl text-text-secondary max-w-2xl mx-auto">
-            Track employee capacity, workload, and assignments. Manage your team effectively with 
-            role-based access, hours tracking, and workload visibility.
-          </p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <MarketingPageHeader
+        badge="Organization"
+        title="Team"
+        subtitle="Track team capacity, workload, and assignments. Manage your team effectively with role-based access, hours tracking, and workload visibility."
+        ctaText="Start Free"
+        ctaHref="/register"
+      />
 
-        <Card className="p-8 mb-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Comprehensive Team Management</h2>
-          <p className="text-text-secondary leading-relaxed mb-6">
-            Employee Management in Nucleas gives you complete visibility into your team's capacity, 
-            workload, and assignments. Make informed decisions about resource allocation and ensure 
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <Card className="p-8 md:p-10 mb-8 rounded-2xl">
+          <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-4">Comprehensive Team Management</h2>
+          <p className="text-text-secondary leading-relaxed mb-8">
+            Team management in Nucleas gives you complete visibility into your team&apos;s capacity,
+            workload, and assignments. Make informed decisions about resource allocation and ensure
             balanced workloads across your organization.
           </p>
-          
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-primary-light border border-primary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-primary-dark mb-2">Capacity Tracking</h3>
-              <p className="text-text-secondary">Set and track weekly hours for each team member to understand availability.</p>
+            <div className="p-6 rounded-xl bg-primary-light border border-primary/20">
+              <h3 className="text-lg font-semibold text-primary-dark mb-2">Capacity Tracking</h3>
+              <p className="text-text-secondary text-sm">Set and track weekly hours for each team member to understand availability.</p>
             </div>
-            <div className="bg-secondary-light border border-secondary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-secondary-dark mb-2">Workload Visibility</h3>
-              <p className="text-text-secondary">See how projects and operations impact each team member's workload.</p>
+            <div className="p-6 rounded-xl bg-secondary-light border border-secondary/20">
+              <h3 className="text-lg font-semibold text-secondary-dark mb-2">Workload Visibility</h3>
+              <p className="text-text-secondary text-sm">See how projects and tasks impact each team member&apos;s workload.</p>
             </div>
-            <div className="bg-accent-light border border-accent/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-accent-dark mb-2">Role Management</h3>
-              <p className="text-text-secondary">Assign roles (Administrator, Manager, User) with appropriate permissions.</p>
+            <div className="p-6 rounded-xl bg-accent-light border border-accent/20">
+              <h3 className="text-lg font-semibold text-accent-dark mb-2">Role Management</h3>
+              <p className="text-text-secondary text-sm">Assign roles (Administrator, Manager, User) with appropriate permissions.</p>
             </div>
-            <div className="bg-primary-light border border-primary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-primary-dark mb-2">Assignment Tracking</h3>
-              <p className="text-text-secondary">See all projects and operations assigned to each team member.</p>
+            <div className="p-6 rounded-xl bg-primary-light border border-primary/20">
+              <h3 className="text-lg font-semibold text-primary-dark mb-2">Assignment Tracking</h3>
+              <p className="text-text-secondary text-sm">See all projects and tasks assigned to each team member.</p>
             </div>
           </div>
         </Card>
 
-        <Card className="p-8 mb-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Key Features</h2>
+        <Card className="p-8 md:p-10 mb-8 rounded-2xl">
+          <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-6">Key Features</h2>
           <ul className="space-y-4 text-text-secondary">
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Weekly Hours:</strong> Set and track weekly capacity for each employee</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Employee Types:</strong> Categorize as full-time, part-time, or contractor</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Role-Based Access:</strong> Assign roles with appropriate permissions and access levels</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Workload Analysis:</strong> See how assignments impact team member capacity</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Team Overview:</strong> Get a complete view of your team's capacity and assignments</span>
-            </li>
+            {[
+              ['Weekly Hours', 'Set and track weekly capacity for each employee'],
+              ['Employee Types', 'Categorize as full-time, part-time, or contractor'],
+              ['Role-Based Access', 'Assign roles with appropriate permissions and access levels'],
+              ['Workload Analysis', 'See how assignments impact team member capacity'],
+              ['Team Overview', "Get a complete view of your team's capacity and assignments"],
+            ].map(([title, desc]) => (
+              <li key={title} className="flex gap-3">
+                <span className="text-primary font-bold">✓</span>
+                <span><strong className="text-text-primary">{title}:</strong> {desc}</span>
+              </li>
+            ))}
           </ul>
         </Card>
 
-        <Card className="p-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Role Types</h2>
-          <div className="grid md:grid-cols-3 gap-6 text-text-secondary">
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Administrator</p>
-              <p>Full access to all features, including organization settings and user management</p>
-            </div>
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Manager</p>
-              <p>Manage projects, operations, and team members within their organization</p>
-            </div>
-            <div>
-              <p className="font-semibold text-text-primary mb-2">User</p>
-              <p>View and contribute to projects and operations assigned to them</p>
-            </div>
-          </div>
-        </Card>
-
-        <div className="mt-12 text-center">
-          <a
-            href="/register"
-            className="inline-block bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary-hover transition-colors"
-          >
-            Start Managing Your Team
-          </a>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
+          <Link href="/register" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-colors">
+            Start Free
+          </Link>
+          <Link href="/#demo" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-primary text-primary font-semibold hover:bg-primary/5 transition-colors">
+            Try Interactive Demo
+          </Link>
         </div>
       </div>
     </div>

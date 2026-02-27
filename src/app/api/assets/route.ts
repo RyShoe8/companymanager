@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const linkedProjectId = searchParams.get('linkedProjectId');
     const linkedProjectTaskIndex = searchParams.get('linkedProjectTaskIndex');
+    const linkedProjectTaskId = searchParams.get('linkedProjectTaskId');
     const linkedOperationId = searchParams.get('linkedOperationId');
 
     const query: any = { userId: { $in: orgUserIds } };
@@ -38,7 +39,9 @@ export async function GET(request: NextRequest) {
     if (linkedProjectId) {
       query.linkedProjectId = linkedProjectId;
     }
-    if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined) {
+    if (linkedProjectTaskId) {
+      query.linkedProjectTaskId = linkedProjectTaskId;
+    } else if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined) {
       query.linkedProjectTaskIndex = parseInt(linkedProjectTaskIndex);
     }
     if (linkedOperationId) {
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedOperationId } = body;
+    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedOperationId } = body;
 
     if (!name || !type) {
       return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
@@ -68,7 +71,8 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const asset = await Asset.create({
+    // Prefer stable taskId; do not set taskIndex when taskId is provided
+    const assetData: any = {
       name,
       type,
       url,
@@ -78,10 +82,16 @@ export async function POST(request: NextRequest) {
       category,
       tags: tags || [],
       linkedProjectId,
-      linkedProjectTaskIndex,
       linkedOperationId,
       userId: session.userId,
-    });
+    };
+    if (linkedProjectTaskId) {
+      assetData.linkedProjectTaskId = linkedProjectTaskId;
+    } else if (linkedProjectTaskIndex !== undefined && linkedProjectTaskIndex !== null) {
+      assetData.linkedProjectTaskIndex = linkedProjectTaskIndex;
+    }
+
+    const asset = await Asset.create(assetData);
 
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
@@ -12,10 +12,11 @@ import SwipeableCard from '@/components/ui/SwipeableCard';
 import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import CommentThread from '@/components/comments/CommentThread';
-import WireframeButton from '@/components/wireframes/WireframeButton';
-import WireframeViewer from '@/components/wireframes/WireframeViewer';
 import ProjectLogo from '@/components/projects/ProjectLogo';
 import { formatDate } from '@/lib/utils/dateUtils';
+import { mapStatusToStage } from '@/lib/utils/statusMapping';
+import ChecklistSection from '@/components/checklist/ChecklistSection';
+import AddButton from '@/components/checklist/AddButton';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -39,10 +40,23 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null);
   const [showTaskActions, setShowTaskActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showWireframe, setShowWireframe] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [projectOperations, setProjectOperations] = useState<IOperation[]>([]);
+  const [actionButtons, setActionButtons] = useState<{ label: string; url: string }[]>([]);
   
+  // Clear saved status after brief display; cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    };
+  }, []);
+
+  const clearSaveStatusAfterDelay = (status: 'saved' | 'failed' = 'saved') => {
+    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    savedTimeoutRef.current = setTimeout(() => setSaveStatus('idle'), status === 'failed' ? 2500 : 1200);
+  };
+
   const toggleTaskComments = (taskIdx: number) => {
     setExpandedTaskComments(prev => {
       const newSet = new Set(prev);
@@ -66,6 +80,22 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       return newSet;
     });
   }, [project]);
+
+  // Fetch project action buttons (smart buttons)
+  useEffect(() => {
+    const fetchButtons = async () => {
+      try {
+        const res = await fetch(`/api/projects/${localProject._id}/buttons`);
+        if (res.ok) {
+          const data = await res.json();
+          setActionButtons(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchButtons();
+  }, [localProject._id]);
 
   // Fetch operations for launched projects
   useEffect(() => {
@@ -95,42 +125,37 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const handleFieldUpdate = async (field: string, value: any) => {
-    setIsSaving(true);
+    setSaveStatus('saving');
     setLocalProject(prev => ({ ...prev, [field]: value } as IProject));
     try { 
       const updates = { [field]: value };
-      console.log('Sending update:', { field, value, updates: JSON.stringify(updates) });
       await onUpdate(updates); 
+      setSaveStatus('saved');
+      clearSaveStatusAfterDelay();
     } catch (error) {
       console.error('Error in handleFieldUpdate:', error);
       setLocalProject(project); 
-    } finally { 
-      setIsSaving(false); 
+      setSaveStatus('failed');
+      clearSaveStatusAfterDelay('failed');
+      alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
 
   const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
     const updatedTasks = [...(localProject.tasks || [])];
-    // Preserve all existing task fields when updating
-    updatedTasks[taskIndex] = { 
-      ...updatedTasks[taskIndex], 
-      [field]: value 
-    };
-    
-    // Debug: Log the update to verify status is included
-    if (field === 'status') {
-      console.log('Updating task status:', { taskIndex, oldStatus: localProject.tasks?.[taskIndex]?.status, newStatus: value, task: updatedTasks[taskIndex] });
-    }
-    
-    setIsSaving(true);
+    updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], [field]: value };
+    setSaveStatus('saving');
     setLocalProject(prev => ({ ...prev, tasks: updatedTasks } as IProject));
     try { 
       await onUpdate({ tasks: updatedTasks }); 
+      setSaveStatus('saved');
+      clearSaveStatusAfterDelay();
     } catch (error) { 
       console.error('Error updating task:', error);
       setLocalProject(project); 
-    } finally { 
-      setIsSaving(false); 
+      setSaveStatus('failed');
+      clearSaveStatusAfterDelay('failed');
+      alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
 
@@ -150,7 +175,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const employeeOptions = employees.map(emp => ({ value: emp._id.toString(), label: emp.name }));
 
   const handleOperationUpdate = async (operationId: string, updates: Partial<IOperation>) => {
-    setIsSaving(true);
+    setSaveStatus('saving');
     try {
       const res = await fetch(`/api/operations/${operationId}`, {
         method: 'PUT',
@@ -160,17 +185,27 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       if (!res.ok) throw new Error('Failed to update operation');
       const updatedOp = await res.json();
       setProjectOperations(prev => prev.map(op => op._id.toString() === operationId ? updatedOp : op));
+      setSaveStatus('saved');
+      clearSaveStatusAfterDelay();
     } catch (error) {
       console.error('Error updating operation:', error);
       onRefresh();
-    } finally {
-      setIsSaving(false);
+      setSaveStatus('failed');
+      clearSaveStatusAfterDelay('failed');
+      alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
 
   return (
     <div className="space-y-4 max-h-[85vh] overflow-y-auto">
-      {isSaving && <div className="fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm animate-pulse z-50">Saving...</div>}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed top-4 right-4 px-3 py-1.5 rounded-lg text-sm font-medium z-50 shadow-lg ${
+          saveStatus === 'saving' ? 'bg-blue-500 text-white animate-pulse' :
+          saveStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+        }`}>
+          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'failed' ? 'Save failed' : 'Saved'}
+        </div>
+      )}
 
       {/* Project Header Card */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
@@ -199,13 +234,43 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           )}
         </div>
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-          <WireframeButton
+          <AddButton
             projectId={localProject._id.toString()}
+            phase={mapStatusToStage(localProject.status)}
+            projectType={localProject.projectType || 'generic'}
             isManagerOrAdmin={isManagerOrAdmin}
-            onOpen={() => setShowWireframe(true)}
+            onAddButton={async (label, url) => {
+              const res = await fetch(`/api/projects/${localProject._id}/buttons`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label, url }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                setActionButtons(Array.isArray(data) ? data : []);
+              }
+            }}
           />
         </div>
       </div>
+
+      {/* Checklist (replaces Smart buttons) */}
+      <ChecklistSection
+        projectId={localProject._id.toString()}
+        phase={mapStatusToStage(localProject.status)}
+        projectType={localProject.projectType || 'generic'}
+        actionButtons={actionButtons}
+        dismissedChecklistIds={(localProject.dismissedChecklistIds || []).map((id) => id.toString())}
+        isManagerOrAdmin={isManagerOrAdmin}
+        onUpdate={onUpdate}
+        onRefreshButtons={async () => {
+          const res = await fetch(`/api/projects/${localProject._id}/buttons`);
+          if (res.ok) {
+            const data = await res.json();
+            setActionButtons(Array.isArray(data) ? data : []);
+          }
+        }}
+      />
 
       {/* Tasks or Operations Section */}
       {localProject.status === 'launched' ? (
@@ -309,7 +374,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           </button>
                           {expandedTaskComments.has(idx) && (
                             <div className="mt-2">
-                              <CommentThread entityType="projectTask" entityId={project._id.toString()} taskIndex={idx} showHeading={false} />
+                              <CommentThread entityType="projectTask" entityId={project._id.toString()} taskIndex={idx} taskId={(project.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} />
                             </div>
                           )}
                         </div>
@@ -334,20 +399,25 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         {expandedSections.has('comments') && <div className="border-t border-gray-100 dark:border-gray-700 p-4"><CommentThread entityType="project" entityId={project._id.toString()} /></div>}
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons - one Close at bottom, same size as Delete */}
       <div className="flex gap-2 pt-2">
-        <Button variant="secondary" onClick={onClose} className="flex-1">Close</Button>
-        {isManagerOrAdmin && onDelete && <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>Delete</Button>}
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-sm px-3 py-1.5 rounded text-text-secondary hover:text-text-primary hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          Close
+        </button>
+        {isManagerOrAdmin && onDelete && (
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-sm px-3 py-1.5 rounded text-error hover:bg-error-light transition-colors"
+          >
+            Delete
+          </button>
+        )}
       </div>
-
-      {/* Wireframe Viewer */}
-      {showWireframe && (
-        <WireframeViewer
-          projectId={localProject._id.toString()}
-          isManagerOrAdmin={isManagerOrAdmin}
-          onClose={() => setShowWireframe(false)}
-        />
-      )}
 
       {/* Task Actions Bottom Sheet */}
       <BottomSheet isOpen={showTaskActions && selectedTaskIndex !== null} onClose={() => { setShowTaskActions(false); setSelectedTaskIndex(null); }} title={selectedTaskIndex !== null ? localProject.tasks?.[selectedTaskIndex]?.name : 'Task Actions'}>

@@ -1,6 +1,7 @@
+import Link from 'next/link';
 import Card from '@/components/ui/Card';
-import Image from 'next/image';
 import { StructuredData } from '@/components/StructuredData';
+import MarketingPageHeader from '@/components/home/MarketingPageHeader';
 
 export const metadata = {
   title: 'Planning Map - Visual Calendar View | Nucleas',
@@ -22,11 +23,7 @@ export default function PlanningMapPage() {
           name: 'Nucleas Planning Map',
           applicationCategory: 'BusinessApplication',
           operatingSystem: 'Web',
-          offers: {
-            '@type': 'Offer',
-            price: '0',
-            priceCurrency: 'USD',
-          },
+          offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
           featureList: [
             'Multi-horizon planning (Today, Weekly, Monthly, Quarterly, Yearly)',
             'Visual calendar view',
@@ -36,101 +33,74 @@ export default function PlanningMapPage() {
           ],
         }}
       />
-      <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-12">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-text-primary mb-4">Planning Map</h1>
-          <p className="text-xl text-text-secondary max-w-2xl mx-auto">
-            Visualize and manage your projects across multiple time horizons. See the big picture and execute with precision.
-          </p>
-        </div>
+      <div className="min-h-screen bg-background">
+        <MarketingPageHeader
+          badge="Plan phase"
+          title="Planning Map"
+          subtitle="Visualize and manage your projects across multiple time horizons. See the big picture and execute with precision."
+          ctaText="Get Started"
+          ctaHref="/plan"
+        />
 
-        <Card className="p-8 mb-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Multi-Horizon Planning</h2>
-          <p className="text-text-secondary leading-relaxed mb-6">
-            The Planning Map gives you a comprehensive view of your work across five time horizons, helping you balance 
-            immediate needs with long-term strategic goals.
-          </p>
-          
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
-            <div className="bg-primary-light border border-primary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-primary-dark mb-2">Today</h3>
-              <p className="text-text-secondary">Focus on immediate tasks and priorities that need attention right now.</p>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+          <Card className="p-8 md:p-10 mb-8 rounded-2xl">
+            <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-4">Multi-Horizon Planning</h2>
+            <p className="text-text-secondary leading-relaxed mb-8">
+              The Planning Map gives you a comprehensive view of your work across five time horizons, helping you balance
+              immediate needs with long-term strategic goals.
+            </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="p-6 rounded-xl bg-primary-light border border-primary/20">
+                <h3 className="text-lg font-semibold text-primary-dark mb-2">Today</h3>
+                <p className="text-text-secondary text-sm">Focus on immediate tasks and priorities</p>
+              </div>
+              <div className="p-6 rounded-xl bg-secondary-light border border-secondary/20">
+                <h3 className="text-lg font-semibold text-secondary-dark mb-2">Weekly</h3>
+                <p className="text-text-secondary text-sm">Plan your week with visibility into deadlines</p>
+              </div>
+              <div className="p-6 rounded-xl bg-accent-light border border-accent/20">
+                <h3 className="text-lg font-semibold text-accent-dark mb-2">Monthly</h3>
+                <p className="text-text-secondary text-sm">Track monthly milestones and schedules</p>
+              </div>
+              <div className="p-6 rounded-xl bg-primary-light border border-primary/20">
+                <h3 className="text-lg font-semibold text-primary-dark mb-2">Quarterly</h3>
+                <p className="text-text-secondary text-sm">Align quarterly objectives with strategy</p>
+              </div>
             </div>
-            <div className="bg-secondary-light border border-secondary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-secondary-dark mb-2">Weekly</h3>
-              <p className="text-text-secondary">Plan your week ahead with visibility into upcoming deadlines and commitments.</p>
+            <div className="mt-6 p-6 rounded-xl bg-background border border-border">
+              <h3 className="text-lg font-semibold text-text-primary mb-2">Yearly</h3>
+              <p className="text-text-secondary text-sm">Maintain visibility into long-term goals and annual planning cycles.</p>
             </div>
-            <div className="bg-accent-light border border-accent/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-accent-dark mb-2">Monthly</h3>
-              <p className="text-text-secondary">Track monthly milestones and ensure projects stay on schedule.</p>
-            </div>
-            <div className="bg-primary-light border border-primary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-primary-dark mb-2">Quarterly</h3>
-              <p className="text-text-secondary">Align quarterly objectives with your strategic initiatives.</p>
-            </div>
+          </Card>
+
+          <Card className="p-8 md:p-10 mb-8 rounded-2xl">
+            <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-6">Key Features</h2>
+            <ul className="space-y-4 text-text-secondary">
+              {[
+                ['Visual Calendar View', 'See all your projects and tasks in an intuitive calendar format'],
+                ['Drag-and-Drop Scheduling', 'Easily move projects between time horizons'],
+                ['Status Tracking', 'Monitor project status with color-coded indicators'],
+                ['Resource Allocation', 'See which team members are assigned to each project'],
+                ['Timeline Visualization', 'Understand project timelines and dependencies at a glance'],
+              ].map(([title, desc]) => (
+                <li key={title} className="flex gap-3">
+                  <span className="text-primary font-bold">✓</span>
+                  <span><strong className="text-text-primary">{title}:</strong> {desc}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
+            <Link href="/plan" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-colors">
+              Go to Plan
+            </Link>
+            <Link href="/#demo" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-primary text-primary font-semibold hover:bg-primary/5 transition-colors">
+              Try Interactive Demo
+            </Link>
           </div>
-          
-          <div className="bg-background-card border border-border rounded-lg p-6">
-            <h3 className="text-xl font-semibold text-text-primary mb-2">Yearly</h3>
-            <p className="text-text-secondary">Maintain visibility into long-term goals and annual planning cycles.</p>
-          </div>
-        </Card>
-
-        <Card className="p-8 mb-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Key Features</h2>
-          <ul className="space-y-4 text-text-secondary">
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Visual Calendar View:</strong> See all your projects and operations in an intuitive calendar format</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Drag-and-Drop Scheduling:</strong> Easily move projects between time horizons</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Status Tracking:</strong> Monitor project status with color-coded indicators</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Resource Allocation:</strong> See which team members are assigned to each project</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Timeline Visualization:</strong> Understand project timelines and dependencies at a glance</span>
-            </li>
-          </ul>
-        </Card>
-
-        <Card className="p-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Perfect For</h2>
-          <div className="grid md:grid-cols-3 gap-4 text-text-secondary">
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Project Managers</p>
-              <p>Keep all projects visible and organized across time horizons</p>
-            </div>
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Team Leads</p>
-              <p>Balance immediate priorities with strategic planning</p>
-            </div>
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Executives</p>
-              <p>Maintain high-level visibility into organizational work</p>
-            </div>
-          </div>
-        </Card>
-
-        <div className="mt-12 text-center">
-          <a
-            href="/register"
-            className="inline-block bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary-hover transition-colors"
-          >
-            Get Started with Planning Map
-          </a>
         </div>
       </div>
-    </div>
     </>
   );
 }

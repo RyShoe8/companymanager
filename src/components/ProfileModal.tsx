@@ -14,6 +14,7 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [profilePictureError, setProfilePictureError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,6 +29,7 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
             setName(data.name || '');
             setEmail(data.email || '');
             setProfilePicture(data.profilePicture || null);
+            setProfilePictureError(false);
           }
         }
       } catch (error) {
@@ -70,6 +72,7 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
       }
 
       setProfilePicture(data.url);
+      setProfilePictureError(false);
       onUpdate();
     } catch (error: any) {
       setError(error.message || 'Failed to upload image');
@@ -124,22 +127,20 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
 
       <div className="flex flex-col items-center gap-4">
         <div className="relative">
-          {profilePicture ? (
+          {profilePicture && !profilePictureError ? (
             <img
               src={profilePicture}
               alt={name || email}
               width={96}
               height={96}
               className="w-24 h-24 rounded-full object-cover"
-              onError={(e) => {
-                // Hide broken image - initials div will show below
-                e.currentTarget.style.display = 'none';
-              }}
+              onError={() => setProfilePictureError(true)}
             />
-          ) : null}
-          <div className={`w-24 h-24 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-medium ${profilePicture ? 'absolute inset-0' : ''}`}>
-            {userInitials}
-          </div>
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-medium">
+              {userInitials}
+            </div>
+          )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}

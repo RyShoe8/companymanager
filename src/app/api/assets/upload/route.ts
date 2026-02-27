@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     let tags = formData.get('tags') as string | null;
     const linkedProjectId = formData.get('linkedProjectId') as string | null;
     const linkedProjectTaskIndex = formData.get('linkedProjectTaskIndex') as string | null;
+    const linkedProjectTaskId = formData.get('linkedProjectTaskId') as string | null;
     const linkedOperationId = formData.get('linkedOperationId') as string | null;
 
     if (!file || !name) {
@@ -60,9 +61,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid operation ID' }, { status: 400 });
     }
 
-    // Validate task index
+    // Prefer stable taskId; fall back to task index for legacy
+    let linkedTaskId: string | undefined;
     let taskIndex: number | undefined;
-    if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined && linkedProjectTaskIndex !== '') {
+    if (linkedProjectTaskId && isValidObjectId(linkedProjectTaskId)) {
+      linkedTaskId = linkedProjectTaskId;
+    } else if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined && linkedProjectTaskIndex !== '') {
       const parsed = parseInt(linkedProjectTaskIndex);
       if (isNaN(parsed) || parsed < 0) {
         return NextResponse.json({ error: 'Invalid task index' }, { status: 400 });
@@ -127,6 +131,9 @@ export async function POST(request: NextRequest) {
 
     if (linkedProjectId) {
       assetData.linkedProjectId = linkedProjectId;
+    }
+    if (linkedTaskId) {
+      assetData.linkedProjectTaskId = linkedTaskId;
     }
     if (taskIndex !== undefined) {
       assetData.linkedProjectTaskIndex = taskIndex;

@@ -1,11 +1,13 @@
+import Link from 'next/link';
 import Card from '@/components/ui/Card';
+import MarketingPageHeader from '@/components/home/MarketingPageHeader';
 
 export const metadata = {
-  title: 'Project Management - Track Projects & Tasks | Nucleas',
-  description: 'Create and manage projects with tasks, estimated hours, team assignments, and status tracking. Organize your work with powerful project management tools.',
+  title: 'Projects & Tasks - Track Execution | Nucleas',
+  description: 'Create and manage projects with tasks, estimated hours, team assignments, and status tracking. Plan, build, and run from one place.',
   keywords: 'project management, project tracking, project tasks, team collaboration, project planning',
   openGraph: {
-    title: 'Project Management - Track Projects & Tasks | Nucleas',
+    title: 'Projects & Tasks - Track Execution | Nucleas',
     description: 'Create and manage projects with tasks, estimated hours, and team assignments.',
     type: 'website',
   },
@@ -13,98 +15,70 @@ export const metadata = {
 
 export default function ProjectsPage() {
   return (
-    <div className="min-h-screen bg-background px-[100px] max-md:px-4 py-12">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-text-primary mb-4">Projects</h1>
-          <p className="text-xl text-text-secondary max-w-2xl mx-auto">
-            Create, organize, and track projects with detailed tasks, timelines, and team assignments. 
-            Keep everything organized from start to finish.
-          </p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <MarketingPageHeader
+        badge="Plan & Build"
+        title="Projects & Tasks"
+        subtitle="Create, organize, and track projects with detailed tasks, timelines, and team assignments. Keep everything organized from start to finish."
+        ctaText="Go to Plan"
+        ctaHref="/plan"
+      />
 
-        <Card className="p-8 mb-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Comprehensive Project Management</h2>
-          <p className="text-text-secondary leading-relaxed mb-6">
-            Projects in Nucleas give you complete control over your work. Define project tasks, estimate time, 
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <Card className="p-8 md:p-10 mb-8 rounded-2xl">
+          <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-4">Comprehensive Project Management</h2>
+          <p className="text-text-secondary leading-relaxed mb-8">
+            Projects in Nucleas give you complete control over your work. Define project tasks, estimate time,
             assign team members, and track progress—all in one place.
           </p>
-          
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-primary-light border border-primary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-primary-dark mb-2">Project Tasks</h3>
-              <p className="text-text-secondary">Break down projects into manageable tasks with clear milestones and deliverables.</p>
+            <div className="p-6 rounded-xl bg-primary-light border border-primary/20">
+              <h3 className="text-lg font-semibold text-primary-dark mb-2">Project Tasks</h3>
+              <p className="text-text-secondary text-sm">Break down projects into manageable tasks with clear milestones and deliverables.</p>
             </div>
-            <div className="bg-secondary-light border border-secondary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-secondary-dark mb-2">Time Estimation</h3>
-              <p className="text-text-secondary">Estimate hours for each project to better plan resources and timelines.</p>
+            <div className="p-6 rounded-xl bg-secondary-light border border-secondary/20">
+              <h3 className="text-lg font-semibold text-secondary-dark mb-2">Time Estimation</h3>
+              <p className="text-text-secondary text-sm">Estimate hours for each project to better plan resources and timelines.</p>
             </div>
-            <div className="bg-accent-light border border-accent/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-accent-dark mb-2">Team Assignments</h3>
-              <p className="text-text-secondary">Assign team members to projects and track their workload across all assignments.</p>
+            <div className="p-6 rounded-xl bg-accent-light border border-accent/20">
+              <h3 className="text-lg font-semibold text-accent-dark mb-2">Team Assignments</h3>
+              <p className="text-text-secondary text-sm">Assign team members to projects and track their workload across all assignments.</p>
             </div>
-            <div className="bg-primary-light border border-primary/20 rounded-lg p-6">
-              <h3 className="text-xl font-semibold text-primary-dark mb-2">Status Tracking</h3>
-              <p className="text-text-secondary">Monitor project status with visual indicators: Not Started, In Progress, Completed, or On Hold.</p>
+            <div className="p-6 rounded-xl bg-primary-light border border-primary/20">
+              <h3 className="text-lg font-semibold text-primary-dark mb-2">Status Tracking</h3>
+              <p className="text-text-secondary text-sm">Monitor project status: Planning, In Development, In Review, or Completed.</p>
             </div>
           </div>
         </Card>
 
-        <Card className="p-8 mb-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Key Features</h2>
+        <Card className="p-8 md:p-10 mb-8 rounded-2xl">
+          <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-6">Key Features</h2>
           <ul className="space-y-4 text-text-secondary">
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Custom Project Colors:</strong> Color-code projects for easy visual identification</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Flexible Tasks:</strong> Define as many tasks as needed for each project</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Resource Planning:</strong> See how projects impact team member capacity</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Timeline Management:</strong> Set start and end dates for better planning</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-primary mr-3 mt-1">✓</span>
-              <span><strong className="text-text-primary">Project Details:</strong> Add descriptions, notes, and additional context</span>
-            </li>
+            {[
+              ['Custom Project Colors', 'Color-code projects for easy visual identification'],
+              ['Flexible Tasks', 'Define as many tasks as needed for each project'],
+              ['Resource Planning', 'See how projects impact team member capacity'],
+              ['Timeline Management', 'Set start and end dates for better planning'],
+              ['Plan → Build → Run', 'Projects move through phases; the interface adapts'],
+            ].map(([title, desc]) => (
+              <li key={title} className="flex gap-3">
+                <span className="text-primary font-bold">✓</span>
+                <span><strong className="text-text-primary">{title}:</strong> {desc}</span>
+              </li>
+            ))}
           </ul>
         </Card>
 
-        <Card className="p-8">
-          <h2 className="text-3xl font-semibold text-text-primary mb-4">Use Cases</h2>
-          <div className="grid md:grid-cols-2 gap-6 text-text-secondary">
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Product Development</p>
-              <p>Track product launches from ideation to market release with clear tasks and milestones</p>
-            </div>
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Client Projects</p>
-              <p>Manage client deliverables with detailed tasks and time tracking</p>
-            </div>
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Internal Initiatives</p>
-              <p>Organize internal projects with team assignments and progress tracking</p>
-            </div>
-            <div>
-              <p className="font-semibold text-text-primary mb-2">Campaign Management</p>
-              <p>Plan and execute marketing campaigns with task-based workflows</p>
-            </div>
-          </div>
-        </Card>
-
-        <div className="mt-12 text-center">
-          <a
-            href="/register"
-            className="inline-block bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary-hover transition-colors"
-          >
-            Start Managing Projects
-          </a>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
+          <Link href="/plan" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-colors">
+            Go to Plan
+          </Link>
+          <Link href="/build" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-primary text-primary font-semibold hover:bg-primary/5 transition-colors">
+            Go to Build
+          </Link>
+          <Link href="/#demo" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-border text-text-secondary font-semibold hover:border-primary hover:text-primary transition-colors">
+            Try Interactive Demo
+          </Link>
         </div>
       </div>
     </div>

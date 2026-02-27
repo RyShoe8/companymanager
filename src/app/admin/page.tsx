@@ -134,8 +134,8 @@ export default function AdminPage() {
     <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-text-primary mb-2">Admin Dashboard</h1>
-          <p className="text-text-secondary">Manage users and system settings</p>
+          <h1 className="text-3xl font-bold text-text-primary mb-2">Users</h1>
+          <p className="text-text-secondary">Manage users and roles</p>
         </div>
 
         <Card className="p-6 mb-6">

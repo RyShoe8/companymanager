@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const entityType = searchParams.get('entityType');
     const entityId = searchParams.get('entityId');
     const taskIndex = searchParams.get('taskIndex');
+    const taskId = searchParams.get('taskId');
 
     if (!entityType || !entityId) {
       return NextResponse.json({ error: 'entityType and entityId are required' }, { status: 400 });
@@ -25,7 +26,9 @@ export async function GET(request: NextRequest) {
       entityId,
     };
 
-    if (taskIndex !== null && taskIndex !== undefined) {
+    if (taskId) {
+      query.taskId = taskId;
+    } else if (taskIndex !== null && taskIndex !== undefined) {
       query.taskIndex = parseInt(taskIndex);
     }
 
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { content, parentId, entityType, entityId, taskIndex } = body;
+    const { content, parentId, entityType, entityId, taskIndex, taskId } = body;
 
     if (!content || !entityType || !entityId) {
       return NextResponse.json(
@@ -102,8 +105,11 @@ export async function POST(request: NextRequest) {
       commentData.parentId = parentId;
     }
 
-    if (taskIndex !== undefined && taskIndex !== null) {
-      commentData.taskIndex = parseInt(taskIndex);
+    // Prefer stable taskId over taskIndex
+    if (taskId) {
+      commentData.taskId = taskId;
+    } else if (taskIndex !== undefined && taskIndex !== null) {
+      commentData.taskIndex = typeof taskIndex === 'number' ? taskIndex : parseInt(taskIndex);
     }
 
     const comment = await Comment.create(commentData);

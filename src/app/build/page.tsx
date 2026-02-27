@@ -274,47 +274,27 @@ export default function BuildPage() {
         )}
 
         {/* Inline Project View - Full width bottom sheet on all devices */}
-        <BottomSheet isOpen={showProjectDetail} onClose={() => { setShowProjectDetail(false); setViewingProject(undefined); }} title={viewingProject?.name || 'Project'} maxHeight="90vh">
+        <BottomSheet isOpen={showProjectDetail} onClose={() => { setShowProjectDetail(false); setViewingProject(undefined); }} title={viewingProject?.name || 'Project'} maxHeight="90vh" hideCloseButton>
           {viewingProject && (
             <div className="p-4">
               <InlineProjectView project={viewingProject} employees={employees} isManagerOrAdmin={isManagerOrAdmin} currentUserEmployeeId={currentUserEmployeeId}
                 onUpdate={async (updates) => { 
-                  try {
-                    // Validate updates object
-                    if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) {
-                      console.error('Invalid updates object:', updates);
-                      alert('Error: No changes to save');
-                      return;
-                    }
+                  if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) throw new Error('No changes to save');
+                  const body = JSON.stringify(updates);
+                  if (!body || body === '{}') throw new Error('No changes to save');
 
-                    const body = JSON.stringify(updates);
-                    if (!body || body === '{}') {
-                      console.error('Empty updates body:', updates);
-                      alert('Error: No changes to save');
-                      return;
-                    }
-
-                    const res = await fetch(`/api/projects/${viewingProject._id}`, { 
-                      method: 'PUT', 
-                      headers: { 'Content-Type': 'application/json' }, 
-                      body: body
-                    }); 
-                    
-                    if (res.ok) { 
-                      const updatedProject = await res.json();
-                      // Update viewing project immediately
-                      setViewingProject(updatedProject);
-                      // Update projects array without full reload
-                      setProjects(prev => prev.map(p => p._id.toString() === updatedProject._id.toString() ? updatedProject : p));
-                    } else {
-                      const errorText = await res.text();
-                      console.error('Failed to update project:', errorText);
-                      alert(`Failed to save changes: ${errorText}`);
-                    }
-                  } catch (error) {
-                    console.error('Error updating project:', error);
-                    alert(`Error saving changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  const res = await fetch(`/api/projects/${viewingProject._id}`, { 
+                    method: 'PUT', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: body
+                  }); 
+                  if (!res.ok) { 
+                    const errorText = await res.text();
+                    throw new Error(errorText || 'Failed to save');
                   }
+                  const updatedProject = await res.json();
+                  setViewingProject(updatedProject);
+                  setProjects(prev => prev.map(p => p._id.toString() === updatedProject._id.toString() ? updatedProject : p));
                 }}
                 onDelete={() => handleDeleteProject(viewingProject._id.toString())}
                 onClose={() => { setShowProjectDetail(false); setViewingProject(undefined); }} onRefresh={loadData} />
