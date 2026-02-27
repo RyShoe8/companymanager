@@ -30,9 +30,12 @@ export default function AnimateIn({ children, className = '', delay = 0, as: Tag
 
   const animationClass = visible ? 'animate-fade-in-up opacity-100' : 'opacity-0 translate-y-4';
 
-  return (
-    <Tag ref={ref as any} className={`${animationClass} ${className}`.trim()}>
-      {children}
-    </Tag>
+  return React.createElement(
+    Tag,
+    {
+      ref,
+      className: `${animationClass} ${className}`.trim(),
+    } as React.HTMLAttributes<HTMLElement>,
+    children
   );
 }
