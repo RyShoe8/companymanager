@@ -72,7 +72,7 @@ export async function POST(
     (project.tasks as { status: string }[])[index].status = 'in-review';
     await project.save();
 
-    return NextResponse.json({ success: true, task: project.tasks[index] });
+    return NextResponse.json({ success: true, task: project.tasks?.[index] ?? task });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -134,11 +134,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    const { index } = resolved;
+    const { task, index } = resolved;
     (project.tasks as { status: string }[])[index].status = approved ? 'completed' : 'active';
     await project.save();
 
-    return NextResponse.json({ success: true, task: project.tasks[index] });
+    return NextResponse.json({ success: true, task: project.tasks?.[index] ?? task });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
