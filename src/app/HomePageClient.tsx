@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import InteractiveDemoBlock from '@/components/home/InteractiveDemoBlock';
 import AnimateIn from '@/components/home/AnimateIn';
+import HomeFAQ from '@/components/home/HomeFAQ';
 
 export default function HomePageClient() {
   return (
@@ -344,6 +345,9 @@ export default function HomePageClient() {
           </AnimateIn>
         </div>
       </section>
+
+      {/* FAQ - Above footer, AI-friendly Q&A */}
+      <HomeFAQ />
     </div>
   );
 }

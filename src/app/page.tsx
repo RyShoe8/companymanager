@@ -1,7 +1,14 @@
 import HomePageClient from './HomePageClient';
 import { StructuredData } from '@/components/StructuredData';
+import { FAQ_DATA } from '@/components/home/HomeFAQ';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
+
+const faqSchemaMainEntity = FAQ_DATA.map((item) => ({
+  '@type': 'Question',
+  name: item.question,
+  acceptedAnswer: { '@type': 'Answer', text: item.answer },
+}));
 
 export const metadata = {
   title: 'Nucleas - Run Your Entire Internet Business From One Command Center',
@@ -50,6 +57,10 @@ export default function HomePage() {
           offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
           description: 'Run your entire internet business from one command center. Plan, build, and run every project you own.',
         }}
+      />
+      <StructuredData
+        type="FAQPage"
+        data={{ mainEntity: faqSchemaMainEntity }}
       />
       <HomePageClient />
     </>
