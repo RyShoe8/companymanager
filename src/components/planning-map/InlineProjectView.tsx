@@ -44,7 +44,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [projectOperations, setProjectOperations] = useState<IOperation[]>([]);
   const [actionButtons, setActionButtons] = useState<{ label: string; url: string }[]>([]);
-  
+  /** When set, overrides localProject.dismissedChecklistIds for ChecklistSection (avoids mutating IProject Document). */
+  const [localDismissedChecklistIds, setLocalDismissedChecklistIds] = useState<string[] | null>(null);
+
   // Clear saved status after brief display; cleanup on unmount
   useEffect(() => {
     return () => {
@@ -67,6 +69,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   useEffect(() => { 
     setLocalProject(project);
+    setLocalDismissedChecklistIds(null); // use project data when project changes
     // Update expanded sections based on project status
     setExpandedSections(prev => {
       const newSet = new Set(prev);
@@ -260,15 +263,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         phase={mapStatusToStage(localProject.status)}
         projectType={localProject.projectType || 'generic'}
         actionButtons={actionButtons}
-        dismissedChecklistIds={(localProject.dismissedChecklistIds || []).map((id) => id.toString())}
+        dismissedChecklistIds={localDismissedChecklistIds ?? (localProject.dismissedChecklistIds || []).map((id) => id.toString())}
         isManagerOrAdmin={isManagerOrAdmin}
         onUpdate={async (updates) => {
           await onUpdate(updates as Partial<IProject>);
           if (updates.dismissedChecklistIds !== undefined) {
-            setLocalProject((prev) => ({
-              ...prev,
-              dismissedChecklistIds: updates.dismissedChecklistIds as IProject['dismissedChecklistIds'],
-            }));
+            setLocalDismissedChecklistIds(updates.dismissedChecklistIds);
           }
         }}
         onRefreshButtons={async () => {
