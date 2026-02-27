@@ -1,6 +1,6 @@
 import HomePageClient from './HomePageClient';
 import { StructuredData } from '@/components/StructuredData';
-import { FAQ_DATA } from '@/components/home/HomeFAQ';
+import { FAQ_DATA } from '@/data/faq';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
