@@ -21,18 +21,18 @@ export default function HomePageClient() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#0f172a_70%)]" />
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-32 text-center">
-          <AnimateIn>
-            <div className="flex justify-center mb-10">
-              {/* Use same asset as nav; img avoids Next/Image filter quirks on dark bg */}
+          <div className="flex justify-center mb-10">
+            {/* Logo on a subtle light backdrop so it’s visible on dark hero without filter issues */}
+            <div className="rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-sm">
               <img
                 src="/images/icon.png"
                 alt="Nucleas"
-                className="h-14 md:h-16 w-auto object-contain brightness-0 invert opacity-95"
                 width={120}
                 height={120}
+                className="h-14 md:h-16 w-auto object-contain"
               />
             </div>
-          </AnimateIn>
+          </div>
           <AnimateIn delay={100}>
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] mb-8 tracking-tight">
               <span className="text-white">Run Your Entire Internet Business</span>
