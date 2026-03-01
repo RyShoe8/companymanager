@@ -67,6 +67,27 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
   const [newButtonLabel, setNewButtonLabel] = useState('');
   const [newButtonUrl, setNewButtonUrl] = useState('');
   const [addingButton, setAddingButton] = useState(false);
+  const [togglingClientAccessible, setTogglingClientAccessible] = useState<string | null>(null);
+  const [clientInviteEmail, setClientInviteEmail] = useState('');
+  const [sendingInvite, setSendingInvite] = useState(false);
+
+  const handleToggleClientAccessible = async (assetId: string, current: boolean) => {
+    setTogglingClientAccessible(assetId);
+    try {
+      const res = await fetch(`/api/assets/${assetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientAccessible: !current }),
+      });
+      if (res.ok) {
+        setProjectAssets(prev =>
+          prev.map(a => (a._id.toString() === assetId ? { ...a, clientAccessible: !current } : a))
+        );
+      }
+    } finally {
+      setTogglingClientAccessible(null);
+    }
+  };
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -507,6 +528,73 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
              'Planning'}
           </span>
         </div>
+        {project.projectType === 'client' && isManagerOrAdmin && (
+          <div className="mt-3 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
+            <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200 mb-2">Client portal</p>
+            {project.clientPortalSlug ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/portal/${project.clientPortalSlug}${project.clientPortalToken ? `?token=${project.clientPortalToken}` : ''}` : ''}
+                  className="flex-1 min-w-0 px-2 py-1.5 text-sm rounded border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    const url = typeof window !== 'undefined' ? `${window.location.origin}/portal/${project.clientPortalSlug}${project.clientPortalToken ? `?token=${project.clientPortalToken}` : ''}` : '';
+                    if (url && navigator.clipboard) navigator.clipboard.writeText(url).then(() => alert('Link copied'));
+                  }}
+                >
+                  Copy link
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-indigo-700 dark:text-indigo-300">Save this project to generate the portal link.</p>
+            )}
+            {project.clientPortalSlug && (
+              <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800">
+                <p className="text-xs font-medium text-indigo-900 dark:text-indigo-200 mb-2">Invite client</p>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="Client email"
+                    value={clientInviteEmail}
+                    onChange={(e) => setClientInviteEmail(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-1.5 text-sm rounded border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={sendingInvite || !clientInviteEmail.trim()}
+                    onClick={async () => {
+                      if (!clientInviteEmail.trim()) return;
+                      setSendingInvite(true);
+                      try {
+                        const res = await fetch(`/api/projects/${project._id}/client-invites`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: clientInviteEmail.trim() }),
+                        });
+                        if (res.ok) {
+                          setClientInviteEmail('');
+                          if (onEdit) onEdit();
+                        } else {
+                          const data = await res.json();
+                          alert(data.error || 'Failed to send invite');
+                        }
+                      } finally {
+                        setSendingInvite(false);
+                      }
+                    }}
+                  >
+                    {sendingInvite ? 'Sending...' : 'Send invite'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {project.description && (
           <p className="text-text-secondary mb-4">{project.description}</p>
         )}
@@ -557,6 +645,28 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
                       <p className="text-xs text-text-secondary mt-1 truncate" title={screenshot.name}>
                         {screenshot.name}
                       </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {project.projectType === 'client' && isManagerOrAdmin && projectAssets.filter(a => a.type !== 'screenshot').length > 0 && (
+              <div className="mt-3">
+                <label className="text-xs font-medium text-text-secondary mb-1 block">Visible to client</label>
+                <div className="space-y-1">
+                  {projectAssets.filter(a => a.type !== 'screenshot').map((asset) => (
+                    <div key={asset._id.toString()} className="flex items-center justify-between gap-2 py-1">
+                      <span className="text-sm text-text-primary truncate">{asset.name}</span>
+                      <label className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={!!asset.clientAccessible}
+                          disabled={togglingClientAccessible === asset._id.toString()}
+                          onChange={() => handleToggleClientAccessible(asset._id.toString(), !!asset.clientAccessible)}
+                          className="rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span className="text-xs text-text-secondary">Portal</span>
+                      </label>
                     </div>
                   ))}
                 </div>

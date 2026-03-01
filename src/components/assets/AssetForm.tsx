@@ -32,6 +32,7 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
   const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() ?? asset?.linkedProjectTaskId ? '' : initialLinkedProjectTaskIndex?.toString() || '');
   const [linkedProjectTaskId, setLinkedProjectTaskId] = useState(asset?.linkedProjectTaskId?.toString() || initialLinkedProjectTaskId || '');
   const [linkedOperationId, setLinkedOperationId] = useState(asset?.linkedOperationId?.toString() || initialLinkedOperationId || '');
+  const [clientAccessible, setClientAccessible] = useState(asset?.clientAccessible ?? false);
   const [selectedProjectTasks, setSelectedProjectTasks] = useState<Array<{ index: number; id?: string; name: string }>>([]);
 
   // Reset file and textContent when type changes
@@ -95,6 +96,7 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
       linkedProjectTaskId: linkedProjectTaskId || undefined,
       linkedProjectTaskIndex: linkedProjectTaskIndex ? parseInt(linkedProjectTaskIndex) : undefined,
       linkedOperationId: linkedOperationId || undefined,
+      clientAccessible: linkedProjectId ? clientAccessible : undefined,
     };
 
     // Add content based on type
@@ -257,6 +259,17 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
           options={operationOptions}
         />
       </div>
+      {linkedProjectId && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={clientAccessible}
+            onChange={(e) => setClientAccessible(e.target.checked)}
+            className="rounded border-border text-primary focus:ring-primary"
+          />
+          <span className="text-sm font-medium text-text-primary">Visible to client (show in client portal)</span>
+        </label>
+      )}
       <div className="flex gap-2 justify-end">
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel

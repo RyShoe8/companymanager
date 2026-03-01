@@ -16,6 +16,8 @@ export interface IReferralCatalogEntry {
   /** Optional icon/image URL for the button category (e.g. from Stage Management upload). */
   imageUrl?: string;
   projectTypes?: ProjectTypeFilter[];
+  /** Optional link type for Add modal (e.g. "figma", "wireframe") to show as suggested tools. */
+  linkType?: string;
 }
 
 /** Referral catalog document - org-level, one per organization. */
@@ -36,6 +38,7 @@ const ReferralCatalogEntrySchema = new Schema(
     url: { type: String, trim: true },
     imageUrl: { type: String, trim: true },
     projectTypes: { type: [String], enum: ['website', 'store', 'app', 'generic'], default: [] },
+    linkType: { type: String, trim: true },
   },
   { _id: true }
 );

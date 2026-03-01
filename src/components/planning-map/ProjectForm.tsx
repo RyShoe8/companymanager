@@ -388,7 +388,7 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
       endDate: endDate ? new Date(endDate) : undefined,
     };
 
-    if (estimatedHours) {
+    if (project && estimatedHours) {
       submitData.estimatedHours = parseFloat(estimatedHours);
     }
 
@@ -533,16 +533,18 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
             { value: 'client', label: 'Client' },
           ]}
         />
-        <Input
-          label="Estimated Hours (optional)"
-          type="number"
-          min="0"
-          step="0.01"
-          value={estimatedHours}
-          onChange={(e) => setEstimatedHours(e.target.value)}
-          placeholder="e.g., 40 or 0.25"
-          disabled={isRegularUser}
-        />
+        {project && (
+          <Input
+            label="Estimated Hours (optional)"
+            type="number"
+            min="0"
+            step="0.01"
+            value={estimatedHours}
+            onChange={(e) => setEstimatedHours(e.target.value)}
+            placeholder="e.g., 40 or 0.25"
+            disabled={isRegularUser}
+          />
+        )}
       </div>
       <MultiSelect
         label="Assigned To (optional)"

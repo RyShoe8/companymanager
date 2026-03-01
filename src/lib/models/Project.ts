@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
-export type ProjectType = 'website' | 'store' | 'app' | 'generic';
+export type ProjectType = 'website' | 'store' | 'app' | 'generic' | 'internal' | 'client';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
 
 export interface IProjectTask {
@@ -43,6 +43,12 @@ export interface IProject extends Document {
   actionButtons?: IProjectActionButton[];
   /** Dismissed checklist template item IDs (ReferralCatalog entry IDs) - user can re-add via Add button. */
   dismissedChecklistIds?: Types.ObjectId[];
+  /** Client portal: slug for URL (e.g. /portal/abc123). */
+  clientPortalSlug?: string;
+  /** Client portal: optional token for authenticated access. */
+  clientPortalToken?: string;
+  /** Emails to which a client invite was sent (display only). */
+  invitedClientEmails?: string[];
   userId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -69,7 +75,7 @@ const ProjectSchema: Schema = new Schema(
     },
     projectType: {
       type: String,
-      enum: ['website', 'store', 'app', 'generic'],
+      enum: ['website', 'store', 'app', 'generic', 'internal', 'client'],
       required: true,
       default: 'generic',
     },
@@ -196,6 +202,9 @@ const ProjectSchema: Schema = new Schema(
       type: [Schema.Types.ObjectId],
       default: [],
     },
+    clientPortalSlug: { type: String, trim: true },
+    clientPortalToken: { type: String, trim: true },
+    invitedClientEmails: { type: [String], default: [] },
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',

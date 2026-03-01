@@ -55,7 +55,7 @@ export default function AboutPage() {
 
           <Card className="p-8 md:p-10 mb-8 rounded-2xl">
             <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-6">What We Offer</h2>
-            <ul className="space-y-4 text-text-secondary">
+            <ul className="space-y-4 text-text-secondary list-none">
               {[
                 ['Planning Map', 'Visual calendar view for projects across Today, Weekly, Monthly, Quarterly, and Yearly horizons'],
                 ['Plan, Build, Run', 'Projects move through three phases; the interface adapts to where you are'],
@@ -65,8 +65,10 @@ export default function AboutPage() {
                 ['Team', 'Track employee capacity, workload, and assignments with role-based access'],
               ].map(([title, desc]) => (
                 <li key={title} className="flex gap-3">
-                  <span className="text-primary font-bold">✓</span>
-                  <span><strong className="text-text-primary">{title}:</strong> {desc}</span>
+                  <span className="text-primary font-bold mt-0.5">✓</span>
+                  <span>
+                    <h3 className="text-lg font-semibold text-text-primary inline">{title}:</h3>{' '}{desc}
+                  </span>
                 </li>
               ))}
             </ul>

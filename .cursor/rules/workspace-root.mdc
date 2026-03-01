@@ -1,0 +1,11 @@
+---
+description: Ensures edits and commands run in the canonical repo root, not a worktree.
+globs: 
+alwaysApply: true
+---
+
+# Workspace root
+
+- **Canonical workspace:** This repository root (the folder containing `.cursor` and `package.json`) is the only workspace. All file edits, new files, and terminal commands must use paths relative to this root or absolute paths to this repo.
+- **Do not use a git worktree as the workspace.** If the user has a worktree (e.g. under `.cursor/worktrees/` or elsewhere), do not assume that path is the project root. The workspace root is the folder where this rule file lives.
+- When the user says "main repo" or "primary repo", they mean this root. If you previously had a different folder open (e.g. a worktree), (re)apply changes here when asked.

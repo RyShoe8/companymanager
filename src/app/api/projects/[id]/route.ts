@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import Operation from '@/lib/models/Operation';
@@ -135,7 +136,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (description !== undefined) project.description = description;
     if (url !== undefined) project.url = url;
     if (urls !== undefined) project.urls = urls;
-    if (projectType !== undefined) project.projectType = projectType;
+    if (projectType !== undefined) {
+      project.projectType = projectType;
+      if (projectType === 'client' && !project.clientPortalSlug) {
+        project.clientPortalSlug = crypto.randomBytes(12).toString('base64url');
+        project.clientPortalToken = crypto.randomBytes(24).toString('base64url');
+      }
+    }
     if (color !== undefined) project.color = color;
     if (logo !== undefined) project.logo = logo || undefined;
     const previousStatus = project.status;

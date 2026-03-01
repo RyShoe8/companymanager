@@ -9,40 +9,55 @@ interface CatalogEntry {
   companyName: string;
   categoryName?: string;
   category: string;
-  checklistSentence?: string;
-  checklistNumber?: number;
   url?: string;
   projectTypes?: string[];
 }
 
+type AddStep = 'type' | 'link' | 'document' | 'figma' | 'wireframe' | 'more';
+
 interface CategoryModalProps {
+  projectId: string;
   phase: 'Plan' | 'Build' | 'Run';
   projectType: string;
   isManagerOrAdmin: boolean;
   onClose: () => void;
   onAddButton: (label: string, url: string) => Promise<void>;
+  onDocumentCreated?: () => void;
 }
 
-/** Use URL as the full referral link (no appending). */
-function getReferralUrl(url: string | undefined): string {
-  return url ? url.trim() : '';
-}
-
-export default function CategoryModal({ phase, projectType, isManagerOrAdmin, onClose, onAddButton }: CategoryModalProps) {
+export default function CategoryModal({
+  projectId,
+  phase,
+  projectType,
+  isManagerOrAdmin,
+  onClose,
+  onAddButton,
+  onDocumentCreated,
+}: CategoryModalProps) {
+  const [step, setStep] = useState<AddStep>('type');
   const [entries, setEntries] = useState<CatalogEntry[]>([]);
   const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null);
   const [addLabel, setAddLabel] = useState('');
   const [addUrl, setAddUrl] = useState('');
   const [adding, setAdding] = useState(false);
+  const [docName, setDocName] = useState('');
+  const [docContent, setDocContent] = useState('');
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [showCustomLinkForm, setShowCustomLinkForm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const needsCatalog = step === 'figma' || step === 'wireframe' || step === 'more';
+  const catalogLinkType = step === 'figma' ? 'figma' : step === 'wireframe' ? 'wireframe' : null;
+
   useEffect(() => {
+    if (!needsCatalog) return;
     const fetchEntries = async () => {
       setLoading(true);
       try {
         const params = new URLSearchParams({ phase, projectType: projectType || 'generic' });
+        if (catalogLinkType) params.set('linkType', catalogLinkType);
         if (query) params.set('q', query);
         const res = await fetch(`/api/referral-catalog?${params}`);
         if (res.ok) {
@@ -55,28 +70,16 @@ export default function CategoryModal({ phase, projectType, isManagerOrAdmin, on
         setLoading(false);
       }
     };
-    const debounce = setTimeout(fetchEntries, 200);
-    return () => clearTimeout(debounce);
-  }, [phase, projectType, query]);
+    const t = setTimeout(fetchEntries, catalogLinkType ? 0 : 200);
+    return () => clearTimeout(t);
+  }, [step, phase, projectType, catalogLinkType, query, needsCatalog]);
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
-
-  const handleCreate = (entry: CatalogEntry) => {
-    const url = getReferralUrl(entry.url);
-    if (url) window.open(url, '_blank');
-    onClose();
-  };
-
-  const handleAddClick = (entry: CatalogEntry) => {
-    setSelectedEntry(entry);
-    setAddLabel(entry.companyName);
-    setAddUrl(entry.url || '');
-  };
+  }, [step]);
 
   const handleAddSubmit = async () => {
-    if (!selectedEntry || !addLabel.trim() || !addUrl.trim()) return;
+    if (!addLabel.trim() || !addUrl.trim()) return;
     setAdding(true);
     try {
       await onAddButton(addLabel.trim(), addUrl.trim());
@@ -86,44 +89,162 @@ export default function CategoryModal({ phase, projectType, isManagerOrAdmin, on
     }
   };
 
-  const filteredEntries = entries;
+  const handleDocumentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docName.trim()) return;
+    setSavingDoc(true);
+    try {
+      const res = await fetch('/api/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: docName.trim(),
+          type: 'text',
+          textContent: docContent.trim() || undefined,
+          linkedProjectId: projectId,
+          tags: [],
+        }),
+      });
+      if (res.ok) {
+        onDocumentCreated?.();
+        onClose();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to create document');
+      }
+    } finally {
+      setSavingDoc(false);
+    }
+  };
 
-  const modal = (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl mx-4 max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+  const handleAddClick = (entry: CatalogEntry) => {
+    setSelectedEntry(entry);
+    setAddLabel(entry.companyName);
+    setAddUrl(entry.url || '');
+  };
+
+  const renderStep = () => {
+    if (step === 'type') {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Choose a type of link or content to add.</p>
+          {[
+            { id: 'document' as const, label: 'Document', desc: 'Create and save a document' },
+            { id: 'link' as const, label: 'Link', desc: 'Any URL with a button label' },
+            { id: 'figma' as const, label: 'Figma', desc: 'Design link or suggested tools' },
+            { id: 'wireframe' as const, label: 'Wireframe', desc: 'Wireframe link or suggested tools' },
+            { id: 'more' as const, label: 'More', desc: 'Other link types and tools' },
+          ].map(({ id, label, desc }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setStep(id)}
+              className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
+            >
+              <span className="font-medium text-gray-900 dark:text-white">{label}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{desc}</span>
+            </button>
+          ))}
         </div>
-        <div className="p-4">
+      );
+    }
+
+    if (step === 'document') {
+      return (
+        <form onSubmit={handleDocumentSubmit} className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">Create a document linked to this project.</p>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Document name</label>
+            <input
+              type="text"
+              value={docName}
+              onChange={(e) => setDocName(e.target.value)}
+              placeholder="e.g. Brief, Notes"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Content (optional)</label>
+            <textarea
+              value={docContent}
+              onChange={(e) => setDocContent(e.target.value)}
+              placeholder="Add content..."
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-y"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={savingDoc || !docName.trim()}>
+              {savingDoc ? 'Creating...' : 'Create document'}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
+              Back
+            </Button>
+          </div>
+        </form>
+      );
+    }
+
+    if (step === 'link') {
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">Add a link with a button label.</p>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Button name</label>
+            <input
+              type="text"
+              value={addLabel}
+              onChange={(e) => setAddLabel(e.target.value)}
+              placeholder="e.g. Staging, Dashboard"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">URL</label>
+            <input
+              type="url"
+              value={addUrl}
+              onChange={(e) => setAddUrl(e.target.value)}
+              placeholder="https://..."
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
+              {adding ? 'Adding...' : 'Add to project'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setStep('type')}>
+              Back
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 'figma' || step === 'wireframe') {
+      return (
+        <div className="space-y-3">
+          <Button variant="secondary" size="sm" onClick={() => { setStep('type'); setShowCustomLinkForm(false); setSelectedEntry(null); setQuery(''); }}>
+            Back
+          </Button>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Choose a suggested tool or add a custom link.
+          </p>
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search companies..."
+            placeholder="Search link types or tools..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm mb-4"
+            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
           />
           {selectedEntry ? (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Add a button for <strong>{selectedEntry.companyName}</strong> (you can change the name and URL below).
-              </p>
               <div>
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Button name</label>
                 <input
                   type="text"
-                  placeholder="e.g. Vercel"
                   value={addLabel}
                   onChange={(e) => setAddLabel(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -133,7 +254,6 @@ export default function CategoryModal({ phase, projectType, isManagerOrAdmin, on
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">URL</label>
                 <input
                   type="url"
-                  placeholder="https://..."
                   value={addUrl}
                   onChange={(e) => setAddUrl(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -143,36 +263,25 @@ export default function CategoryModal({ phase, projectType, isManagerOrAdmin, on
                 <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
                   {adding ? 'Adding...' : 'Add to project'}
                 </Button>
-                <Button variant="secondary" size="sm" onClick={() => setSelectedEntry(null)}>
+                <Button variant="secondary" size="sm" onClick={() => { setSelectedEntry(null); setAddLabel(''); setAddUrl(''); }}>
                   Back
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {loading ? (
-                <p className="text-sm text-gray-500">Loading...</p>
-              ) : filteredEntries.length === 0 ? (
-                <p className="text-sm text-gray-500">No results. Add entries in Admin → Stage Management.</p>
-              ) : (
-                filteredEntries.map((entry) => (
-                  <div
-                    key={entry._id}
-                    className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {entry.companyName}
-                    </span>
-                    <div className="flex gap-1 shrink-0">
-                      {entry.url && (
-                        <button
-                          type="button"
-                          onClick={() => handleCreate(entry)}
-                          className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50"
-                        >
-                          Create
-                        </button>
-                      )}
+            <>
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {loading ? (
+                  <p className="text-sm text-gray-500">Loading...</p>
+                ) : entries.length === 0 ? (
+                  <p className="text-sm text-gray-500">No suggestions. Add a custom link below.</p>
+                ) : (
+                  entries.map((entry) => (
+                    <div
+                      key={entry._id}
+                      className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{entry.companyName}</span>
                       {isManagerOrAdmin && (
                         <button
                           type="button"
@@ -183,12 +292,147 @@ export default function CategoryModal({ phase, projectType, isManagerOrAdmin, on
                         </button>
                       )}
                     </div>
+                  ))
+                )}
+              </div>
+              <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                {!showCustomLinkForm ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomLinkForm(true)}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Or enter a custom link
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Button name"
+                      value={addLabel}
+                      onChange={(e) => setAddLabel(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                    />
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      value={addUrl}
+                      onChange={(e) => setAddUrl(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
+                        Add to project
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => { setShowCustomLinkForm(false); setAddLabel(''); setAddUrl(''); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    if (step === 'more') {
+      return (
+        <div className="space-y-3">
+          <Button variant="secondary" size="sm" onClick={() => { setStep('type'); setSelectedEntry(null); setQuery(''); }}>
+            Back
+          </Button>
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search link types or tools..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+          />
+          {selectedEntry ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Add a button for <strong>{selectedEntry.companyName}</strong>.</p>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Button name</label>
+                <input
+                  type="text"
+                  value={addLabel}
+                  onChange={(e) => setAddLabel(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">URL</label>
+                <input
+                  type="url"
+                  value={addUrl}
+                  onChange={(e) => setAddUrl(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
+                  {adding ? 'Adding...' : 'Add to project'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setSelectedEntry(null)}>Back</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {loading ? (
+                <p className="text-sm text-gray-500">Loading...</p>
+              ) : entries.length === 0 ? (
+                <p className="text-sm text-gray-500">No results. Add entries in Admin → Stage Management.</p>
+              ) : (
+                entries.map((entry) => (
+                  <div
+                    key={entry._id}
+                    className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{entry.companyName}</span>
+                    {isManagerOrAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddClick(entry)}
+                        className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200"
+                      >
+                        Add
+                      </button>
+                    )}
                   </div>
                 ))
               )}
             </div>
           )}
         </div>
+      );
+    }
+
+    return null;
+  };
+
+  const modal = (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl mx-4 max-h-[80vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'link' ? 'Link' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
+          </h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-4 overflow-y-auto">{renderStep()}</div>
       </div>
     </div>
   );

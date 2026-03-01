@@ -79,7 +79,9 @@ function ContactForm() {
               <Button onClick={() => setSuccess(false)}>Send Another Message</Button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <>
+              <h2 className="sr-only">Send us a message</h2>
+              <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
                 <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
                   {error}
@@ -131,6 +133,7 @@ function ContactForm() {
                 {loading ? 'Sending...' : 'Send Message'}
               </Button>
             </form>
+            </>
           )}
         </Card>
 

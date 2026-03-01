@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedOperationId } = body;
+    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedOperationId, clientAccessible } = body;
 
     if (!name || !type) {
       return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
       tags: tags || [],
       linkedProjectId,
       linkedOperationId,
+      clientAccessible: clientAccessible === true,
       userId: session.userId,
     };
     if (linkedProjectTaskId) {

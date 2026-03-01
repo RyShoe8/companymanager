@@ -17,6 +17,8 @@ export interface IAsset extends Document {
   /** Stable reference to project task (use project.tasks.id(linkedProjectTaskId) for lookup). */
   linkedProjectTaskId?: Types.ObjectId;
   linkedOperationId?: Types.ObjectId;
+  /** When true, asset is visible in the client portal for linked project. */
+  clientAccessible?: boolean;
   userId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +75,10 @@ const AssetSchema: Schema = new Schema(
     linkedOperationId: {
       type: Schema.Types.ObjectId,
       ref: 'Operation',
+    },
+    clientAccessible: {
+      type: Boolean,
+      default: false,
     },
     userId: {
       type: Schema.Types.ObjectId,

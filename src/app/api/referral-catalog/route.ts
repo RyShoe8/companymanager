@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const phase = searchParams.get('phase') as 'Plan' | 'Build' | 'Run' | null;
     const projectType = searchParams.get('projectType') as string | null;
+    const linkType = searchParams.get('linkType') as string | null;
     const q = searchParams.get('q')?.toLowerCase().trim();
 
     const catalog = await ReferralCatalog.findOne({ organizationId: user.organizationId }).lean();
@@ -53,8 +54,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    if (linkType) {
+      const lt = linkType.toLowerCase();
+      entries = entries.filter((e: any) => {
+        const entryLinkType = (e.linkType || '').toLowerCase();
+        const entryCategory = (e.categoryName || '').toLowerCase();
+        return entryLinkType === lt || entryCategory === lt;
+      });
+    }
+
     if (q) {
-      entries = entries.filter((e) =>
+      entries = entries.filter((e: any) =>
         e.companyName.toLowerCase().includes(q) ||
         (e.checklistSentence && e.checklistSentence.toLowerCase().includes(q))
       );

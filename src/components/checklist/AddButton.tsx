@@ -10,9 +10,10 @@ interface AddButtonProps {
   projectType: string;
   isManagerOrAdmin: boolean;
   onAddButton: (label: string, url: string) => Promise<void>;
+  onDocumentCreated?: () => void;
 }
 
-export default function AddButton({ projectId, phase, projectType, isManagerOrAdmin, onAddButton }: AddButtonProps) {
+export default function AddButton({ projectId, phase, projectType, isManagerOrAdmin, onAddButton, onDocumentCreated }: AddButtonProps) {
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -22,11 +23,13 @@ export default function AddButton({ projectId, phase, projectType, isManagerOrAd
       </Button>
       {showModal && (
         <CategoryModal
+          projectId={projectId}
           phase={phase}
           projectType={projectType}
           isManagerOrAdmin={isManagerOrAdmin}
           onClose={() => setShowModal(false)}
           onAddButton={onAddButton}
+          onDocumentCreated={onDocumentCreated}
         />
       )}
     </>

@@ -212,6 +212,47 @@ export async function deleteBrevoContact(email: string): Promise<void> {
   }
 }
 
+export interface ClientPortalInviteData {
+  recipientEmail: string;
+  projectName: string;
+  portalLink: string;
+  inviterName?: string;
+}
+
+/**
+ * Send a client portal invite email
+ */
+export async function sendClientPortalInviteEmail(data: ClientPortalInviteData): Promise<void> {
+  if (!apiInstance) {
+    throw new Error('Brevo API is not configured. Please set BREVO_API_KEY environment variable.');
+  }
+
+  const sendSmtpEmail = new brevo.SendSmtpEmail();
+  sendSmtpEmail.subject = `You have access to ${data.projectName} – Nucleas Client Portal`;
+  sendSmtpEmail.to = [{ email: data.recipientEmail }];
+  sendSmtpEmail.sender = {
+    email: 'theteam@nucleas.app',
+    name: process.env.BREVO_SENDER_NAME || 'Nucleas',
+  };
+
+  const inviterLine = data.inviterName ? ` ${data.inviterName} has` : ' You have';
+  sendSmtpEmail.htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #202637; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <p>Hi,</p>
+      <p>${inviterLine} been given access to the client portal for <strong>${data.projectName}</strong>.</p>
+      <p><a href="${data.portalLink}" style="display: inline-block; padding: 12px 24px; background: #347AF6; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">Open client portal</a></p>
+      <p style="color: #5E677D; font-size: 14px;">Or copy this link: ${data.portalLink}</p>
+      <p style="color: #5E677D; font-size: 14px;">If you didn't expect this email, you can ignore it.</p>
+    </body>
+    </html>
+  `;
+  sendSmtpEmail.textContent = `You have access to ${data.projectName}. Open the client portal: ${data.portalLink}`;
+
+  await apiInstance.sendTransacEmail(sendSmtpEmail);
+}
+
 export interface SendEmailData {
   to: string;
   subject: string;

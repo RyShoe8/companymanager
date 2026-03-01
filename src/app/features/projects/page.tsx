@@ -68,7 +68,7 @@ export default function ProjectsPage() {
 
         <Card className="p-8 md:p-10 mb-8 rounded-2xl">
           <h2 className="text-2xl md:text-3xl font-bold text-text-primary mb-6">Key Features</h2>
-          <ul className="space-y-4 text-text-secondary">
+          <ul className="space-y-4 text-text-secondary list-none">
             {[
               ['Custom Project Colors', 'Color-code projects for easy visual identification'],
               ['Flexible Tasks', 'Define as many tasks as needed for each project'],
@@ -77,8 +77,8 @@ export default function ProjectsPage() {
               ['Plan → Build → Run', 'Projects move through phases; the interface adapts'],
             ].map(([title, desc]) => (
               <li key={title} className="flex gap-3">
-                <span className="text-primary font-bold">✓</span>
-                <span><strong className="text-text-primary">{title}:</strong> {desc}</span>
+                <span className="text-primary font-bold mt-0.5">✓</span>
+                <span><h3 className="text-base font-semibold text-text-primary inline">{title}:</h3> {desc}</span>
               </li>
             ))}
           </ul>
