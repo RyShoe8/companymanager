@@ -81,7 +81,11 @@ export default function ProjectDetailView({ project, isManagerOrAdmin = false, o
       });
       if (res.ok) {
         setProjectAssets(prev =>
-          prev.map(a => (a._id.toString() === assetId ? { ...a, clientAccessible: !current } : a))
+          prev.map(a =>
+            a._id.toString() === assetId
+              ? ({ ...a, clientAccessible: !current } as IAsset)
+              : a
+          )
         );
       }
     } finally {
