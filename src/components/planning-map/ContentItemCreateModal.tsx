@@ -92,7 +92,7 @@ export default function ContentItemCreateModal({
   if (!project) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add Content" maxWidth="md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Content" maxWidth="md" elevated>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-text-secondary">Project: {project.name}</p>
         <div>

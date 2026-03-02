@@ -136,7 +136,7 @@ export default function ContentItemDetailModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Content Item" maxWidth="md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Content Item" maxWidth="md" elevated>
       {loading ? (
         <div className="text-text-secondary py-4">Loading...</div>
       ) : !item ? (

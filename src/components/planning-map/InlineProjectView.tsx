@@ -18,6 +18,7 @@ import { formatDate } from '@/lib/utils/dateUtils';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import ChecklistSection from '@/components/checklist/ChecklistSection';
 import AddButton from '@/components/checklist/AddButton';
+import MultiSelect from '@/components/ui/MultiSelect';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -286,6 +287,22 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Tasks:</span><span className="font-medium">{localProject.tasks?.length || 0}</span></div>
           )}
         </div>
+        {isManagerOrAdmin && employees.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <MultiSelect
+              label="Assigned to (project)"
+              value={(() => {
+                const ids = localProject.assignedToEmployeeIds ?? [];
+                if (ids.length > 0) return ids.map((id: unknown) => typeof id === 'string' ? id : (id as { toString(): string }).toString());
+                const single = (localProject as { assignedToEmployeeId?: unknown }).assignedToEmployeeId;
+                return single ? [typeof single === 'string' ? single : (single as { toString(): string }).toString()] : [];
+              })()}
+              onChange={(selectedIds) => handleFieldUpdate('assignedToEmployeeIds', selectedIds)}
+              options={employees.map((emp) => ({ value: emp._id.toString(), label: emp.name }))}
+              disabled={!isManagerOrAdmin}
+            />
+          </div>
+        )}
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
           <AddButton
             projectId={localProject._id.toString()}
