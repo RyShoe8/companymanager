@@ -303,7 +303,34 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             />
           </div>
         )}
-        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-2">
+          {actionButtons.map((btn, idx) => (
+            <span key={idx} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 text-sm">
+              <a href={btn.url} target="_blank" rel="noopener noreferrer" className="font-medium text-indigo-700 dark:text-indigo-300 hover:underline truncate max-w-[180px]">
+                {btn.label}
+              </a>
+              {isManagerOrAdmin && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await fetch(`/api/projects/${localProject._id}/buttons`, {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ index: idx }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setActionButtons(Array.isArray(data) ? data : []);
+                    }
+                  }}
+                  className="text-indigo-500 hover:text-red-600 dark:hover:text-red-400 p-0.5 shrink-0"
+                  aria-label="Remove button"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </span>
+          ))}
           <AddButton
             projectId={localProject._id.toString()}
             phase={mapStatusToStage(localProject.status)}

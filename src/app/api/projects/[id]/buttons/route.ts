@@ -80,3 +80,48 @@ export async function POST(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await requireAuth(request);
+    if (session instanceof NextResponse) return session;
+    await connectDB();
+    const { id } = await params;
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
+    }
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    if (!employee || (employee.role !== 'Manager' && employee.role !== 'Administrator')) {
+      return NextResponse.json({ error: 'Forbidden - Manager or Administrator required' }, { status: 403 });
+    }
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
+    const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } });
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+    const body = await request.json().catch(() => ({}));
+    const index = typeof body.index === 'number' ? body.index : parseInt(String(body.index), 10);
+    if (isNaN(index) || index < 0) {
+      return NextResponse.json({ error: 'Valid index required' }, { status: 400 });
+    }
+    const actionButtons = Array.isArray(project.actionButtons) ? [...project.actionButtons] : [];
+    if (index >= actionButtons.length) {
+      return NextResponse.json({ error: 'Index out of range' }, { status: 400 });
+    }
+    actionButtons.splice(index, 1);
+    project.actionButtons = actionButtons;
+    await project.save();
+    return NextResponse.json(project.actionButtons);
+  } catch (error) {
+    console.error('Error deleting project button:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

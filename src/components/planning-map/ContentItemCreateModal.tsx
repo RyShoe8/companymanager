@@ -40,6 +40,9 @@ export default function ContentItemCreateModal({
   const [status, setStatus] = useState<ContentStatus>('planned');
   const [notes, setNotes] = useState('');
   const [assignedToEmployeeId, setAssignedToEmployeeId] = useState<string>('');
+  const [keywords, setKeywords] = useState('');
+  const [internalLinks, setInternalLinks] = useState('');
+  const [externalUrl, setExternalUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +63,9 @@ export default function ContentItemCreateModal({
         status,
         notes: notes.trim() || undefined,
         assignedToEmployeeId: assignedToEmployeeId || undefined,
+        keywords: keywords.trim() ? keywords.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+        internalLinks: internalLinks.trim() ? internalLinks.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+        externalUrl: externalUrl.trim() || undefined,
       };
       if (publishDate) {
         const d = new Date(publishDate);
@@ -82,6 +88,9 @@ export default function ContentItemCreateModal({
       setStatus('planned');
       setNotes('');
       setAssignedToEmployeeId('');
+      setKeywords('');
+      setInternalLinks('');
+      setExternalUrl('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create content');
     } finally {
@@ -161,6 +170,36 @@ export default function ContentItemCreateModal({
               <option key={emp._id.toString()} value={emp._id.toString()}>{emp.name}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-1">Target keywords (comma-separated)</label>
+          <input
+            type="text"
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="e.g. keyword1, keyword2"
+            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-1">Internal links (comma-separated URLs or slugs)</label>
+          <input
+            type="text"
+            value={internalLinks}
+            onChange={(e) => setInternalLinks(e.target.value)}
+            placeholder="e.g. /page1, https://..."
+            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-1">External link (OneUp, Google Doc, CMS draft, etc.)</label>
+          <input
+            type="url"
+            value={externalUrl}
+            onChange={(e) => setExternalUrl(e.target.value)}
+            placeholder="https://..."
+            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+          />
         </div>
         {error && <div className="text-red-500 text-sm">{error}</div>}
         <div className="flex gap-2 pt-2">

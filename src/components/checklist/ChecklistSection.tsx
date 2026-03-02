@@ -160,25 +160,6 @@ export default function ChecklistSection({
         </ol>
       )}
 
-      {actionButtons.length > 0 && (
-        <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Your links</p>
-          <div className="flex flex-wrap gap-2">
-            {actionButtons.map((btn, idx) => (
-              <a
-                key={idx}
-                href={btn.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors text-sm font-medium"
-              >
-                {btn.label}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
       {categoryForItem && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"

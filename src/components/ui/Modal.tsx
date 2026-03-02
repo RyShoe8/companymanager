@@ -28,7 +28,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '2x
 
   if (!isOpen) return null;
 
-  const zClass = elevated ? 'z-[60]' : 'z-50';
+  const zClass = elevated ? 'z-[70]' : 'z-50';
 
   if (maxWidth === 'full') {
     // Full-screen modal that stretches from navbar to bottom

@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const body = await request.json();
-    const { projectId, title, channel, status, publishDate, notes, assignedToEmployeeId } = body;
+    const { projectId, title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl } = body;
 
     if (!projectId || !title || !channel) {
       return NextResponse.json({ error: 'projectId, title, and channel are required' }, { status: 400 });
@@ -145,6 +145,15 @@ export async function POST(request: NextRequest) {
     }
     if (assignedToEmployeeId && isValidObjectId(assignedToEmployeeId)) {
       doc.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
+    }
+    if (keywords !== undefined) {
+      doc.keywords = Array.isArray(keywords) ? keywords.map(String) : (typeof keywords === 'string' ? keywords.split(',').map((s) => s.trim()).filter(Boolean) : []);
+    }
+    if (internalLinks !== undefined) {
+      doc.internalLinks = Array.isArray(internalLinks) ? internalLinks.map(String) : (typeof internalLinks === 'string' ? internalLinks.split(',').map((s) => s.trim()).filter(Boolean) : []);
+    }
+    if (externalUrl !== undefined && externalUrl !== '') {
+      doc.externalUrl = String(externalUrl).trim();
     }
 
     const item = await ContentItem.create(doc);
