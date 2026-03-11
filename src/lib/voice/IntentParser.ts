@@ -16,7 +16,9 @@ export type IntentType =
     | 'PUBLISH_CONTENT'
     | 'EDIT_ENTITY'
     | 'DELETE_ENTITY'
-    | 'MARK_COMPLETE' // Added new intent type
+    | 'MARK_COMPLETE'
+    | 'UPDATE_PROJECT_DESCRIPTION'
+    | 'RUN_COMMAND'
     | 'UNKNOWN';
 
 export interface ParsedIntent {
@@ -164,17 +166,31 @@ const rules: PatternRule[] = [
         }),
     },
 
+    // Update project description
+    {
+        type: 'UPDATE_PROJECT_DESCRIPTION',
+        patterns: [
+            /(?:update|change|set)\s+(?:the\s+)?(.+?)\s+description\s+to\s+(?:say\s+)?(.+)/i,
+        ],
+        extractSlots: (m) => ({
+            name: m[1]?.trim(),
+            description: m[2]?.trim(),
+        }),
+    },
+
     // Complete Task
     {
         type: 'COMPLETE_TASK',
         patterns: [
+            /(?:make|mark)\s+(?:the\s+)?(?:task(?:s)?\s+)?(.+?)\s+(?:for|in|on)\s+(?:the\s+)?(?:project\s+)?(.+?)\s+(?:complete|done|finished)\s*$/i,
             /(?:mark|set|complete|finish)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+(?:for|in|on)\s+(.+?)(?:\s+as\s+(?:complete|done|finished))?/i,
             /(?:mark|set)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+as\s+(?:complete|done|finished)/i,
             /(?:complete|finish)\s+(?:the\s+)?(?:task\s+)?(.+)/i,
+            /(?:make|mark)\s+(?:the\s+)?(?:task(?:s)?\s+)?(.+?)\s+(?:complete|done|finished)\s*$/i,
         ],
         extractSlots: (m) => ({
             name: m[1]?.trim(),
-            context: m[2]?.trim(), // Project/Entity context
+            context: m[2]?.trim(), // Project/Entity context (optional for last pattern)
         }),
     },
 
@@ -188,6 +204,29 @@ const rules: PatternRule[] = [
         extractSlots: (m) => ({
             name: m[1].trim(),
         }),
+    },
+
+    // Run command by id (for actions that map 1:1 to CommandRegistry)
+    {
+        type: 'RUN_COMMAND',
+        patterns: [
+            /(?:go to|open|show|view)\s+schedule/i,
+            /(?:go to|open|show|view)\s+projects?/i,
+            /(?:go to|open|show|view)\s+(?:capacity|team|employees)/i,
+            /(?:create|new|add)\s+(?:a\s+)?project/i,
+            /(?:close|cancel|dismiss)\s*(?:modal|inspector|panel)?\s*$/i,
+            /^close\s*$/i,
+            /^cancel\s*$/i,
+        ],
+        extractSlots: (m) => {
+            const raw = m[0].toLowerCase();
+            if (/\bschedule\b/.test(raw)) return { commandId: 'nav-schedule' };
+            if (/\bprojects?\b/.test(raw)) return { commandId: 'nav-projects' };
+            if (/\b(capacity|team|employees)\b/.test(raw)) return { commandId: 'nav-capacity' };
+            if (/\b(create|new|add)\s+(?:a\s+)?project\b/.test(raw)) return { commandId: 'create-project' };
+            if (/\b(close|cancel|dismiss)\b/.test(raw)) return { commandId: 'close-inspector' };
+            return { commandId: '' };
+        },
     },
 ];
 

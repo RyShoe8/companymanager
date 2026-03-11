@@ -92,8 +92,8 @@ export default function WorkspaceShell({
         }
     };
 
-    // Voice intent execution handler
-    const handleIntent = useCallback((intent: ParsedIntent) => {
+    // Voice intent execution handler (may return Promise for async actions)
+    const handleIntent = useCallback(async (intent: ParsedIntent): Promise<{ success: boolean; message: string }> => {
         if (intent.type === 'NAVIGATE' || intent.type === 'SWITCH_LENS') {
             const place = intent.slots.place || intent.slots.lens;
             if (place === 'schedule') { ws.setLens('schedule'); return { success: true, message: 'Switched to schedule lens' }; }
@@ -140,6 +140,32 @@ export default function WorkspaceShell({
             }
         }
         const normalize = (s: string) => s.toLowerCase().replace(/\b(the|task|item|a|an)\b/g, '').replace(/\s+/g, ' ').trim();
+
+        if (intent.type === 'UPDATE_PROJECT_DESCRIPTION') {
+            const { name, description } = intent.slots;
+            if (!description?.trim()) return { success: false, message: 'No description text provided' };
+            const searchName = normalize(name);
+            const target = ws.allProjects.find(p => {
+                const pName = normalize(p.name);
+                return pName.includes(searchName) || searchName.includes(pName);
+            });
+            if (!target) return { success: false, message: `Could not find project matching "${name}"` };
+            try {
+                const res = await fetch(`/api/projects/${target._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description: description.trim() }),
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    return { success: false, message: data.error || 'Failed to update description' };
+                }
+                ws.loadData({ silent: true });
+                return { success: true, message: `Updated description for ${target.name}` };
+            } catch {
+                return { success: false, message: 'Failed to update description' };
+            }
+        }
 
         if (intent.type === 'OPEN_ENTITY') {
             const { entityType, name } = intent.slots;
@@ -266,10 +292,19 @@ export default function WorkspaceShell({
             return { success: false, message: `Could not find task matching "${name}"${context ? ` for "${context}"` : ''}` };
         }
 
+        if (intent.type === 'RUN_COMMAND') {
+            const commandId = intent.slots.commandId?.trim();
+            if (!commandId) return { success: false, message: 'No command specified' };
+            const executed = CommandRegistry.execute(commandId);
+            return executed
+                ? { success: true, message: `Done` }
+                : { success: false, message: `Command "${commandId}" not available or failed` };
+        }
+
         return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };
     }, [ws, handleDeleteProject]);
 
-    // Command Palette Registration
+    // Command Palette Registration (voice can trigger via RUN_COMMAND)
     useEffect(() => {
         const commands = [
             {
@@ -277,6 +312,7 @@ export default function WorkspaceShell({
                 label: 'Go to Schedule',
                 category: 'navigate' as const,
                 keywords: ['calendar', 'agenda', 'schedule', 'time'],
+                voicePatterns: ['go to schedule', 'show schedule', 'open schedule', 'view schedule'],
                 execute: () => ws.setLens('schedule'),
             },
             {
@@ -284,6 +320,7 @@ export default function WorkspaceShell({
                 label: 'Go to Projects',
                 category: 'navigate' as const,
                 keywords: ['list', 'board', 'all', 'projects'],
+                voicePatterns: ['go to projects', 'show projects', 'open projects', 'view project'],
                 execute: () => ws.setLens('projects'),
             },
             {
@@ -291,6 +328,7 @@ export default function WorkspaceShell({
                 label: 'Go to Capacity',
                 category: 'navigate' as const,
                 keywords: ['team', 'people', 'workload', 'capacity'],
+                voicePatterns: ['go to capacity', 'show capacity', 'team', 'employees', 'open team'],
                 execute: () => ws.setLens('capacity'),
             },
             {
@@ -298,14 +336,30 @@ export default function WorkspaceShell({
                 label: 'Create Project',
                 category: 'create' as const,
                 keywords: ['new', 'add', 'project'],
+                voicePatterns: ['create project', 'new project', 'add project'],
                 canExecute: () => ws.isManagerOrAdmin,
                 execute: handleCreateProject,
-            }
+            },
         ];
 
         commands.forEach(c => CommandRegistry.register(c));
         return () => commands.forEach(c => CommandRegistry.unregister(c.id));
     }, [ws, ws.isManagerOrAdmin]);
+
+    // Close inspector command (only when inspector is open, so voice "close" / "cancel" works)
+    useEffect(() => {
+        if (!inspectorFocus) return;
+        const closeCmd = {
+            id: 'close-inspector',
+            label: 'Close',
+            category: 'view' as const,
+            keywords: ['close', 'cancel', 'dismiss'],
+            voicePatterns: ['close', 'close modal', 'cancel', 'dismiss', 'close inspector'],
+            execute: () => setInspectorFocus(null),
+        };
+        CommandRegistry.register(closeCmd);
+        return () => CommandRegistry.unregister('close-inspector');
+    }, [inspectorFocus]);
 
     // Global keyboard shortcuts
     useEffect(() => {

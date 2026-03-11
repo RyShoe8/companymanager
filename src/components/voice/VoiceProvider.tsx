@@ -57,8 +57,8 @@ export function useVoice(): VoiceContextValue {
 
 interface VoiceProviderProps {
     children: ReactNode;
-    /** Callback when intent is parsed — should execute via CommandRegistry */
-    onIntent?: (intent: ParsedIntent) => { success: boolean; message: string };
+    /** Callback when intent is parsed — should execute via CommandRegistry. May return a Promise. */
+    onIntent?: (intent: ParsedIntent) => { success: boolean; message: string } | Promise<{ success: boolean; message: string }>;
 }
 
 export default function VoiceProvider({ children, onIntent }: VoiceProviderProps) {
@@ -111,15 +111,15 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
             }
 
             // Execute immediately for low-risk actions
-            executeIntent(intent);
+            void executeIntent(intent);
         },
-        [onIntent]
+        [executeIntent]
     );
 
     const executeIntent = useCallback(
-        (intent: ParsedIntent) => {
+        async (intent: ParsedIntent) => {
             if (onIntent) {
-                const result = onIntent(intent);
+                const result = await Promise.resolve(onIntent(intent));
                 if (result.success) {
                     setResultMessage(result.message);
                     speak(result.message);
