@@ -153,18 +153,26 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
 
             recognition.onresult = (event: any) => {
                 let interimTranscript = '';
-                let finalTranscript = '';
+                let isFinal = false;
+
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const result = event.results[i];
                     if (result.isFinal) {
-                        finalTranscript += result[0].transcript;
+                        isFinal = true;
+                        // For the final result, we'll process it and stop listening
+                        const text = result[0].transcript;
+                        setTranscript(text);
+                        setTimeout(() => {
+                            stopListening();
+                            processTranscript(text);
+                        }, 50);
                     } else {
                         interimTranscript += result[0].transcript;
                     }
                 }
-                setTranscript(finalTranscript || interimTranscript);
-                if (finalTranscript) {
-                    processTranscript(finalTranscript);
+
+                if (!isFinal) {
+                    setTranscript(interimTranscript);
                 }
             };
 

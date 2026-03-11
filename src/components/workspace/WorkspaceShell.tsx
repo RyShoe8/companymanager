@@ -124,9 +124,52 @@ export default function WorkspaceShell({
             setAddContentProject(null); // would need fuzzy matching real project
             return { success: true, message: 'Opening content creation form' };
         }
+        if (intent.type === 'TOGGLE_FILTER') {
+            if (intent.slots.filter === 'myAssignments') {
+                if (!ws.isManagerOrAdmin) return { success: false, message: 'You must be a manager to toggle assignments filter' };
+                ws.setShowOnlyMyAssignments(intent.slots.action === 'show');
+                return { success: true, message: `${intent.slots.action === 'show' ? 'Showing' : 'Hiding'} only your assignments` };
+            }
+            if (intent.slots.filter === 'tasks') {
+                ws.setShowTasks(intent.slots.action === 'show');
+                return { success: true, message: `${intent.slots.action === 'show' ? 'Showing' : 'Hiding'} tasks` };
+            }
+            if (intent.slots.filter === 'content') {
+                ws.setShowContent(intent.slots.action === 'show');
+                return { success: true, message: `${intent.slots.action === 'show' ? 'Showing' : 'Hiding'} content` };
+            }
+        }
+        if (intent.type === 'OPEN_ENTITY') {
+            const { entityType, name } = intent.slots;
+            if (entityType === 'project') {
+                const target = ws.allProjects.find(p => p.name.toLowerCase().includes(name.toLowerCase()));
+                if (target) {
+                    setInspectorFocus(`project:${target._id}`);
+                    return { success: true, message: `Opening project: ${target.name}` };
+                }
+            } else if (entityType === 'content') {
+                const target = ws.contentItems.find(c => c.title.toLowerCase().includes(name.toLowerCase()));
+                if (target) {
+                    setInspectorFocus(`content:${target._id}`);
+                    return { success: true, message: `Opening content: ${target.title}` };
+                }
+            }
+            return { success: false, message: `Could not find ${entityType} matching "${name}"` };
+        }
+        if (intent.type === 'DELETE_ENTITY') {
+            const { entityType, name } = intent.slots;
+            if (entityType === 'project') {
+                const target = ws.allProjects.find(p => p.name.toLowerCase().includes(name.toLowerCase()));
+                if (target) {
+                    handleDeleteProject(target._id.toString());
+                    return { success: true, message: `Deleted project: ${target.name}` };
+                }
+            }
+            return { success: false, message: `Could not find ${entityType} matching "${name}" to delete` };
+        }
 
-        return { success: false, message: 'Voice action not fully simulated yet' };
-    }, [ws]);
+        return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };
+    }, [ws, handleDeleteProject]);
 
     // Command Palette Registration
     useEffect(() => {
