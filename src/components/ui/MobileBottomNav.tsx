@@ -7,9 +7,7 @@ export default function MobileBottomNav() {
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/plan', label: 'Plan', icon: '📋' },
-    { href: '/build', label: 'Build', icon: '🔨' },
-    { href: '/run', label: 'Run', icon: '🚀' },
+    { href: '/workspace', label: 'Workspace', icon: '🗂️' },
     { href: '/assets', label: 'Assets', icon: '📦' },
     { href: '/employees', label: 'Team', icon: '👥' },
   ];
@@ -25,11 +23,10 @@ export default function MobileBottomNav() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex flex-col items-center justify-center flex-1 h-full ${
-              isActive(item.href)
+            className={`flex flex-col items-center justify-center flex-1 h-full ${isActive(item.href)
                 ? 'text-blue-600'
                 : 'text-gray-500'
-            }`}
+              }`}
           >
             <span className="text-xl mb-1">{item.icon}</span>
             <span className="text-xs font-medium">{item.label}</span>

@@ -15,6 +15,7 @@ export interface IContentItem extends Document {
   keywords?: string[];
   internalLinks?: string[];
   externalUrl?: string;
+  estimatedHours?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +42,7 @@ const ContentItemSchema: Schema = new Schema(
     keywords: { type: [String], default: [] },
     internalLinks: { type: [String], default: [] },
     externalUrl: { type: String, trim: true },
+    estimatedHours: { type: Number, min: 0 },
   },
   { timestamps: true }
 );

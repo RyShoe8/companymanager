@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
 import { IProject } from '@/lib/models/Project';
 import { IOperation } from '@/lib/models/Operation';
+import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, getTimeframeRange, formatDate } from '@/lib/utils/dateUtils';
 import Card from '@/components/ui/Card';
 
@@ -13,22 +14,23 @@ interface EmployeeSidebarProps {
   operations: IOperation[]; // Filtered operations for display (by page stage)
   allProjects?: IProject[]; // All projects for calculations (across all stages)
   allOperations?: IOperation[]; // All operations for calculations (across all stages)
+  contentItems?: IContentItem[]; // Content items for calculations
   timeframe: TimeframeType;
   currentDate: Date;
   currentUserRole?: 'Administrator' | 'Manager' | 'User';
   currentUserEmployeeId?: string | null;
 }
 
-export default function EmployeeSidebar({ employees, projects, operations, allProjects, allOperations, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
+export default function EmployeeSidebar({ employees, projects, operations, allProjects, allOperations, contentItems, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   const [expandedBreakdowns, setExpandedBreakdowns] = useState<Set<string>>(new Set()); // Track which breakdowns are expanded (e.g., "employeeId-committed")
-  
+
   // Use allProjects/allOperations for calculations, fallback to filtered projects/operations if not provided
   const calcProjects = allProjects || projects;
   const calcOperations = allOperations || operations;
-  
+
   const range = getTimeframeRange(timeframe, currentDate);
-  
+
   const toggleEmployee = useCallback((employeeId: string) => {
     setExpandedEmployees(prev => {
       const newSet = new Set(prev);
@@ -53,19 +55,19 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     viewStart.setHours(0, 0, 0, 0);
     const viewEnd = new Date(endDate);
     viewEnd.setHours(23, 59, 59, 999);
-    
+
     const instances: Array<{ operation: IOperation; startDate: Date; endDate: Date }> = [];
-    
+
     calcOperations.forEach((operation) => {
       if (!operation.startDate) return; // Skip operations without start date
-      
+
       // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
       const startDateObj = new Date(operation.startDate);
       const startDateStr = startDateObj.toISOString().split('T')[0];
       const [year, month, day] = startDateStr.split('-').map(Number);
       const operationStart = new Date(year, month - 1, day);
       operationStart.setHours(0, 0, 0, 0);
-      
+
       // Calculate duration (default to 1 day if no endDate)
       let durationDays: number;
       if (operation.endDate) {
@@ -86,17 +88,17 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         // No endDate means single day operation
         durationDays = 1;
       }
-      
+
       // Generate recurring instances based on recurrence type
       let currentDate = new Date(operationStart);
-      
+
       // For monthly: find all occurrences in the same day of month
       if (operation.recurrenceType === 'monthly') {
         const dayOfMonth = operationStart.getDate();
         // Start from the operation's start date, not before
         currentDate = new Date(operationStart);
         currentDate.setHours(0, 0, 0, 0);
-        
+
         // If the operation start is before viewStart, find the first occurrence in or after viewStart
         if (currentDate < viewStart) {
           // Find the first month where this day of month is >= viewStart
@@ -106,7 +108,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             currentDate = new Date(viewStart.getFullYear(), viewStart.getMonth() + 1, dayOfMonth);
           }
         }
-        
+
         // Generate instances for the view range, but only from operationStart forward
         while (currentDate <= viewEnd) {
           // Ensure we don't go before the operation's start date
@@ -114,7 +116,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, dayOfMonth);
             continue;
           }
-          
+
           const instanceStart = new Date(currentDate);
           instanceStart.setHours(0, 0, 0, 0);
           const instanceEnd = new Date(instanceStart);
@@ -123,11 +125,11 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
           }
           instanceEnd.setHours(23, 59, 59, 999);
-          
+
           if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
             instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
           }
-          
+
           // Move to next month
           currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, dayOfMonth);
         }
@@ -138,7 +140,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         // Start from the operation's start date
         currentDate = new Date(operationStart);
         currentDate.setHours(0, 0, 0, 0);
-        
+
         // If the operation start is before viewStart, find the first occurrence >= viewStart
         if (currentDate < viewStart) {
           // Find the first Monday of the view range
@@ -146,25 +148,25 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           const mondayOffset = viewStartDay === 0 ? 6 : viewStartDay - 1;
           const firstMonday = new Date(viewStart);
           firstMonday.setDate(firstMonday.getDate() - mondayOffset);
-          
+
           // Find the first occurrence in or after the view
           const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
           currentDate = new Date(firstMonday);
           currentDate.setDate(currentDate.getDate() + daysFromMonday);
-          
+
           // If before viewStart, move to next week
           if (currentDate < viewStart) {
             currentDate.setDate(currentDate.getDate() + 7);
           }
         }
-        
+
         while (currentDate <= viewEnd) {
           // Ensure we don't go before the operation's start date
           if (currentDate < operationStart) {
             currentDate.setDate(currentDate.getDate() + 7);
             continue;
           }
-          
+
           const instanceStart = new Date(currentDate);
           instanceStart.setHours(0, 0, 0, 0);
           const instanceEnd = new Date(instanceStart);
@@ -173,11 +175,11 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
           }
           instanceEnd.setHours(23, 59, 59, 999);
-          
+
           if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
             instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
           }
-          
+
           currentDate.setDate(currentDate.getDate() + 7);
         }
       }
@@ -187,7 +189,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         // Start from the operation's start date
         currentDate = new Date(operationStart);
         currentDate.setHours(0, 0, 0, 0);
-        
+
         // If the operation start is before viewStart, find the first occurrence >= viewStart
         if (currentDate < viewStart) {
           // Find first Monday of the view range
@@ -195,12 +197,12 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           const mondayOffset = viewStartDay === 0 ? 6 : viewStartDay - 1;
           const firstMonday = new Date(viewStart);
           firstMonday.setDate(firstMonday.getDate() - mondayOffset);
-          
+
           // Find the first occurrence in or after the view
           const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
           let candidateDate = new Date(firstMonday);
           candidateDate.setDate(candidateDate.getDate() + daysFromMonday);
-          
+
           // Find the closest bi-weekly occurrence to operationStart that's >= viewStart
           // Calculate how many weeks from operationStart to candidateDate
           const weeksDiff = Math.floor((candidateDate.getTime() - operationStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
@@ -208,20 +210,20 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           const adjustedWeeks = Math.ceil(weeksDiff / 2) * 2;
           currentDate = new Date(operationStart);
           currentDate.setDate(currentDate.getDate() + adjustedWeeks * 7);
-          
+
           // If still before viewStart, move to next bi-weekly occurrence
           if (currentDate < viewStart) {
             currentDate.setDate(currentDate.getDate() + 14);
           }
         }
-        
+
         while (currentDate <= viewEnd) {
           // Ensure we don't go before the operation's start date
           if (currentDate < operationStart) {
             currentDate.setDate(currentDate.getDate() + 14);
             continue;
           }
-          
+
           const instanceStart = new Date(currentDate);
           instanceStart.setHours(0, 0, 0, 0);
           const instanceEnd = new Date(instanceStart);
@@ -230,11 +232,11 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
           }
           instanceEnd.setHours(23, 59, 59, 999);
-          
+
           if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
             instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
           }
-          
+
           currentDate.setDate(currentDate.getDate() + 14);
         }
       }
@@ -254,14 +256,14 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           instanceEnd = new Date(operationStart);
         }
         instanceEnd.setHours(23, 59, 59, 999);
-        
+
         // Only add if it overlaps with the view range
         if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
           instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
         }
       }
     });
-    
+
     return instances;
   }, [calcOperations, startDate, endDate]);
 
@@ -272,7 +274,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     current.setHours(0, 0, 0, 0);
     const endDate = new Date(end);
     endDate.setHours(23, 59, 59, 999);
-    
+
     while (current <= endDate) {
       const dayOfWeek = current.getDay();
       // 0 = Sunday, 6 = Saturday, so weekdays are 1-5 (Monday-Friday)
@@ -281,7 +283,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       }
       current.setDate(current.getDate() + 1);
     }
-    
+
     return count;
   };
 
@@ -303,7 +305,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       // Weekly is exactly 1 week = 5 weekdays
       return employee.weeklyHours;
     }
-    
+
     // For other timeframes, count weekdays in the range
     const weekdays = countWeekdays(startDate, endDate);
     const weeks = weekdays / 5;
@@ -315,7 +317,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
   const getProjectsForEmployeeCalc = (employee: IEmployee) => {
     const result = calcProjects.filter((project) => {
       const employeeIdStr = employee._id.toString();
-      
+
       // Check if project is assigned to this employee by multiple IDs array (new preferred method)
       const projectAssignedToIds = (project as any).assignedToEmployeeIds;
       if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
@@ -323,7 +325,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           return true;
         }
       }
-      
+
       // Check if project is assigned to this employee by multiple names array
       const projectAssignedToNames = (project as any).assignedToNames;
       if (projectAssignedToNames && Array.isArray(projectAssignedToNames)) {
@@ -331,18 +333,18 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           return true;
         }
       }
-      
+
       // Check if project is assigned to this employee by single ID (legacy)
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       if (projectAssignedToId === employeeIdStr) {
         return true;
       }
-      
+
       // Check if project is assigned by legacy name field
       if (project.assignedTo && project.assignedTo === employee.name) {
         return true;
       }
-      
+
       // Check if any task is assigned to this employee by ID
       if (project.tasks && project.tasks.some(task => {
         const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
@@ -357,7 +359,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       })) {
         return true;
       }
-      
+
       // Check if any operation linked to this project is assigned to this employee by ID
       if (calcOperations.some(op => {
         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
@@ -370,10 +372,10 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       })) {
         return true;
       }
-      
+
       return false;
     });
-    
+
     return result;
   };
 
@@ -381,7 +383,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
   const getProjectsForEmployee = (employee: IEmployee) => {
     const result = projects.filter((project) => {
       const employeeIdStr = employee._id.toString();
-      
+
       // Check if project is assigned to this employee by multiple IDs array (new preferred method)
       const projectAssignedToIds = (project as any).assignedToEmployeeIds;
       if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
@@ -389,7 +391,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           return true;
         }
       }
-      
+
       // Check if project is assigned to this employee by multiple names array
       const projectAssignedToNames = (project as any).assignedToNames;
       if (projectAssignedToNames && Array.isArray(projectAssignedToNames)) {
@@ -397,18 +399,18 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           return true;
         }
       }
-      
+
       // Check if project is assigned to this employee by single ID (legacy)
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       if (projectAssignedToId === employeeIdStr) {
         return true;
       }
-      
+
       // Check if project is assigned by legacy name field
       if (project.assignedTo && project.assignedTo === employee.name) {
         return true;
       }
-      
+
       // Check if any task is assigned to this employee by ID
       if (project.tasks && project.tasks.some(task => {
         const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
@@ -423,7 +425,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       })) {
         return true;
       }
-      
+
       // Check if any operation linked to this project is assigned to this employee by ID
       if (operations.some(op => {
         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
@@ -436,10 +438,10 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       })) {
         return true;
       }
-      
+
       return false;
     });
-    
+
     return result;
   };
 
@@ -450,7 +452,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       const opAssignedToIds = (op as any).assignedToEmployeeIds;
       const isAssignedById = opAssignedToId === employee._id.toString();
       const isAssignedByName = op.assignedTo && op.assignedTo === employee.name;
-      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) &&
         opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
       return isAssignedById || isAssignedByName || isAssignedByArray;
     });
@@ -464,7 +466,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       const opAssignedToIds = (op as any).assignedToEmployeeIds;
       const isAssignedById = opAssignedToId === employee._id.toString();
       const isAssignedByName = op.assignedTo && op.assignedTo === employee.name;
-      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) &&
         opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
       return isAssignedById || isAssignedByName || isAssignedByArray;
     });
@@ -476,7 +478,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       const opAssignedToIds = (operation as any).assignedToEmployeeIds;
       const isAssignedById = opAssignedToId === employee._id.toString();
       const isAssignedByName = operation.assignedTo && operation.assignedTo === employee.name;
-      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) &&
         opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
       return isAssignedById || isAssignedByName || isAssignedByArray;
     });
@@ -490,7 +492,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       const opAssignedToIds = (operation as any).assignedToEmployeeIds;
       const isAssignedById = opAssignedToId === employee._id.toString();
       const isAssignedByName = operation.assignedTo && operation.assignedTo === employee.name;
-      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+      const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) &&
         opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
       return isAssignedById || isAssignedByName || isAssignedByArray;
     });
@@ -523,39 +525,39 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     // We need to treat this as inclusive of Day 10, so normalize to end of Day 10
     const normalizedProjectStart = normalizeToStartOfDay(projectStart);
     const normalizedProjectEnd = normalizeToEndOfDay(projectEnd);
-    
+
     // Normalize range dates: start to beginning of day, end to end of day
     const normalizedRangeStart = normalizeToStartOfDay(rangeStart);
     const normalizedRangeEnd = normalizeToEndOfDay(rangeEnd);
-    
+
     // Find the overlap between project dates and the timeframe
     // Compare dates properly: if project starts after range ends or project ends before range starts, no overlap
-    if (normalizedProjectStart.getTime() > normalizedRangeEnd.getTime() || 
-        normalizedProjectEnd.getTime() < normalizedRangeStart.getTime()) {
+    if (normalizedProjectStart.getTime() > normalizedRangeEnd.getTime() ||
+      normalizedProjectEnd.getTime() < normalizedRangeStart.getTime()) {
       return 0;
     }
-    
+
     const overlapStart = normalizedProjectStart > normalizedRangeStart ? normalizedProjectStart : normalizedRangeStart;
     const overlapEnd = normalizedProjectEnd < normalizedRangeEnd ? normalizedProjectEnd : normalizedRangeEnd;
-    
+
     // If no overlap, return 0
     if (overlapStart.getTime() > overlapEnd.getTime()) return 0;
-    
+
     // Calculate project duration in weekdays (Monday-Friday only)
     const projectDurationWeekdays = countWeekdays(normalizedProjectStart, normalizedProjectEnd);
-    
+
     if (projectDurationWeekdays <= 0) return 0;
-    
+
     // Calculate number of weekdays in the overlap
     const overlapWeekdays = countWeekdays(overlapStart, overlapEnd);
-    
+
     // Ensure we have at least 1 weekday
     if (overlapWeekdays < 1) return 0;
-    
+
     // Calculate hours for the overlap period (weekdays only)
     // Use precise calculation to avoid floating point errors
     const hoursForOverlap = (totalHours * overlapWeekdays) / projectDurationWeekdays;
-    
+
     return hoursForOverlap;
   };
 
@@ -574,7 +576,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
       if (project.status === 'launched') return;
-      
+
       // Calculate task hours assigned to this employee (count independently of project hours)
       let hasEmployeeTasks = false;
       let taskHoursInRange = 0;
@@ -600,25 +602,25 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           }, 0);
         totalHours += taskHoursInRange;
       }
-      
+
       // Check if there are operations attached to this project assigned to this employee in the current timeframe
       let hasEmployeeOperationsInRange = false;
       employeeOperations.forEach((instance) => {
         const operation = instance.operation;
-        if (operation.projectId?.toString() === project._id.toString() && 
-            operation.status !== 'completed') {
+        if (operation.projectId?.toString() === project._id.toString() &&
+          operation.status !== 'completed') {
           // Check if this operation instance overlaps with the current timeframe
           const instanceStart = normalizeToStartOfDay(instance.startDate);
           const instanceEnd = normalizeToEndOfDay(instance.endDate);
           const rangeStart = normalizeToStartOfDay(startDate);
           const rangeEnd = normalizeToEndOfDay(endDate);
-          
+
           if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
             hasEmployeeOperationsInRange = true;
           }
         }
       });
-      
+
       // If project is assigned to this employee AND there are no tasks assigned to this employee
       // AND there are no operations assigned to this employee for this project in this timeframe,
       // count project-level hours (not date-distributed since projects don't have dates anymore)
@@ -635,7 +637,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             }
           });
         }
-        
+
         // Project hours minus tasks assigned to others
         // Since projects don't have dates, we add full remaining hours to committed
         const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
@@ -650,17 +652,17 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       if (operation.status === 'completed') {
         return;
       }
-      
+
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // Calculate hours the same way as tasks - spread across duration using weekdays
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
-        
+
         // Ensure we're using a number, not a string
-        const hours = typeof operation.estimatedHours === 'number' 
-          ? operation.estimatedHours 
+        const hours = typeof operation.estimatedHours === 'number'
+          ? operation.estimatedHours
           : parseFloat(operation.estimatedHours);
-        
+
         if (!isNaN(hours)) {
           // Use calculateHoursForDateRange to spread hours across the operation's duration
           const hoursInRange = calculateHoursForDateRange(
@@ -681,10 +683,10 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     if (timeframe !== 'today') {
       opsWithoutDate.forEach((operation) => {
         if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
-          const hours = typeof operation.estimatedHours === 'number' 
-            ? operation.estimatedHours 
+          const hours = typeof operation.estimatedHours === 'number'
+            ? operation.estimatedHours
             : parseFloat(operation.estimatedHours);
-          
+
           if (!isNaN(hours)) {
             totalHours += hours;
           }
@@ -692,6 +694,31 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       });
     }
 
+    // Add hours from content items
+    if (contentItems) {
+      const employeeContentItems = contentItems.filter(c => c.assignedToEmployeeId?.toString() === employee._id.toString());
+      employeeContentItems.forEach(content => {
+        if (content.status === 'published') return;
+        const hours = content.estimatedHours || 0;
+        if (hours <= 0) return;
+
+        if (content.publishDate) {
+          const publishDate = new Date(content.publishDate);
+          const normDate = normalizeToStartOfDay(publishDate);
+          const rangeStart = normalizeToStartOfDay(startDate);
+          const rangeEnd = normalizeToEndOfDay(endDate);
+
+          if (normDate >= rangeStart && normDate <= rangeEnd) {
+            const day = normDate.getDay();
+            if (day >= 1 && day <= 5) {
+              totalHours += hours;
+            }
+          }
+        } else if (timeframe !== 'today') {
+          totalHours += hours;
+        }
+      });
+    }
 
     // Round to 2 decimal places for display
     return Math.round(totalHours * 100) / 100;
@@ -716,7 +743,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeProjects.forEach((project) => {
       if (project.status === 'launched') return; // Skip completed projects
       const stage = getProjectStage(project.status);
-      
+
       let taskHoursInRange = 0;
       if (project.tasks && project.tasks.length > 0) {
         taskHoursInRange = project.tasks
@@ -732,14 +759,14 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           }, 0);
         breakdown[stage] += taskHoursInRange;
       }
-      
+
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       const isProjectAssignedToEmployee = projectAssignedToId === employee._id.toString();
       let hasEmployeeOperationsInRange = false;
       employeeOperations.forEach((instance) => {
         const operation = instance.operation;
-        if (operation.projectId?.toString() === project._id.toString() && 
-            operation.status !== 'completed') {
+        if (operation.projectId?.toString() === project._id.toString() &&
+          operation.status !== 'completed') {
           const instanceStart = normalizeToStartOfDay(instance.startDate);
           const instanceEnd = normalizeToEndOfDay(instance.endDate);
           const rangeStart = normalizeToStartOfDay(startDate);
@@ -749,7 +776,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           }
         }
       });
-      
+
       if (isProjectAssignedToEmployee && project.estimatedHours && !taskHoursInRange && !hasEmployeeOperationsInRange) {
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
@@ -792,6 +819,33 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       });
     }
 
+    if (contentItems) {
+      const employeeContentItems = contentItems.filter(c => c.assignedToEmployeeId?.toString() === employee._id.toString());
+      employeeContentItems.forEach(content => {
+        if (content.status === 'published') return;
+        const hours = content.estimatedHours || 0;
+        if (hours <= 0) return;
+
+        const stage = content.projectId ? getProjectStage(calcProjects.find(p => p._id.toString() === content.projectId?.toString())?.status || 'planning') : 'Plan';
+
+        if (content.publishDate) {
+          const publishDate = new Date(content.publishDate);
+          const normDate = normalizeToStartOfDay(publishDate);
+          const rangeStart = normalizeToStartOfDay(startDate);
+          const rangeEnd = normalizeToEndOfDay(endDate);
+
+          if (normDate >= rangeStart && normDate <= rangeEnd) {
+            const day = normDate.getDay();
+            if (day >= 1 && day <= 5) {
+              breakdown[stage] += hours;
+            }
+          }
+        } else if (timeframe !== 'today') {
+          breakdown[stage] += hours;
+        }
+      });
+    }
+
     return {
       Plan: Math.round(breakdown.Plan * 100) / 100,
       Build: Math.round(breakdown.Build * 100) / 100,
@@ -808,7 +862,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeProjects.forEach((project) => {
       if (project.status !== 'launched' && project.status !== 'completed') return;
       const stage = getProjectStage(project.status);
-      
+
       if (project.tasks && project.tasks.length > 0) {
         const taskHoursInRange = project.tasks
           .filter(task => {
@@ -823,7 +877,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           }, 0);
         breakdown[stage] += taskHoursInRange;
       }
-      
+
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       if (projectAssignedToId === employee._id.toString() && project.estimatedHours) {
         let otherEmployeeTaskHours = 0;
@@ -866,7 +920,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
   const getRemainingHoursBreakdown = (employee: IEmployee) => {
     const committedBreakdown = getCommittedHoursBreakdown(employee);
     const available = totalAvailableHours(employee);
-    
+
     // Calculate remaining per stage (available - committed per stage)
     // Remaining shows how much capacity is left after accounting for committed hours in each stage
     return {
@@ -893,7 +947,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeProjects.forEach((project) => {
       // Only count completed projects
       if (project.status !== 'launched' && project.status !== 'completed') return;
-      
+
       // Calculate total task hours assigned to this employee (completed tasks only)
       let employeeTaskHours = 0;
       if (project.tasks && project.tasks.length > 0) {
@@ -904,7 +958,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           }
         });
       }
-      
+
       // If employee has completed tasks assigned, count those task hours
       if (employeeTaskHours > 0 && project.tasks) {
         const taskHoursInRange = project.tasks
@@ -926,7 +980,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           }, 0);
         totalHours += taskHoursInRange;
       }
-      
+
       // If project is assigned to this employee and completed, count remaining hours
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       if (projectAssignedToId === employee._id.toString() && project.estimatedHours) {
@@ -940,7 +994,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             }
           });
         }
-        
+
         // Project hours minus tasks assigned to others
         // Since projects don't have dates, add full remaining hours
         const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
@@ -953,16 +1007,16 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       const operation = instance.operation;
       // Only count completed operations
       if (operation.status !== 'completed') return;
-      
+
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // Calculate hours the same way as tasks - spread across duration using weekdays
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
-        
-        const hours = typeof operation.estimatedHours === 'number' 
-          ? operation.estimatedHours 
+
+        const hours = typeof operation.estimatedHours === 'number'
+          ? operation.estimatedHours
           : parseFloat(operation.estimatedHours);
-        
+
         if (!isNaN(hours)) {
           // Use calculateHoursForDateRange to spread hours across the operation's duration
           const hoursInRange = calculateHoursForDateRange(
@@ -976,6 +1030,31 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         }
       }
     });
+
+    if (contentItems) {
+      const employeeContentItems = contentItems.filter(c => c.assignedToEmployeeId?.toString() === employee._id.toString());
+      employeeContentItems.forEach(content => {
+        if (content.status !== 'published') return;
+        const hours = content.estimatedHours || 0;
+        if (hours <= 0) return;
+
+        if (content.publishDate) {
+          const publishDate = new Date(content.publishDate);
+          const normDate = normalizeToStartOfDay(publishDate);
+          const rangeStart = normalizeToStartOfDay(startDate);
+          const rangeEnd = normalizeToEndOfDay(endDate);
+
+          if (normDate >= rangeStart && normDate <= rangeEnd) {
+            const day = normDate.getDay();
+            if (day >= 1 && day <= 5) {
+              totalHours += hours;
+            }
+          }
+        } else if (timeframe !== 'today') {
+          totalHours += hours;
+        }
+      });
+    }
 
     return Math.round(totalHours * 100) / 100;
   };
@@ -993,12 +1072,12 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
   const visibleEmployees = useMemo(() => {
     // Filter to only employees with userId (registered users)
     const employeesWithUserId = employees.filter(employee => employee.userId != null);
-    
+
     // If role is not set yet, show all employees with userId (safer default)
     if (!currentUserRole) {
       return employeesWithUserId;
     }
-    
+
     // Role-based filtering:
     // - Administrators: see all employees
     // - Managers: see all employees (users, managers, and admins)
@@ -1012,12 +1091,12 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
         return employeeId === currentUserEmployeeId;
       });
     }
-    
+
     // Managers and Administrators see all employees
     if (currentUserRole === 'Manager' || currentUserRole === 'Administrator') {
       return employeesWithUserId;
     }
-    
+
     // Fallback: if role is something unexpected, show all
     return employeesWithUserId;
   }, [employees, currentUserRole, currentUserEmployeeId]);
@@ -1025,16 +1104,16 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
   // Sort employees so current user's card appears first
   const sortedVisibleEmployees = useMemo(() => {
     if (!currentUserEmployeeId) return visibleEmployees;
-    
+
     const sorted = [...visibleEmployees];
     const currentUserIndex = sorted.findIndex(emp => emp._id.toString() === currentUserEmployeeId);
-    
+
     if (currentUserIndex > 0) {
       // Move current user to the top
       const [currentUser] = sorted.splice(currentUserIndex, 1);
       sorted.unshift(currentUser);
     }
-    
+
     return sorted;
   }, [visibleEmployees, currentUserEmployeeId]);
 
@@ -1049,7 +1128,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
       if (project.status === 'launched') return;
-      
+
       // Calculate task hours assigned to this employee (count independently of project hours)
       if (project.tasks && project.tasks.length > 0) {
         const taskHoursInRange = project.tasks
@@ -1071,7 +1150,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
           }, 0);
         committedHours += taskHoursInRange;
       }
-      
+
       // If project is assigned to this employee, count remaining hours (project total - task hours assigned to others)
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
       if (projectAssignedToId === employee._id.toString() && project.estimatedHours) {
@@ -1085,7 +1164,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
             }
           });
         }
-        
+
         // Project hours minus tasks assigned to others
         // Since projects don't have dates, add full remaining hours
         const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
@@ -1098,17 +1177,17 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
       const operation = instance.operation;
       // Skip completed operations - they don't count toward committed hours
       if (operation.status === 'completed') return;
-      
+
       if (operation.estimatedHours !== undefined && operation.estimatedHours !== null) {
         // Calculate hours the same way as tasks - spread across duration using weekdays
         const instanceStart = normalizeToStartOfDay(instance.startDate);
         const instanceEnd = normalizeToEndOfDay(instance.endDate);
-        
+
         // Ensure we're using a number, not a string
-        const hours = typeof operation.estimatedHours === 'number' 
-          ? operation.estimatedHours 
+        const hours = typeof operation.estimatedHours === 'number'
+          ? operation.estimatedHours
           : parseFloat(operation.estimatedHours);
-        
+
         if (!isNaN(hours)) {
           // Use calculateHoursForDateRange to spread hours across the operation's duration
           const hoursInRange = calculateHoursForDateRange(
@@ -1220,16 +1299,15 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                     </svg>
                     <h4 className="font-semibold text-gray-900">{employee.name}</h4>
                   </button>
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${
-                    employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
-                    employee.role === 'Manager' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
+                      employee.role === 'Manager' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                    }`}>
                     {employee.role}
                   </span>
                 </div>
               </div>
-              
+
               {/* Utilization (hours for selected period) - Always visible */}
               <div className="mb-2">
                 <div className="flex justify-between text-xs text-gray-600 mb-1">
@@ -1238,11 +1316,10 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
-                    className={`h-2 rounded-full ${
-                      utilizationPercent > 100 ? 'bg-red-500' :
-                      utilizationPercent > 80 ? 'bg-orange-500' :
-                      'bg-green-500'
-                    }`}
+                    className={`h-2 rounded-full ${utilizationPercent > 100 ? 'bg-red-500' :
+                        utilizationPercent > 80 ? 'bg-orange-500' :
+                          'bg-green-500'
+                      }`}
                     style={{ width: `${Math.min(utilizationPercent, 100)}%` }}
                   />
                 </div>
@@ -1256,22 +1333,21 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                   <p className="text-sm text-gray-600 mb-2">{employee.jobTitle}</p>
                 )}
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded ${
-                    employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800' :
-                    employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800' :
-                    'bg-purple-100 text-purple-800'
-                  }`}>
+                  <span className={`text-xs px-2 py-0.5 rounded ${employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800' :
+                      employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800' :
+                        'bg-purple-100 text-purple-800'
+                    }`}>
                     {employee.employeeType === 'full-time' ? 'Full-Time' :
-                     employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
+                      employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
                   </span>
                   {(() => {
                     const committedBreakdown = getCommittedHoursBreakdown(employee);
                     const hasPlan = committedBreakdown.Plan > 0;
                     const hasBuild = committedBreakdown.Build > 0;
                     const hasRun = committedBreakdown.Run > 0;
-                    
+
                     if (!hasPlan && !hasBuild && !hasRun) return null;
-                    
+
                     return (
                       <div className="flex items-center gap-1.5 text-xs">
                         {hasPlan && (
@@ -1407,7 +1483,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
               employeeOps.forEach(instance => {
                 instanceMap.set(instance.operation._id.toString(), instance);
               });
-              
+
               // Get operations directly from array (includes those without startDate)
               // Only show operations that either:
               // 1. Have an instance in the current timeframe (from instanceMap)
@@ -1424,9 +1500,9 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                 // Otherwise, don't show it (it's not in the current timeframe)
                 return false;
               });
-              
+
               if (activeOps.length === 0) return null;
-              
+
               return (
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <p className="text-xs font-medium text-gray-700 mb-2">Non Project Operations:</p>
@@ -1435,22 +1511,22 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                       const instance = instanceMap.get(operation._id.toString());
                       // Ensure we're using a number, not a string
                       const hours = operation.estimatedHours !== undefined && operation.estimatedHours !== null
-                        ? (typeof operation.estimatedHours === 'number' 
-                            ? operation.estimatedHours 
-                            : parseFloat(operation.estimatedHours))
+                        ? (typeof operation.estimatedHours === 'number'
+                          ? operation.estimatedHours
+                          : parseFloat(operation.estimatedHours))
                         : 0;
-                      
+
                       // For operations with instances, calculate hours averaged by weekdays
                       let hoursInRange = 0;
                       let dueDate: Date | null = null;
                       let isDueToday = false;
-                      
+
                       if (instance) {
                         const instanceStart = normalizeToStartOfDay(instance.startDate);
                         const instanceEnd = normalizeToEndOfDay(instance.endDate);
                         const rangeStart = normalizeToStartOfDay(startDate);
                         const rangeEnd = normalizeToEndOfDay(endDate);
-                        
+
                         // Use calculateHoursForDateRange to average hours by weekdays
                         if (!isNaN(hours) && instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
                           hoursInRange = calculateHoursForDateRange(
@@ -1461,7 +1537,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                             hours
                           );
                         }
-                        
+
                         // Get due date (end date)
                         dueDate = instance.endDate;
                       } else if (operation.endDate) {
@@ -1473,7 +1549,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                           const opEnd = normalizeToEndOfDay(dueDate);
                           const rangeStart = normalizeToStartOfDay(startDate);
                           const rangeEnd = normalizeToEndOfDay(endDate);
-                          
+
                           if (opStart <= rangeEnd && opEnd >= rangeStart) {
                             hoursInRange = calculateHoursForDateRange(
                               rangeStart,
@@ -1491,7 +1567,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                         // For operations without dates, show hours if they have estimatedHours
                         hoursInRange = hours;
                       }
-                      
+
                       // Check if due date is today
                       if (dueDate) {
                         const today = new Date();
@@ -1500,7 +1576,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                         dueDateNormalized.setHours(0, 0, 0, 0);
                         isDueToday = dueDateNormalized.getTime() === today.getTime();
                       }
-                      
+
                       return (
                         <div key={`operation-${operation._id.toString()}-${idx}`} className="text-xs">
                           <div className="flex items-center justify-between">
@@ -1534,54 +1610,54 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
               // Show all projects assigned to employee, including launched ones (they may have operations)
               const projectsToShow = employeeProjects;
               if (projectsToShow.length === 0) return null;
-              
+
               return (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs font-medium text-gray-700 mb-2">Assigned Projects:</p>
                   <div className="space-y-1 max-h-[300px] overflow-y-auto">
                     {projectsToShow.map((project) => {
                       // Projects don't have dates - only tasks and operations do
-                      
+
                       // Check if employee is assigned to project or any tasks
                       // Show tasks even for launched projects if they're assigned to the employee
                       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
                       const isAssignedToProject = projectAssignedToId === employee._id.toString();
-                      const assignedTasks = project.tasks 
+                      const assignedTasks = project.tasks
                         ? project.tasks.filter(task => {
-                            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                            const taskAssignedToName = task.assignedTo;
-                            // Check both employeeId and legacy name-based assignment
-                            const isAssignedById = taskAssignedToId === employee._id.toString();
-                            const isAssignedByName = taskAssignedToName && taskAssignedToName === employee.name;
-                            return (isAssignedById || isAssignedByName) && task.status !== 'completed';
-                          })
+                          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                          const taskAssignedToName = task.assignedTo;
+                          // Check both employeeId and legacy name-based assignment
+                          const isAssignedById = taskAssignedToId === employee._id.toString();
+                          const isAssignedByName = taskAssignedToName && taskAssignedToName === employee.name;
+                          return (isAssignedById || isAssignedByName) && task.status !== 'completed';
+                        })
                         : [];
-                      
+
                       // Get operations linked to this project that are assigned to this employee
                       // Use operation instances to get correct dates for recurring operations
                       // For recurring operations, we need ALL instances that fall within the timeframe, not just one
                       const assignedOperations: Array<{ operation: IOperation; startDate: Date; endDate: Date }> = [];
                       const seenInstanceKeys = new Set<string>();
-                      
+
                       operationInstances.forEach(instance => {
                         const op = instance.operation;
                         const opAssignedToId = (op as any).assignedToEmployeeId?.toString();
                         const opAssignedToIds = (op as any).assignedToEmployeeIds;
                         const isAssignedById = opAssignedToId === employee._id.toString();
                         const isAssignedByName = op.assignedTo && op.assignedTo === employee.name;
-                        const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) && 
+                        const isAssignedByArray = opAssignedToIds && Array.isArray(opAssignedToIds) &&
                           opAssignedToIds.some((id: any) => id?.toString() === employee._id.toString());
                         const isAssignedToEmployee = isAssignedById || isAssignedByName || isAssignedByArray;
-                        
+
                         if (op.projectId?.toString() === project._id.toString() &&
-                            isAssignedToEmployee &&
-                            op.status !== 'completed') {
+                          isAssignedToEmployee &&
+                          op.status !== 'completed') {
                           // Check if this instance overlaps with the current timeframe
                           const instanceStart = normalizeToStartOfDay(instance.startDate);
                           const instanceEnd = normalizeToEndOfDay(instance.endDate);
                           const rangeStart = normalizeToStartOfDay(startDate);
                           const rangeEnd = normalizeToEndOfDay(endDate);
-                          
+
                           // Only include instances that overlap with the timeframe
                           if (instanceStart <= rangeEnd && instanceEnd >= rangeStart) {
                             // Create a unique key for this instance (operation ID + start date + end date)
@@ -1594,9 +1670,9 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                           }
                         }
                       });
-                      
+
                       const finalAssignedOperations = assignedOperations;
-                      
+
                       // Calculate task hours first
                       const taskHoursList = assignedTasks.map(task => {
                         if (!task.estimatedHours) return null;
@@ -1607,11 +1683,11 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                         const normalizedTaskEnd = normalizeToEndOfDay(taskEnd);
                         const normalizedRangeStart = normalizeToStartOfDay(startDate);
                         const normalizedRangeEnd = normalizeToEndOfDay(endDate);
-                        
+
                         // Check if task overlaps with the timeframe
                         const overlaps = normalizedTaskStart <= normalizedRangeEnd && normalizedTaskEnd >= normalizedRangeStart;
                         if (!overlaps) return null;
-                        
+
                         const hours = calculateHoursForDateRange(
                           startDate,
                           endDate,
@@ -1622,13 +1698,13 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                         // Round to 2 decimal places (0.01 precision)
                         // For tasks spanning multiple days, ensure we preserve very small daily values
                         let roundedHours = parseFloat((Math.round(hours * 100) / 100).toFixed(2));
-                        
+
                         // If roundedHours is 0 but hours is positive (very small value), use a minimum of 0.01
                         // This ensures tasks with less than 0.01h per day still show up
                         if (roundedHours === 0 && hours > 0) {
                           roundedHours = 0.01;
                         }
-                        
+
                         // Include tasks that overlap the timeframe, even if hours round to 0
                         // This ensures tasks spanning multiple months show up correctly
                         return {
@@ -1637,7 +1713,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                           dueDate: taskEnd
                         };
                       }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
-                      
+
                       // Calculate operation hours - for recurring operations, sum hours from all instances
                       const operationHoursMap = new Map<string, { name: string; hours: number; dueDate: Date | null; operationId: string }>();
                       finalAssignedOperations.forEach(instance => {
@@ -1645,7 +1721,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                         if (!op.estimatedHours) return;
                         const opId = op._id?.toString();
                         if (!opId) return; // Skip if no ID
-                        
+
                         // Use instance dates for proper calculation and display
                         const opStart = normalizeToStartOfDay(instance.startDate);
                         const opEnd = normalizeToEndOfDay(instance.endDate);
@@ -1663,21 +1739,21 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                         const normalizedRangeEnd = normalizeToEndOfDay(endDate);
                         const overlaps = normalizedOpStart <= normalizedRangeEnd && normalizedOpEnd >= normalizedRangeStart;
                         if (!overlaps) return;
-                        
+
                         // Round to 2 decimal places (0.01 precision)
                         // Use parseFloat to handle floating point precision issues
                         // For operations spanning multiple days, ensure we preserve very small daily values
                         let roundedHours = parseFloat((Math.round(hours * 100) / 100).toFixed(2));
-                        
+
                         // If roundedHours is 0 but hours is positive (very small value), use a minimum of 0.01
                         // This ensures operations with less than 0.01h per day still show up
                         if (roundedHours === 0 && hours > 0) {
                           roundedHours = 0.01;
                         }
-                        
+
                         // Use Math.max to ensure we don't have negative values, but include even very small positive values
                         const finalHours = Math.max(0, roundedHours);
-                        
+
                         // For recurring operations, accumulate hours from all instances
                         if (operationHoursMap.has(opId)) {
                           const existing = operationHoursMap.get(opId)!;
@@ -1701,21 +1777,21 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                       // Filter to only operations with hours > 0 (include all positive values, even very small ones)
                       // This ensures operations with any hours are included (including 0.01h, 0.25h, etc.)
                       const operationsWithHours = operationHoursList.filter(op => op.hours > 0);
-                      
+
                       // Calculate project hours as the sum of task hours + operation hours for this project in the timeframe
                       // Project hours should be an aggregate of operations and task hours, not remaining project hours
                       let totalProjectHours = 0;
-                      
+
                       // Sum up task hours for this project in the timeframe
                       const taskHoursSum = taskHoursList.reduce((sum, task) => sum + task.hours, 0);
-                      
+
                       // Sum up operation hours for this project in the timeframe
                       const operationHoursSum = operationsWithHours.reduce((sum, op) => sum + op.hours, 0);
-                      
+
                       // Project hours = sum of task hours + operation hours
                       totalProjectHours = taskHoursSum + operationHoursSum;
                       totalProjectHours = Math.round(totalProjectHours * 100) / 100;
-                      
+
                       // Show project if employee is assigned to it, has incomplete tasks assigned, or has operations assigned
                       // Don't show if only assigned to project but all tasks are completed
                       // Don't filter by hours - show all assigned projects regardless of hours in current timeframe
@@ -1726,14 +1802,14 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                       // 2. Employee has incomplete tasks assigned
                       // 3. Employee has operations assigned
                       const showProject = isAssignedToProject || hasIncompleteTasks || hasOperations;
-                      
+
                       if (!showProject) {
                         return null;
                       }
-                      
+
                       // Show project name if employee is assigned to project, has tasks assigned, or has operations assigned
                       const showProjectName = isAssignedToProject || assignedTasks.length > 0 || finalAssignedOperations.length > 0;
-                      
+
                       return (
                         <div key={project._id.toString()} className="space-y-1">
                           {/* Project Name and Hours */}
@@ -1752,7 +1828,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                               )}
                             </div>
                           )}
-                          
+
                           {/* Tasks */}
                           {taskHoursList.map((taskInfo, idx) => {
                             const isTaskDueToday = (() => {
@@ -1762,7 +1838,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                               dueDateNormalized.setHours(0, 0, 0, 0);
                               return dueDateNormalized.getTime() === today.getTime();
                             })();
-                            
+
                             return (
                               <div
                                 key={`task-${project._id.toString()}-${idx}`}
@@ -1781,7 +1857,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                               </div>
                             );
                           })}
-                          
+
                           {/* Operations */}
                           {operationsWithHours.map((opInfo) => {
                             if (!opInfo.dueDate) return null;
@@ -1792,7 +1868,7 @@ export default function EmployeeSidebar({ employees, projects, operations, allPr
                               dueDateNormalized.setHours(0, 0, 0, 0);
                               return dueDateNormalized.getTime() === today.getTime();
                             })();
-                            
+
                             return (
                               <div
                                 key={`operation-${project._id.toString()}-${opInfo.operationId}`}

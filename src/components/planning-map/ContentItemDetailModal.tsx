@@ -23,6 +23,7 @@ interface ContentItemDetailModalProps {
   employees: IEmployee[];
   onSaved: () => void;
   onDeleted?: () => void;
+  isInline?: boolean;
 }
 
 export default function ContentItemDetailModal({
@@ -32,6 +33,7 @@ export default function ContentItemDetailModal({
   employees,
   onSaved,
   onDeleted,
+  isInline = false,
 }: ContentItemDetailModalProps) {
   const [item, setItem] = useState<IContentItem | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +50,8 @@ export default function ContentItemDetailModal({
   const [keywords, setKeywords] = useState('');
   const [internalLinks, setInternalLinks] = useState('');
   const [externalUrl, setExternalUrl] = useState('');
+  const [estimatedHours, setEstimatedHours] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !contentItemId) {
@@ -72,6 +76,7 @@ export default function ContentItemDetailModal({
         setKeywords(Array.isArray(data.keywords) ? data.keywords.join(', ') : (data.keywords ?? ''));
         setInternalLinks(Array.isArray(data.internalLinks) ? data.internalLinks.join(', ') : (data.internalLinks ?? ''));
         setExternalUrl(data.externalUrl ?? '');
+        setEstimatedHours(data.estimatedHours?.toString() ?? '');
       })
       .catch(() => setError('Failed to load content item'))
       .finally(() => setLoading(false));
@@ -92,6 +97,7 @@ export default function ContentItemDetailModal({
         keywords: keywords.trim() ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : undefined,
         internalLinks: internalLinks.trim() ? internalLinks.split(',').map((l) => l.trim()).filter(Boolean) : undefined,
         externalUrl: externalUrl.trim() || undefined,
+        estimatedHours: estimatedHours.trim() ? Number(estimatedHours) : undefined,
       };
       if (publishDate) {
         const d = new Date(publishDate);
@@ -135,79 +141,108 @@ export default function ContentItemDetailModal({
     }
   };
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Content Item" maxWidth="md" elevated>
-      {loading ? (
-        <div className="text-text-secondary py-4">Loading...</div>
-      ) : !item ? (
-        <div className="text-text-secondary py-4">{error || 'Content not found'}</div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Title *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Channel *</label>
-            <select
-              value={channel}
-              onChange={(e) => setChannel(e.target.value as ContentChannel)}
-              className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-            >
-              {CHANNELS.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Status *</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ContentStatus)}
-              className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>{s.replace('_', ' ')}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Publish date</label>
-            <input
-              type="date"
-              value={publishDate}
-              onChange={(e) => setPublishDate(e.target.value)}
-              className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary resize-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Assignee</label>
-            <select
-              value={assignedToEmployeeId}
-              onChange={(e) => setAssignedToEmployeeId(e.target.value)}
-              className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-            >
-              <option value="">Unassigned</option>
-              {employees.map((emp) => (
-                <option key={emp._id.toString()} value={emp._id.toString()}>{emp.name}</option>
-              ))}
-            </select>
-          </div>
+  const formContent = loading ? (
+    <div className="text-text-secondary py-4">Loading...</div>
+  ) : !item ? (
+    <div className="text-text-secondary py-4">{error || 'Content not found'}</div>
+  ) : (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-1">Title *</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-1">Channel *</label>
+        <select
+          value={channel}
+          onChange={(e) => setChannel(e.target.value as ContentChannel)}
+          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+        >
+          {CHANNELS.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-1">Status *</label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as ContentStatus)}
+          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+        >
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>{s.replace('_', ' ')}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-1">Publish date</label>
+        <input
+          type="date"
+          value={publishDate}
+          onChange={(e) => setPublishDate(e.target.value)}
+          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary resize-none"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-1">Assignee</label>
+        <select
+          value={assignedToEmployeeId}
+          onChange={(e) => setAssignedToEmployeeId(e.target.value)}
+          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+        >
+          <option value="">Unassigned</option>
+          {employees.map((emp) => (
+            <option key={emp._id.toString()} value={emp._id.toString()}>{emp.name}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-1">Estimated hours</label>
+        <input
+          type="number"
+          step="0.5"
+          value={estimatedHours}
+          onChange={(e) => setEstimatedHours(e.target.value)}
+          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+        />
+      </div>
+
+      <div className="pt-2 border-t border-gray-700">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full focus:outline-none"
+        >
+          <svg
+            className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          Advanced settings
+        </button>
+      </div>
+
+      {showAdvanced && (
+        <div className="space-y-4 animate-in slide-in-from-top-2">
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1">Keywords (comma-separated)</label>
             <input
@@ -238,14 +273,28 @@ export default function ContentItemDetailModal({
               className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
             />
           </div>
-          {error && <div className="text-red-500 text-sm">{error}</div>}
-          <div className="flex gap-2 pt-2 flex-wrap">
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1 min-w-0">Close</Button>
-            <Button type="submit" disabled={saving} className="flex-1 min-w-0">{saving ? 'Saving...' : 'Save'}</Button>
-            <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1 min-w-0">{deleting ? 'Deleting...' : 'Delete'}</Button>
-          </div>
-        </form>
+        </div>
       )}
+
+      {error && <div className="text-red-500 text-sm">{error}</div>}
+      <div className="flex gap-2 pt-2 flex-wrap">
+        {!isInline && (
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1 min-w-0">Close</Button>
+        )}
+        <Button type="submit" disabled={saving} className="flex-1 min-w-0">{saving ? 'Saving...' : 'Save'}</Button>
+        <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1 min-w-0">{deleting ? 'Deleting...' : 'Delete'}</Button>
+      </div>
+    </form>
+  );
+
+  if (isInline) {
+    if (!isOpen) return null;
+    return <div className="h-full overflow-y-auto">{formContent}</div>;
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Content Item" maxWidth="md" elevated>
+      {formContent}
     </Modal>
   );
 }

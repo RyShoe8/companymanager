@@ -1,0 +1,187 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import useIsMobile from '@/lib/hooks/useIsMobile';
+import BottomSheet from '@/components/ui/BottomSheet';
+import InlineProjectView from '@/components/planning-map/InlineProjectView';
+import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
+import { IProject } from '@/lib/models/Project';
+import { IOperation } from '@/lib/models/Operation';
+import { IEmployee } from '@/lib/models/Employee';
+
+export type FocusType = 'project' | 'content' | 'task' | 'operation';
+
+interface InspectorHostProps {
+    focusId: string | null;  // e.g., 'project:123' or 'content:456'
+    onClose: () => void;
+    // context props
+    projects: IProject[];
+    operations: IOperation[];
+    employees: IEmployee[];
+    isManagerOrAdmin: boolean;
+    currentUserEmployeeId?: string;
+    onRefresh: () => void;
+}
+
+export default function InspectorHost({
+    focusId,
+    onClose,
+    projects,
+    operations,
+    employees,
+    isManagerOrAdmin,
+    currentUserEmployeeId,
+    onRefresh,
+}: InspectorHostProps) {
+    const isMobile = useIsMobile();
+    const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
+
+    const { type, id } = useMemo(() => {
+        if (!focusId) return { type: null, id: null };
+        const parts = focusId.split(':');
+        return { type: parts[0] as FocusType, id: parts[1] };
+    }, [focusId]);
+
+    const focusedProject = useMemo(() => {
+        if (type === 'project' && id) {
+            return projects.find((p) => p._id.toString() === id);
+        }
+        return null;
+    }, [type, id, projects]);
+
+    // Handle actual content rendering for the inspector
+    const renderInnerContent = () => {
+        if (type === 'project' && focusedProject) {
+            return (
+                <InlineProjectView
+                    project={focusedProject}
+                    employees={employees}
+                    isManagerOrAdmin={isManagerOrAdmin}
+                    currentUserEmployeeId={currentUserEmployeeId}
+                    onAddContent={() => { /* Wait for +Create command or trigger external state */ }}
+                    onContentItemClick={(itemId) => { /* Could navigate to content:itemId */ }}
+                    contentRefreshTrigger={contentRefreshTrigger}
+                    onUpdate={async (updates) => {
+                        if (!updates || Object.keys(updates).length === 0) return;
+                        const res = await fetch(`/api/projects/${focusedProject._id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updates),
+                        });
+                        if (!res.ok) throw new Error('Failed to save project');
+                        onRefresh();
+                    }}
+                    onDelete={async () => {
+                        const res = await fetch(`/api/projects/${focusedProject._id}`, { method: 'DELETE' });
+                        if (!res.ok) throw new Error('Failed to delete project');
+                        onRefresh();
+                        onClose();
+                    }}
+                    onClose={onClose}
+                    onRefresh={onRefresh}
+                />
+            );
+        }
+
+        if (type === 'content' && id) {
+            return (
+                <ContentItemDetailModal
+                    isOpen={true}
+                    onClose={onClose}
+                    contentItemId={id}
+                    employees={employees}
+                    onSaved={() => {
+                        onRefresh();
+                        setContentRefreshTrigger((t) => t + 1);
+                    }}
+                    onDeleted={() => {
+                        onRefresh();
+                        onClose();
+                    }}
+                    isInline={true}
+                />
+            );
+        }
+
+        if (type === 'operation' && id) {
+            // Just a placeholder since InlineOperationView isn't fully integrated here yet
+            return (
+                <div className="p-6 text-center text-gray-400">
+                    <p>Operation Editor</p>
+                    <p className="text-sm mt-2">ID: {id}</p>
+                </div>
+            );
+        }
+
+        if (type === 'task' && id) {
+            return (
+                <div className="p-6 text-center text-gray-400">
+                    <p>Task Editor</p>
+                    <p className="text-sm mt-2">ID: {id}</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="p-8 text-center text-gray-400 flex flex-col items-center justify-center h-full">
+                <svg className="w-12 h-12 mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p>Select an item to view details</p>
+            </div>
+        );
+    };
+
+    const getTitle = () => {
+        if (type === 'project') return focusedProject?.name || 'Project Details';
+        if (type === 'content') return 'Content Details';
+        if (type === 'operation') return 'Operation Details';
+        if (type === 'task') return 'Task Details';
+        return 'Details';
+    };
+
+    if (isMobile) {
+        if (!focusId) return null;
+        return (
+            <BottomSheet
+                isOpen={!!focusId}
+                onClose={onClose}
+                title={getTitle()}
+                maxHeight="90vh"
+                hideCloseButton
+            >
+                <div className="p-0 overflow-y-auto h-full pb-8">
+                    {renderInnerContent()}
+                </div>
+            </BottomSheet>
+        );
+    }
+
+    // Desktop side panel
+    if (!focusId) return null;
+
+    return (
+        <div className="w-[400px] flex-shrink-0 bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col h-[calc(100vh-64px)] overflow-hidden animate-in slide-in-from-right-8 duration-200">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm z-10">
+                <h3 className="font-semibold text-white truncate max-w-[280px]">
+                    {getTitle()}
+                </h3>
+                <button
+                    onClick={onClose}
+                    className="p-1.5 text-gray-400 hover:text-white rounded-md hover:bg-gray-800 transition-colors"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div className="flex-1 overflow-y-auto relative">
+                {type === 'project' && focusedProject ? (
+                    <div className="p-4">{renderInnerContent()}</div>
+                ) : (
+                    renderInnerContent()
+                )}
+            </div>
+        </div>
+    );
+}

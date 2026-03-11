@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const body = await request.json();
-    const { projectId, title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl } = body;
+    const { projectId, title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl, estimatedHours } = body;
 
     if (!projectId || !title || !channel) {
       return NextResponse.json({ error: 'projectId, title, and channel are required' }, { status: 400 });
@@ -154,6 +154,12 @@ export async function POST(request: NextRequest) {
     }
     if (externalUrl !== undefined && externalUrl !== '') {
       doc.externalUrl = String(externalUrl).trim();
+    }
+    if (estimatedHours !== undefined && estimatedHours !== null && estimatedHours !== '') {
+      const parsedHours = Number(estimatedHours);
+      if (!isNaN(parsedHours) && parsedHours >= 0) {
+        doc.estimatedHours = parsedHours;
+      }
     }
 
     const item = await ContentItem.create(doc);

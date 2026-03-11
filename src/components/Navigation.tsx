@@ -67,11 +67,11 @@ export default function Navigation() {
 
   const userInitials = user?.name
     ? user.name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
     : user?.email?.[0]?.toUpperCase() || 'U';
 
   const dropdownItems = [
@@ -95,17 +95,17 @@ export default function Navigation() {
     },
     ...(user?.isAdmin
       ? [
-          {
-            label: 'Admin',
-            onClick: () => router.push('/admin'),
-            icon: (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            ),
-          },
-        ]
+        {
+          label: 'Admin',
+          onClick: () => router.push('/admin'),
+          icon: (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          ),
+        },
+      ]
       : []),
     {
       label: 'Logout',
@@ -119,9 +119,7 @@ export default function Navigation() {
   ];
 
   const navLinks = [
-    { href: '/plan', label: 'Plan' },
-    { href: '/build', label: 'Build' },
-    { href: '/run', label: 'Run' },
+    { href: '/workspace', label: 'Workspace' },
     { href: '/assets', label: 'Assets' },
     { href: '/employees', label: 'Team' },
   ];
@@ -133,7 +131,7 @@ export default function Navigation() {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center">
-              <Link href="/plan" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/workspace" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
                 <Image
                   src="/images/icon.png"
                   alt="Nucleas Logo"
@@ -155,11 +153,10 @@ export default function Navigation() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
-                    pathname === link.href || pathname?.startsWith(link.href + '/')
-                      ? 'border-blue-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
+                    ? 'border-blue-500 text-gray-900'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                 >
                   {link.label}
                 </Link>
@@ -282,11 +279,10 @@ export default function Navigation() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                    pathname === link.href || pathname?.startsWith(link.href + '/')
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
+                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
+                    ? 'bg-gray-100 text-gray-900'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
                 >
                   {link.label}
                 </Link>

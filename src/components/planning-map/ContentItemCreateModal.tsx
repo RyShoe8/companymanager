@@ -43,8 +43,10 @@ export default function ContentItemCreateModal({
   const [keywords, setKeywords] = useState('');
   const [internalLinks, setInternalLinks] = useState('');
   const [externalUrl, setExternalUrl] = useState('');
+  const [estimatedHours, setEstimatedHours] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +68,7 @@ export default function ContentItemCreateModal({
         keywords: keywords.trim() ? keywords.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
         internalLinks: internalLinks.trim() ? internalLinks.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
         externalUrl: externalUrl.trim() || undefined,
+        estimatedHours: estimatedHours.trim() ? Number(estimatedHours) : undefined,
       };
       if (publishDate) {
         const d = new Date(publishDate);
@@ -91,6 +94,8 @@ export default function ContentItemCreateModal({
       setKeywords('');
       setInternalLinks('');
       setExternalUrl('');
+      setEstimatedHours('');
+      setShowAdvanced(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create content');
     } finally {
@@ -112,7 +117,7 @@ export default function ContentItemCreateModal({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Content title"
             className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary focus:ring-2 focus:ring-blue-500"
- autoFocus
+            autoFocus
           />
         </div>
         <div>
@@ -172,35 +177,68 @@ export default function ContentItemCreateModal({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Target keywords (comma-separated)</label>
+          <label className="block text-sm font-medium text-text-primary mb-1">Estimated hours</label>
           <input
-            type="text"
-            value={keywords}
-            onChange={(e) => setKeywords(e.target.value)}
-            placeholder="e.g. keyword1, keyword2"
+            type="number"
+            step="0.5"
+            value={estimatedHours}
+            onChange={(e) => setEstimatedHours(e.target.value)}
             className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Internal links (comma-separated URLs or slugs)</label>
-          <input
-            type="text"
-            value={internalLinks}
-            onChange={(e) => setInternalLinks(e.target.value)}
-            placeholder="e.g. /page1, https://..."
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-          />
+
+        <div className="pt-2 border-t border-gray-700">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full focus:outline-none"
+          >
+            <svg
+              className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            Advanced settings
+          </button>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">External link (OneUp, Google Doc, CMS draft, etc.)</label>
-          <input
-            type="url"
-            value={externalUrl}
-            onChange={(e) => setExternalUrl(e.target.value)}
-            placeholder="https://..."
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-          />
-        </div>
+
+        {showAdvanced && (
+          <div className="space-y-4 animate-in slide-in-from-top-2">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Target keywords (comma-separated)</label>
+              <input
+                type="text"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                placeholder="e.g. keyword1, keyword2"
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Internal links (comma-separated URLs or slugs)</label>
+              <input
+                type="text"
+                value={internalLinks}
+                onChange={(e) => setInternalLinks(e.target.value)}
+                placeholder="e.g. /page1, https://..."
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">External link (OneUp, Google Doc, etc.)</label>
+              <input
+                type="url"
+                value={externalUrl}
+                onChange={(e) => setExternalUrl(e.target.value)}
+                placeholder="https://..."
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+              />
+            </div>
+          </div>
+        )}
         {error && <div className="text-red-500 text-sm">{error}</div>}
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
