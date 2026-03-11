@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { IProject, ProjectStatus, ProjectType, TaskStatus, IProjectTask } from '@/lib/models/Project';
+import { IProject, ProjectStatus, ProjectType, ProjectCategory, TaskStatus, IProjectTask } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -29,7 +29,8 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
         ? [project.url]
         : []
   );
-  const [projectType, setProjectType] = useState<ProjectType>(project?.projectType || 'generic');
+  const [projectType, setProjectType] = useState<ProjectType>(project?.projectType || 'client');
+  const [category, setCategory] = useState<ProjectCategory>(project?.category || 'generic');
   const [color, setColor] = useState(project?.color || '#3b82f6');
   const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planning');
   const [endDate, setEndDate] = useState(
@@ -170,6 +171,7 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
       description,
       urls: urls.filter(url => url.trim() !== ''),
       projectType,
+      category,
       color,
       status,
       endDate: endDate ? new Date(endDate) : undefined,
@@ -230,7 +232,7 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
       {/* Project Type - Required at creation */}
       <div>
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-          Project Type {!project && <span className="text-red-500">*</span>}
+          Project Category
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
@@ -242,9 +244,9 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
             <button
               key={option.value}
               type="button"
-              onClick={() => !isRegularUser && setProjectType(option.value as ProjectType)}
+              onClick={() => !isRegularUser && setCategory(option.value as ProjectCategory)}
               disabled={isRegularUser}
-              className={`p-3 rounded-lg border-2 transition-all text-center ${projectType === option.value
+              className={`p-3 rounded-lg border-2 transition-all text-center ${category === option.value
                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
                 : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                 } ${isRegularUser ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}

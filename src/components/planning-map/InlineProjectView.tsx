@@ -310,7 +310,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       <ChecklistSection
         projectId={localProject._id.toString()}
         phase={mapStatusToStage(localProject.status)}
-        projectType={localProject.projectType || 'generic'}
+        projectType={localProject.category || 'generic'}
         actionButtons={actionButtons}
         dismissedChecklistIds={localDismissedChecklistIds ?? (localProject.dismissedChecklistIds || []).map((id) => id.toString())}
         isManagerOrAdmin={isManagerOrAdmin}
