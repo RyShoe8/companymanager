@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     const linkedProjectId = searchParams.get('linkedProjectId');
     const linkedProjectTaskIndex = searchParams.get('linkedProjectTaskIndex');
     const linkedProjectTaskId = searchParams.get('linkedProjectTaskId');
-    const linkedOperationId = searchParams.get('linkedOperationId');
 
     const query: any = { userId: { $in: orgUserIds } };
     if (type) {
@@ -43,9 +42,6 @@ export async function GET(request: NextRequest) {
       query.linkedProjectTaskId = linkedProjectTaskId;
     } else if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined) {
       query.linkedProjectTaskIndex = parseInt(linkedProjectTaskIndex);
-    }
-    if (linkedOperationId) {
-      query.linkedOperationId = linkedOperationId;
     }
 
     const assets = await Asset.find(query).sort({ createdAt: -1 }).lean();
@@ -63,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedOperationId, clientAccessible } = body;
+    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, clientAccessible } = body;
 
     if (!name || !type) {
       return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
@@ -82,7 +78,6 @@ export async function POST(request: NextRequest) {
       category,
       tags: tags || [],
       linkedProjectId,
-      linkedOperationId,
       clientAccessible: clientAccessible === true,
       userId: session.userId,
     };

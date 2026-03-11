@@ -154,7 +154,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Now using employeeId, so we can precisely update only THIS employee's assignments
     if (newName && newName !== oldName) {
       const Project = (await import('@/lib/models/Project')).default;
-      const Operation = (await import('@/lib/models/Operation')).default;
       const employeeId = employee._id;
 
       // Update project assignments using employeeId (precise - only this employee)
@@ -170,16 +169,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         { arrayFilters: [{ 'task.assignedToEmployeeId': employeeId }] }
       );
 
-      // Update operation assignments using employeeId (precise - only this employee)
-      await Operation.updateMany(
-        { assignedToEmployeeId: employeeId },
-        { $set: { assignedTo: newName } }
-      );
-      
+
       // Also update legacy name-based assignments for backward compatibility
       // Get all user IDs in the organization to filter properly
       const orgUserIds = await (await import('@/lib/utils/apiHelpers')).getOrganizationUserIds(session.userId, user.organizationId);
-      
+
       // Update legacy project assignments - only for projects in the organization
       await Project.updateMany(
         { userId: { $in: orgUserIds }, assignedTo: oldName, assignedToEmployeeId: { $exists: false } },
@@ -193,11 +187,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         { arrayFilters: [{ 'task.assignedTo': oldName }] }
       );
 
-      // Update legacy operation assignments - only for operations in the organization
-      await Operation.updateMany(
-        { userId: { $in: orgUserIds }, assignedTo: oldName, assignedToEmployeeId: { $exists: false } },
-        { $set: { assignedTo: newName } }
-      );
     }
 
     return NextResponse.json(employee);
@@ -277,7 +266,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Clean up assignments in projects and operations using employeeId
     const Project = (await import('@/lib/models/Project')).default;
-    const Operation = (await import('@/lib/models/Operation')).default;
     const employeeId = id;
 
     // Remove employee assignments from projects using employeeId
@@ -293,12 +281,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       { arrayFilters: [{ 'task.assignedToEmployeeId': employeeId }] }
     );
 
-    // Remove employee assignments from operations using employeeId
-    await Operation.updateMany(
-      { assignedToEmployeeId: employeeId },
-      { $unset: { assignedToEmployeeId: '', assignedTo: '' } }
-    );
-    
+
     // Also clean up legacy name-based assignments for backward compatibility
     await Project.updateMany(
       { userId: session.userId, assignedTo: employeeName },
@@ -311,10 +294,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       { arrayFilters: [{ 'task.assignedTo': employeeName }] }
     );
 
-    await Operation.updateMany(
-      { userId: session.userId, assignedTo: employeeName },
-      { $unset: { assignedTo: '' } }
-    );
 
     return NextResponse.json({ message: 'Employee deleted successfully' });
   } catch (error) {

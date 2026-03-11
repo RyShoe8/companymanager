@@ -9,17 +9,15 @@ import Button from '@/components/ui/Button';
 interface AssetFormProps {
   asset?: IAsset;
   projects?: Array<{ _id: string; name: string }>;
-  operations?: Array<{ _id: string; name: string }>;
   linkedProjectId?: string;
   linkedProjectTaskIndex?: number;
   /** Stable task reference (prefer over linkedProjectTaskIndex). */
   linkedProjectTaskId?: string;
-  linkedOperationId?: string;
-  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string; file?: File }) => void;
+  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId'> & { linkedProjectId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string; file?: File }) => void;
   onCancel: () => void;
 }
 
-export default function AssetForm({ asset, projects = [], operations = [], linkedProjectId: initialLinkedProjectId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedProjectTaskId: initialLinkedProjectTaskId, linkedOperationId: initialLinkedOperationId, onSubmit, onCancel }: AssetFormProps) {
+export default function AssetForm({ asset, projects = [], linkedProjectId: initialLinkedProjectId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedProjectTaskId: initialLinkedProjectTaskId, onSubmit, onCancel }: AssetFormProps) {
   const [name, setName] = useState(asset?.name || '');
   const [type, setType] = useState<AssetType>(asset?.type || 'link');
   const [url, setUrl] = useState(asset?.url || '');
@@ -31,7 +29,6 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
   const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || initialLinkedProjectId || '');
   const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() ?? asset?.linkedProjectTaskId ? '' : initialLinkedProjectTaskIndex?.toString() || '');
   const [linkedProjectTaskId, setLinkedProjectTaskId] = useState(asset?.linkedProjectTaskId?.toString() || initialLinkedProjectTaskId || '');
-  const [linkedOperationId, setLinkedOperationId] = useState(asset?.linkedOperationId?.toString() || initialLinkedOperationId || '');
   const [clientAccessible, setClientAccessible] = useState(asset?.clientAccessible ?? false);
   const [selectedProjectTasks, setSelectedProjectTasks] = useState<Array<{ index: number; id?: string; name: string }>>([]);
 
@@ -85,7 +82,7 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const tagArray = tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
-    
+
     const submitData: any = {
       name,
       type,
@@ -95,7 +92,6 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
       linkedProjectId: linkedProjectId || undefined,
       linkedProjectTaskId: linkedProjectTaskId || undefined,
       linkedProjectTaskIndex: linkedProjectTaskIndex ? parseInt(linkedProjectTaskIndex) : undefined,
-      linkedOperationId: linkedOperationId || undefined,
       clientAccessible: linkedProjectId ? clientAccessible : undefined,
     };
 
@@ -131,10 +127,6 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
     ...projects.map((p) => ({ value: p._id.toString(), label: p.name })),
   ];
 
-  const operationOptions = [
-    { value: '', label: 'None' },
-    ...operations.map((o) => ({ value: o._id.toString(), label: o.name })),
-  ];
 
   const showUrlInput = type !== 'file' && type !== 'text';
   const showFileInput = type === 'file';
@@ -155,7 +147,7 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
         options={typeOptions}
         required
       />
-      
+
       {showUrlInput && (
         <Input
           label="URL (optional)"
@@ -252,12 +244,6 @@ export default function AssetForm({ asset, projects = [], operations = [], linke
             ]}
           />
         )}
-        <Select
-          label="Linked Operation (optional)"
-          value={linkedOperationId}
-          onChange={(e) => setLinkedOperationId(e.target.value)}
-          options={operationOptions}
-        />
       </div>
       {linkedProjectId && (
         <label className="flex items-center gap-2 cursor-pointer">

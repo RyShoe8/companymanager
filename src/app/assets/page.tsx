@@ -16,7 +16,6 @@ function AssetsPageContent() {
   const [assets, setAssets] = useState<IAsset[]>([]);
   const [filteredAssets, setFilteredAssets] = useState<IAsset[]>([]);
   const [projects, setProjects] = useState<Array<{ _id: string; name: string }>>([]);
-  const [operations, setOperations] = useState<Array<{ _id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -24,7 +23,6 @@ function AssetsPageContent() {
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
   const [taskIndexFilter, setTaskIndexFilter] = useState<number | null>(null);
   const [taskIdFilter, setTaskIdFilter] = useState<string | null>(null);
-  const [operationFilter, setOperationFilter] = useState<string | null>(null);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<IAsset | undefined>();
 
@@ -33,7 +31,6 @@ function AssetsPageContent() {
     const projectId = searchParams?.get('projectId');
     const taskIndex = searchParams?.get('taskIndex');
     const taskId = searchParams?.get('taskId');
-    const operationId = searchParams?.get('operationId');
     if (projectId) {
       setProjectFilter(projectId);
     }
@@ -47,37 +44,31 @@ function AssetsPageContent() {
       setTaskIndexFilter(null);
       setTaskIdFilter(null);
     }
-    if (operationId) {
-      setOperationFilter(operationId);
-    }
     loadData();
   }, [searchParams]);
 
   useEffect(() => {
     filterAssets();
-  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, taskIndexFilter, taskIdFilter, operationFilter]);
+  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, taskIndexFilter, taskIdFilter]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [assetsRes, projectsRes, operationsRes] = await Promise.all([
+      const [assetsRes, projectsRes] = await Promise.all([
         fetch('/api/assets'),
         fetch('/api/projects'),
-        fetch('/api/operations'),
       ]);
 
-      if (assetsRes.status === 401 || projectsRes.status === 401 || operationsRes.status === 401) {
+      if (assetsRes.status === 401 || projectsRes.status === 401) {
         router.push('/login');
         return;
       }
 
       const assetsData = await assetsRes.json();
       const projectsData = await projectsRes.json();
-      const operationsData = await operationsRes.json();
 
       setAssets(assetsData);
       setProjects(projectsData);
-      setOperations(operationsData);
     } catch (error) {
       // Error loading data
     } finally {
@@ -93,7 +84,7 @@ function AssetsPageContent() {
       filtered = filtered.filter((asset) => {
         const linkedProjectId = asset.linkedProjectId?.toString();
         if (linkedProjectId !== projectFilter) return false;
-        
+
         // If taskIdFilter is set, filter by stable task ID
         if (taskIdFilter) {
           return asset.linkedProjectTaskId?.toString() === taskIdFilter;
@@ -102,18 +93,11 @@ function AssetsPageContent() {
         if (taskIndexFilter !== null) {
           return asset.linkedProjectTaskIndex === taskIndexFilter;
         }
-        
+
         return true;
       });
     }
 
-    // Apply operation filter
-    if (operationFilter) {
-      filtered = filtered.filter((asset) => {
-        const linkedOperationId = asset.linkedOperationId?.toString();
-        return linkedOperationId === operationFilter;
-      });
-    }
 
     // Apply search
     if (searchQuery) {
@@ -160,7 +144,7 @@ function AssetsPageContent() {
     }
   };
 
-  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedOperationId'> & { linkedProjectId?: string; linkedOperationId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string }) => {
+  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId'> & { linkedProjectId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string }) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';
@@ -213,7 +197,6 @@ function AssetsPageContent() {
               setProjectFilter(null);
               setTaskIndexFilter(null);
               setTaskIdFilter(null);
-              setOperationFilter(null);
               router.push('/assets');
             }}
             categories={categories}
@@ -252,7 +235,6 @@ function AssetsPageContent() {
           <AssetForm
             asset={editingAsset}
             projects={projects}
-            operations={operations}
             onSubmit={handleSubmitAsset}
             onCancel={() => {
               setShowAssetForm(false);

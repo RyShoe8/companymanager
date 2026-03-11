@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedOperationId, clientAccessible } = body;
+    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, clientAccessible } = body;
 
     await connectDB();
     const { id } = await params;
@@ -59,9 +59,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Validate linked IDs if provided
     if (linkedProjectId && !isValidObjectId(linkedProjectId)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
-    if (linkedOperationId && !isValidObjectId(linkedOperationId)) {
-      return NextResponse.json({ error: 'Invalid operation ID' }, { status: 400 });
     }
     if (linkedProjectTaskId && !isValidObjectId(linkedProjectTaskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
@@ -120,7 +117,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       asset.linkedProjectTaskId = undefined;
       asset.linkedProjectTaskIndex = undefined;
     }
-    if (linkedOperationId !== undefined) asset.linkedOperationId = linkedOperationId;
     if (clientAccessible !== undefined) asset.clientAccessible = !!clientAccessible;
 
     await asset.save();

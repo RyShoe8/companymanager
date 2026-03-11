@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     const linkedProjectId = formData.get('linkedProjectId') as string | null;
     const linkedProjectTaskIndex = formData.get('linkedProjectTaskIndex') as string | null;
     const linkedProjectTaskId = formData.get('linkedProjectTaskId') as string | null;
-    const linkedOperationId = formData.get('linkedOperationId') as string | null;
 
     if (!file || !name) {
       return NextResponse.json({ error: 'File and name are required' }, { status: 400 });
@@ -46,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
     description = description ? sanitizeString(description, 2000) : null;
     category = category ? sanitizeString(category, 100) : null;
-    
+
     // Parse tags
     let tagArray: string[] = [];
     if (tags) {
@@ -56,9 +55,6 @@ export async function POST(request: NextRequest) {
     // Validate ObjectIds if provided
     if (linkedProjectId && !isValidObjectId(linkedProjectId)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
-    if (linkedOperationId && !isValidObjectId(linkedOperationId)) {
-      return NextResponse.json({ error: 'Invalid operation ID' }, { status: 400 });
     }
 
     // Prefer stable taskId; fall back to task index for legacy
@@ -79,27 +75,27 @@ export async function POST(request: NextRequest) {
     // Process image files (screenshots) with compression
     let fileUrl: string;
     let finalType = assetType || 'file';
-    
+
     const isImage = file.type.startsWith('image/');
     if (isImage && sharp) {
       try {
         // Compress and convert to WebP
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
-        
+
         // Use sharp with proper error handling
         const sharpInstance = sharp(buffer);
         const compressedBuffer = await sharpInstance
           .webp({ quality: 80, effort: 4 }) // Good balance between quality and file size
-          .resize(1920, 1920, { 
-            fit: 'inside', 
-            withoutEnlargement: true 
+          .resize(1920, 1920, {
+            fit: 'inside',
+            withoutEnlargement: true
           }) // Max dimensions, maintain aspect ratio
           .toBuffer();
-        
+
         const base64 = compressedBuffer.toString('base64');
         fileUrl = `data:image/webp;base64,${base64}`;
-        
+
         if (assetType === 'screenshot' || !assetType) {
           finalType = 'screenshot';
         }
@@ -137,9 +133,6 @@ export async function POST(request: NextRequest) {
     }
     if (taskIndex !== undefined) {
       assetData.linkedProjectTaskIndex = taskIndex;
-    }
-    if (linkedOperationId) {
-      assetData.linkedOperationId = linkedOperationId;
     }
 
     const asset = await Asset.create(assetData);

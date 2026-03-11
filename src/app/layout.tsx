@@ -23,8 +23,8 @@ export const metadata: Metadata = {
     default: "Nucleas - Plan, Build and Manage Your Company",
     template: "%s | Nucleas",
   },
-  description: "Plan and manage company work and assets. Visual planning map, project management, operations tracking, asset repository, and team management.",
-  keywords: ["project management", "planning map", "team collaboration", "asset management", "operations tracking", "company planning"],
+  description: "Plan and manage company work and assets. Visual planning map, project management, asset repository, and team management.",
+  keywords: ["project management", "planning map", "team collaboration", "asset management", "company planning"],
   authors: [{ name: "Nucleas" }],
   creator: "Nucleas",
   publisher: "Nucleas",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     url: 'https://nucleas.app',
     siteName: 'Nucleas',
     title: "Nucleas - Plan, Build and Manage Your Company",
-    description: "Plan, build and manage your company. Visual planning map, project management, operations tracking, asset repository, and team management.",
+    description: "Plan, build and manage your company. Visual planning map, project management, asset repository, and team management.",
     images: [
       {
         url: '/images/Nucleas.png',
@@ -63,7 +63,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: "Nucleas - Plan, Build and Manage Your Company",
-    description: "Plan, build and manage your company. Visual planning map, project management, operations tracking, asset repository, and team management.",
+    description: "Plan, build and manage your company. Visual planning map, project management, asset repository, and team management.",
     images: ['/images/Nucleas.png'],
   },
   robots: {

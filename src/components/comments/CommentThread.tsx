@@ -7,7 +7,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 
 interface CommentThreadProps {
-  entityType: 'project' | 'projectTask' | 'operation';
+  entityType: 'project' | 'projectTask';
   entityId: string;
   taskIndex?: number;
   /** Stable task reference (prefer over taskIndex). */
@@ -37,7 +37,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
       fetch('/api/auth/me')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => data?.id && setFetchedUserId(data.id))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [currentUserIdProp]);
 
@@ -80,8 +80,6 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
         } else if (taskIndex !== undefined) {
           url += `&linkedProjectTaskIndex=${taskIndex}`;
         }
-      } else if (entityType === 'operation') {
-        url += `&linkedOperationId=${entityId}`;
       }
 
       const response = await fetch(url);
@@ -115,7 +113,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
         formData.append('file', file);
         formData.append('name', file.name.replace(/\.[^/.]+$/, '') || 'Screenshot');
         formData.append('type', 'screenshot');
-        
+
         if (entityType === 'project') {
           formData.append('linkedProjectId', entityId);
           if (taskId) {
@@ -123,8 +121,6 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
           } else if (taskIndex !== undefined) {
             formData.append('linkedProjectTaskIndex', taskIndex.toString());
           }
-        } else if (entityType === 'operation') {
-          formData.append('linkedOperationId', entityId);
         }
 
         const response = await fetch('/api/assets/upload', {
@@ -353,8 +349,8 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
                   }
                 }}
               />
-              <Button 
-                type="button" 
+              <Button
+                type="button"
                 size="sm"
                 onClick={(e) => handleSubmitComment(e as any, comment._id.toString())}
                 className="h-[38px] min-h-0"
@@ -428,16 +424,16 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
               }
             }}
           />
-          <Button 
-            type="button" 
+          <Button
+            type="button"
             size="sm"
             onClick={(e) => handleSubmitComment(e as any)}
             className="h-[38px] min-h-0"
           >
             Post
           </Button>
-          <Button 
-            type="button" 
+          <Button
+            type="button"
             variant="secondary"
             size="sm"
             onClick={handleAddScreenshot}

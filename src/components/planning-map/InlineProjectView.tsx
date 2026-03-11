@@ -138,7 +138,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
-  // Fetch operations removed
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => { const newSet = new Set(prev); newSet.has(section) ? newSet.delete(section) : newSet.add(section); return newSet; });

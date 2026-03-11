@@ -5,8 +5,8 @@ export interface IComment extends Document {
   authorId: Types.ObjectId;
   authorName: string;
   parentId?: Types.ObjectId; // For threading - references another comment
-  entityType: 'project' | 'projectTask' | 'operation';
-  entityId: Types.ObjectId; // ID of the project, task, or operation
+  entityType: 'project' | 'projectTask';
+  entityId: Types.ObjectId; // ID of the project or task
   /** @deprecated Use taskId for projectTask comments. */
   taskIndex?: number;
   /** Stable reference to project task (for entityType 'projectTask'). */
@@ -38,7 +38,7 @@ const CommentSchema: Schema = new Schema(
     },
     entityType: {
       type: String,
-      enum: ['project', 'projectTask', 'operation'],
+      enum: ['project', 'projectTask'],
       required: true,
     },
     entityId: {
