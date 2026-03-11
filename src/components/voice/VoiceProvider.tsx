@@ -71,6 +71,8 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
     const [pendingActionDescription, setPendingActionDescription] = useState<string | null>(null);
     const recognitionRef = useRef<any>(null);
     const pendingIntentRef = useRef<ParsedIntent | null>(null);
+    const accumulatedTranscriptRef = useRef<string>('');
+    const endOfUtteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const clearMessages = useCallback(() => {
         // Auto-clear messages after delay
@@ -135,20 +137,46 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         [onIntent, clearMessages]
     );
 
+    const flushAndProcess = useCallback(() => {
+        if (endOfUtteranceTimerRef.current) {
+            clearTimeout(endOfUtteranceTimerRef.current);
+            endOfUtteranceTimerRef.current = null;
+        }
+        const text = accumulatedTranscriptRef.current.trim();
+        accumulatedTranscriptRef.current = '';
+        if (recognitionRef.current) {
+            try {
+                recognitionRef.current.stop();
+            } catch (_) {}
+            recognitionRef.current = null;
+        }
+        setTranscript('');
+        if (text) {
+            processTranscript(text);
+        } else {
+            setState('idle');
+        }
+    }, [processTranscript]);
+
     const startListening = useCallback(() => {
         if (!enabled) return;
         setError(null);
         setResultMessage(null);
         setTranscript('');
+        accumulatedTranscriptRef.current = '';
+        if (endOfUtteranceTimerRef.current) {
+            clearTimeout(endOfUtteranceTimerRef.current);
+            endOfUtteranceTimerRef.current = null;
+        }
 
         if (isWebSpeechAvailable()) {
-            // Use Web Speech API
             const SpeechRecognition =
                 (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
             const recognition = new SpeechRecognition();
-            recognition.continuous = false;
+            recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = 'en-US';
+            const endOfUtteranceMs = getVoiceConfig().endOfUtteranceMs ?? 1400;
 
             recognition.onstart = () => {
                 setState('listening');
@@ -156,36 +184,46 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
 
             recognition.onresult = (event: any) => {
                 let interimTranscript = '';
-                let isFinal = false;
 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const result = event.results[i];
+                    const text = result[0].transcript;
                     if (result.isFinal) {
-                        isFinal = true;
-                        // For the final result, we'll process it and stop listening
-                        const text = result[0].transcript;
-                        setTranscript(text);
-                        setTimeout(() => {
-                            stopListening();
-                            processTranscript(text);
-                        }, 50);
+                        accumulatedTranscriptRef.current =
+                            (accumulatedTranscriptRef.current + ' ' + text).trim();
+                        setTranscript(accumulatedTranscriptRef.current);
+                        if (endOfUtteranceTimerRef.current) {
+                            clearTimeout(endOfUtteranceTimerRef.current);
+                        }
+                        endOfUtteranceTimerRef.current = setTimeout(flushAndProcess, endOfUtteranceMs);
                     } else {
-                        interimTranscript += result[0].transcript;
+                        interimTranscript += text;
                     }
                 }
 
-                if (!isFinal) {
-                    setTranscript(interimTranscript);
+                if (interimTranscript) {
+                    setTranscript(
+                        (accumulatedTranscriptRef.current + ' ' + interimTranscript).trim()
+                    );
                 }
             };
 
             recognition.onerror = (event: any) => {
+                if (endOfUtteranceTimerRef.current) {
+                    clearTimeout(endOfUtteranceTimerRef.current);
+                    endOfUtteranceTimerRef.current = null;
+                }
+                accumulatedTranscriptRef.current = '';
                 setError(`Voice error: ${event.error}`);
                 setState('idle');
                 clearMessages();
             };
 
             recognition.onend = () => {
+                if (endOfUtteranceTimerRef.current) {
+                    clearTimeout(endOfUtteranceTimerRef.current);
+                    endOfUtteranceTimerRef.current = null;
+                }
                 if (state === 'listening') {
                     setState('idle');
                 }
@@ -194,20 +232,27 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
             recognitionRef.current = recognition;
             recognition.start();
         } else {
-            // Fallback: would record audio and send to server STT endpoint
             setError('Web Speech API not available. Server STT fallback not yet configured.');
             clearMessages();
         }
-    }, [enabled, processTranscript, state, clearMessages]);
+    }, [enabled, flushAndProcess, state, clearMessages]);
 
     const stopListening = useCallback(() => {
+        if (endOfUtteranceTimerRef.current) {
+            clearTimeout(endOfUtteranceTimerRef.current);
+            endOfUtteranceTimerRef.current = null;
+        }
+        accumulatedTranscriptRef.current = '';
         if (recognitionRef.current) {
-            recognitionRef.current.stop();
+            try {
+                recognitionRef.current.stop();
+            } catch (_) {}
             recognitionRef.current = null;
         }
         if (state === 'listening') {
             setState('idle');
         }
+        setTranscript('');
     }, [state]);
 
     const confirmAction = useCallback(() => {

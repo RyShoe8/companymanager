@@ -13,6 +13,8 @@ export interface VoiceConfig {
     maxRecordingDuration: number;
     /** Server STT endpoint (for hybrid/server mode) */
     serverSttEndpoint: string;
+    /** Ms of silence after last final segment before finalizing (continuous recognition). */
+    endOfUtteranceMs: number;
 }
 
 export function getVoiceConfig(): VoiceConfig {
@@ -22,6 +24,7 @@ export function getVoiceConfig(): VoiceConfig {
         storeTranscripts: false,
         maxRecordingDuration: 30,
         serverSttEndpoint: '/api/voice/stt',
+        endOfUtteranceMs: 1400,
     };
 }
 

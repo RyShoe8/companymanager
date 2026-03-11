@@ -187,11 +187,23 @@ export default function WorkspaceShell({
 
             console.log('[Voice] Matching task:', { searchName, searchContext });
 
+            const searchWords = searchName.split(/\s+/).filter(Boolean);
+            const wordOverlapScore = (tName: string) => {
+                const taskWords = new Set(tName.split(/\s+/).filter(Boolean));
+                let shared = 0;
+                for (const w of searchWords) {
+                    if (taskWords.has(w)) shared++;
+                }
+                return searchWords.length > 0 ? (shared / searchWords.length) * 50 : 0;
+            };
+
             let bestMatch: { project: IProject, taskIdx: number, score: number } | null = null;
 
             for (const p of ws.allProjects) {
                 const pName = normalize(p.name);
-                const isProjectContextMatched = searchContext ? (pName.includes(searchContext) || searchContext.includes(pName)) : false;
+                const isProjectContextMatched = searchContext
+                    ? (pName.includes(searchContext) || searchContext.includes(pName) || (searchContext.length <= 2 && pName.startsWith(searchContext)))
+                    : false;
                 const isProjectMentionedInName = searchName.includes(pName);
 
                 p.tasks?.forEach((t, idx) => {
@@ -213,6 +225,25 @@ export default function WorkspaceShell({
                         bestMatch = { project: p, taskIdx: idx, score };
                     }
                 });
+            }
+
+            if (!bestMatch && searchWords.length > 0) {
+                const WORD_OVERLAP_THRESHOLD = 25;
+                for (const p of ws.allProjects) {
+                    const pName = normalize(p.name);
+                    const contextMatch = searchContext
+                        ? (pName.includes(searchContext) || searchContext.includes(pName) || (searchContext.length <= 2 && pName.startsWith(searchContext)))
+                        : true;
+                    if (!contextMatch) continue;
+                    p.tasks?.forEach((t, idx) => {
+                        if (t.status === 'completed') return;
+                        const tName = normalize(t.name);
+                        const overlap = wordOverlapScore(tName);
+                        if (overlap >= WORD_OVERLAP_THRESHOLD && (!bestMatch || overlap > bestMatch.score)) {
+                            bestMatch = { project: p, taskIdx: idx, score: overlap };
+                        }
+                    });
+                }
             }
 
             if (bestMatch) {
