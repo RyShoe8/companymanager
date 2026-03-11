@@ -73,6 +73,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
     const pendingIntentRef = useRef<ParsedIntent | null>(null);
     const accumulatedTranscriptRef = useRef<string>('');
     const endOfUtteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastFinalSegmentRef = useRef<string>('');
 
     const clearMessages = useCallback(() => {
         // Auto-clear messages after delay
@@ -144,6 +145,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         }
         const text = accumulatedTranscriptRef.current.trim();
         accumulatedTranscriptRef.current = '';
+        lastFinalSegmentRef.current = '';
         if (recognitionRef.current) {
             try {
                 recognitionRef.current.stop();
@@ -164,6 +166,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         setResultMessage(null);
         setTranscript('');
         accumulatedTranscriptRef.current = '';
+        lastFinalSegmentRef.current = '';
         if (endOfUtteranceTimerRef.current) {
             clearTimeout(endOfUtteranceTimerRef.current);
             endOfUtteranceTimerRef.current = null;
@@ -189,6 +192,12 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
                     const result = event.results[i];
                     const text = result[0].transcript;
                     if (result.isFinal) {
+                        const trimmed = text.trim();
+                        if (trimmed && trimmed === lastFinalSegmentRef.current) {
+                            // Duplicate final segment (common on mobile): skip append and timer reset so we can finalize
+                            continue;
+                        }
+                        lastFinalSegmentRef.current = trimmed;
                         accumulatedTranscriptRef.current =
                             (accumulatedTranscriptRef.current + ' ' + text).trim();
                         setTranscript(accumulatedTranscriptRef.current);

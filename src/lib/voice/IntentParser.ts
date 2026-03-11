@@ -182,16 +182,19 @@ const rules: PatternRule[] = [
     {
         type: 'COMPLETE_TASK',
         patterns: [
+            // "mark the project [Name] as complete" -> context = project name, name = 'project'
+            /(?:mark|set)\s+(?:the\s+)?project\s+(.+?)\s+as\s+(?:complete|done|finished)/i,
             /(?:make|mark)\s+(?:the\s+)?(?:task(?:s)?\s+)?(.+?)\s+(?:for|in|on)\s+(?:the\s+)?(?:project\s+)?(.+?)\s+(?:complete|done|finished)\s*$/i,
             /(?:mark|set|complete|finish)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+(?:for|in|on)\s+(.+?)(?:\s+as\s+(?:complete|done|finished))?/i,
             /(?:mark|set)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+as\s+(?:complete|done|finished)/i,
             /(?:complete|finish)\s+(?:the\s+)?(?:task\s+)?(.+)/i,
             /(?:make|mark)\s+(?:the\s+)?(?:task(?:s)?\s+)?(.+?)\s+(?:complete|done|finished)\s*$/i,
         ],
-        extractSlots: (m) => ({
-            name: m[1]?.trim(),
-            context: m[2]?.trim(), // Project/Entity context (optional for last pattern)
-        }),
+        extractSlots: (m) => {
+            // Single group: "mark project X as complete" -> name='project', context=X
+            if (m[2] === undefined) return { name: 'project', context: m[1]?.trim() ?? '' };
+            return { name: m[1]?.trim(), context: m[2]?.trim() };
+        },
     },
 
     // Publish Content

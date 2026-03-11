@@ -7,7 +7,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { validateImageFile, isValidObjectId } from '@/lib/utils/security';
-import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { getOrganizationUserIds, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { put, del } from '@vercel/blob';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -104,6 +104,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     project.logo = url;
+    migrateProjectFields(project);
     await project.save();
 
     return NextResponse.json({
@@ -176,6 +177,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Remove logo from project
     project.logo = undefined;
+    migrateProjectFields(project);
     await project.save();
 
     return NextResponse.json({

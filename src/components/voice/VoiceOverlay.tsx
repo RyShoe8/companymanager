@@ -9,7 +9,7 @@ export function VoiceButton() {
     return (
         <button
             onClick={voice.state === 'listening' ? voice.stopListening : voice.startListening}
-            className={`fixed bottom-6 right-6 z-[90] p-4 rounded-full shadow-2xl transition-all duration-300 scale-110 flex items-center justify-center ${voice.state === 'listening'
+            className={`fixed bottom-20 md:bottom-6 right-6 z-[90] p-4 rounded-full shadow-2xl transition-all duration-300 scale-110 flex items-center justify-center ${voice.state === 'listening'
                 ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-500/20'
                 : voice.state === 'processing'
                     ? 'bg-yellow-500 text-white'

@@ -208,10 +208,30 @@ export default function WorkspaceShell({
         }
         if (intent.type === 'COMPLETE_TASK') {
             const { name, context } = intent.slots;
-            const searchName = normalize(name);
+            const searchName = name ? normalize(name) : '';
             const searchContext = context ? normalize(context) : null;
 
             console.log('[Voice] Matching task:', { searchName, searchContext });
+
+            // "Mark project [Name] as complete" -> complete first incomplete task in that project
+            if ((!searchName || searchName === 'project') && searchContext) {
+                const project = ws.allProjects.find(p => {
+                    const pName = normalize(p.name);
+                    return pName.includes(searchContext) || searchContext.includes(pName) || (searchContext.length <= 2 && pName.startsWith(searchContext));
+                });
+                if (!project) return { success: false, message: `Could not find project matching "${context}"` };
+                const firstIncompleteIdx = project.tasks?.findIndex(t => t.status !== 'completed') ?? -1;
+                if (firstIncompleteIdx === -1 || !project.tasks?.length) return { success: true, message: `Project "${project.name}" has no incomplete tasks` };
+                const task = project.tasks[firstIncompleteIdx];
+                const updatedTasks = [...(project.tasks || [])];
+                updatedTasks[firstIncompleteIdx] = { ...task, status: 'completed' };
+                fetch(`/api/projects/${project._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tasks: updatedTasks }),
+                }).then(() => ws.loadData({ silent: true }));
+                return { success: true, message: `Marked first task "${task.name}" in project "${project.name}" as complete` };
+            }
 
             const searchWords = searchName.split(/\s+/).filter(Boolean);
             const wordOverlapScore = (tName: string) => {
