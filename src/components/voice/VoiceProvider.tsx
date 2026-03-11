@@ -82,6 +82,27 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         }, 5000);
     }, []);
 
+    const executeIntent = useCallback(
+        async (intent: ParsedIntent) => {
+            if (onIntent) {
+                const result = await Promise.resolve(onIntent(intent));
+                if (result.success) {
+                    setResultMessage(result.message);
+                    speak(result.message);
+                } else {
+                    setError(result.message);
+                }
+            } else {
+                setResultMessage(`Parsed: ${intent.type} ${JSON.stringify(intent.slots)}`);
+            }
+            setState('idle');
+            setPendingActionDescription(null);
+            pendingIntentRef.current = null;
+            clearMessages();
+        },
+        [onIntent, clearMessages]
+    );
+
     const processTranscript = useCallback(
         (text: string) => {
             console.log('[Voice] Processing finalized transcript:', text);
@@ -114,27 +135,6 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
             void executeIntent(intent);
         },
         [executeIntent]
-    );
-
-    const executeIntent = useCallback(
-        async (intent: ParsedIntent) => {
-            if (onIntent) {
-                const result = await Promise.resolve(onIntent(intent));
-                if (result.success) {
-                    setResultMessage(result.message);
-                    speak(result.message);
-                } else {
-                    setError(result.message);
-                }
-            } else {
-                setResultMessage(`Parsed: ${intent.type} ${JSON.stringify(intent.slots)}`);
-            }
-            setState('idle');
-            setPendingActionDescription(null);
-            pendingIntentRef.current = null;
-            clearMessages();
-        },
-        [onIntent, clearMessages]
     );
 
     const flushAndProcess = useCallback(() => {
