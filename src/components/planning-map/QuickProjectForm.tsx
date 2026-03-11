@@ -12,7 +12,8 @@ export default function QuickProjectForm({ employees, defaultStatus = 'planning'
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(colorPalette[Math.floor(Math.random() * colorPalette.length)]);
-  const [projectType, setProjectType] = useState<'internal' | 'client'>('internal');
+  const [projectType, setProjectType] = useState<'website' | 'store' | 'app' | 'generic'>('generic');
+  const [category, setCategory] = useState<'internal' | 'client'>('internal');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [assignedToEmployeeIds, setAssignedToEmployeeIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,7 +23,17 @@ export default function QuickProjectForm({ employees, defaultStatus = 'planning'
     e.preventDefault();
     if (!name.trim()) { setError('Project name is required'); return; }
     setIsSubmitting(true); setError(null);
-    try { await onSubmit({ name: name.trim(), description: description.trim() || undefined, color, projectType, status: defaultStatus, assignedToEmployeeIds: assignedToEmployeeIds.length > 0 ? assignedToEmployeeIds : undefined }); }
+    try {
+      await onSubmit({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        color,
+        projectType,
+        category,
+        status: defaultStatus,
+        assignedToEmployeeIds: assignedToEmployeeIds.length > 0 ? assignedToEmployeeIds : undefined
+      });
+    }
     catch { setError('Failed to create project'); } finally { setIsSubmitting(false); }
   };
 
@@ -31,8 +42,17 @@ export default function QuickProjectForm({ employees, defaultStatus = 'planning'
       <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name" className="w-full text-lg font-medium px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white" autoFocus />
       <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" rows={2} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white resize-none" />
       <div className="flex items-center gap-2"><span className="text-sm text-gray-500">Color:</span><div className="flex gap-1.5">{colorPalette.map((c) => (<button key={c} type="button" onClick={() => setColor(c)} className={`w-6 h-6 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : ''}`} style={{ backgroundColor: c }} />))}</div></div>
+
+      <div className="flex items-center gap-4"><span className="text-sm text-gray-500">Category:</span><div className="flex flex-wrap gap-2">
+        {(['internal', 'client'] as const).map((cat) => (
+          <button key={cat} type="button" onClick={() => setCategory(cat)} className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${category === cat ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+            {cat.charAt(0).toUpperCase() + cat.slice(1)}
+          </button>
+        ))}
+      </div></div>
+
       <div className="flex items-center gap-4"><span className="text-sm text-gray-500">Type:</span><div className="flex flex-wrap gap-2">
-        {(['internal', 'client'] as const).map((type) => (
+        {(['website', 'store', 'app', 'generic'] as const).map((type) => (
           <button key={type} type="button" onClick={() => setProjectType(type)} className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${projectType === type ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
             {type.charAt(0).toUpperCase() + type.slice(1)}
           </button>

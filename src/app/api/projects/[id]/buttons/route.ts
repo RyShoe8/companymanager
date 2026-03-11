@@ -25,7 +25,7 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     const actionButtons = (project as { actionButtons?: { label: string; url: string; referralSourceId?: unknown }[] }).actionButtons || [];
-    return NextResponse.json({ actionButtons });
+    return NextResponse.json(actionButtons);
   } catch (error) {
     console.error('Error fetching project buttons:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -219,17 +219,23 @@ export default function useWorkspaceData(
         }
 
         // Managers / Admins with toggle
-        if (showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)) {
-            return filterToMyAssignments(projects);
+        const list = (showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId))
+            ? filterToMyAssignments(projects)
+            : projects;
+
+        // NEW: Filter out completed projects in Schedule lens per user request
+        if (lens === 'schedule') {
+            return list.filter(p => p.status !== 'completed');
         }
 
-        return projects;
+        return list;
     }, [
         projects,
         currentUserRole,
         currentUserEmployeeName,
         currentUserEmployeeId,
         showOnlyMyAssignments,
+        lens,
     ]);
 
     return {

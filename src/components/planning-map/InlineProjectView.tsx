@@ -88,11 +88,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   useEffect(() => {
-    setLocalProject(project);
-    setLocalDismissedChecklistIds(null); // use project data when project changes
-    setViewTab('tasks');
-    setExpandedSections(new Set(['tasks']));
-  }, [project]);
+    // Only reset UI state if the project ID actually changed
+    // Otherwise just sync the local data
+    if (project._id.toString() !== localProject._id.toString()) {
+      setLocalProject(project);
+      setLocalDismissedChecklistIds(null);
+      setViewTab('tasks');
+      setExpandedSections(new Set(['tasks']));
+    } else {
+      setLocalProject(project);
+    }
+  }, [project, localProject._id]);
 
   // Fetch project action buttons (smart buttons)
   useEffect(() => {
@@ -101,7 +107,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         const res = await fetch(`/api/projects/${localProject._id}/buttons`);
         if (res.ok) {
           const data = await res.json();
-          setActionButtons(Array.isArray(data) ? data : []);
+          setActionButtons(Array.isArray(data) ? data : (data.actionButtons || []));
         }
       } catch (e) {
         // ignore
@@ -162,7 +168,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
     const updatedTasks = [...(localProject.tasks || [])];
-    updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], [field]: value };
+    const updatedTask = { ...updatedTasks[taskIndex], [field]: value };
+
+    // Optimistically update the name if the ID changes
+    if (field === 'assignedToEmployeeId') {
+      const emp = employees.find(e => e._id.toString() === value);
+      updatedTask.assignedTo = emp ? emp.name : undefined;
+    }
+
+    updatedTasks[taskIndex] = updatedTask;
     setSaveStatus('saving');
     setLocalProject(prev => ({ ...prev, tasks: updatedTasks } as IProject));
     try {
@@ -187,8 +201,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     await onUpdate({ tasks: [...(localProject.tasks || []), newTask] });
   };
 
-  const statusOptions = [{ value: 'planning', label: 'Planning', color: '#3b82f6' }, { value: 'in-development', label: 'Building', color: '#22c55e' }, { value: 'launched', label: 'Running', color: '#a855f7' }];
+  const statusOptions = [{ value: 'planning', label: 'Planning', color: '#3b82f6' }, { value: 'in-development', label: 'Building', color: '#22c55e' }, { value: 'launched', label: 'Running', color: '#a855f7' }, { value: 'completed', label: 'Completed', color: '#10b981' }];
   const projectTypeOptions = [{ value: 'website', label: 'Website' }, { value: 'store', label: 'Store' }, { value: 'app', label: 'App' }, { value: 'generic', label: 'Generic' }];
+  const categoryOptions = [{ value: 'internal', label: 'Internal' }, { value: 'client', label: 'Client' }];
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
   const employeeOptions = employees.map(emp => ({ value: emp._id.toString(), label: emp.name }));
 
@@ -221,6 +236,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <EditableSelect value={localProject.status} options={statusOptions} onSave={(v) => handleFieldUpdate('status', v)} showColorDot disabled={!isManagerOrAdmin} />
         </div>
         <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Category:</span><EditableSelect value={localProject.category || 'client'} options={categoryOptions} onSave={(v) => handleFieldUpdate('category', v)} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Type:</span><EditableSelect value={localProject.projectType || 'generic'} options={projectTypeOptions} onSave={(v) => handleFieldUpdate('projectType', v)} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Est. Hours:</span><EditableNumber value={localProject.estimatedHours} onSave={(v) => handleFieldUpdate('estimatedHours', v)} suffix="h" min={0} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">End Date:</span><EditableDate value={localProject.endDate ?? null} onSave={(v) => handleFieldUpdate('endDate', v || undefined)} placeholder="No end date" disabled={!isManagerOrAdmin} /></div>
@@ -388,7 +404,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} placeholder="End" disabled={!isManagerOrAdmin} />
                           </div>
                           <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
-                          {employees.length > 0 && <EditableSelect value={(task as any).assignedToEmployeeId?.toString() || ''} options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]} onSave={(v) => handleTaskUpdate(idx, 'assignedToEmployeeId', v || undefined)} disabled={!isManagerOrAdmin} />}
+                          {employees.length > 0 && (
+                            <div className="flex items-center gap-1 group">
+                              <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                              <EditableSelect
+                                value={(task as any).assignedToEmployeeId?.toString() || ''}
+                                options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]}
+                                onSave={(v: string) => handleTaskUpdate(idx, 'assignedToEmployeeId', v || undefined)}
+                                disabled={!isManagerOrAdmin}
+                                className="!px-1 !py-0.5 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                              />
+                            </div>
+                          )}
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => toggleTaskComments(idx)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">

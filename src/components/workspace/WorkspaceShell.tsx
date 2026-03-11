@@ -139,16 +139,25 @@ export default function WorkspaceShell({
                 return { success: true, message: `${intent.slots.action === 'show' ? 'Showing' : 'Hiding'} content` };
             }
         }
+        const normalize = (s: string) => s.toLowerCase().replace(/\b(the|task|item|a|an)\b/g, '').replace(/\s+/g, ' ').trim();
+
         if (intent.type === 'OPEN_ENTITY') {
             const { entityType, name } = intent.slots;
+            const searchName = normalize(name);
             if (entityType === 'project') {
-                const target = ws.allProjects.find(p => p.name.toLowerCase().includes(name.toLowerCase()));
+                const target = ws.allProjects.find(p => {
+                    const pName = normalize(p.name);
+                    return pName.includes(searchName) || searchName.includes(pName);
+                });
                 if (target) {
                     setInspectorFocus(`project:${target._id}`);
                     return { success: true, message: `Opening project: ${target.name}` };
                 }
             } else if (entityType === 'content') {
-                const target = ws.contentItems.find(c => c.title.toLowerCase().includes(name.toLowerCase()));
+                const target = ws.contentItems.find(c => {
+                    const cTitle = normalize(c.title);
+                    return cTitle.includes(searchName) || searchName.includes(cTitle);
+                });
                 if (target) {
                     setInspectorFocus(`content:${target._id}`);
                     return { success: true, message: `Opening content: ${target.title}` };
@@ -158,8 +167,12 @@ export default function WorkspaceShell({
         }
         if (intent.type === 'DELETE_ENTITY') {
             const { entityType, name } = intent.slots;
+            const searchName = normalize(name);
             if (entityType === 'project') {
-                const target = ws.allProjects.find(p => p.name.toLowerCase().includes(name.toLowerCase()));
+                const target = ws.allProjects.find(p => {
+                    const pName = normalize(p.name);
+                    return pName.includes(searchName) || searchName.includes(pName);
+                });
                 if (target) {
                     handleDeleteProject(target._id.toString());
                     return { success: true, message: `Deleted project: ${target.name}` };
@@ -169,24 +182,51 @@ export default function WorkspaceShell({
         }
         if (intent.type === 'COMPLETE_TASK') {
             const { name } = intent.slots;
+            const searchName = normalize(name);
+
             // Search all projects for this task
+            // We look for a task whose name is in searchName, or vice-versa
+            // We also prioritize tasks whose project name is mentioned in the searchName
+            let bestMatch: { project: IProject, taskIdx: number, score: number } | null = null;
+
             for (const p of ws.allProjects) {
-                const taskIdx = p.tasks?.findIndex(t => t.name.toLowerCase().includes(name.toLowerCase()));
-                if (taskIdx !== undefined && taskIdx !== -1) {
-                    const task = p.tasks![taskIdx];
-                    const updatedTasks = [...p.tasks!];
-                    updatedTasks[taskIdx] = { ...task, status: 'completed' };
+                const pName = normalize(p.name);
+                const isProjectMentioned = searchName.includes(pName);
 
-                    // Fire and forget update
-                    fetch(`/api/projects/${p._id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ tasks: updatedTasks }),
-                    }).then(() => ws.loadData());
+                p.tasks?.forEach((t, idx) => {
+                    if (t.status === 'completed') return;
 
-                    return { success: true, message: `Marked task "${task.name}" as complete` };
-                }
+                    const tName = normalize(t.name);
+                    let score = 0;
+
+                    if (tName === searchName) score = 100;
+                    else if (searchName.includes(tName)) score = 80;
+                    else if (tName.includes(searchName)) score = 60;
+
+                    // Bonus if project name is also in the voice command
+                    if (score > 0 && isProjectMentioned) score += 20;
+
+                    if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+                        bestMatch = { project: p, taskIdx: idx, score };
+                    }
+                });
             }
+
+            if (bestMatch) {
+                const { project: p, taskIdx, score } = bestMatch as any;
+                const task = p.tasks![taskIdx];
+                const updatedTasks = [...p.tasks!];
+                updatedTasks[taskIdx] = { ...task, status: 'completed' };
+
+                fetch(`/api/projects/${p._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tasks: updatedTasks }),
+                }).then(() => ws.loadData());
+
+                return { success: true, message: `Marked task "${task.name}" as complete (Match score: ${score})` };
+            }
+
             return { success: false, message: `Could not find task matching "${name}"` };
         }
 
@@ -276,7 +316,6 @@ export default function WorkspaceShell({
                                 }}
                             />
                             <div className="flex gap-2 flex-shrink-0 ml-auto items-center">
-                                <VoiceButton />
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}

@@ -1,7 +1,8 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
-export type ProjectType = 'website' | 'store' | 'app' | 'generic' | 'internal' | 'client';
+export type ProjectType = 'website' | 'store' | 'app' | 'generic';
+export type ProjectCategory = 'internal' | 'client';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
 
 export interface IProjectTask {
@@ -29,6 +30,7 @@ export interface IProject extends Document {
   url?: string; // Legacy field, kept for backward compatibility
   urls?: string[]; // New field for multiple URLs
   projectType: ProjectType;
+  category: ProjectCategory;
   color: string;
   logo?: string; // Project logo URL
   status: ProjectStatus;
@@ -75,9 +77,15 @@ const ProjectSchema: Schema = new Schema(
     },
     projectType: {
       type: String,
-      enum: ['website', 'store', 'app', 'generic', 'internal', 'client'],
+      enum: ['website', 'store', 'app', 'generic'],
       required: true,
       default: 'generic',
+    },
+    category: {
+      type: String,
+      enum: ['internal', 'client'],
+      required: true,
+      default: 'client',
     },
     color: {
       type: String,

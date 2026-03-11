@@ -9,16 +9,16 @@ export function VoiceButton() {
     return (
         <button
             onClick={voice.state === 'listening' ? voice.stopListening : voice.startListening}
-            className={`relative p-2 rounded-lg transition-all duration-200 ${voice.state === 'listening'
-                ? 'bg-red-500/20 text-red-400 animate-pulse'
+            className={`fixed bottom-6 right-6 z-[90] p-4 rounded-full shadow-2xl transition-all duration-300 scale-110 flex items-center justify-center ${voice.state === 'listening'
+                ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-500/20'
                 : voice.state === 'processing'
-                    ? 'bg-yellow-500/20 text-yellow-400'
-                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white'
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-500 hover:scale-125'
                 }`}
             aria-label={voice.state === 'listening' ? 'Stop listening' : 'Start voice command'}
             title="Voice command (hold V)"
         >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -27,7 +27,7 @@ export function VoiceButton() {
                 />
             </svg>
             {voice.state === 'listening' && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full animate-ping" />
             )}
         </button>
     );
@@ -45,7 +45,7 @@ export default function VoiceOverlay() {
             {/* Transcript / feedback toast — appears when active */}
             {(voice.state !== 'idle' || voice.error || voice.resultMessage) && (
                 <div
-                    className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-md"
+                    className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md"
                     role="status"
                     aria-live="polite"
                 >
