@@ -40,8 +40,7 @@ export default function VoiceOverlay() {
 
     return (
         <>
-            {/* Mic button moved to VoiceButton component */}
-
+            <VoiceButton />
             {/* Transcript / feedback toast — appears when active */}
             {(voice.state !== 'idle' || voice.error || voice.resultMessage) && (
                 <div
