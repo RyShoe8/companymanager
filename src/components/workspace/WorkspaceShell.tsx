@@ -181,17 +181,18 @@ export default function WorkspaceShell({
             return { success: false, message: `Could not find ${entityType} matching "${name}" to delete` };
         }
         if (intent.type === 'COMPLETE_TASK') {
-            const { name } = intent.slots;
+            const { name, context } = intent.slots;
             const searchName = normalize(name);
+            const searchContext = context ? normalize(context) : null;
 
-            // Search all projects for this task
-            // We look for a task whose name is in searchName, or vice-versa
-            // We also prioritize tasks whose project name is mentioned in the searchName
+            console.log('[Voice] Matching task:', { searchName, searchContext });
+
             let bestMatch: { project: IProject, taskIdx: number, score: number } | null = null;
 
             for (const p of ws.allProjects) {
                 const pName = normalize(p.name);
-                const isProjectMentioned = searchName.includes(pName);
+                const isProjectContextMatched = searchContext ? (pName.includes(searchContext) || searchContext.includes(pName)) : false;
+                const isProjectMentionedInName = searchName.includes(pName);
 
                 p.tasks?.forEach((t, idx) => {
                     if (t.status === 'completed') return;
@@ -203,31 +204,35 @@ export default function WorkspaceShell({
                     else if (searchName.includes(tName)) score = 80;
                     else if (tName.includes(searchName)) score = 60;
 
-                    // Bonus if project name is also in the voice command
-                    if (score > 0 && isProjectMentioned) score += 20;
+                    // Huge bonus if project context explicitly matches
+                    if (score > 0 && isProjectContextMatched) score += 50;
+                    // Smaller bonus if project is mentioned in the name slot
+                    else if (score > 0 && isProjectMentionedInName) score += 20;
 
-                    if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+                    if (score > 40 && (!bestMatch || score > bestMatch.score)) {
                         bestMatch = { project: p, taskIdx: idx, score };
                     }
                 });
             }
 
             if (bestMatch) {
-                const { project: p, taskIdx, score } = bestMatch as any;
-                const task = p.tasks![taskIdx];
-                const updatedTasks = [...p.tasks!];
+                const { project: mProject, taskIdx, score } = bestMatch as { project: IProject, taskIdx: number, score: number };
+                const task = mProject.tasks![taskIdx];
+                const updatedTasks = [...(mProject.tasks || [])];
                 updatedTasks[taskIdx] = { ...task, status: 'completed' };
 
-                fetch(`/api/projects/${p._id}`, {
+                console.log('[Voice] Executing completion for:', { projectName: mProject.name, taskName: task.name, score });
+
+                fetch(`/api/projects/${mProject._id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tasks: updatedTasks }),
-                }).then(() => ws.loadData());
+                }).then(() => ws.loadData({ silent: true }));
 
-                return { success: true, message: `Marked task "${task.name}" as complete (Match score: ${score})` };
+                return { success: true, message: `Marked task "${task.name}" as complete (Score: ${score})` };
             }
 
-            return { success: false, message: `Could not find task matching "${name}"` };
+            return { success: false, message: `Could not find task matching "${name}"${context ? ` for "${context}"` : ''}` };
         }
 
         return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };

@@ -168,11 +168,13 @@ const rules: PatternRule[] = [
     {
         type: 'COMPLETE_TASK',
         patterns: [
-            /(?:mark|set)\s+(?:the\s+)?(.+?)\s+(?:as\s+)?(?:complete|done|finished)/i,
-            /(?:complete|finish)\s+(?:the\s+)?(.+)/i,
+            /(?:mark|set|complete|finish)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+(?:for|in|on)\s+(.+?)(?:\s+as\s+(?:complete|done|finished))?/i,
+            /(?:mark|set)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+as\s+(?:complete|done|finished)/i,
+            /(?:complete|finish)\s+(?:the\s+)?(?:task\s+)?(.+)/i,
         ],
         extractSlots: (m) => ({
-            name: m[1].trim(),
+            name: m[1]?.trim(),
+            context: m[2]?.trim(), // Project/Entity context
         }),
     },
 
