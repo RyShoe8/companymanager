@@ -286,7 +286,7 @@ export default function WorkspaceShell({
     // Default status for new projects depends on phase
     const defaultStatus = ws.phase === 'Build' ? 'in-development' : ws.phase === 'Run' ? 'launched' : 'planning';
 
-    if (ws.loading) {
+    if (ws.loading && ws.allProjects.length === 0) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-text-secondary">Loading...</div>
@@ -445,7 +445,7 @@ export default function WorkspaceShell({
                                     employees={ws.employees}
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
-                                    onRefresh={ws.loadData}
+                                    onRefresh={() => ws.loadData({ silent: true })}
                                     onAddContent={setAddContentProject}
                                     onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
                                 />

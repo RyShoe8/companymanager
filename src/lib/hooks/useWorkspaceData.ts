@@ -50,7 +50,7 @@ export interface WorkspaceState {
     filteredProjects: IProject[];
 
     // Actions
-    loadData: () => Promise<void>;
+    loadData: (options?: { silent?: boolean }) => Promise<void>;
     fetchContentItems: () => Promise<void>;
 }
 
@@ -100,8 +100,10 @@ export default function useWorkspaceData(
         }
     }, [timeframe, currentDate]);
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
+    const loadData = useCallback(async (options?: { silent?: boolean }) => {
+        if (!options?.silent) {
+            setLoading(true);
+        }
         try {
             const [projectsRes, employeesRes] = await Promise.all([
                 fetch('/api/projects'),
@@ -158,7 +160,9 @@ export default function useWorkspaceData(
         } catch {
             // Error loading data
         } finally {
-            setLoading(false);
+            if (!options?.silent) {
+                setLoading(false);
+            }
         }
     }, [router, timeframe, currentDate]);
 

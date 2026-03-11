@@ -82,11 +82,13 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
 
     const processTranscript = useCallback(
         (text: string) => {
+            console.log('[Voice] Processing finalized transcript:', text);
             setState('processing');
             const intent = parseIntent(text);
             setLastIntent(intent);
 
             if (intent.type === 'UNKNOWN') {
+                console.warn('[Voice] Intent not recognized for:', text);
                 setError(`I didn't understand: "${text}"`);
                 setState('idle');
                 clearMessages();
@@ -95,6 +97,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
 
             // Check if high-risk action needs confirmation
             if (HIGH_RISK_ACTIONS.has(intent.type)) {
+                console.log('[Voice] High-risk action detected, pending confirmation:', intent.type);
                 pendingIntentRef.current = intent;
                 setPendingActionDescription(
                     `${intent.type.replace('_', ' ').toLowerCase()}: ${intent.slots.name || intent.slots.entityType || 'item'}`

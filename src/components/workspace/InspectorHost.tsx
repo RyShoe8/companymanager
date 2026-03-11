@@ -134,7 +134,7 @@ export default function InspectorHost({
         return 'Details';
     };
 
-    if (isMobile || type === 'project') {
+    if (isMobile) {
         if (!focusId) return null;
         return (
             <BottomSheet

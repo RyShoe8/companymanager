@@ -190,24 +190,34 @@ const rules: PatternRule[] = [
 ];
 
 export function parseIntent(transcript: string): ParsedIntent {
-    const cleaned = transcript.trim();
+    const normalize = (s: string) => s.toLowerCase()
+        .replace(/\b(the|task|item|a|an|please|can|you|ready|mark)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const cleaned = normalize(transcript);
+    console.log('[Voice] Parsing transcript:', { raw: transcript, cleaned });
+
     if (!cleaned) {
         return { type: 'UNKNOWN', confidence: 0, slots: {}, rawTranscript: transcript };
     }
 
     for (const rule of rules) {
         for (const pattern of rule.patterns) {
-            const match = cleaned.match(pattern);
+            const match = transcript.match(pattern) || cleaned.match(pattern);
             if (match) {
-                return {
+                const intent = {
                     type: rule.type,
                     confidence: 0.9,
                     slots: rule.extractSlots(match),
                     rawTranscript: transcript,
                 };
+                console.log('[Voice] Detected Intent:', intent);
+                return intent;
             }
         }
     }
 
+    console.log('[Voice] No intent matched');
     return { type: 'UNKNOWN', confidence: 0, slots: {}, rawTranscript: transcript };
 }
