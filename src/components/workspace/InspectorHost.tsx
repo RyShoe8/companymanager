@@ -6,17 +6,15 @@ import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import { IProject } from '@/lib/models/Project';
-import { IOperation } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 
-export type FocusType = 'project' | 'content' | 'task' | 'operation';
+export type FocusType = 'project' | 'content' | 'task';
 
 interface InspectorHostProps {
     focusId: string | null;  // e.g., 'project:123' or 'content:456'
     onClose: () => void;
     // context props
     projects: IProject[];
-    operations: IOperation[];
     employees: IEmployee[];
     isManagerOrAdmin: boolean;
     currentUserEmployeeId?: string;
@@ -27,7 +25,6 @@ export default function InspectorHost({
     focusId,
     onClose,
     projects,
-    operations,
     employees,
     isManagerOrAdmin,
     currentUserEmployeeId,
@@ -105,15 +102,6 @@ export default function InspectorHost({
             );
         }
 
-        if (type === 'operation' && id) {
-            // Just a placeholder since InlineOperationView isn't fully integrated here yet
-            return (
-                <div className="p-6 text-center text-gray-400">
-                    <p>Operation Editor</p>
-                    <p className="text-sm mt-2">ID: {id}</p>
-                </div>
-            );
-        }
 
         if (type === 'task' && id) {
             return (
@@ -137,7 +125,6 @@ export default function InspectorHost({
     const getTitle = () => {
         if (type === 'project') return focusedProject?.name || 'Project Details';
         if (type === 'content') return 'Content Details';
-        if (type === 'operation') return 'Operation Details';
         if (type === 'task') return 'Task Details';
         return 'Details';
     };

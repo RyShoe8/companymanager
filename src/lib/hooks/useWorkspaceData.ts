@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { IProject } from '@/lib/models/Project';
-import { IOperation } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
@@ -17,8 +16,6 @@ export interface WorkspaceState {
     // Data
     projects: IProject[];
     allProjects: IProject[];
-    operations: IOperation[];
-    allOperations: IOperation[];
     employees: IEmployee[];
     contentItems: IContentItem[];
     loading: boolean;
@@ -78,7 +75,6 @@ export default function useWorkspaceData(
 
     // Data
     const [allProjects, setAllProjects] = useState<IProject[]>([]);
-    const [allOperations, setAllOperations] = useState<IOperation[]>([]);
     const [employees, setEmployees] = useState<IEmployee[]>([]);
     const [contentItems, setContentItems] = useState<IContentItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -107,19 +103,17 @@ export default function useWorkspaceData(
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const [projectsRes, operationsRes, employeesRes] = await Promise.all([
+            const [projectsRes, employeesRes] = await Promise.all([
                 fetch('/api/projects'),
-                fetch('/api/operations'),
                 fetch('/api/employees'),
             ]);
 
-            if (projectsRes.status === 401 || operationsRes.status === 401 || employeesRes.status === 401) {
+            if (projectsRes.status === 401 || employeesRes.status === 401) {
                 router.push('/login');
                 return;
             }
 
             const projectsData = await projectsRes.json();
-            const operationsData = await operationsRes.json();
             const employeesData = await employeesRes.json();
 
             // Get current user's role and employee info
@@ -150,7 +144,6 @@ export default function useWorkspaceData(
             }
 
             setAllProjects(projectsData);
-            setAllOperations(operationsData);
             setEmployees(employeesData);
 
             // Fetch content items for current timeframe
@@ -188,11 +181,7 @@ export default function useWorkspaceData(
         return getProjectsForStage(allProjects, phase as ProjectStage);
     }, [allProjects, phase]);
 
-    // Operations (only show in Run or All)
-    const operations = useMemo(() => {
-        if (phase === 'All' || phase === 'Run') return allOperations;
-        return [];
-    }, [allOperations, phase]);
+
 
     // User-role + "my assignments" filter
     const filteredProjects = useMemo(() => {
@@ -246,8 +235,6 @@ export default function useWorkspaceData(
     return {
         projects,
         allProjects,
-        operations,
-        allOperations,
         employees,
         contentItems,
         loading,

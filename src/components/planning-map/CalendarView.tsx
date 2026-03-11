@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
-import { IOperation } from '@/lib/models/Operation';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, formatDate, getTimeframeRange } from '@/lib/utils/dateUtils';
 import Button from '@/components/ui/Button';
@@ -10,7 +9,6 @@ import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimefram
 
 interface CalendarViewProps {
   projects: IProject[];
-  operations: IOperation[];
   contentItems?: IContentItem[];
   showTasks?: boolean;
   showContent?: boolean;
@@ -18,7 +16,6 @@ interface CalendarViewProps {
   timeframe: TimeframeType;
   currentDate: Date;
   onProjectClick: (project: IProject) => void;
-  onOperationClick: (operation: IOperation) => void;
   onDateChange?: (date: Date) => void;
   currentUserEmployeeName?: string | null;
   currentUserEmployeeId?: string | null;
@@ -29,13 +26,12 @@ interface CalendarViewProps {
   onRefreshContent?: () => void;
 }
 
-export type MergedCalendarItem = 
+export type MergedCalendarItem =
   | { type: 'task'; task: IProjectTask; date: Date }
   | { type: 'content'; content: IContentItem };
 
 export default function CalendarView({
   projects,
-  operations,
   contentItems = [],
   showTasks = true,
   showContent = true,
@@ -43,7 +39,6 @@ export default function CalendarView({
   timeframe,
   currentDate,
   onProjectClick,
-  onOperationClick,
   onDateChange,
   currentUserEmployeeName,
   currentUserEmployeeId,
@@ -56,7 +51,7 @@ export default function CalendarView({
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
-  
+
   // Load expanded projects from localStorage on mount
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
@@ -72,7 +67,7 @@ export default function CalendarView({
     }
     return new Set();
   });
-  
+
   // Save expanded projects to localStorage whenever it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -101,7 +96,7 @@ export default function CalendarView({
   useEffect(() => {
     const fetchLatestComments = async () => {
       const commentMap = new Map<string, Date>();
-      
+
       // Get last refresh time from localStorage
       let lastRefreshTime: Date | null = null;
       if (typeof window !== 'undefined') {
@@ -114,7 +109,7 @@ export default function CalendarView({
           }
         }
       }
-      
+
       // If no last refresh time, set it to now (first time loading)
       if (!lastRefreshTime) {
         lastRefreshTime = new Date();
@@ -122,7 +117,7 @@ export default function CalendarView({
           localStorage.setItem('calendar-last-refresh-time', lastRefreshTime.toISOString());
         }
       }
-      
+
       // Load manually collapsed projects from localStorage
       const manuallyCollapsed = new Set<string>();
       if (typeof window !== 'undefined') {
@@ -136,7 +131,7 @@ export default function CalendarView({
           }
         }
       }
-      
+
       // Fetch comments for all projects
       const commentPromises = projects.map(async (project) => {
         try {
@@ -155,23 +150,23 @@ export default function CalendarView({
               });
               return timestamps;
             };
-            
+
             const timestamps = getAllCommentTimestamps(comments);
             const projectId = project._id.toString();
             let latestUpdateTime: Date | null = null;
-            
+
             if (timestamps.length > 0) {
               const latestComment = new Date(Math.max(...timestamps.map(t => t.getTime())));
               commentMap.set(projectId, latestComment);
               latestUpdateTime = latestComment;
             }
-            
+
             // Also check project.updatedAt
             const projectUpdatedAt = new Date((project as any).updatedAt || project.createdAt);
             if (!latestUpdateTime || projectUpdatedAt > latestUpdateTime) {
               latestUpdateTime = projectUpdatedAt;
             }
-            
+
             // Only auto-expand if project was updated AFTER last refresh AND hasn't been manually collapsed
             if (latestUpdateTime && latestUpdateTime > lastRefreshTime && !manuallyCollapsed.has(projectId)) {
               setExpandedProjects(prev => new Set(prev).add(projectId));
@@ -181,16 +176,16 @@ export default function CalendarView({
           // Error fetching comments for project
         }
       });
-      
+
       await Promise.all(commentPromises);
       setProjectLatestComments(commentMap);
-      
+
       // Update last refresh time to now
       if (typeof window !== 'undefined') {
         localStorage.setItem('calendar-last-refresh-time', new Date().toISOString());
       }
     };
-    
+
     if (projects.length > 0) {
       fetchLatestComments();
     }
@@ -211,7 +206,7 @@ export default function CalendarView({
     const projectId = project._id.toString();
     const projectUpdatedAt = new Date((project as any).updatedAt || project.createdAt);
     const latestComment = projectLatestComments.get(projectId);
-    
+
     if (latestComment) {
       return latestComment > projectUpdatedAt ? latestComment : projectUpdatedAt;
     }
@@ -345,217 +340,6 @@ export default function CalendarView({
     return { merged, taskItems, contentInRange };
   }
 
-  // Generate recurring instances of operations for the current view
-  const operationInstances = useMemo(() => {
-    const range = getTimeframeRange(timeframe, viewDate);
-    const viewStart = new Date(range.start);
-    viewStart.setHours(0, 0, 0, 0);
-    const viewEnd = new Date(range.end);
-    viewEnd.setHours(23, 59, 59, 999);
-    
-    const instances: Array<{ operation: IOperation; startDate: Date; endDate: Date }> = [];
-    
-    // Filter out operations that are linked to projects - they should only show inside their project
-    const standaloneOperations = operations.filter((operation) => !operation.projectId);
-    
-    standaloneOperations.forEach((operation) => {
-      if (!operation.startDate) return; // Skip operations without start date
-      
-      // Parse date to avoid timezone issues - extract YYYY-MM-DD and create local date
-      const startDateObj = new Date(operation.startDate);
-      const startDateStr = startDateObj.toISOString().split('T')[0];
-      const [year, month, day] = startDateStr.split('-').map(Number);
-      const operationStart = new Date(year, month - 1, day);
-      operationStart.setHours(0, 0, 0, 0);
-      
-      // Calculate duration (default to 1 day if no endDate)
-      let durationDays: number;
-      if (operation.endDate) {
-        // Parse end date to avoid timezone issues
-        const endDateObj = new Date(operation.endDate);
-        const endDateStr = endDateObj.toISOString().split('T')[0];
-        const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-        const operationEnd = new Date(endYear, endMonth - 1, endDay);
-        operationEnd.setHours(23, 59, 59, 999);
-        // Calculate days between start and end (inclusive)
-        const diffMs = operationEnd.getTime() - operationStart.getTime();
-        durationDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
-      } else {
-        // No endDate means single day operation
-        durationDays = 1;
-      }
-      
-      // Generate recurring instances based on recurrence type
-      let currentDate = new Date(operationStart);
-      
-      // For monthly: find all occurrences in the same day of month
-      if (operation.recurrenceType === 'monthly') {
-        const dayOfMonth = operationStart.getDate();
-        // Start from the operation's start date, not before
-        currentDate = new Date(operationStart);
-        currentDate.setHours(0, 0, 0, 0);
-        
-        // If the operation start is before viewStart, find the first occurrence in or after viewStart
-        if (currentDate < viewStart) {
-          // Find the first month where this day of month is >= viewStart
-          currentDate = new Date(viewStart.getFullYear(), viewStart.getMonth(), dayOfMonth);
-          if (currentDate < viewStart) {
-            // This month's occurrence is before viewStart, move to next month
-            currentDate = new Date(viewStart.getFullYear(), viewStart.getMonth() + 1, dayOfMonth);
-          }
-        }
-        
-        // Generate instances for the view range, but only from operationStart forward
-        while (currentDate <= viewEnd) {
-          // Ensure we don't go before the operation's start date
-          if (currentDate < operationStart) {
-            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, dayOfMonth);
-            continue;
-          }
-          
-          const instanceStart = new Date(currentDate);
-          instanceStart.setHours(0, 0, 0, 0);
-          const instanceEnd = new Date(instanceStart);
-          // If durationDays = 1, instanceEnd stays the same day (1 day operation)
-          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
-          instanceEnd.setHours(23, 59, 59, 999);
-          
-          if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
-            instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
-          }
-          
-          // Move to next month
-          currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, dayOfMonth);
-        }
-      }
-      // For weekly: same day of week
-      else if (operation.recurrenceType === 'weekly') {
-        const dayOfWeek = operationStart.getDay();
-        // Start from the operation's start date
-        currentDate = new Date(operationStart);
-        currentDate.setHours(0, 0, 0, 0);
-        
-        // If the operation start is before viewStart, find the first occurrence >= viewStart
-        if (currentDate < viewStart) {
-          // Find the first Monday of the view range
-          const viewStartDay = viewStart.getDay();
-          const mondayOffset = viewStartDay === 0 ? 6 : viewStartDay - 1;
-          const firstMonday = new Date(viewStart);
-          firstMonday.setDate(firstMonday.getDate() - mondayOffset);
-          
-          // Find the first occurrence in or after the view
-          const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          currentDate = new Date(firstMonday);
-          currentDate.setDate(currentDate.getDate() + daysFromMonday);
-          
-          // If before viewStart, move to next week
-          if (currentDate < viewStart) {
-            currentDate.setDate(currentDate.getDate() + 7);
-          }
-        }
-        
-        while (currentDate <= viewEnd) {
-          // Ensure we don't go before the operation's start date
-          if (currentDate < operationStart) {
-            currentDate.setDate(currentDate.getDate() + 7);
-            continue;
-          }
-          
-          const instanceStart = new Date(currentDate);
-          instanceStart.setHours(0, 0, 0, 0);
-          const instanceEnd = new Date(instanceStart);
-          // If durationDays = 1, instanceEnd stays the same day (1 day operation)
-          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
-          instanceEnd.setHours(23, 59, 59, 999);
-          
-          if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
-            instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
-          }
-          
-          currentDate.setDate(currentDate.getDate() + 7);
-        }
-      }
-      // For bi-weekly: same day of week, every 2 weeks
-      else if (operation.recurrenceType === 'bi-weekly') {
-        const dayOfWeek = operationStart.getDay();
-        // Start from the operation's start date
-        currentDate = new Date(operationStart);
-        currentDate.setHours(0, 0, 0, 0);
-        
-        // If the operation start is before viewStart, find the first occurrence >= viewStart
-        if (currentDate < viewStart) {
-          // Find first Monday of the view range
-          const viewStartDay = viewStart.getDay();
-          const mondayOffset = viewStartDay === 0 ? 6 : viewStartDay - 1;
-          const firstMonday = new Date(viewStart);
-          firstMonday.setDate(firstMonday.getDate() - mondayOffset);
-          
-          // Find the first occurrence in or after the view
-          const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          let candidateDate = new Date(firstMonday);
-          candidateDate.setDate(candidateDate.getDate() + daysFromMonday);
-          
-          // Find the closest bi-weekly occurrence to operationStart that's >= viewStart
-          // Calculate how many weeks from operationStart to candidateDate
-          const weeksDiff = Math.floor((candidateDate.getTime() - operationStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
-          // Round to nearest bi-weekly interval (multiple of 2)
-          const adjustedWeeks = Math.ceil(weeksDiff / 2) * 2;
-          currentDate = new Date(operationStart);
-          currentDate.setDate(currentDate.getDate() + adjustedWeeks * 7);
-          
-          // If still before viewStart, move to next bi-weekly occurrence
-          if (currentDate < viewStart) {
-            currentDate.setDate(currentDate.getDate() + 14);
-          }
-        }
-        
-        while (currentDate <= viewEnd) {
-          // Ensure we don't go before the operation's start date
-          if (currentDate < operationStart) {
-            currentDate.setDate(currentDate.getDate() + 14);
-            continue;
-          }
-          
-          const instanceStart = new Date(currentDate);
-          instanceStart.setHours(0, 0, 0, 0);
-          const instanceEnd = new Date(instanceStart);
-          // If durationDays = 1, instanceEnd stays the same day (1 day operation)
-          instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
-          instanceEnd.setHours(23, 59, 59, 999);
-          
-          if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
-            instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
-          }
-          
-          currentDate.setDate(currentDate.getDate() + 14);
-        }
-      }
-      // For none: show operation only once if it falls within the view range
-      else if (operation.recurrenceType === 'none') {
-        const instanceStart = new Date(operationStart);
-        instanceStart.setHours(0, 0, 0, 0);
-        let instanceEnd: Date;
-        if (operation.endDate) {
-          // Use the operation's actual endDate
-          const endDateObj = new Date(operation.endDate);
-          const endDateStr = endDateObj.toISOString().split('T')[0];
-          const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-          instanceEnd = new Date(endYear, endMonth - 1, endDay);
-        } else {
-          // No endDate means single day operation
-          instanceEnd = new Date(operationStart);
-        }
-        instanceEnd.setHours(23, 59, 59, 999);
-        
-        // Only add if it overlaps with the view range
-        if (instanceStart <= viewEnd && instanceEnd >= viewStart) {
-          instances.push({ operation, startDate: instanceStart, endDate: instanceEnd });
-        }
-      }
-    });
-    
-    return instances;
-  }, [operations, timeframe, viewDate]);
 
   const handleDateChange = (newDate: Date) => {
     setViewDate(newDate);
@@ -572,46 +356,25 @@ export default function CalendarView({
 
   const { start: startDate, end: endDate } = getDateRange();
 
-  // Helper function to calculate project hours by summing tasks/operations' estimatedHours
+  // Helper function to calculate project hours by summing tasks' estimatedHours
   // Excludes completed items for consistency
   const getProjectEstimatedHours = (project: IProject): number => {
-    // For launched projects, sum operations' estimatedHours
-    if (project.status === 'launched') {
-      const projectOperations = operations.filter((op) => 
-        op.projectId?.toString() === project._id.toString() && 
-        op.status !== 'completed' // Exclude completed operations
-      );
-      
-      const totalOperationHours = projectOperations.reduce((sum, op) => {
-        if (op.estimatedHours !== undefined && op.estimatedHours !== null) {
-          const hours = typeof op.estimatedHours === 'number' 
-            ? op.estimatedHours 
-            : parseFloat(op.estimatedHours);
-          return sum + (isNaN(hours) ? 0 : hours);
-        }
-        return sum;
-      }, 0);
-      
-      // Round to 1 decimal place for consistency
-      return Math.round(totalOperationHours * 100) / 100;
-    }
-    
-    // For non-launched projects, sum tasks' estimatedHours (excluding completed tasks)
+    // Sum tasks' estimatedHours (excluding completed tasks)
     if (project.tasks && project.tasks.length > 0) {
       const totalTaskHours = project.tasks.reduce((sum, task) => {
         if (task.status !== 'completed' && task.estimatedHours !== undefined && task.estimatedHours !== null) {
-          const hours = typeof task.estimatedHours === 'number' 
-            ? task.estimatedHours 
+          const hours = typeof task.estimatedHours === 'number'
+            ? task.estimatedHours
             : parseFloat(task.estimatedHours);
           return sum + (isNaN(hours) ? 0 : hours);
         }
         return sum;
       }, 0);
-      
+
       // Round to 1 decimal place for consistency
       return Math.round(totalTaskHours * 100) / 100;
     }
-    
+
     // If no tasks, return 0 (or project.estimatedHours if you want to keep that as fallback)
     return 0;
   };
@@ -650,19 +413,19 @@ export default function CalendarView({
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(day);
     dayEnd.setHours(23, 59, 59, 999);
-    
+
     // Get the current view's date range to check for completed tasks/operations
     const viewRange = getDateRange();
     const viewStart = new Date(viewRange.start);
     viewStart.setHours(0, 0, 0, 0);
     const viewEnd = new Date(viewRange.end);
     viewEnd.setHours(23, 59, 59, 999);
-    
+
     return projects.filter(project => {
       // Projects always show in their stage view - they don't need dates
       // But we also want to include projects that have completed tasks/operations within the view range
       // to show accomplished work from previous timeframes
-      
+
       // Check if project has tasks (including completed ones) that fall within the view range
       if (project.tasks && project.tasks.length > 0) {
         const hasTaskInViewRange = project.tasks.some(task => {
@@ -676,40 +439,13 @@ export default function CalendarView({
         });
         if (hasTaskInViewRange) return true;
       }
-      
-      // Check if project has operations (including completed ones) that fall within the view range
-      if (project.status === 'launched') {
-        const projectOperations = operations.filter(op => 
-          op.projectId?.toString() === project._id.toString()
-        );
-        const hasOperationInViewRange = projectOperations.some(operation => {
-          if (!operation.startDate) return false;
-          const opStart = new Date(operation.startDate);
-          opStart.setHours(0, 0, 0, 0);
-          const opEnd = operation.endDate ? new Date(operation.endDate) : new Date(operation.startDate);
-          opEnd.setHours(23, 59, 59, 999);
-          // Include operations that overlap with the view range (including completed ones)
-          return opStart <= viewEnd && opEnd >= viewStart;
-        });
-        if (hasOperationInViewRange) return true;
-      }
-      
+
       // Always show projects in their stage view, even if they have no tasks/operations
       // or if their tasks/operations are outside the view range
       return true;
     });
   };
 
-  const getOperationInstancesForDay = (day: Date) => {
-    return operationInstances.filter((instance) => {
-      const dayStart = new Date(day);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(day);
-      dayEnd.setHours(23, 59, 59, 999);
-      
-      return instance.startDate <= dayEnd && instance.endDate >= dayStart;
-    });
-  };
 
   const isToday = (day: Date) => {
     const today = new Date();
@@ -745,83 +481,17 @@ export default function CalendarView({
   const renderTodayView = () => {
     const today = new Date(startDate);
     const todayProjects = sortProjectsByLatestUpdate(getProjectsForDay(today));
-    const todayOperations = getOperationInstancesForDay(today);
 
     return (
       <div className="p-8 min-h-[600px]">
 
-        {todayProjects.length === 0 && todayOperations.length === 0 ? (
+        {todayProjects.length === 0 ? (
           <div className="text-center py-16 text-text-secondary">
-            <p className="text-lg mb-2">No projects or operations scheduled for today</p>
-            <p className="text-sm">Create a project or operation to get started!</p>
+            <p className="text-lg mb-2">No projects or content scheduled for today</p>
+            <p className="text-sm">Create a project or content item to get started!</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {todayOperations.length > 0 && (
-              <>
-                <h3 className="text-xl font-semibold text-text-primary mb-4">
-                  Operations ({todayOperations.length})
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  {todayOperations.map((instance, idx) => {
-                    const totalDays = Math.ceil((instance.endDate.getTime() - instance.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                    const operation = instance.operation;
-                    const color = operation.status === 'in-review' ? '#FFAB00' : '#9ca3af'; // Warning for in-review, light grey for others
-
-                    return (
-                      <div
-                        key={`operation-${operation._id.toString()}-${idx}`}
-                        onClick={() => onOperationClick(operation)}
-                        className="p-6 rounded-lg cursor-pointer hover:opacity-90 transition-opacity border-2 border-border"
-                        style={{
-                          backgroundColor: color + '20',
-                          borderColor: color,
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <h4 className={`text-xl font-bold text-text-primary ${operation.status === 'completed' ? 'line-through' : ''}`} style={{ color: color }}>
-                            {operation.name}
-                          </h4>
-                          <span
-                            className="px-3 py-1 rounded-full text-sm font-medium text-white"
-                            style={{ backgroundColor: color }}
-                          >
-                            {operation.status}
-                          </span>
-                        </div>
-                        
-                        {operation.description && (
-                          <p className="text-text-secondary mb-3">{operation.description}</p>
-                        )}
-
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-text-secondary">
-                              <strong>Recurrence:</strong> {operation.recurrenceType === 'none' ? 'Non Recurring' : operation.recurrenceType}
-                            </span>
-                            <span className="text-text-secondary">
-                              <strong>Dates:</strong> {formatDate(instance.startDate)} - {formatDate(instance.endDate)}
-                            </span>
-                          </div>
-                          
-                          {operation.estimatedHours && (
-                            <div className="text-sm text-text-secondary">
-                              <strong>Estimated Hours:</strong> {operation.estimatedHours}h
-                            </div>
-                          )}
-                          
-                          {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo) && (
-                            <div className="text-sm text-text-secondary">
-                              <strong>Assigned To:</strong> {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
             {todayProjects.length > 0 && (
               <>
                 <h3 className="text-xl font-semibold text-text-primary mb-4">
@@ -829,366 +499,193 @@ export default function CalendarView({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {todayProjects.map((project) => {
-                // Projects don't have dates - they just exist in their stage
-                const displayColor = project.status === 'in-review' ? '#ef4444' : project.color; // Red for in-review
-                const projectId = project._id.toString();
-                const isExpanded = expandedProjects.has(projectId);
-                const hasTasks = project.tasks && project.tasks.length > 0 && project.status !== 'launched';
-                const hasOperations = project.status === 'launched' && operations.some((op) => 
-                  op.projectId?.toString() === project._id.toString() && op.startDate
-                );
+                    // Projects don't have dates - they just exist in their stage
+                    const displayColor = project.status === 'in-review' ? '#ef4444' : project.color; // Red for in-review
+                    const projectId = project._id.toString();
+                    const isExpanded = expandedProjects.has(projectId);
+                    const hasTasks = project.tasks && project.tasks.length > 0;
 
-                return (
-                  <div
-                    key={projectId}
-                    className="p-6 rounded-lg border-2 border-border"
-                    style={{
-                      backgroundColor: displayColor + 'F0',
-                      borderColor: displayColor,
-                    }}
-                  >
-                    <div 
-                      className="flex items-start justify-between cursor-pointer"
-                      onClick={() => onProjectClick(project)}
-                    >
-                      <h4 className={`text-xl font-bold text-white ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                        {project.name}
-                      </h4>
-                      <div className="flex items-center gap-2">
-                        {onAddContent && canAddContentToProject(project) && (
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(prev => prev === projectId ? null : projectId); }}
-                              className="text-white hover:opacity-100 opacity-90 px-2 py-1 rounded border border-white/50 text-sm"
-                            >
-                              + Add
-                            </button>
-                            {addMenuProjectId === projectId && (
-                              <div className="absolute right-0 top-full mt-1 py-1 bg-background-card border border-border rounded shadow-lg z-10 min-w-[120px]">
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onProjectClick(project); }}
-                                  className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
-                                >
-                                  Add Task
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onAddContent(project, today); }}
-                                  className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
-                                >
-                                  Add Content
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <span
-                          className="px-3 py-1 rounded-full text-sm font-medium text-white"
-                          style={{ backgroundColor: displayColor }}
+                    return (
+                      <div
+                        key={projectId}
+                        className="p-6 rounded-lg border-2 border-border"
+                        style={{
+                          backgroundColor: displayColor + 'F0',
+                          borderColor: displayColor,
+                        }}
+                      >
+                        <div
+                          className="flex items-start justify-between cursor-pointer"
+                          onClick={() => onProjectClick(project)}
                         >
-                          {project.status}
-                        </span>
-                        {(hasTasks || hasOperations) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleProjectExpanded(projectId);
-                            }}
-                            className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
-                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                          >
-                            {isExpanded ? '▼' : '▶'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {isExpanded && (
-                      <>
-                        {project.description && (
-                          <p className="text-white opacity-90 mb-3 mt-3">{project.description}</p>
-                        )}
-
-                        <div className="space-y-2 mt-3">
-                          <div className="text-sm text-white opacity-90">
-                            <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
-                          </div>
-                          
-                          {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
-                            <div className="text-sm text-white opacity-90">
-                              <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Unified tasks + content for today */}
-                    {(() => {
-                      const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, today, today, {});
-                      const displayList = merged.filter((item): item is MergedCalendarItem => 
-                        item.type === 'content' || taskPassesAssignmentFilter(item.task)
-                      );
-                      const visible = displayList.slice(0, 5);
-                      const moreCount = displayList.length - 5;
-                      const hasAny = visible.length > 0 || moreCount > 0;
-                      if (!hasAny) return null;
-                      return (
-                        <div className="mt-4">
-                          <p className="text-sm font-semibold text-white mb-2">Tasks &amp; Content</p>
-                          {isExpanded ? (
-                            <div className="space-y-2">
-                              {visible.map((item, idx) => {
-                                if (item.type === 'task') {
-                                  const task = item.task;
-                                  const taskKey = `${projectId}-task-${idx}-${task.name}`;
-                                  return (
-                                    <div key={taskKey} className="p-3 rounded border border-border bg-background-card">
-                                      <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
-                                      {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
-                                      <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                        {(task as any).estimatedHours && <span>{(task as any).estimatedHours}h</span>}
-                                        {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo) && (
-                                          <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo)}</span>
-                                        )}
-                                        <span className="capitalize">{(task as any).status}</span>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                const c = item.content;
-                                return (
-                                  <div
-                                    key={c._id.toString()}
-                                    className={`p-3 rounded border border-dashed border-border bg-background-card ${c.status === 'published' ? 'opacity-60' : ''}`}
-                                  >
-                                    <button type="button" onClick={() => onContentItemClick?.(c)} className="text-left w-full">
-                                      <span className="mr-2" aria-hidden>📝</span>
-                                      <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>{c.title}</span>
-                                      <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">{c.channel}</span>
+                          <h4 className={`text-xl font-bold text-white ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                            {project.name}
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            {onAddContent && canAddContentToProject(project) && (
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(prev => prev === projectId ? null : projectId); }}
+                                  className="text-white hover:opacity-100 opacity-90 px-2 py-1 rounded border border-white/50 text-sm"
+                                >
+                                  + Add
+                                </button>
+                                {addMenuProjectId === projectId && (
+                                  <div className="absolute right-0 top-full mt-1 py-1 bg-background-card border border-border rounded shadow-lg z-10 min-w-[120px]">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onProjectClick(project); }}
+                                      className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
+                                    >
+                                      Add Task
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onAddContent(project, today); }}
+                                      className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
+                                    >
+                                      Add Content
                                     </button>
                                   </div>
-                                );
-                              })}
-                              {moreCount > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
-                                  className="text-sm text-white underline hover:no-underline"
-                                >
-                                  +{moreCount} more
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              {visible.map((item, idx) => {
-                                if (item.type === 'task') {
-                                  return (
-                                    <div key={`${projectId}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                                      {item.task.name}
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
-                                    <span className="mr-1" aria-hidden>📝</span>
-                                    {item.content.title}
-                                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
-                                  </div>
-                                );
-                              })}
-                              {moreCount > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
-                                  className="text-xs text-white italic opacity-80 hover:opacity-100"
-                                >
-                                  +{moreCount} more
-                                </button>
-                              )}
-                            </div>
-                          )}
+                                )}
+                              </div>
+                            )}
+                            <span
+                              className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                              style={{ backgroundColor: displayColor }}
+                            >
+                              {project.status}
+                            </span>
+                            {hasTasks && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleProjectExpanded(projectId);
+                                }}
+                                className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
+                                aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                              >
+                                {isExpanded ? '▼' : '▶'}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      );
-                    })()}
 
-                    {/* Show operations for launched projects */}
-                    {hasOperations && (() => {
-                      const projectOperations = operations.filter((op) => 
-                        op.projectId?.toString() === project._id.toString() && op.startDate
-                      );
-                      
-                      // Generate recurring instances for project operations
-                      const projectOperationInstances: Array<{ operation: IOperation; startDate: Date; endDate: Date }> = [];
-                      
-                      projectOperations.forEach((operation) => {
-                        if (!operation.startDate) return;
-                        
-                        // Parse date to avoid timezone issues
-                        const startDateObj = new Date(operation.startDate);
-                        const startDateStr = startDateObj.toISOString().split('T')[0];
-                        const [year, month, day] = startDateStr.split('-').map(Number);
-                        const operationStart = new Date(year, month - 1, day);
-                        operationStart.setHours(0, 0, 0, 0);
-                        
-                        // Calculate duration - ensure same day operations have duration of 1
-                        let durationDays: number;
-                        if (operation.endDate) {
-                          const endDateObj = new Date(operation.endDate);
-                          const endDateStr = endDateObj.toISOString().split('T')[0];
-                          const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-                          const operationEnd = new Date(endYear, endMonth - 1, endDay);
-                          operationEnd.setHours(23, 59, 59, 999);
-                          const diffMs = operationEnd.getTime() - operationStart.getTime();
-                          durationDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1);
-                          // If start and end are the same day, duration should be exactly 1
-                          if (operationStart.toDateString() === operationEnd.toDateString()) {
-                            durationDays = 1;
-                          }
-                        } else {
-                          durationDays = 1;
-                        }
-                        
-                        // Generate recurring instances
-                        let currentDate = new Date(operationStart);
-                        const todayNormalized = new Date(today);
-                        todayNormalized.setHours(0, 0, 0, 0);
-                        const maxDate = new Date(todayNormalized);
-                        maxDate.setDate(maxDate.getDate() + 365); // Look ahead 1 year for recurring instances
-                        
-                        if (operation.recurrenceType === 'none') {
-                          // Single instance
-                          const instanceEnd = new Date(currentDate);
-                          if (durationDays > 1) {
-                            instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
-                          }
-                          instanceEnd.setHours(23, 59, 59, 999);
-                          if (currentDate <= maxDate) {
-                            projectOperationInstances.push({
-                              operation,
-                              startDate: new Date(currentDate),
-                              endDate: instanceEnd
-                            });
-                          }
-                        } else {
-                          // Generate recurring instances
-                          while (currentDate <= maxDate) {
-                            const instanceEnd = new Date(currentDate);
-                            if (durationDays > 1) {
-                              instanceEnd.setDate(instanceEnd.getDate() + durationDays - 1);
-                            }
-                            instanceEnd.setHours(23, 59, 59, 999);
-                            
-                            // Check if this instance overlaps with today
-                            // For same-day operations, check if today equals the instance date
-                            if (durationDays === 1) {
-                              const currentDateNormalized = new Date(currentDate);
-                              currentDateNormalized.setHours(0, 0, 0, 0);
-                              if (todayNormalized.getTime() === currentDateNormalized.getTime()) {
-                                projectOperationInstances.push({
-                                  operation,
-                                  startDate: new Date(currentDate),
-                                  endDate: instanceEnd
-                                });
-                              }
-                            } else {
-                              if (todayNormalized >= currentDate && todayNormalized <= instanceEnd) {
-                                projectOperationInstances.push({
-                                  operation,
-                                  startDate: new Date(currentDate),
-                                  endDate: instanceEnd
-                                });
-                              }
-                            }
-                            
-                            // Move to next occurrence
-                            if (operation.recurrenceType === 'weekly') {
-                              currentDate.setDate(currentDate.getDate() + 7);
-                            } else if (operation.recurrenceType === 'bi-weekly') {
-                              currentDate.setDate(currentDate.getDate() + 14);
-                            } else if (operation.recurrenceType === 'monthly') {
-                              currentDate.setMonth(currentDate.getMonth() + 1);
-                            } else {
-                              break;
-                            }
-                          }
-                        }
-                      });
-                      
-                      const todayOperations = projectOperationInstances.filter((instance) => {
-                        const instanceStart = new Date(instance.startDate);
-                        instanceStart.setHours(0, 0, 0, 0);
-                        const instanceEnd = new Date(instance.endDate);
-                        instanceEnd.setHours(23, 59, 59, 999);
-                        const todayNormalized = new Date(today);
-                        todayNormalized.setHours(0, 0, 0, 0);
-                        
-                        const isTodayInRange = todayNormalized >= instanceStart && todayNormalized <= instanceEnd;
-                        
-                        // If toggle is on, only show operations assigned to current user
-                        if (showOnlyMyAssignments) {
-                          if (!currentUserEmployeeName && !currentUserEmployeeId) return true; // Can't identify user -> show all
-                          const opAssignedToId = (instance.operation as any).assignedToEmployeeId?.toString();
-                          const isAssignedToUser = opAssignedToId === currentUserEmployeeId || instance.operation.assignedTo === currentUserEmployeeName;
-                          return isTodayInRange && isAssignedToUser;
-                        }
-                        
-                        return isTodayInRange;
-                      }).map(instance => instance.operation);
+                        {isExpanded && (
+                          <>
+                            {project.description && (
+                              <p className="text-white opacity-90 mb-3 mt-3">{project.description}</p>
+                            )}
 
-                      if (todayOperations.length === 0) return null;
+                            <div className="space-y-2 mt-3">
+                              <div className="text-sm text-white opacity-90">
+                                <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
+                              </div>
 
-                      return (
-                        <div className="mt-4">
-                          <p className="text-sm font-semibold text-text-primary mb-2">Operations:</p>
-                          {isExpanded ? (
-                            <div className="space-y-2">
-                              {todayOperations.map((operation) => {
-                                const opStart = new Date(operation.startDate!);
-                                opStart.setHours(0, 0, 0, 0);
-                                const opEnd = operation.endDate ? new Date(operation.endDate) : new Date(opStart);
-                                opEnd.setHours(23, 59, 59, 999);
-                                
-                                const operationKey = `${project._id.toString()}-${operation._id.toString()}-${opStart.getTime()}-${opEnd.getTime()}`;
-
-                                return (
-                                  <div
-                                    key={operationKey}
-                                    className="p-3 rounded border border-border bg-background-card"
-                                  >
-                                    <div className="font-medium text-text-primary">{operation.name}</div>
-                                    {operation.description && (
-                                      <p className="text-sm text-text-secondary mt-1">{operation.description}</p>
-                                    )}
-                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                      {operation.estimatedHours && <span>{operation.estimatedHours}h</span>}
-                                      {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo) && (
-                                        <span>Assigned: {getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo)}</span>
-                                      )}
-                                      <span className="capitalize">{operation.status}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              {todayOperations.map((operation) => (
-                                <div key={`${project._id.toString()}-operation-${operation._id.toString()}`} className="text-sm text-text-secondary">
-                                  {operation.name}
+                              {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
+                                <div className="text-sm text-white opacity-90">
+                                  <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
                                 </div>
-                              ))}
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
+                          </>
+                        )}
+
+                        {/* Unified tasks + content for today */}
+                        {(() => {
+                          const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, today, today, {});
+                          const displayList = merged.filter((item): item is MergedCalendarItem =>
+                            item.type === 'content' || taskPassesAssignmentFilter(item.task)
+                          );
+                          const visible = displayList.slice(0, 5);
+                          const moreCount = displayList.length - 5;
+                          const hasAny = visible.length > 0 || moreCount > 0;
+                          if (!hasAny) return null;
+                          return (
+                            <div className="mt-4">
+                              <p className="text-sm font-semibold text-white mb-2">Tasks &amp; Content</p>
+                              {isExpanded ? (
+                                <div className="space-y-2">
+                                  {visible.map((item, idx) => {
+                                    if (item.type === 'task') {
+                                      const task = item.task;
+                                      const taskKey = `${projectId}-task-${idx}-${task.name}`;
+                                      return (
+                                        <div key={taskKey} className="p-3 rounded border border-border bg-background-card">
+                                          <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                          {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
+                                          <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                            {(task as any).estimatedHours && <span>{(task as any).estimatedHours}h</span>}
+                                            {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo) && (
+                                              <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo)}</span>
+                                            )}
+                                            <span className="capitalize">{(task as any).status}</span>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    const c = item.content;
+                                    return (
+                                      <div
+                                        key={c._id.toString()}
+                                        className={`p-3 rounded border border-dashed border-border bg-background-card ${c.status === 'published' ? 'opacity-60' : ''}`}
+                                      >
+                                        <button type="button" onClick={() => onContentItemClick?.(c)} className="text-left w-full">
+                                          <span className="mr-2" aria-hidden>📝</span>
+                                          <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>{c.title}</span>
+                                          <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">{c.channel}</span>
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                  {moreCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
+                                      className="text-sm text-white underline hover:no-underline"
+                                    >
+                                      +{moreCount} more
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  {visible.map((item, idx) => {
+                                    if (item.type === 'task') {
+                                      return (
+                                        <div key={`${projectId}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                          {item.task.name}
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
+                                        <span className="mr-1" aria-hidden>📝</span>
+                                        {item.content.title}
+                                        <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {moreCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
+                                      className="text-xs text-white italic opacity-80 hover:opacity-100"
+                                    >
+                                      +{moreCount} more
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -1203,7 +700,7 @@ export default function CalendarView({
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const days: Date[] = [];
     const current = new Date(startDate);
-    
+
     for (let i = 0; i < 7; i++) {
       days.push(new Date(current));
       current.setDate(current.getDate() + 1);
@@ -1231,9 +728,8 @@ export default function CalendarView({
                 className={`p-4 min-h-[1200px] relative z-0 ${isCurrentDay ? 'bg-primary-light' : ''}`}
               >
                 <div
-                  className={`text-lg font-semibold mb-3 ${
-                    isCurrentDay ? 'text-primary' : 'text-text-primary'
-                  }`}
+                  className={`text-lg font-semibold mb-3 ${isCurrentDay ? 'text-primary' : 'text-text-primary'
+                    }`}
                 >
                   {day.getDate()}
                 </div>
@@ -1243,477 +739,364 @@ export default function CalendarView({
               </div>
             );
           })}
-          {/* Render operations and projects spanning across days */}
+          {/* Render projects spanning across days */}
           <div className="absolute inset-0 z-10 pointer-events-none">
             <div className="relative w-full h-full pointer-events-auto">
-          {(() => {
-            // Get all unique operation instances for this week
-            const weekOperationInstances = new Map<string, typeof operationInstances[0]>();
-            days.forEach(day => {
-              getOperationInstancesForDay(day).forEach(instance => {
-                weekOperationInstances.set(`${instance.operation._id.toString()}-${instance.startDate.getTime()}`, instance);
-              });
-            });
+              {(() => {
+                // Get all unique projects for this week
+                const weekProjects = new Map<string, IProject>();
+                days.forEach(day => {
+                  getProjectsForDay(day).forEach(project => {
+                    weekProjects.set(project._id.toString(), project);
+                  });
+                });
 
-            // Get all unique projects for this week
-            const weekProjects = new Map<string, IProject>();
-            days.forEach(day => {
-              getProjectsForDay(day).forEach(project => {
-                weekProjects.set(project._id.toString(), project);
-              });
-            });
+                const allItems: Array<{ type: 'project'; project: IProject; startDate: Date; endDate: Date }> = [];
 
-            // Combine operations and projects - operations first
-            const allItems: Array<{ type: 'operation' | 'project'; operation?: typeof operationInstances[0]; project?: IProject; startDate: Date; endDate: Date }> = [];
-            
-            // Add operations first
-            Array.from(weekOperationInstances.values()).forEach(instance => {
-              allItems.push({
-                type: 'operation',
-                operation: instance,
-                startDate: instance.startDate,
-                endDate: instance.endDate,
-              });
-            });
-            
-            // Add projects (sorted by latest update) - projects span the full week since they have no dates
-            const weekStart = new Date(days[0]);
-            weekStart.setHours(0, 0, 0, 0);
-            const weekEnd = new Date(days[6]);
-            weekEnd.setHours(23, 59, 59, 999);
-            
-            sortProjectsByLatestUpdate(Array.from(weekProjects.values())).forEach(project => {
-              // Projects always exist - they span the full visible timeframe
-              allItems.push({
-                type: 'project',
-                project: project,
-                startDate: weekStart,
-                endDate: weekEnd,
-              });
-            });
-            
-            // Calculate positions for each item with stacking
-            const itemPositions = allItems.map((item) => {
-              const itemStart = item.startDate;
-              const itemEnd = item.endDate;
-              
-              // Find the first day in the week that overlaps with the item
-              const weekStart = new Date(days[0]);
-              weekStart.setHours(0, 0, 0, 0);
-              const weekEnd = new Date(days[6]);
-              weekEnd.setHours(23, 59, 59, 999);
-              
-              // Item start is either the item's actual start or the week start, whichever is later
-              const displayStart = itemStart < weekStart ? weekStart : itemStart;
-              // Item end is either the item's actual end or the week end, whichever is earlier
-              const displayEnd = itemEnd > weekEnd ? weekEnd : itemEnd;
-
-              // Find start column (which day of the week)
-              const startCol = days.findIndex(d => {
-                const dayStart = new Date(d);
-                dayStart.setHours(0, 0, 0, 0);
-                const dayEnd = new Date(d);
-                dayEnd.setHours(23, 59, 59, 999);
-                return displayStart >= dayStart && displayStart <= dayEnd;
-              });
-              
-              if (startCol === -1) return null;
-
-              // Calculate span in days
-              // Normalize dates to midnight for accurate day-only comparison
-              const startDayNormalized = new Date(displayStart);
-              startDayNormalized.setHours(0, 0, 0, 0);
-              const endDayNormalized = new Date(displayEnd);
-              endDayNormalized.setHours(0, 0, 0, 0);
-              const startDay = startDayNormalized.toDateString();
-              const endDay = endDayNormalized.toDateString();
-              // For inclusive dates: Jan 19 to Jan 20 = 2 days (19th and 20th)
-              const daysSpan = startDay === endDay ? 1 : Math.floor((endDayNormalized.getTime() - startDayNormalized.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-              const span = Math.min(daysSpan, 7 - startCol);
-
-              return {
-                ...item,
-                startCol,
-                span,
-                displayStart,
-                displayEnd,
-              };
-            }).filter((pos): pos is NonNullable<typeof pos> => pos !== null);
-
-            // Calculate card heights first
-            const cardHeights = itemPositions.map((pos) => {
-              const isOperation = pos.type === 'operation';
-              if (isOperation) return 60; // Operations need space for name + status badge + padding
-              
-              const project = pos.project!;
-              const hasTasks = project.tasks && project.tasks.length > 0 && project.status !== 'launched';
-              const hasOperations = project.status === 'launched' && operations.some((op) => 
-                op.projectId?.toString() === project._id.toString() && op.startDate
-              );
-              
-              let taskCount = 0;
-              if (hasTasks) {
-                taskCount = project.tasks!.filter((task) => {
-                  const taskStart = new Date(task.startDate);
-                  taskStart.setHours(0, 0, 0, 0);
-                  const taskEnd = new Date(task.endDate);
-                  taskEnd.setHours(23, 59, 59, 999);
-                  const weekStart = new Date(days[0]);
-                  weekStart.setHours(0, 0, 0, 0);
-                  const weekEnd = new Date(days[6]);
-                  weekEnd.setHours(23, 59, 59, 999);
-                  return taskStart <= weekEnd && taskEnd >= weekStart;
-                }).length;
-              } else if (hasOperations) {
-                const projectOps = operations.filter((op) => 
-                  op.projectId?.toString() === project._id.toString() && op.startDate
-                );
-                taskCount = projectOps.length;
-              }
-              
-              // Height calculation: header (project name + status badge) + padding + tasks
-              // Match today view exactly: p-6 = 24px padding, header ~60px, each task card ~80px
-              const projectId = pos.project!._id.toString();
-              const isExpanded = expandedProjects.has(projectId);
-              
-              const topPadding = 24; // p-6 top padding
-              const headerHeight = 60; // Project name + status badge + spacing
-              const bottomPadding = 24; // p-6 bottom padding
-              
-              if (!isExpanded) {
-                // Calculate collapsed height: header + collapsed task/operation list
+                // Add projects (sorted by latest update) - projects span the full week since they have no dates
                 const weekStart = new Date(days[0]);
                 weekStart.setHours(0, 0, 0, 0);
                 const weekEnd = new Date(days[6]);
                 weekEnd.setHours(23, 59, 59, 999);
-                
-                let collapsedItemsHeight = 0;
-                if (hasTasks) {
-                  const visibleTasks = project.tasks!.filter((task) => {
-                    const taskStart = new Date(task.startDate);
-                    taskStart.setHours(0, 0, 0, 0);
-                    const taskEnd = new Date(task.endDate);
-                    taskEnd.setHours(23, 59, 59, 999);
-                    return taskStart <= weekEnd && taskEnd >= weekStart;
+
+                sortProjectsByLatestUpdate(Array.from(weekProjects.values())).forEach(project => {
+                  // Projects always exist - they span the full visible timeframe
+                  allItems.push({
+                    type: 'project',
+                    project: project,
+                    startDate: weekStart,
+                    endDate: weekEnd,
                   });
-                  const collapsedTaskCount = Math.min(visibleTasks.length, 5);
-                  const collapsedTaskHeight = 20; // Each collapsed task line ~20px
-                  collapsedItemsHeight = collapsedTaskCount > 0 ? (collapsedTaskCount * collapsedTaskHeight) + 8 : 0; // +8 for spacing
-                } else if (hasOperations) {
-                  const visibleOps = operations.filter((op) => 
-                    op.projectId?.toString() === project._id.toString() && op.startDate
-                  );
-                  const collapsedOpCount = Math.min(visibleOps.length, 5);
-                  const collapsedOpHeight = 20; // Each collapsed operation line ~20px
-                  collapsedItemsHeight = collapsedOpCount > 0 ? (collapsedOpCount * collapsedOpHeight) + 8 : 0; // +8 for spacing
-                }
-                
-                return topPadding + headerHeight + collapsedItemsHeight + bottomPadding;
-              }
-              
-              // Expanded height calculation
-              const visibleCount = Math.min(taskCount, 3);
-              const descriptionHeight = project.description ? 40 : 0; // Description if present
-              const estimatedHoursHeight = 48; // Estimated hours section + assigned to (space-y-2)
-              const tasksSectionPadding = 16; // mt-4 = 16px
-              const tasksHeaderHeight = 24; // "Tasks:" label + mb-2
-              const taskHeight = 80; // Each task card height (matches today view)
-              return topPadding + headerHeight + descriptionHeight + estimatedHoursHeight + tasksSectionPadding + tasksHeaderHeight + (visibleCount * taskHeight) + bottomPadding;
-            });
-            
-            // Calculate vertical stacking positions with variable heights
-            const stackPositions: number[] = new Array(itemPositions.length).fill(0);
-            const topPositions: number[] = new Array(itemPositions.length).fill(0);
-            const baseTop = 60; // Base top position (increased from 60 to accommodate larger cards)
+                });
 
-            for (let i = 0; i < itemPositions.length; i++) {
-              const current = itemPositions[i];
-              let stackLevel = 0;
-              let topPosition = baseTop;
-              
-              // Check all previous items to see if they overlap
-              for (let j = 0; j < i; j++) {
-                const previous = itemPositions[j];
-                // Check if items overlap in time
-                if (current.displayStart <= previous.displayEnd && current.displayEnd >= previous.displayStart) {
-                  // They overlap, so this item needs to be below the previous one
-                  const previousBottom = topPositions[j] + cardHeights[j];
-                  topPosition = Math.max(topPosition, previousBottom + 2); // 2px gap
-                }
-              }
-              
-              stackPositions[i] = stackLevel;
-              topPositions[i] = topPosition;
-            }
+                // Calculate positions for each item with stacking
+                const itemPositions = allItems.map((item) => {
+                  const itemStart = item.startDate;
+                  const itemEnd = item.endDate;
 
-            return itemPositions.map((pos, idx) => {
-              const isOperation = pos.type === 'operation';
-              const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
-              const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
-              const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
-              const assignedToId = isOperation 
-                ? (pos.operation!.operation as any).assignedToEmployeeId?.toString()
-                : (pos.project! as any).assignedToEmployeeId?.toString();
-              const assignedToName = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
-              const assignedTo = getEmployeeName(assignedToId, assignedToName);
-              
-              // Calculate duration for operations
-              let durationText = '';
-              if (isOperation) {
-                const opDuration = Math.ceil((pos.operation!.endDate.getTime() - pos.operation!.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                if (opDuration > 1) {
-                  durationText = ` - ${opDuration} day${opDuration !== 1 ? 's' : ''}`;
-                }
-              }
-              
-              const cardHeight = cardHeights[idx];
-              const topPosition = topPositions[idx];
-              
-              // Use the same color logic as today view
-              const displayColor = isOperation 
-                ? (status === 'in-review' ? '#FFAB00' : '#9ca3af')
-                : (status === 'in-review' ? '#ef4444' : (pos.project?.color || '#3b82f6'));
-              
-              // Check if project is expanded for weekly view
-              const projectId = !isOperation ? pos.project!._id.toString() : null;
-              const isExpanded = projectId ? expandedProjects.has(projectId) : false;
-              
-              return (
-                <div
-                  key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-weekly` : `${pos.project!._id.toString()}-weekly`}
-                  className={`absolute rounded-lg border-2 border-border ${status === 'completed' ? 'line-through opacity-60' : ''}`}
-                  style={{
-                    backgroundColor: displayColor + 'F0',
-                    borderColor: displayColor,
-                    left: `calc(${pos.startCol * (100 / 7)}% + 4px)`,
-                    width: `calc(${pos.span * (100 / 7)}% - 8px)`,
-                    top: `${topPosition}px`,
-                    height: `${cardHeight}px`,
-                  }}
-                  title={`${name}${durationText}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
-                >
-                  <div 
-                    className="flex items-start justify-between cursor-pointer p-6"
-                    onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
-                  >
-                    <h4 className={`text-xl font-bold text-white ${status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                      {name}
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      {!isOperation && pos.project && (() => {
-                        const project = pos.project!;
-                        const hasTasks = project.tasks && project.tasks.length > 0 && project.status !== 'launched';
-                        const hasOperations = project.status === 'launched' && operations.some((op) => 
-                          op.projectId?.toString() === project._id.toString() && op.startDate
-                        );
-                        return (hasTasks || hasOperations) ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleProjectExpanded(projectId!);
-                            }}
-                            className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
-                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                          >
-                            {isExpanded ? '▼' : '▶'}
-                          </button>
-                        ) : null;
-                      })()}
-                      <span
-                        className="px-3 py-1 rounded-full text-sm font-medium text-white"
-                        style={{ backgroundColor: displayColor }}
-                      >
-                        {status}
-                      </span>
-                    </div>
-                  </div>
-                  {!isOperation && pos.project && (() => {
-                    const project = pos.project!;
-                    const hasTasks = project.tasks && project.tasks.length > 0 && project.status !== 'launched';
-                    const hasOperations = project.status === 'launched' && operations.some((op) => 
-                      op.projectId?.toString() === project._id.toString() && op.startDate
-                    );
-                    
-                    // Show collapsed task/content/operation list when not expanded
-                    if (!isExpanded) {
+                  // Find the first day in the week that overlaps with the item
+                  const weekStart = new Date(days[0]);
+                  weekStart.setHours(0, 0, 0, 0);
+                  const weekEnd = new Date(days[6]);
+                  weekEnd.setHours(23, 59, 59, 999);
+
+                  // Item start is either the item's actual start or the week start, whichever is later
+                  const displayStart = itemStart < weekStart ? weekStart : itemStart;
+                  // Item end is either the item's actual end or the week end, whichever is earlier
+                  const displayEnd = itemEnd > weekEnd ? weekEnd : itemEnd;
+
+                  // Find start column (which day of the week)
+                  const startCol = days.findIndex(d => {
+                    const dayStart = new Date(d);
+                    dayStart.setHours(0, 0, 0, 0);
+                    const dayEnd = new Date(d);
+                    dayEnd.setHours(23, 59, 59, 999);
+                    return displayStart >= dayStart && displayStart <= dayEnd;
+                  });
+
+                  if (startCol === -1) return null;
+
+                  // Calculate span in days
+                  // Normalize dates to midnight for accurate day-only comparison
+                  const startDayNormalized = new Date(displayStart);
+                  startDayNormalized.setHours(0, 0, 0, 0);
+                  const endDayNormalized = new Date(displayEnd);
+                  endDayNormalized.setHours(0, 0, 0, 0);
+                  const startDay = startDayNormalized.toDateString();
+                  const endDay = endDayNormalized.toDateString();
+                  // For inclusive dates: Jan 19 to Jan 20 = 2 days (19th and 20th)
+                  const daysSpan = startDay === endDay ? 1 : Math.floor((endDayNormalized.getTime() - startDayNormalized.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  const span = Math.min(daysSpan, 7 - startCol);
+
+                  return {
+                    ...item,
+                    startCol,
+                    span,
+                    displayStart,
+                    displayEnd,
+                  };
+                }).filter((pos): pos is NonNullable<typeof pos> => pos !== null);
+
+                // Calculate card heights first
+                const cardHeights = itemPositions.map((pos) => {
+                  const project = pos.project;
+                  const hasTasks = project.tasks && project.tasks.length > 0;
+
+                  let taskCount = 0;
+                  if (hasTasks) {
+                    taskCount = project.tasks!.filter((task) => {
+                      const taskStart = new Date(task.startDate);
+                      taskStart.setHours(0, 0, 0, 0);
+                      const taskEnd = new Date(task.endDate);
+                      taskEnd.setHours(23, 59, 59, 999);
                       const weekStart = new Date(days[0]);
                       weekStart.setHours(0, 0, 0, 0);
                       const weekEnd = new Date(days[6]);
                       weekEnd.setHours(23, 59, 59, 999);
-                      
-                      const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, weekStart, weekEnd, {});
-                      const displayList = merged.filter((item): item is MergedCalendarItem =>
-                        item.type === 'content' || taskPassesAssignmentFilter(item.task)
-                      );
-                      const visible = displayList.slice(0, 5);
-                      const moreCount = displayList.length - 5;
-                      const hasOpsOnly = !hasTasks && hasOperations;
-                      const visibleOps = hasOpsOnly ? operations.filter((op) => 
-                        op.projectId?.toString() === project._id.toString() && op.startDate
-                      ) : [];
+                      return taskStart <= weekEnd && taskEnd >= weekStart;
+                    }).length;
+                  }
 
-                      if (displayList.length > 0) {
-                        return (
-                          <div className="px-6 pb-6">
-                            <div className="space-y-1">
-                              {visible.map((item, idx) => {
-                                if (item.type === 'task') {
-                                  return (
-                                    <div key={`${project._id}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                                      {item.task.name}
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
-                                    <span className="mr-1" aria-hidden>📝</span>
-                                    {item.content.title}
-                                    <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
-                                  </div>
-                                );
-                              })}
-                              {moreCount > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd }); }}
-                                  className="text-xs text-white italic opacity-80 hover:opacity-100"
-                                >
-                                  +{moreCount} more
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
-                      if (hasOpsOnly && visibleOps.length > 0) {
-                        return (
-                          <div className="px-6 pb-6">
-                            <div className="space-y-1">
-                              {visibleOps.slice(0, 5).map((op, idx) => (
-                                <div key={`op-${idx}`} className={`text-sm text-white ${op.status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                                  {op.name}
-                                </div>
-                              ))}
-                              {visibleOps.length > 5 && (
-                                <div className="text-xs text-white italic opacity-80">+{visibleOps.length - 5} more</div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
+                  // Height calculation: header (project name + status badge) + padding + tasks
+                  // Match today view exactly: p-6 = 24px padding, header ~60px, each task card ~80px
+                  const projectId = pos.project!._id.toString();
+                  const isExpanded = expandedProjects.has(projectId);
+
+                  const topPadding = 24; // p-6 top padding
+                  const headerHeight = 60; // Project name + status badge + spacing
+                  const bottomPadding = 24; // p-6 bottom padding
+
+                  if (!isExpanded) {
+                    // Calculate collapsed height: header + collapsed task/operation list
+                    const weekStart = new Date(days[0]);
+                    weekStart.setHours(0, 0, 0, 0);
+                    const weekEnd = new Date(days[6]);
+                    weekEnd.setHours(23, 59, 59, 999);
+
+                    let collapsedItemsHeight = 0;
+                    if (hasTasks) {
+                      const visibleTasks = project.tasks!.filter((task) => {
+                        const taskStart = new Date(task.startDate);
+                        taskStart.setHours(0, 0, 0, 0);
+                        const taskEnd = new Date(task.endDate);
+                        taskEnd.setHours(23, 59, 59, 999);
+                        return taskStart <= weekEnd && taskEnd >= weekStart;
+                      });
+                      const collapsedTaskCount = Math.min(visibleTasks.length, 5);
+                      const collapsedTaskHeight = 20; // Each collapsed task line ~20px
+                      collapsedItemsHeight = collapsedTaskCount > 0 ? (collapsedTaskCount * collapsedTaskHeight) + 8 : 0; // +8 for spacing
                     }
-                    
-                    // Show expanded view
-                    if (!isExpanded) return null;
-                    
-                    return (
-                      <>
-                        {project.description && (
-                          <p className="text-white opacity-90 mb-3 mt-3 px-6">{project.description}</p>
-                        )}
 
-                        <div className="space-y-2 mt-3 px-6">
-                          <div className="text-sm text-white opacity-90">
-                            <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
-                          </div>
-                          
-                          {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
-                            <div className="text-sm text-white opacity-90">
-                              <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
-                            </div>
-                          )}
+                    return topPadding + headerHeight + collapsedItemsHeight + bottomPadding;
+                  }
+
+                  // Expanded height calculation
+                  const visibleCount = Math.min(taskCount, 3);
+                  const descriptionHeight = project.description ? 40 : 0; // Description if present
+                  const estimatedHoursHeight = 48; // Estimated hours section + assigned to (space-y-2)
+                  const tasksSectionPadding = 16; // mt-4 = 16px
+                  const tasksHeaderHeight = 24; // "Tasks:" label + mb-2
+                  const taskHeight = 80; // Each task card height (matches today view)
+                  return topPadding + headerHeight + descriptionHeight + estimatedHoursHeight + tasksSectionPadding + tasksHeaderHeight + (visibleCount * taskHeight) + bottomPadding;
+                });
+
+                // Calculate vertical stacking positions with variable heights
+                const stackPositions: number[] = new Array(itemPositions.length).fill(0);
+                const topPositions: number[] = new Array(itemPositions.length).fill(0);
+                const baseTop = 60; // Base top position (increased from 60 to accommodate larger cards)
+
+                for (let i = 0; i < itemPositions.length; i++) {
+                  const current = itemPositions[i];
+                  let stackLevel = 0;
+                  let topPosition = baseTop;
+
+                  // Check all previous items to see if they overlap
+                  for (let j = 0; j < i; j++) {
+                    const previous = itemPositions[j];
+                    // Check if items overlap in time
+                    if (current.displayStart <= previous.displayEnd && current.displayEnd >= previous.displayStart) {
+                      // They overlap, so this item needs to be below the previous one
+                      const previousBottom = topPositions[j] + cardHeights[j];
+                      topPosition = Math.max(topPosition, previousBottom + 2); // 2px gap
+                    }
+                  }
+
+                  stackPositions[i] = stackLevel;
+                  topPositions[i] = topPosition;
+                }
+
+                return itemPositions.map((pos, idx) => {
+                  const status = pos.project!.status;
+                  const name = pos.project!.name;
+                  const estimatedHours = getProjectEstimatedHours(pos.project!);
+                  const assignedToId = (pos.project! as any).assignedToEmployeeId?.toString();
+                  const assignedToName = pos.project!.assignedTo;
+                  const assignedTo = getEmployeeName(assignedToId, assignedToName);
+
+                  const cardHeight = cardHeights[idx];
+                  const topPosition = topPositions[idx];
+
+                  // Use the same color logic as today view
+                  const displayColor = status === 'in-review' ? '#ef4444' : (pos.project?.color || '#3b82f6');
+
+                  // Check if project is expanded for weekly view
+                  const projectId = pos.project!._id.toString();
+                  const isExpanded = expandedProjects.has(projectId);
+
+                  return (
+                    <div
+                      key={`${pos.project!._id.toString()}-weekly`}
+                      className={`absolute rounded-lg border-2 border-border ${status === 'completed' ? 'line-through opacity-60' : ''}`}
+                      style={{
+                        backgroundColor: displayColor + 'F0',
+                        borderColor: displayColor,
+                        left: `calc(${pos.startCol * (100 / 7)}% + 4px)`,
+                        width: `calc(${pos.span * (100 / 7)}% - 8px)`,
+                        top: `${topPosition}px`,
+                        height: `${cardHeight}px`,
+                      }}
+                      title={`${name} ${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
+                    >
+                      <div
+                        className="flex items-start justify-between cursor-pointer p-6"
+                        onClick={() => onProjectClick(pos.project!)}
+                      >
+                        <h4 className={`text-xl font-bold text-white ${status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                          {name}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const project = pos.project;
+                            const hasTasks = project.tasks && project.tasks.length > 0;
+                            return hasTasks ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleProjectExpanded(projectId!);
+                                }}
+                                className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
+                                aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                              >
+                                {isExpanded ? '▼' : '▶'}
+                              </button>
+                            ) : null;
+                          })()}
+                          <span
+                            className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                            style={{ backgroundColor: displayColor }}
+                          >
+                            {status}
+                          </span>
                         </div>
-                        
-                        {hasTasks && (() => {
+                      </div>
+                      {(() => {
+                        const project = pos.project!;
+                        const hasTasks = project.tasks && project.tasks.length > 0;
+
+                        // Show collapsed task/content list when not expanded
+                        if (!isExpanded) {
                           const weekStart = new Date(days[0]);
                           weekStart.setHours(0, 0, 0, 0);
                           const weekEnd = new Date(days[6]);
                           weekEnd.setHours(23, 59, 59, 999);
-                          
-                          const visibleTasks = project.tasks!.filter((task) => {
-                            const taskStart = new Date(task.startDate);
-                            taskStart.setHours(0, 0, 0, 0);
-                            const taskEnd = new Date(task.endDate);
-                            taskEnd.setHours(23, 59, 59, 999);
-                            return taskStart <= weekEnd && taskEnd >= weekStart;
-                          });
-                          
-                          const displayedTasks = visibleTasks.slice(0, 3); // Limit to 3 tasks for better fit in weekly view
-                          
-                          return (
-                            <div className="mt-4 px-6 pb-6">
-                              <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
-                              <div className="space-y-2">
-                                {displayedTasks.map((task, taskIdx) => (
-                                  <div
-                                    key={taskIdx}
-                                    className="p-3 rounded border border-border bg-background-card"
-                                  >
-                                    <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
-                                    {task.description && (
-                                      <p className="text-sm text-text-secondary mt-1">{task.description}</p>
-                                    )}
-                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                      {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                                      {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
-                                        <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
-                                      )}
-                                      <span className="capitalize">{task.status}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                                {visibleTasks.length > 3 && (
-                                  <div className="text-xs text-text-secondary italic">+{visibleTasks.length - 3} more tasks</div>
-                                )}
+
+                          const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, weekStart, weekEnd, {});
+                          const displayList = merged.filter((item): item is MergedCalendarItem =>
+                            item.type === 'content' || taskPassesAssignmentFilter(item.task)
+                          );
+                          const visible = displayList.slice(0, 5);
+                          const moreCount = displayList.length - 5;
+
+                          if (displayList.length > 0) {
+                            return (
+                              <div className="px-6 pb-6">
+                                <div className="space-y-1">
+                                  {visible.map((item, idx) => {
+                                    if (item.type === 'task') {
+                                      return (
+                                        <div key={`${project._id}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                          {item.task.name}
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
+                                        <span className="mr-1" aria-hidden>📝</span>
+                                        {item.content.title}
+                                        <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {moreCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd }); }}
+                                      className="text-xs text-white italic opacity-80 hover:opacity-100"
+                                    >
+                                      +{moreCount} more
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })()}
-                        
-                        {hasOperations && (() => {
-                          const projectOps = operations.filter((op) => 
-                            op.projectId?.toString() === project._id.toString() && op.startDate
-                          );
-                          
-                          const displayedOps = projectOps.slice(0, 3); // Limit to 3 operations for better fit in weekly view
-                          
-                          return (
-                            <div className="mt-4 px-6 pb-6">
-                              <p className="text-sm font-semibold text-white mb-2">Operations:</p>
-                              <div className="space-y-2">
-                                {displayedOps.map((op, opIdx) => (
-                                  <div
-                                    key={opIdx}
-                                    className="p-3 rounded border border-border bg-background-card"
-                                  >
-                                    <div className={`font-medium text-text-primary ${op.status === 'completed' ? 'line-through opacity-60' : ''}`}>{op.name}</div>
-                                    {op.description && (
-                                      <p className="text-sm text-text-secondary mt-1">{op.description}</p>
-                                    )}
-                                    <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                      {op.estimatedHours && <span>{op.estimatedHours}h</span>}
-                                      {getEmployeeName((op as any).assignedToEmployeeId?.toString(), op.assignedTo) && (
-                                        <span>Assigned: {getEmployeeName((op as any).assignedToEmployeeId?.toString(), op.assignedTo)}</span>
-                                      )}
-                                      <span className="capitalize">{op.status}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                                {projectOps.length > 3 && (
-                                  <div className="text-xs text-text-secondary italic">+{projectOps.length - 3} more operations</div>
-                                )}
+                            );
+                          }
+                          return null;
+                        }
+
+                        // Show expanded view
+                        if (!isExpanded) return null;
+
+                        return (
+                          <>
+                            {project.description && (
+                              <p className="text-white opacity-90 mb-3 mt-3 px-6">{project.description}</p>
+                            )}
+
+                            <div className="space-y-2 mt-3 px-6">
+                              <div className="text-sm text-white opacity-90">
+                                <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
                               </div>
+
+                              {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
+                                <div className="text-sm text-white opacity-90">
+                                  <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
+                                </div>
+                              )}
                             </div>
-                          );
-                        })()}
-                      </>
-                    );
-                  })()}
-                </div>
-              );
-            });
-          })()}
+
+                            {hasTasks && (() => {
+                              const weekStart = new Date(days[0]);
+                              weekStart.setHours(0, 0, 0, 0);
+                              const weekEnd = new Date(days[6]);
+                              weekEnd.setHours(23, 59, 59, 999);
+
+                              const visibleTasks = project.tasks!.filter((task) => {
+                                const taskStart = new Date(task.startDate);
+                                taskStart.setHours(0, 0, 0, 0);
+                                const taskEnd = new Date(task.endDate);
+                                taskEnd.setHours(23, 59, 59, 999);
+                                return taskStart <= weekEnd && taskEnd >= weekStart;
+                              });
+
+                              const displayedTasks = visibleTasks.slice(0, 3); // Limit to 3 tasks for better fit in weekly view
+
+                              return (
+                                <div className="mt-4 px-6 pb-6">
+                                  <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
+                                  <div className="space-y-2">
+                                    {displayedTasks.map((task, taskIdx) => (
+                                      <div
+                                        key={taskIdx}
+                                        className="p-3 rounded border border-border bg-background-card"
+                                      >
+                                        <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                        {task.description && (
+                                          <p className="text-sm text-text-secondary mt-1">{task.description}</p>
+                                        )}
+                                        <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                          {task.estimatedHours && <span>{task.estimatedHours}h</span>}
+                                          {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
+                                            <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
+                                          )}
+                                          <span className="capitalize">{task.status}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {visibleTasks.length > 3 && (
+                                      <div className="text-xs text-text-secondary italic">+{visibleTasks.length - 3} more tasks</div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                          </>
+                        );
+                      })()}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>
@@ -1724,7 +1107,7 @@ export default function CalendarView({
   // Monthly View - Standard calendar grid with slightly larger boxes
   const renderMonthlyView = () => {
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    
+
     // Get first day of month and adjust to Monday
     const firstDayOfMonth = new Date(startDate);
     const firstDay = firstDayOfMonth.getDay();
@@ -1773,14 +1156,12 @@ export default function CalendarView({
                 return (
                   <div
                     key={dayIdx}
-                    className={`p-2 relative ${!inViewRange ? 'bg-background opacity-50' : ''} ${
-                      isCurrentDay ? 'bg-primary-light' : ''
-                    }`}
+                    className={`p-2 relative ${!inViewRange ? 'bg-background opacity-50' : ''} ${isCurrentDay ? 'bg-primary-light' : ''
+                      }`}
                   >
                     <div
-                      className={`text-sm font-medium mb-1 ${
-                        isCurrentDay ? 'text-primary' : 'text-text-primary'
-                      }`}
+                      className={`text-sm font-medium mb-1 ${isCurrentDay ? 'text-primary' : 'text-text-primary'
+                        }`}
                     >
                       {day.getDate()}
                     </div>
@@ -1791,16 +1172,8 @@ export default function CalendarView({
                   </div>
                 );
               })}
-              {/* Render operations and projects that span across days */}
+              {/* Render projects that span across days */}
               {(() => {
-                // Get all unique operation instances for this week
-                const weekOperationInstances = new Map<string, typeof operationInstances[0]>();
-                week.forEach(day => {
-                  getOperationInstancesForDay(day).forEach(instance => {
-                    weekOperationInstances.set(`${instance.operation._id.toString()}-${instance.startDate.getTime()}`, instance);
-                  });
-                });
-
                 // Get all unique projects for this week
                 const weekProjects = new Map<string, IProject>();
                 week.forEach(day => {
@@ -1809,25 +1182,14 @@ export default function CalendarView({
                   });
                 });
 
-                // Combine operations and projects - operations first
-                const allItems: Array<{ type: 'operation' | 'project'; operation?: typeof operationInstances[0]; project?: IProject; startDate: Date; endDate: Date }> = [];
-                
-                // Add operations first
-                Array.from(weekOperationInstances.values()).forEach(instance => {
-                  allItems.push({
-                    type: 'operation',
-                    operation: instance,
-                    startDate: instance.startDate,
-                    endDate: instance.endDate,
-                  });
-                });
-                
+                const allItems: Array<{ type: 'project'; project: IProject; startDate: Date; endDate: Date }> = [];
+
                 // Add projects - projects span the full week since they have no dates
                 const weekStart = new Date(week[0]);
                 weekStart.setHours(0, 0, 0, 0);
                 const weekEnd = new Date(week[6]);
                 weekEnd.setHours(23, 59, 59, 999);
-                
+
                 Array.from(weekProjects.values()).forEach(project => {
                   // Projects always exist - they span the full visible timeframe
                   allItems.push({
@@ -1837,18 +1199,18 @@ export default function CalendarView({
                     endDate: weekEnd,
                   });
                 });
-                
+
                 // Calculate positions for each item with stacking
                 const itemPositions = allItems.map((item) => {
                   const itemStart = item.startDate;
                   const itemEnd = item.endDate;
-                  
+
                   // Find the first day in the week that overlaps with the item
                   const weekStart = new Date(week[0]);
                   weekStart.setHours(0, 0, 0, 0);
                   const weekEnd = new Date(week[6]);
                   weekEnd.setHours(23, 59, 59, 999);
-                  
+
                   // Item start is either the item's actual start or the week start, whichever is later
                   const displayStart = itemStart < weekStart ? weekStart : itemStart;
                   // Item end is either the item's actual end or the week end, whichever is earlier
@@ -1862,7 +1224,7 @@ export default function CalendarView({
                     dayEnd.setHours(23, 59, 59, 999);
                     return displayStart >= dayStart && displayStart <= dayEnd;
                   });
-                  
+
                   if (startCol === -1) return null;
 
                   // Calculate how many days the item spans in this week
@@ -1894,7 +1256,7 @@ export default function CalendarView({
                 for (let i = 0; i < itemPositions.length; i++) {
                   const current = itemPositions[i];
                   let stackLevel = 0;
-                  
+
                   // Check all previous items to see if they overlap
                   for (let j = 0; j < i; j++) {
                     const previous = itemPositions[j];
@@ -1904,37 +1266,25 @@ export default function CalendarView({
                       stackLevel = Math.max(stackLevel, stackPositions[j] + 1);
                     }
                   }
-                  
+
                   stackPositions[i] = stackLevel;
                 }
 
                 return itemPositions.map((pos, idx) => {
                   const topPosition = baseTop + (stackPositions[idx] * rowHeight);
-                  const isOperation = pos.type === 'operation';
-                  const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
-                  const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
+                  const status = pos.project!.status;
+                  const baseColor = pos.project?.color || '#3b82f6';
                   const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
-                  const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
-                  const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
-                  const assignedToId = isOperation 
-                    ? (pos.operation!.operation as any).assignedToEmployeeId?.toString()
-                    : (pos.project! as any).assignedToEmployeeId?.toString();
-                  const assignedToName = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+                  const name = pos.project!.name;
+                  const estimatedHours = getProjectEstimatedHours(pos.project!);
+                  const assignedToId = (pos.project! as any).assignedToEmployeeId?.toString();
+                  const assignedToName = pos.project!.assignedTo;
                   const assignedTo = getEmployeeName(assignedToId, assignedToName);
-                  
-                  // Calculate duration for operations
-                  let durationText = '';
-                  if (isOperation) {
-                    const opDuration = Math.ceil((pos.operation!.endDate.getTime() - pos.operation!.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                    if (opDuration > 1) {
-                      durationText = ` - ${opDuration} day${opDuration !== 1 ? 's' : ''}`;
-                    }
-                  }
-                  
+
                   return (
                     <div
-                      key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-${weekIdx}` : `${pos.project!._id.toString()}-${weekIdx}`}
-                      onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
+                      key={`${pos.project!._id.toString()}-${weekIdx}`}
+                      onClick={() => onProjectClick(pos.project!)}
                       className={`absolute text-xs px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                       style={{
                         backgroundColor: color,
@@ -1946,7 +1296,7 @@ export default function CalendarView({
                         overflow: 'hidden',
                         lineHeight: `${rowHeight - 2}px`,
                       }}
-                      title={`${name}${durationText}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
+                      title={`${name}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                     >
                       <div className="font-medium truncate">{name}</div>
                     </div>
@@ -1964,7 +1314,7 @@ export default function CalendarView({
   const renderQuarterlyView = () => {
     const months: Date[][] = [];
     const quarter = Math.floor(viewDate.getMonth() / 3);
-    
+
     for (let i = 0; i < 3; i++) {
       const monthDate = new Date(viewDate.getFullYear(), quarter * 3 + i, 1);
       const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
@@ -2044,13 +1394,11 @@ export default function CalendarView({
                       return (
                         <div
                           key={dayIdx}
-                          className={`p-2 relative ${!inMonth ? 'bg-background opacity-50' : ''} ${
-                            isCurrentDay ? 'bg-primary-light' : ''
-                          }`}
+                          className={`p-2 relative ${!inMonth ? 'bg-background opacity-50' : ''} ${isCurrentDay ? 'bg-primary-light' : ''
+                            }`}
                         >
-                          <div className={`text-sm font-medium mb-1 ${
-                            isCurrentDay ? 'text-primary' : 'text-text-primary'
-                          }`}>
+                          <div className={`text-sm font-medium mb-1 ${isCurrentDay ? 'text-primary' : 'text-text-primary'
+                            }`}>
                             {day.getDate()}
                           </div>
                           <div className="space-y-1 min-h-[110px]" style={{ position: 'relative' }}>
@@ -2059,16 +1407,8 @@ export default function CalendarView({
                         </div>
                       );
                     })}
-                    {/* Render operations and projects spanning across days */}
+                    {/* Render projects spanning across days */}
                     {(() => {
-                      // Get all unique operation instances for this week
-                      const weekOperationInstances = new Map<string, typeof operationInstances[0]>();
-                      week.forEach(day => {
-                        getOperationInstancesForDay(day).forEach(instance => {
-                          weekOperationInstances.set(`${instance.operation._id.toString()}-${instance.startDate.getTime()}`, instance);
-                        });
-                      });
-
                       // Get all unique projects for this week
                       const weekProjects = new Map<string, IProject>();
                       week.forEach(day => {
@@ -2077,25 +1417,14 @@ export default function CalendarView({
                         });
                       });
 
-                      // Combine operations and projects - operations first
-                      const allItems: Array<{ type: 'operation' | 'project'; operation?: typeof operationInstances[0]; project?: IProject; startDate: Date; endDate: Date }> = [];
-                      
-                      // Add operations first
-                      Array.from(weekOperationInstances.values()).forEach(instance => {
-                        allItems.push({
-                          type: 'operation',
-                          operation: instance,
-                          startDate: instance.startDate,
-                          endDate: instance.endDate,
-                        });
-                      });
-                      
+                      const allItems: Array<{ type: 'project'; project: IProject; startDate: Date; endDate: Date }> = [];
+
                       // Add projects - projects span the full week since they have no dates
                       const weekStart = new Date(week[0]);
                       weekStart.setHours(0, 0, 0, 0);
                       const weekEnd = new Date(week[6]);
                       weekEnd.setHours(23, 59, 59, 999);
-                      
+
                       Array.from(weekProjects.values()).forEach(project => {
                         // Projects always exist - they span the full visible timeframe
                         allItems.push({
@@ -2105,18 +1434,18 @@ export default function CalendarView({
                           endDate: weekEnd,
                         });
                       });
-                      
+
                       // Calculate positions for each item with stacking
                       const itemPositions = allItems.map((item) => {
                         const itemStart = item.startDate;
                         const itemEnd = item.endDate;
-                        
+
                         // Find the first day in the week that overlaps with the item
                         const weekStart = new Date(week[0]);
                         weekStart.setHours(0, 0, 0, 0);
                         const weekEnd = new Date(week[6]);
                         weekEnd.setHours(23, 59, 59, 999);
-                        
+
                         // Item start is either the item's actual start or the week start, whichever is later
                         const displayStart = itemStart < weekStart ? weekStart : itemStart;
                         // Item end is either the item's actual end or the week end, whichever is earlier
@@ -2159,7 +1488,7 @@ export default function CalendarView({
                       for (let i = 0; i < itemPositions.length; i++) {
                         const current = itemPositions[i];
                         let stackLevel = 0;
-                        
+
                         // Check all previous items to see if they overlap
                         for (let j = 0; j < i; j++) {
                           const previous = itemPositions[j];
@@ -2169,37 +1498,25 @@ export default function CalendarView({
                             stackLevel = Math.max(stackLevel, stackPositions[j] + 1);
                           }
                         }
-                        
+
                         stackPositions[i] = stackLevel;
                       }
 
                       return itemPositions.map((pos, posIdx) => {
                         const topPosition = baseTop + (stackPositions[posIdx] * rowHeight);
-                        const isOperation = pos.type === 'operation';
-                        const status = isOperation ? pos.operation!.operation.status : pos.project!.status;
-                        const baseColor = isOperation ? '#9ca3af' : (pos.project?.color || '#3b82f6');
+                        const status = pos.project!.status;
+                        const baseColor = pos.project?.color || '#3b82f6';
                         const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
-                        const name = isOperation ? pos.operation!.operation.name : pos.project!.name;
-                        const estimatedHours = isOperation ? pos.operation!.operation.estimatedHours : getProjectEstimatedHours(pos.project!);
-                        const assignedToId = isOperation 
-                          ? (pos.operation!.operation as any).assignedToEmployeeId?.toString()
-                          : (pos.project! as any).assignedToEmployeeId?.toString();
-                        const assignedToName = isOperation ? pos.operation!.operation.assignedTo : pos.project!.assignedTo;
+                        const name = pos.project!.name;
+                        const estimatedHours = getProjectEstimatedHours(pos.project!);
+                        const assignedToId = (pos.project! as any).assignedToEmployeeId?.toString();
+                        const assignedToName = pos.project!.assignedTo;
                         const assignedTo = getEmployeeName(assignedToId, assignedToName);
-                        
-                        // Calculate duration for operations
-                        let durationText = '';
-                        if (isOperation) {
-                          const opDuration = Math.ceil((pos.operation!.endDate.getTime() - pos.operation!.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                          if (opDuration > 1) {
-                            durationText = ` - ${opDuration} day${opDuration !== 1 ? 's' : ''}`;
-                          }
-                        }
-                        
+
                         return (
                           <div
-                            key={isOperation ? `operation-${pos.operation!.operation._id.toString()}-${pos.operation!.startDate.getTime()}-q${idx}-w${weekIdx}` : `${pos.project!._id.toString()}-q${idx}-w${weekIdx}`}
-                            onClick={() => isOperation ? onOperationClick(pos.operation!.operation) : onProjectClick(pos.project!)}
+                            key={`${pos.project!._id.toString()}-q${idx}-w${weekIdx}`}
+                            onClick={() => onProjectClick(pos.project!)}
                             className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                             style={{
                               backgroundColor: color,
@@ -2211,7 +1528,7 @@ export default function CalendarView({
                               overflow: 'hidden',
                               lineHeight: `${rowHeight - 2}px`,
                             }}
-                            title={`${name}${durationText}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
+                            title={`${name}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                           >
                             <div className="font-medium truncate">{name}</div>
                           </div>
@@ -2231,7 +1548,7 @@ export default function CalendarView({
   // Yearly View - 4 boxes per row (one for each month in a quarter)
   const renderYearlyView = () => {
     const months: Date[][] = [];
-    
+
     for (let i = 0; i < 12; i++) {
       const monthDate = new Date(viewDate.getFullYear(), i, 1);
       const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
@@ -2243,11 +1560,6 @@ export default function CalendarView({
       <div className="p-4">
         <div className="grid grid-cols-4 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
-            // Get operation instances for this month
-            const monthOperationInstances = operationInstances.filter((instance) => {
-              return instance.startDate <= monthEnd && instance.endDate >= monthStart;
-            });
-
             // Get all projects - projects always exist in their stage without date filtering
             const monthProjects = projects;
 
@@ -2260,29 +1572,6 @@ export default function CalendarView({
                   {monthStart.toLocaleDateString('en-US', { month: 'short' })}
                 </h3>
                 <div className="space-y-2">
-                  {/* Operations first */}
-                  {monthOperationInstances.map((instance) => {
-                    const operation = instance.operation;
-                    const operationColor = operation.status === 'in-review' ? '#ef4444' : '#9ca3af';
-                    const duration = Math.ceil((instance.endDate.getTime() - instance.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                    const durationText = duration > 1 ? ` - ${duration} day${duration !== 1 ? 's' : ''}` : '';
-                    const assignedToName = getEmployeeName((operation as any).assignedToEmployeeId?.toString(), operation.assignedTo);
-                    const titleText = `${operation.name}${durationText}${operation.estimatedHours ? ` - ${operation.estimatedHours}h` : ''}${assignedToName ? ` - ${assignedToName}` : ''}`;
-                    return (
-                      <div
-                        key={`operation-${operation._id.toString()}-${instance.startDate.getTime()}-${idx}`}
-                        onClick={() => onOperationClick(operation)}
-                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${operation.status === 'completed' ? 'line-through opacity-60' : ''}`}
-                        style={{
-                          backgroundColor: operationColor,
-                          color: 'white',
-                        }}
-                        title={titleText}
-                      >
-                        <div className="font-medium truncate">{operation.name}</div>
-                      </div>
-                    );
-                  })}
                   {/* Projects */}
                   {monthProjects.map((project) => {
                     const projectColor = project.status === 'in-review' ? '#ef4444' : project.color;

@@ -2,13 +2,11 @@
 
 import { useMemo } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
-import { IOperation } from '@/lib/models/Operation';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, getTimeframeRange, formatDate } from '@/lib/utils/dateUtils';
 
 interface AgendaViewProps {
     projects: IProject[];
-    operations: IOperation[];
     contentItems: IContentItem[];
     showTasks: boolean;
     showContent: boolean;
@@ -16,7 +14,6 @@ interface AgendaViewProps {
     timeframe: TimeframeType;
     currentDate: Date;
     onProjectClick: (project: IProject) => void;
-    onOperationClick: (operation: IOperation) => void;
     currentUserEmployeeName: string | null;
     currentUserEmployeeId: string | null;
     isManagerOrAdmin: boolean;
@@ -30,7 +27,6 @@ interface AgendaDay {
     dateStr: string;
     isToday: boolean;
     projects: AgendaDayProject[];
-    operations: IOperation[];
     contentItems: IContentItem[];
 }
 
@@ -63,7 +59,6 @@ const channelIcons: Record<string, string> = {
 
 export default function AgendaView({
     projects,
-    operations,
     contentItems,
     showTasks,
     showContent,
@@ -71,7 +66,6 @@ export default function AgendaView({
     timeframe,
     currentDate,
     onProjectClick,
-    onOperationClick,
     isManagerOrAdmin,
     onAddContent,
     onContentItemClick,
@@ -135,16 +129,6 @@ export default function AgendaView({
                 }
             });
 
-            // Find standalone operations on this day
-            const opsOnDay = operations.filter((op) => {
-                if (op.projectId) return false; // Project-linked ops show under project
-                if (!op.startDate) return false;
-                const opStart = new Date(op.startDate);
-                opStart.setHours(0, 0, 0, 0);
-                const opEnd = op.endDate ? new Date(op.endDate) : new Date(op.startDate);
-                opEnd.setHours(23, 59, 59, 999);
-                return opStart <= dayEnd && opEnd >= dayStart;
-            });
 
             // Orphan content (no project match found in filtered set)
             const orphanContent = showContent
@@ -162,7 +146,7 @@ export default function AgendaView({
                 })
                 : [];
 
-            if (dayProjects.length > 0 || opsOnDay.length > 0 || orphanContent.length > 0) {
+            if (dayProjects.length > 0 || orphanContent.length > 0) {
                 days.push({
                     date: new Date(dayStart),
                     dateStr: dayStart.toLocaleDateString('en-US', {
@@ -172,7 +156,6 @@ export default function AgendaView({
                     }),
                     isToday: dayStart.getTime() === today.getTime(),
                     projects: dayProjects,
-                    operations: opsOnDay,
                     contentItems: orphanContent,
                 });
             }
@@ -183,7 +166,6 @@ export default function AgendaView({
         return days;
     }, [
         projects,
-        operations,
         contentItems,
         showTasks,
         showContent,
@@ -222,8 +204,6 @@ export default function AgendaView({
                         </div>
                         <span className="text-sm text-gray-400">
                             {day.projects.length > 0 && `${day.projects.length} project${day.projects.length > 1 ? 's' : ''}`}
-                            {day.operations.length > 0 &&
-                                `${day.projects.length > 0 ? ' · ' : ''}${day.operations.length} op${day.operations.length > 1 ? 's' : ''}`}
                         </span>
                     </div>
 
@@ -306,23 +286,6 @@ export default function AgendaView({
                             </div>
                         ))}
 
-                        {/* Standalone operations */}
-                        {day.operations.map((op) => (
-                            <div
-                                key={op._id.toString()}
-                                className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-800/30 transition-colors"
-                                onClick={() => onOperationClick(op)}
-                            >
-                                <span className="text-gray-400">⚙️</span>
-                                <span className="font-medium text-gray-300">{op.name}</span>
-                                <span className="text-xs text-gray-500 capitalize">
-                                    {op.recurrenceType !== 'none' && op.recurrenceType}
-                                </span>
-                                {op.estimatedHours && (
-                                    <span className="text-xs text-gray-500">{op.estimatedHours}h</span>
-                                )}
-                            </div>
-                        ))}
 
                         {/* Orphan content items */}
                         {day.contentItems.map((item) => (

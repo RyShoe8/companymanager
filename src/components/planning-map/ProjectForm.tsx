@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { IProject, ProjectStatus, ProjectType, TaskStatus, IProjectTask } from '@/lib/models/Project';
-import { IOperation, RecurrenceType, OperationStatus } from '@/lib/models/Operation';
 import { IEmployee } from '@/lib/models/Employee';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -24,10 +23,10 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
   const [description, setDescription] = useState(project?.description || '');
   // Support both legacy url and new urls array
   const [urls, setUrls] = useState<string[]>(
-    project?.urls && project.urls.length > 0 
-      ? project.urls 
-      : project?.url 
-        ? [project.url] 
+    project?.urls && project.urls.length > 0
+      ? project.urls
+      : project?.url
+        ? [project.url]
         : []
   );
   const [projectType, setProjectType] = useState<ProjectType>(project?.projectType || 'generic');
@@ -42,19 +41,16 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
     project?.assignedToEmployeeId?.toString() || ''
   );
   const [assignedToEmployeeIds, setAssignedToEmployeeIds] = useState<string[]>(
-    project?.assignedToEmployeeIds?.map(id => id.toString()) || 
+    project?.assignedToEmployeeIds?.map(id => id.toString()) ||
     (project?.assignedToEmployeeId ? [project.assignedToEmployeeId.toString()] : [])
   );
   const [assignedToNames, setAssignedToNames] = useState<string[]>(
-    project?.assignedToNames || 
+    project?.assignedToNames ||
     (project?.assignedTo ? [project.assignedTo] : [])
   );
   const [tasks, setTasks] = useState<IProjectTask[]>(project?.tasks || []);
-  const [operations, setOperations] = useState<IOperation[]>([]);
   const [showTasks, setShowTasks] = useState(false);
-  const [showOperations, setShowOperations] = useState(false);
   const [employees, setEmployees] = useState<IEmployee[]>([]);
-  const [operationLocalState, setOperationLocalState] = useState<Record<string, { name: string; description: string; estimatedHours?: string }>>({});
   const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
   const isRegularUser = userRole === 'User';
   const isLaunched = project?.status === 'launched';
@@ -73,26 +69,7 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
       }
     };
     fetchEmployees();
-
-    // If project is launched, fetch operations linked to this project
-    if (isLaunched && project?._id) {
-      const fetchOperations = async () => {
-        try {
-          const response = await fetch('/api/operations');
-          if (response.ok) {
-            const data = await response.json();
-            const projectOperations = data.filter((op: IOperation) => 
-              op.projectId?.toString() === project._id.toString()
-            );
-            setOperations(projectOperations);
-          }
-        } catch (error) {
-          // Error fetching operations
-        }
-      };
-      fetchOperations();
-    }
-  }, [isLaunched, project?._id]);
+  }, [project?._id]);
 
 
   const addTask = () => {
@@ -118,11 +95,11 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
       removeTask(index);
       return;
     }
-    
+
     if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
       return;
     }
-    
+
     const updatedTasks = tasks.filter((_, i) => i !== index);
     try {
       const response = await fetch(`/api/projects/${project._id}`, {
@@ -148,202 +125,12 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
     }
   };
 
-  const addOperation = async () => {
-    if (!project?._id) {
-      alert('Cannot add operation: Project must be saved first.');
-      return;
-    }
-
-    try {
-      const newOperationData = {
-        name: 'New Operation',
-        description: '',
-        recurrenceType: 'none',
-        status: 'active',
-        projectId: project._id.toString(),
-      };
-
-      const response = await fetch('/api/operations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOperationData),
-      });
-
-      if (response.ok) {
-        const newOperation = await response.json();
-        // Refresh operations from server
-        const opsResponse = await fetch('/api/operations');
-        if (opsResponse.ok) {
-          const data = await opsResponse.json();
-          const projectOperations = data.filter((op: IOperation) => 
-            op.projectId?.toString() === project._id.toString()
-          );
-          setOperations(projectOperations);
-          // Ensure operations section is visible after adding
-          if (!showOperations) {
-            setShowOperations(true);
-          }
-        }
-      } else {
-        const errorData = await response.json();
-        const errorMessage = errorData.error || 'Failed to create operation. Please try again.';
-        alert(errorMessage);
-      }
-    } catch (error) {
-      // Error creating operation
-      alert('Error creating operation. Please try again.');
-    }
-  };
-
-  const deleteOperation = async (operationId: string) => {
-    if (!confirm('Are you sure you want to delete this operation? This action cannot be undone.')) {
-      return;
-    }
-    
-    try {
-      const response = await fetch(`/api/operations/${operationId}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        // Remove from local state immediately
-        setOperations(operations.filter(op => op._id?.toString() !== operationId));
-        // Refresh operations from server
-        const opsResponse = await fetch('/api/operations');
-        if (opsResponse.ok) {
-          const data = await opsResponse.json();
-          const projectOperations = data.filter((op: IOperation) => 
-            op.projectId?.toString() === project?._id.toString()
-          );
-          setOperations(projectOperations);
-        }
-      } else {
-        const errorData = await response.json();
-        // Failed to delete operation
-        alert('Failed to delete operation. Please try again.');
-        // Reload operations to restore state
-        const opsResponse = await fetch('/api/operations');
-        if (opsResponse.ok) {
-          const data = await opsResponse.json();
-          const projectOperations = data.filter((op: IOperation) => 
-            op.projectId?.toString() === project?._id.toString()
-          );
-          setOperations(projectOperations);
-        }
-      }
-    } catch (error) {
-      // Error deleting operation
-      alert('Error deleting operation. Please try again.');
-    }
-  };
-
-  const debounceTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
-
-  const updateOperationLocalState = useCallback((operationId: string, field: 'name' | 'description', value: string) => {
-    setOperationLocalState(prev => {
-      const currentOperation = operations.find(op => op._id?.toString() === operationId);
-      return {
-        ...prev,
-        [operationId]: {
-          name: prev[operationId]?.name ?? currentOperation?.name ?? '',
-          description: prev[operationId]?.description ?? currentOperation?.description ?? '',
-          [field]: value,
-        }
-      };
-    });
-  }, [operations]);
-
-  const performOperationUpdate = useCallback(async (operationId: string, updates: Partial<IOperation>) => {
-    try {
-      // If updating assignedTo by name, convert to employeeId
-      const updateData: any = { ...updates };
-      if (updates.assignedTo && typeof updates.assignedTo === 'string') {
-        const selectedEmployee = employees.find(emp => emp.name === updates.assignedTo);
-        if (selectedEmployee) {
-          updateData.assignedToEmployeeId = selectedEmployee._id.toString();
-        }
-      }
-      // Convert assignedToEmployeeId string to ObjectId if present
-      if (updateData.assignedToEmployeeId && typeof updateData.assignedToEmployeeId === 'string') {
-        updateData.assignedToEmployeeId = new Types.ObjectId(updateData.assignedToEmployeeId);
-      }
-      
-      const response = await fetch(`/api/operations/${operationId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData),
-      });
-      if (response.ok) {
-        const updated = await response.json();
-        setOperations(prev => prev.map(op => 
-          op._id?.toString() === operationId ? updated : op
-        ));
-        // Clear local state after successful update
-        setOperationLocalState(prev => {
-          const newState = { ...prev };
-          delete newState[operationId];
-          return newState;
-        });
-      }
-    } catch (error) {
-      // Error updating operation
-    }
-  }, [employees]);
-
-  const updateOperation = useCallback(async (operationId: string, updates: Partial<IOperation>, debounce: boolean = false) => {
-    // Update local state immediately for name and description to ensure responsive UI
-    if (updates.name !== undefined) {
-      updateOperationLocalState(operationId, 'name', updates.name);
-    }
-    if (updates.description !== undefined) {
-      updateOperationLocalState(operationId, 'description', updates.description || '');
-    }
-
-    // Clear existing timeout for this operation
-    if (debounceTimeouts.current[operationId]) {
-      clearTimeout(debounceTimeouts.current[operationId]);
-    }
-
-    // If debouncing, use setTimeout to delay the API call
-    if (debounce) {
-      debounceTimeouts.current[operationId] = setTimeout(() => {
-        performOperationUpdate(operationId, updates);
-        delete debounceTimeouts.current[operationId];
-      }, 500);
-    } else {
-      // Clear any pending debounced call
-      if (debounceTimeouts.current[operationId]) {
-        clearTimeout(debounceTimeouts.current[operationId]);
-        delete debounceTimeouts.current[operationId];
-      }
-      await performOperationUpdate(operationId, updates);
-    }
-  }, [performOperationUpdate, updateOperationLocalState]);
-
-  // Optimize operation updates by updating local state immediately for better UX
-  const updateOperationOptimized = useCallback(async (operationId: string, updates: Partial<IOperation>, debounce: boolean = false) => {
-    // For non-text fields, update local operations state immediately for instant feedback
-    if (!debounce && (updates.startDate !== undefined || updates.endDate !== undefined || 
-        updates.estimatedHours !== undefined || updates.recurrenceType !== undefined || 
-        updates.status !== undefined || updates.assignedTo !== undefined || updates.assignedToEmployeeId !== undefined)) {
-      setOperations(prev => prev.map(op => {
-        if (op._id?.toString() === operationId) {
-          // Create a new object with updates, maintaining the operation structure
-          // Use type assertion since we're merging partial updates with the full operation
-          return { ...op, ...updates } as IOperation;
-        }
-        return op;
-      }));
-    }
-    
-    // Then call the actual update function
-    await updateOperation(operationId, updates, debounce);
-  }, [updateOperation]);
 
   const updateTask = useCallback((index: number, field: keyof IProjectTask, value: any) => {
     setTasks(prevTasks => {
       const updated = [...prevTasks];
       const task = updated[index];
-      
+
       // Handle employee assignment for tasks - prefer employeeId over name
       if (field === 'assignedTo' && typeof value === 'string') {
         const selectedEmployee = employees.find(emp => emp.name === value);
@@ -357,7 +144,7 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
       } else {
         updated[index] = { ...task, [field]: value };
       }
-      
+
       return updated;
     });
   }, [employees]);
@@ -457,11 +244,10 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
               type="button"
               onClick={() => !isRegularUser && setProjectType(option.value as ProjectType)}
               disabled={isRegularUser}
-              className={`p-3 rounded-lg border-2 transition-all text-center ${
-                projectType === option.value
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-              } ${isRegularUser ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              className={`p-3 rounded-lg border-2 transition-all text-center ${projectType === option.value
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                } ${isRegularUser ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <span className="text-2xl block mb-1">{option.icon}</span>
               <span className="text-sm font-medium text-gray-900 dark:text-white block">{option.label}</span>
@@ -563,9 +349,9 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
           }
         }}
         disabled={isRegularUser}
-        options={employees.map(emp => ({ 
-          value: emp._id.toString(), 
-          label: emp.name 
+        options={employees.map(emp => ({
+          value: emp._id.toString(),
+          label: emp.name
         }))}
       />
       <div className="grid grid-cols-2 gap-4">
@@ -584,16 +370,16 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
           options={
             isRegularUser && project?.status === 'in-development'
               ? [
-                  { value: 'in-development', label: 'In Development' },
-                  { value: 'in-review', label: 'In Review' },
-                ]
+                { value: 'in-development', label: 'In Development' },
+                { value: 'in-review', label: 'In Review' },
+              ]
               : [
-                  { value: 'planning', label: 'Planning' },
-                  { value: 'in-development', label: 'In Development' },
-                  { value: 'in-review', label: 'In Review' },
-                  { value: 'launched', label: 'Launched' },
-                  { value: 'completed', label: 'Completed' },
-                ]
+                { value: 'planning', label: 'Planning' },
+                { value: 'in-development', label: 'In Development' },
+                { value: 'in-review', label: 'In Review' },
+                { value: 'launched', label: 'Launched' },
+                { value: 'completed', label: 'Completed' },
+              ]
           }
         />
       </div>
@@ -606,168 +392,6 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
         placeholder="No end date"
       />
 
-      {/* Operations Section for Launched Projects - Only for admins/managers */}
-      {isManagerOrAdmin && isLaunched && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Operations
-            </label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowOperations(!showOperations)}
-              >
-                {showOperations ? 'Hide' : 'Show'} Operations
-              </Button>
-              {showOperations && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={addOperation}
-                >
-                  + Add Operation
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {showOperations && operations.length > 0 && (
-            <div className="space-y-3">
-              {operations.map((operation) => (
-                <div key={operation._id?.toString()} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-gray-900 dark:text-white">Operation</h4>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      onClick={() => operation._id && deleteOperation(operation._id.toString())}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                  <Input
-                    label="Operation Name"
-                    value={operationLocalState[operation._id?.toString() || '']?.name ?? operation.name}
-                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { name: e.target.value }, true)}
-                    onBlur={(e) => operation._id && updateOperation(operation._id.toString(), { name: e.target.value }, false)}
-                    required
-                  />
-                  <Input
-                    label="Description (optional)"
-                    value={operationLocalState[operation._id?.toString() || '']?.description ?? (operation.description || '')}
-                    onChange={(e) => operation._id && updateOperation(operation._id.toString(), { description: e.target.value || undefined }, true)}
-                    onBlur={(e) => operation._id && updateOperation(operation._id.toString(), { description: e.target.value || undefined }, false)}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      label="Start Date"
-                      type="date"
-                      value={operation.startDate ? new Date(operation.startDate).toISOString().split('T')[0] : ''}
-                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { startDate: e.target.value ? new Date(e.target.value) : undefined }, false)}
-                    />
-                    <Input
-                      label="End Date"
-                      type="date"
-                      value={operation.endDate ? new Date(operation.endDate).toISOString().split('T')[0] : ''}
-                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { endDate: e.target.value ? new Date(e.target.value) : undefined }, false)}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      label="Estimated Hours (optional)"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={operationLocalState[operation._id?.toString() || '']?.estimatedHours ?? (operation.estimatedHours?.toString() || '')}
-                      onChange={(e) => {
-                        const opId = operation._id?.toString();
-                        if (opId) {
-                          setOperationLocalState(prev => ({
-                            ...prev,
-                            [opId]: {
-                              ...prev[opId],
-                              name: prev[opId]?.name ?? operation.name,
-                              description: prev[opId]?.description ?? (operation.description || ''),
-                              estimatedHours: e.target.value
-                            }
-                          }));
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const opId = operation._id?.toString();
-                        if (opId) {
-                          const value = e.target.value.trim();
-                          const numValue = value ? parseFloat(value) : undefined;
-                          updateOperationOptimized(opId, { estimatedHours: numValue }, false);
-                        }
-                      }}
-                      placeholder="e.g., 0.25 or 0.01"
-                    />
-                    <Select
-                      label="Recurrence"
-                      value={operation.recurrenceType || 'none'}
-                      onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { recurrenceType: e.target.value as RecurrenceType }, false)}
-                      options={[
-                        { value: 'none', label: 'None' },
-                        { value: 'weekly', label: 'Weekly' },
-                        { value: 'bi-weekly', label: 'Bi-weekly' },
-                        { value: 'monthly', label: 'Monthly' },
-                      ]}
-                    />
-                  </div>
-                  <Select
-                    label="Status"
-                    value={operation.status || 'active'}
-                    onChange={(e) => operation._id && updateOperationOptimized(operation._id.toString(), { status: e.target.value as OperationStatus }, false)}
-                    options={[
-                      { value: 'active', label: 'Active' },
-                      { value: 'in-review', label: 'In Review' },
-                      { value: 'completed', label: 'Completed' },
-                    ]}
-                  />
-                  <Select
-                    label="Assigned To (optional)"
-                    value={(operation as any).assignedToEmployeeId?.toString() || operation.assignedTo || ''}
-                    onChange={(e) => {
-                      if (operation._id) {
-                        const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
-                        if (selectedEmployee) {
-                          updateOperationOptimized(operation._id.toString(), { 
-                            assignedToEmployeeId: selectedEmployee._id.toString() as any,
-                            assignedTo: selectedEmployee.name 
-                          }, false);
-                        } else {
-                          updateOperationOptimized(operation._id.toString(), { 
-                            assignedTo: e.target.value || undefined 
-                          }, false);
-                        }
-                      }
-                    }}
-                    options={[
-                      { value: '', label: 'None' },
-                      ...employees.map(emp => ({ 
-                        value: emp._id.toString(), 
-                        label: emp.name 
-                      }))
-                    ]}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {showOperations && operations.length === 0 && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No operations found. Operations are created automatically when a project is launched.
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Tasks Section - Only for admins/managers and non-launched projects */}
       {isManagerOrAdmin && !isLaunched && (
@@ -798,92 +422,92 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
             </div>
           </div>
 
-        {showTasks && tasks.length > 0 && (
-          <div className="space-y-3">
-            {tasks.map((task, index) => (
-              <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2 bg-white dark:bg-gray-800">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-gray-900 dark:text-white">Task {index + 1}</h4>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="sm"
-                    onClick={() => project?._id ? deleteTask(index) : removeTask(index)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-                <Input
-                  label="Task Name"
-                  value={task.name}
-                  onChange={(e) => updateTask(index, 'name', e.target.value)}
-                  required
-                />
-                <Input
-                  label="Description (optional)"
-                  value={task.description || ''}
-                  onChange={(e) => updateTask(index, 'description', e.target.value)}
-                />
-                <div className="grid grid-cols-2 gap-2">
+          {showTasks && tasks.length > 0 && (
+            <div className="space-y-3">
+              {tasks.map((task, index) => (
+                <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg space-y-2 bg-white dark:bg-gray-800">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-900 dark:text-white">Task {index + 1}</h4>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      onClick={() => project?._id ? deleteTask(index) : removeTask(index)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                   <Input
-                    label="Start Date"
-                    type="date"
-                    value={task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : ''}
-                    onChange={(e) => updateTask(index, 'startDate', new Date(e.target.value))}
+                    label="Task Name"
+                    value={task.name}
+                    onChange={(e) => updateTask(index, 'name', e.target.value)}
                     required
                   />
                   <Input
-                    label="End Date"
-                    type="date"
-                    value={task.endDate ? new Date(task.endDate).toISOString().split('T')[0] : ''}
-                    onChange={(e) => updateTask(index, 'endDate', new Date(e.target.value))}
-                    required
+                    label="Description (optional)"
+                    value={task.description || ''}
+                    onChange={(e) => updateTask(index, 'description', e.target.value)}
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    label="Estimated Hours (optional)"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={task.estimatedHours?.toString() || ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      // Allow empty string while typing, parse on blur
-                      if (value === '') {
-                        updateTask(index, 'estimatedHours', undefined);
-                      } else {
-                        const numValue = parseFloat(value);
-                        if (!isNaN(numValue)) {
-                          updateTask(index, 'estimatedHours', numValue);
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Start Date"
+                      type="date"
+                      value={task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => updateTask(index, 'startDate', new Date(e.target.value))}
+                      required
+                    />
+                    <Input
+                      label="End Date"
+                      type="date"
+                      value={task.endDate ? new Date(task.endDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => updateTask(index, 'endDate', new Date(e.target.value))}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Estimated Hours (optional)"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={task.estimatedHours?.toString() || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Allow empty string while typing, parse on blur
+                        if (value === '') {
+                          updateTask(index, 'estimatedHours', undefined);
+                        } else {
+                          const numValue = parseFloat(value);
+                          if (!isNaN(numValue)) {
+                            updateTask(index, 'estimatedHours', numValue);
+                          }
                         }
-                      }
-                    }}
-                    placeholder="e.g., 0.25 or 0.01"
-                  />
-                  <Select
-                    label="Assigned To (optional)"
-                    value={(task as any).assignedToEmployeeId?.toString() || task.assignedTo || ''}
-                    onChange={(e) => {
-                      const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
-                      if (selectedEmployee) {
-                        updateTask(index, 'assignedTo', selectedEmployee.name);
-                        const updated = [...tasks];
-                        (updated[index] as any).assignedToEmployeeId = selectedEmployee._id.toString();
-                        setTasks(updated);
-                      } else {
-                        updateTask(index, 'assignedTo', e.target.value);
-                      }
-                    }}
-                    options={[
-                      { value: '', label: 'None' },
-                      ...employees.map(emp => ({ 
-                        value: emp._id.toString(), 
-                        label: emp.name 
-                      }))
-                    ]}
-                  />
-                </div>
+                      }}
+                      placeholder="e.g., 0.25 or 0.01"
+                    />
+                    <Select
+                      label="Assigned To (optional)"
+                      value={(task as any).assignedToEmployeeId?.toString() || task.assignedTo || ''}
+                      onChange={(e) => {
+                        const selectedEmployee = employees.find(emp => emp._id.toString() === e.target.value);
+                        if (selectedEmployee) {
+                          updateTask(index, 'assignedTo', selectedEmployee.name);
+                          const updated = [...tasks];
+                          (updated[index] as any).assignedToEmployeeId = selectedEmployee._id.toString();
+                          setTasks(updated);
+                        } else {
+                          updateTask(index, 'assignedTo', e.target.value);
+                        }
+                      }}
+                      options={[
+                        { value: '', label: 'None' },
+                        ...employees.map(emp => ({
+                          value: emp._id.toString(),
+                          label: emp.name
+                        }))
+                      ]}
+                    />
+                  </div>
                   <Select
                     label="Status"
                     value={task.status || 'active'}
@@ -894,10 +518,10 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
                       { value: 'completed', label: 'Completed' },
                     ]}
                   />
-              </div>
-            ))}
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {showTasks && tasks.length === 0 && (
             <p className="text-sm text-gray-500 dark:text-gray-400">

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { IProject } from '@/lib/models/Project';
-import { IOperation } from '@/lib/models/Operation';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { ScheduleMode } from '@/lib/hooks/useWorkspaceData';
@@ -12,7 +11,6 @@ import AgendaView from '@/components/workspace/AgendaView';
 
 interface ScheduleLensProps {
     projects: IProject[];
-    operations: IOperation[];
     contentItems: IContentItem[];
     showTasks: boolean;
     showContent: boolean;
@@ -20,7 +18,6 @@ interface ScheduleLensProps {
     timeframe: TimeframeType;
     currentDate: Date;
     onProjectClick: (project: IProject) => void;
-    onOperationClick: (operation: IOperation) => void;
     onDateChange: (date: Date) => void;
     currentUserEmployeeName: string | null;
     currentUserEmployeeId: string | null;
@@ -35,7 +32,6 @@ interface ScheduleLensProps {
 
 export default function ScheduleLens({
     projects,
-    operations,
     contentItems,
     showTasks,
     showContent,
@@ -43,7 +39,6 @@ export default function ScheduleLens({
     timeframe,
     currentDate,
     onProjectClick,
-    onOperationClick,
     onDateChange,
     currentUserEmployeeName,
     currentUserEmployeeId,
@@ -65,8 +60,8 @@ export default function ScheduleLens({
                     <button
                         onClick={() => onScheduleModeChange('calendar')}
                         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${scheduleMode === 'calendar'
-                                ? 'bg-gray-700 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                            ? 'bg-gray-700 text-white'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-800'
                             }`}
                     >
                         📅 Calendar
@@ -74,8 +69,8 @@ export default function ScheduleLens({
                     <button
                         onClick={() => onScheduleModeChange('agenda')}
                         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${scheduleMode === 'agenda'
-                                ? 'bg-gray-700 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                            ? 'bg-gray-700 text-white'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-800'
                             }`}
                     >
                         📋 Agenda
@@ -87,7 +82,6 @@ export default function ScheduleLens({
             {scheduleMode === 'calendar' && (
                 <CalendarView
                     projects={projects}
-                    operations={operations}
                     contentItems={contentItems}
                     showTasks={showTasks}
                     showContent={showContent}
@@ -95,7 +89,6 @@ export default function ScheduleLens({
                     timeframe={timeframe}
                     currentDate={currentDate}
                     onProjectClick={onProjectClick}
-                    onOperationClick={onOperationClick}
                     onDateChange={onDateChange}
                     currentUserEmployeeName={currentUserEmployeeName}
                     currentUserEmployeeId={currentUserEmployeeId}
@@ -111,7 +104,6 @@ export default function ScheduleLens({
             {scheduleMode === 'agenda' && (
                 <AgendaView
                     projects={projects}
-                    operations={operations}
                     contentItems={contentItems}
                     showTasks={showTasks}
                     showContent={showContent}
@@ -119,7 +111,6 @@ export default function ScheduleLens({
                     timeframe={timeframe}
                     currentDate={currentDate}
                     onProjectClick={onProjectClick}
-                    onOperationClick={onOperationClick}
                     currentUserEmployeeName={currentUserEmployeeName}
                     currentUserEmployeeId={currentUserEmployeeId}
                     isManagerOrAdmin={isManagerOrAdmin}

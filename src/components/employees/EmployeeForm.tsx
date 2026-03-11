@@ -23,7 +23,7 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const parsedWeeklyHours = parseFloat(weeklyHours);
     if (isNaN(parsedWeeklyHours)) {
       alert('Please enter a valid number for weekly hours');
@@ -55,7 +55,7 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
         onChange={(e) => setRole(e.target.value as EmployeeRole)}
         options={[
           { value: 'Administrator', label: 'Administrator (can edit employees)' },
-          { value: 'Manager', label: 'Manager (can create projects/operations, see all)' },
+          { value: 'Manager', label: 'Manager (can create projects, see all)' },
           { value: 'User', label: 'User (can only see assigned items)' },
         ]}
         required

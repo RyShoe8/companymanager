@@ -1,6 +1,5 @@
 import User from '@/lib/models/User';
 import Project from '@/lib/models/Project';
-import Operation from '@/lib/models/Operation';
 import { Types } from 'mongoose';
 
 /**
@@ -12,7 +11,7 @@ export async function getOrganizationUserIds(userId: string | Types.ObjectId, or
   // organizationId is stored as string in User model, so convert ObjectId to string if needed
   const orgId = typeof organizationId === 'string' ? organizationId : organizationId.toString();
   const orgUsers = await User.find({ organizationId: orgId });
-  
+
   // Ensure we return proper ObjectIds - convert string IDs to ObjectId if needed
   const userIds = orgUsers.map(u => {
     if (typeof u._id === 'string') {
@@ -20,17 +19,17 @@ export async function getOrganizationUserIds(userId: string | Types.ObjectId, or
     }
     return u._id;
   });
-  
+
   // Ensure the current user is included (in case of any edge cases)
   const currentUserId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
   const currentUserIdString = currentUserId.toString();
   if (!userIds.some(id => id.toString() === currentUserIdString)) {
     userIds.push(currentUserId);
   }
-  
+
   // Return unique IDs only
   const uniqueIds = Array.from(new Set(userIds.map(id => id.toString()))).map(id => new Types.ObjectId(id));
-  
+
   return uniqueIds;
 }
 
@@ -70,20 +69,3 @@ export function migrateStagesToTasks(project: any): any {
   return project;
 }
 
-/**
- * Clean up launched projects by clearing tasks if operations exist
- * This prevents duplicates when tasks have been converted to operations
- */
-export async function cleanupLaunchedProjectTasks(projectId: string | Types.ObjectId, projectStatus: string, projectTasks: any[] | undefined): Promise<void> {
-  if (projectStatus === 'launched' && projectTasks && projectTasks.length > 0) {
-    // Convert string to ObjectId if needed
-    const projId = typeof projectId === 'string' ? new Types.ObjectId(projectId) : projectId;
-    const existingOperations = await Operation.find({ projectId: projId }).lean();
-    if (existingOperations.length > 0) {
-      // Clear tasks since they've been converted to operations
-      await Project.findByIdAndUpdate(projId, { tasks: [] }, { new: true }).catch(() => {
-        // Error cleaning up tasks
-      });
-    }
-  }
-}

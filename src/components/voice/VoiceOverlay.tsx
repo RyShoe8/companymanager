@@ -2,6 +2,37 @@
 
 import { useVoice } from '@/components/voice/VoiceProvider';
 
+export function VoiceButton() {
+    const voice = useVoice();
+    if (!voice.enabled) return null;
+
+    return (
+        <button
+            onClick={voice.state === 'listening' ? voice.stopListening : voice.startListening}
+            className={`relative p-2 rounded-lg transition-all duration-200 ${voice.state === 'listening'
+                ? 'bg-red-500/20 text-red-400 animate-pulse'
+                : voice.state === 'processing'
+                    ? 'bg-yellow-500/20 text-yellow-400'
+                    : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white'
+                }`}
+            aria-label={voice.state === 'listening' ? 'Stop listening' : 'Start voice command'}
+            title="Voice command (hold V)"
+        >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z"
+                />
+            </svg>
+            {voice.state === 'listening' && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
+            )}
+        </button>
+    );
+}
+
 export default function VoiceOverlay() {
     const voice = useVoice();
 
@@ -9,30 +40,7 @@ export default function VoiceOverlay() {
 
     return (
         <>
-            {/* Mic button — fixed in top nav area on desktop */}
-            <button
-                onClick={voice.state === 'listening' ? voice.stopListening : voice.startListening}
-                className={`relative p-2 rounded-lg transition-all duration-200 ${voice.state === 'listening'
-                        ? 'bg-red-500/20 text-red-400 animate-pulse'
-                        : voice.state === 'processing'
-                            ? 'bg-yellow-500/20 text-yellow-400'
-                            : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700 hover:text-white'
-                    }`}
-                aria-label={voice.state === 'listening' ? 'Stop listening' : 'Start voice command'}
-                title="Voice command (hold V)"
-            >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z"
-                    />
-                </svg>
-                {voice.state === 'listening' && (
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
-                )}
-            </button>
+            {/* Mic button moved to VoiceButton component */}
 
             {/* Transcript / feedback toast — appears when active */}
             {(voice.state !== 'idle' || voice.error || voice.resultMessage) && (

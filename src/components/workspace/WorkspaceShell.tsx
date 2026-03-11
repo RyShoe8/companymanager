@@ -23,7 +23,7 @@ import Toggle from '@/components/ui/Toggle';
 import CommandRegistry from '@/lib/commands/CommandRegistry';
 import CommandPalette from '@/components/workspace/CommandPalette';
 import VoiceProvider from '@/components/voice/VoiceProvider';
-import VoiceOverlay from '@/components/voice/VoiceOverlay';
+import VoiceOverlay, { VoiceButton } from '@/components/voice/VoiceOverlay';
 import { ParsedIntent } from '@/lib/voice/IntentParser';
 
 interface WorkspaceShellProps {
@@ -167,6 +167,28 @@ export default function WorkspaceShell({
             }
             return { success: false, message: `Could not find ${entityType} matching "${name}" to delete` };
         }
+        if (intent.type === 'COMPLETE_TASK') {
+            const { name } = intent.slots;
+            // Search all projects for this task
+            for (const p of ws.allProjects) {
+                const taskIdx = p.tasks?.findIndex(t => t.name.toLowerCase().includes(name.toLowerCase()));
+                if (taskIdx !== undefined && taskIdx !== -1) {
+                    const task = p.tasks![taskIdx];
+                    const updatedTasks = [...p.tasks!];
+                    updatedTasks[taskIdx] = { ...task, status: 'completed' };
+
+                    // Fire and forget update
+                    fetch(`/api/projects/${p._id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tasks: updatedTasks }),
+                    }).then(() => ws.loadData());
+
+                    return { success: true, message: `Marked task "${task.name}" as complete` };
+                }
+            }
+            return { success: false, message: `Could not find task matching "${name}"` };
+        }
 
         return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };
     }, [ws, handleDeleteProject]);
@@ -253,7 +275,8 @@ export default function WorkspaceShell({
                                     }
                                 }}
                             />
-                            <div className="flex gap-2 flex-shrink-0 ml-auto">
+                            <div className="flex gap-2 flex-shrink-0 ml-auto items-center">
+                                <VoiceButton />
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}
@@ -314,7 +337,6 @@ export default function WorkspaceShell({
                                     <div className="xl:col-span-2">
                                         <ScheduleLens
                                             projects={ws.filteredProjects}
-                                            operations={ws.operations}
                                             contentItems={ws.contentItems}
                                             showTasks={ws.showTasks}
                                             showContent={ws.showContent}
@@ -322,7 +344,6 @@ export default function WorkspaceShell({
                                             timeframe={ws.timeframe}
                                             currentDate={ws.currentDate}
                                             onProjectClick={handleViewProject}
-                                            onOperationClick={() => { }}
                                             onDateChange={ws.setCurrentDate}
                                             currentUserEmployeeName={ws.currentUserEmployeeName}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
@@ -342,9 +363,7 @@ export default function WorkspaceShell({
                                         <EmployeeSidebar
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
-                                            operations={ws.operations}
                                             allProjects={ws.allProjects}
-                                            allOperations={ws.allOperations}
                                             timeframe={ws.timeframe}
                                             currentDate={ws.currentDate}
                                             currentUserRole={ws.currentUserRole}
@@ -367,9 +386,7 @@ export default function WorkspaceShell({
                                     <EmployeeSidebar
                                         employees={ws.employees}
                                         projects={ws.filteredProjects}
-                                        operations={ws.operations}
                                         allProjects={ws.allProjects}
-                                        allOperations={ws.allOperations}
                                         timeframe={ws.timeframe}
                                         currentDate={ws.currentDate}
                                         currentUserRole={ws.currentUserRole}
@@ -386,7 +403,6 @@ export default function WorkspaceShell({
                                     focusId={inspectorFocus}
                                     onClose={() => setInspectorFocus(null)}
                                     projects={ws.allProjects}
-                                    operations={ws.allOperations}
                                     employees={ws.employees}
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
@@ -415,7 +431,6 @@ export default function WorkspaceShell({
                             focusId={inspectorFocus}
                             onClose={() => setInspectorFocus(null)}
                             projects={ws.allProjects}
-                            operations={ws.allOperations}
                             employees={ws.employees}
                             isManagerOrAdmin={ws.isManagerOrAdmin}
                             currentUserEmployeeId={ws.currentUserEmployeeId || undefined}

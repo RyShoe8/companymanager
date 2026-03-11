@@ -92,11 +92,6 @@ export default function CreateMenu({
                         <button disabled className="w-full text-left px-4 py-2 text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed" role="menuitem">
                             ✓ New Task (Coming Soon)
                         </button>
-                        {isManagerOrAdmin && (
-                            <button disabled className="w-full text-left px-4 py-2 text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed" role="menuitem">
-                                ⚙️ New Operation (Coming Soon)
-                            </button>
-                        )}
                         {currentUserRole === 'Administrator' && (
                             <button disabled className="w-full text-left px-4 py-2 text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed" role="menuitem">
                                 👤 New Employee (Coming Soon)

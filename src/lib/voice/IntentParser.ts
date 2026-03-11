@@ -12,8 +12,11 @@ export type IntentType =
     | 'TOGGLE_FILTER'
     | 'OPEN_ENTITY'
     | 'CREATE_CONTENT'
+    | 'COMPLETE_TASK'
+    | 'PUBLISH_CONTENT'
     | 'EDIT_ENTITY'
     | 'DELETE_ENTITY'
+    | 'MARK_COMPLETE' // Added new intent type
     | 'UNKNOWN';
 
 export interface ParsedIntent {
@@ -153,11 +156,35 @@ const rules: PatternRule[] = [
     {
         type: 'DELETE_ENTITY',
         patterns: [
-            /(?:delete|remove)\s+(project|content|task|operation)\s+(.+)/i,
+            /(?:delete|remove)\s+(project|content|task)\s+(.+)/i,
         ],
         extractSlots: (m) => ({
             entityType: m[1].toLowerCase(),
             name: m[2].trim(),
+        }),
+    },
+
+    // Complete Task
+    {
+        type: 'COMPLETE_TASK',
+        patterns: [
+            /(?:mark|set)\s+(?:the\s+)?(.+?)\s+(?:as\s+)?(?:complete|done|finished)/i,
+            /(?:complete|finish)\s+(?:the\s+)?(.+)/i,
+        ],
+        extractSlots: (m) => ({
+            name: m[1].trim(),
+        }),
+    },
+
+    // Publish Content
+    {
+        type: 'PUBLISH_CONTENT',
+        patterns: [
+            /(?:publish|post|go live with)\s+(?:the\s+)?(.+)/i,
+            /mark\s+(?:the\s+)?(.+?)\s+as\s+published/i,
+        ],
+        extractSlots: (m) => ({
+            name: m[1].trim(),
         }),
     },
 ];

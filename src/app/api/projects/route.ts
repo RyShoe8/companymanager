@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
-import Operation from '@/lib/models/Operation';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getOrganizationUserIds, migrateStagesToTasks, cleanupLaunchedProjectTasks } from '@/lib/utils/apiHelpers';
+import { getOrganizationUserIds, migrateStagesToTasks } from '@/lib/utils/apiHelpers';
 import { getDefaultTaskDates, parseDateSafe } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 
@@ -93,7 +92,7 @@ export async function GET(request: NextRequest) {
     }
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
-    
+
     // Migrate stages to tasks for backward compatibility and clean up launched projects
     const migratedProjects = await Promise.all(projects.map(async (project: any) => {
       // Migrate stages to tasks
@@ -104,18 +103,7 @@ export async function GET(request: NextRequest) {
           // Error saving migration
         });
       }
-      
-      // Clean up: If project is launched and has operations, clear tasks to avoid duplicates
-      await cleanupLaunchedProjectTasks(project._id, project.status, project.tasks);
-      
-      // Return project with tasks cleared if cleanup occurred
-      if (project.status === 'launched' && project.tasks && project.tasks.length > 0) {
-        const existingOperations = await Operation.find({ projectId: project._id }).lean();
-        if (existingOperations.length > 0) {
-          project.tasks = [];
-        }
-      }
-      
+
       return migratedProject;
     }));
 
@@ -199,9 +187,9 @@ export async function POST(request: NextRequest) {
       }
     } else if (assignedTo) {
       // Legacy support: if name provided, try to find employee and set ID
-      const assignedEmployee = await Employee.findOne({ 
-        name: assignedTo, 
-        organizationId: user.organizationId 
+      const assignedEmployee = await Employee.findOne({
+        name: assignedTo,
+        organizationId: user.organizationId
       });
       if (assignedEmployee) {
         projectData.assignedToEmployeeId = assignedEmployee._id;
@@ -214,7 +202,7 @@ export async function POST(request: NextRequest) {
         const defaultDates = getDefaultTaskDates();
         let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
         let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
-        
+
         // Normalize dates to midnight UTC for comparison (ignore time component)
         if (startDate) {
           startDate = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
@@ -222,18 +210,18 @@ export async function POST(request: NextRequest) {
         if (endDate) {
           endDate = new Date(Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()));
         }
-        
+
         // Validate end date is after or equal to start date (allow same day)
         if (endDate < startDate) {
           throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after or equal to start date`);
         }
-        
+
         const taskData: any = {
           ...task,
           startDate,
           endDate,
         };
-        
+
         // Handle employee assignment for tasks - prefer employeeId over name
         if (task.assignedToEmployeeId) {
           taskData.assignedToEmployeeId = new Types.ObjectId(task.assignedToEmployeeId);
@@ -243,16 +231,16 @@ export async function POST(request: NextRequest) {
           }
         } else if (task.assignedTo) {
           // Legacy support: if name provided, try to find employee and set ID
-          const assignedEmployee = await Employee.findOne({ 
-            name: task.assignedTo, 
-            organizationId: user.organizationId 
+          const assignedEmployee = await Employee.findOne({
+            name: task.assignedTo,
+            organizationId: user.organizationId
           });
           if (assignedEmployee) {
             taskData.assignedToEmployeeId = assignedEmployee._id;
           }
           taskData.assignedTo = task.assignedTo;
         }
-        
+
         return taskData;
       }));
     }

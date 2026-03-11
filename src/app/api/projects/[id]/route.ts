@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
-import Operation from '@/lib/models/Operation';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getOrganizationUserIds, migrateStagesToTasks, cleanupLaunchedProjectTasks } from '@/lib/utils/apiHelpers';
+import { getOrganizationUserIds, migrateStagesToTasks } from '@/lib/utils/apiHelpers';
 import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 
@@ -39,19 +38,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         // Error saving migration
       });
     }
-    
-    // Clean up: If project is launched and has operations, clear tasks to avoid duplicates
-    await cleanupLaunchedProjectTasks(id, project.status, project.tasks);
-    
-    // Return project with tasks cleared if cleanup occurred
+
     const finalProject = migratedProject;
-    if (finalProject.status === 'launched' && finalProject.tasks && finalProject.tasks.length > 0) {
-      const existingOperations = await Operation.find({ projectId: id }).lean();
-      if (existingOperations.length > 0) {
-        (finalProject as any).tasks = [];
-      }
-    }
-    
+
     return NextResponse.json(finalProject);
   } catch (error) {
     console.error('Error fetching project:', error);
@@ -115,19 +104,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (currentUserEmployee?.role !== 'User') {
         return NextResponse.json({ error: 'Only Managers, Administrators, and Users can update projects' }, { status: 403 });
       }
-      
+
       // Regular users can only change status from in-development to in-review
       if (status !== undefined && status !== project.status) {
         if (project.status !== 'in-development' || status !== 'in-review') {
           return NextResponse.json({ error: 'Users can only change status from in-development to in-review' }, { status: 403 });
         }
       }
-      
+
       // Regular users cannot change other fields
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
-          projectType !== undefined || color !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined || 
-          assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined || 
-          assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined) {
+        projectType !== undefined || color !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
+        assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined ||
+        assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
       }
     }
@@ -197,9 +186,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         project.assignedToEmployeeIds = [];
         project.assignedToNames = [];
       } else {
-        const assignedEmployee = await Employee.findOne({ 
-          name: assignedTo, 
-          organizationId: user.organizationId 
+        const assignedEmployee = await Employee.findOne({
+          name: assignedTo,
+          organizationId: user.organizationId
         });
         if (assignedEmployee) {
           project.assignedToEmployeeId = assignedEmployee._id;
@@ -209,19 +198,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         project.assignedTo = assignedTo;
       }
     }
-    
+
     // Only process tasks if they're being updated (skip if only status/other fields are being updated)
     if (tasks !== undefined) {
       if (Array.isArray(tasks)) {
         // Debug: Log received tasks to verify status is included
         console.log('Processing tasks update:', tasks.length, 'tasks');
-        
+
         project.tasks = await Promise.all(tasks.map(async (task: any, index: number) => {
           // Handle dates - provide defaults if not specified or invalid
           const defaultDates = getDefaultTaskDates();
           let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
           let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
-          
+
           // Normalize dates to midnight UTC for comparison (ignore time component)
           if (startDate) {
             startDate = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
@@ -229,12 +218,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           if (endDate) {
             endDate = new Date(Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()));
           }
-          
+
           // Validate end date is after or equal to start date (allow same day)
           if (endDate < startDate) {
             throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after or equal to start date`);
           }
-          
+
           // Preserve all task fields, especially status
           // Explicitly check for status to avoid overwriting valid statuses with 'active'
           // Handle both 'completed' and 'complete' for backward compatibility
@@ -249,10 +238,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
               taskStatus = 'active';
             }
           }
-          
+
           // Debug logging to help identify status preservation issues
           console.log(`Task ${index} "${task.name || 'Untitled'}": received status="${task.status}" (type: ${typeof task.status}), setting to="${taskStatus}"`);
-          
+
           // Build taskData explicitly - don't rely on spread operator for status
           const taskData: any = {
             name: task.name || 'Untitled Task',
@@ -262,10 +251,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             estimatedHours: task.estimatedHours !== undefined && task.estimatedHours !== null ? task.estimatedHours : undefined,
             status: taskStatus, // ALWAYS explicitly set status - this is critical!
           };
-          
+
           // Don't preserve _id - Mongoose will handle subdocument IDs automatically when replacing the array
           // Setting _id manually can cause issues with subdocument updates
-          
+
           // Handle employee assignment for tasks - prefer employeeId over name
           if (task.assignedToEmployeeId) {
             taskData.assignedToEmployeeId = new Types.ObjectId(task.assignedToEmployeeId);
@@ -275,9 +264,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             }
           } else if (task.assignedTo) {
             // Legacy support: if name provided, try to find employee and set ID
-            const assignedEmployee = await Employee.findOne({ 
-              name: task.assignedTo, 
-              organizationId: user.organizationId 
+            const assignedEmployee = await Employee.findOne({
+              name: task.assignedTo,
+              organizationId: user.organizationId
             });
             if (assignedEmployee) {
               taskData.assignedToEmployeeId = assignedEmployee._id;
@@ -288,17 +277,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             taskData.assignedToEmployeeId = undefined;
             taskData.assignedTo = undefined;
           }
-          
+
           // Don't delete _id for subdocuments - Mongoose needs it to identify existing tasks
           // Only remove __v as it's a version key
           delete taskData.__v;
-          
+
           // Final verification that status is set
           if (!taskData.status || !['active', 'completed', 'in-review'].includes(taskData.status)) {
             console.error(`Task ${index} "${taskData.name}" has invalid status "${taskData.status}", defaulting to 'active'`);
             taskData.status = 'active';
           }
-          
+
           return taskData;
         }));
       } else {
@@ -320,61 +309,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         project.dismissedChecklistIds = [];
       }
     }
-    
+
     // Save the project
     await project.save();
-    
-    // If project status changed to "launched", convert all tasks to operations
-    // Only do this conversion if status is actually changing to launched
-    if (status !== undefined && status === 'launched' && previousStatus !== 'launched' && project.tasks && project.tasks.length > 0) {
-      try {
-        // Check if operations already exist for this project to avoid duplicates
-        const existingOperations = await Operation.find({ projectId: project._id });
-        if (existingOperations.length === 0) {
-          // Convert each task to an operation
-          const operationsToCreate = project.tasks.map((task: any) => ({
-            name: task.name,
-            description: task.description,
-            recurrenceType: 'none' as const,
-            status: task.status === 'completed' ? 'completed' : task.status === 'active' ? 'active' : task.status === 'in-review' ? 'in-review' : 'active',
-            assignedTo: task.assignedTo, // Legacy support
-            assignedToEmployeeId: task.assignedToEmployeeId, // Use employee ID
-            estimatedHours: task.estimatedHours,
-            startDate: task.startDate,
-            endDate: task.endDate,
-            projectId: project._id,
-            userId: project.userId,
-          }));
 
-          await Operation.insertMany(operationsToCreate);
-          
-          // Clear tasks array since they've been converted to operations
-          project.tasks = [];
-          await project.save();
-        }
-      } catch (error) {
-        // Error converting tasks to operations
-        // Don't fail the project update if operation creation fails
-      }
-    }
-    
-    // Also clear tasks if project is already launched and has tasks (cleanup for existing data)
-    // Only do this if status is being set to launched (not just checking current status)
-    if (status !== undefined && status === 'launched' && project.tasks && project.tasks.length > 0) {
-      const existingOperations = await Operation.find({ projectId: project._id });
-      if (existingOperations.length > 0) {
-        // If operations exist, clear tasks to avoid duplicates
-        project.tasks = [];
-        await project.save();
-      }
-    }
 
     // Reload the project to ensure we return the latest data
     const savedProject = await Project.findById(id).lean();
     if (!savedProject) {
       return NextResponse.json({ error: 'Project not found after save' }, { status: 404 });
     }
-    
+
     // Only log task details if tasks were updated (to reduce noise)
     if (tasks !== undefined && savedProject.tasks && Array.isArray(savedProject.tasks)) {
       console.log('Final tasks being returned:', savedProject.tasks.length, 'tasks');
