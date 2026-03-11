@@ -74,6 +74,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
     const accumulatedTranscriptRef = useRef<string>('');
     const endOfUtteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastFinalSegmentRef = useRef<string>('');
+    const lastInterimRef = useRef<string>('');
 
     const clearMessages = useCallback(() => {
         // Auto-clear messages after delay
@@ -143,6 +144,10 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
             clearTimeout(endOfUtteranceTimerRef.current);
             endOfUtteranceTimerRef.current = null;
         }
+        if (lastInterimRef.current.trim()) {
+            accumulatedTranscriptRef.current = (accumulatedTranscriptRef.current + ' ' + lastInterimRef.current).trim();
+            lastInterimRef.current = '';
+        }
         const text = accumulatedTranscriptRef.current.trim();
         accumulatedTranscriptRef.current = '';
         lastFinalSegmentRef.current = '';
@@ -167,6 +172,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         setTranscript('');
         accumulatedTranscriptRef.current = '';
         lastFinalSegmentRef.current = '';
+        lastInterimRef.current = '';
         if (endOfUtteranceTimerRef.current) {
             clearTimeout(endOfUtteranceTimerRef.current);
             endOfUtteranceTimerRef.current = null;
@@ -187,6 +193,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
 
             recognition.onresult = (event: any) => {
                 let interimTranscript = '';
+                let hadNewContent = false;
 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const result = event.results[i];
@@ -197,23 +204,27 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
                             // Duplicate final segment (common on mobile): skip append and timer reset so we can finalize
                             continue;
                         }
+                        hadNewContent = true;
                         lastFinalSegmentRef.current = trimmed;
                         accumulatedTranscriptRef.current =
                             (accumulatedTranscriptRef.current + ' ' + text).trim();
                         setTranscript(accumulatedTranscriptRef.current);
-                        if (endOfUtteranceTimerRef.current) {
-                            clearTimeout(endOfUtteranceTimerRef.current);
-                        }
-                        endOfUtteranceTimerRef.current = setTimeout(flushAndProcess, endOfUtteranceMs);
                     } else {
                         interimTranscript += text;
                     }
                 }
 
                 if (interimTranscript) {
+                    hadNewContent = true;
+                    lastInterimRef.current = interimTranscript;
                     setTranscript(
                         (accumulatedTranscriptRef.current + ' ' + interimTranscript).trim()
                     );
+                }
+
+                if (hadNewContent) {
+                    if (endOfUtteranceTimerRef.current) clearTimeout(endOfUtteranceTimerRef.current);
+                    endOfUtteranceTimerRef.current = setTimeout(flushAndProcess, endOfUtteranceMs);
                 }
             };
 
@@ -233,7 +244,10 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
                     clearTimeout(endOfUtteranceTimerRef.current);
                     endOfUtteranceTimerRef.current = null;
                 }
-                if (state === 'listening') {
+                const hasTranscript = accumulatedTranscriptRef.current.trim() || lastInterimRef.current.trim();
+                if (hasTranscript) {
+                    flushAndProcess();
+                } else if (state === 'listening') {
                     setState('idle');
                 }
             };
