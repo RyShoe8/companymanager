@@ -1,8 +1,8 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
-export type ProjectType = 'website' | 'store' | 'app' | 'generic';
-export type ProjectCategory = 'internal' | 'client';
+export type ProjectType = 'internal' | 'client';
+export type ProjectCategory = 'website' | 'store' | 'app' | 'generic';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
 
 export interface IProjectTask {
@@ -77,15 +77,15 @@ const ProjectSchema: Schema = new Schema(
     },
     projectType: {
       type: String,
-      enum: ['website', 'store', 'app', 'generic'],
-      required: true,
-      default: 'generic',
-    },
-    category: {
-      type: String,
       enum: ['internal', 'client'],
       required: true,
       default: 'client',
+    },
+    category: {
+      type: String,
+      enum: ['website', 'store', 'app', 'generic'],
+      required: true,
+      default: 'generic',
     },
     color: {
       type: String,

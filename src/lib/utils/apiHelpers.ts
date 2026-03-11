@@ -69,3 +69,30 @@ export function migrateStagesToTasks(project: any): any {
   return project;
 }
 
+/**
+ * Safely migrate projectType and category if they are swapped (old format)
+ */
+export function migrateProjectFields(project: any): any {
+  const websiteTypes = ['website', 'store', 'app', 'generic'];
+  const internalClientTypes = ['internal', 'client'];
+
+  // If projectType is one of the website types, it's the old format where they were swapped
+  if (project.projectType && websiteTypes.includes(project.projectType)) {
+    const currentType = project.projectType;
+    const currentCategory = project.category;
+
+    // projectType should be 'internal' or 'client'
+    project.projectType = internalClientTypes.includes(currentCategory) ? currentCategory : 'client';
+    // category should be one of the website types
+    project.category = currentType;
+  }
+
+  // Also ensure category is set if missing (for very old projects)
+  if (!project.category && websiteTypes.includes(project.projectType)) {
+    // In this case projectType is correct but category is missing
+    // Actually if projType is website, it IS swapped.
+  }
+
+  return project;
+}
+

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getOrganizationUserIds, migrateStagesToTasks } from '@/lib/utils/apiHelpers';
+import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { getDefaultTaskDates, parseDateSafe } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 
@@ -96,10 +96,14 @@ export async function GET(request: NextRequest) {
     // Migrate stages to tasks for backward compatibility and clean up launched projects
     const migratedProjects = await Promise.all(projects.map(async (project: any) => {
       // Migrate stages to tasks
-      const migratedProject = migrateStagesToTasks(project);
+      const migratedProject = migrateProjectFields(migrateStagesToTasks(project));
       if (migratedProject !== project) {
         // Save migration if it occurred (async, don't wait)
-        Project.findByIdAndUpdate(project._id, { tasks: migratedProject.tasks }, { new: true }).catch(() => {
+        Project.findByIdAndUpdate(project._id, {
+          tasks: migratedProject.tasks,
+          projectType: migratedProject.projectType,
+          category: migratedProject.category
+        }, { new: true }).catch(() => {
           // Error saving migration
         });
       }
@@ -137,7 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, projectType, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate } = body;
+    const { name, description, url, urls, projectType, category, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -150,7 +154,8 @@ export async function POST(request: NextRequest) {
       name,
       description,
       urls: urls || [],
-      projectType: projectType || 'generic',
+      projectType: projectType || 'client',
+      category: category || 'generic',
       color: color || '#3b82f6',
       logo: logo || undefined,
       status: status || 'planning',

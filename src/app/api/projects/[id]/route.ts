@@ -4,7 +4,7 @@ import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getOrganizationUserIds, migrateStagesToTasks } from '@/lib/utils/apiHelpers';
+import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 
@@ -30,18 +30,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Migrate stages to tasks for backward compatibility
-    const migratedProject = migrateStagesToTasks(project);
-    if (migratedProject !== project) {
+    // Migrate stages to tasks + projectType/category swap
+    const migratedProject = migrateProjectFields(migrateStagesToTasks(project));
+    if (JSON.stringify(migratedProject) !== JSON.stringify(project)) {
       // Save migration if it occurred (async, don't wait)
-      Project.findByIdAndUpdate(id, { tasks: (migratedProject as any).tasks }, { new: true }).catch(() => {
+      Project.findByIdAndUpdate(id, {
+        tasks: (migratedProject as any).tasks,
+        projectType: migratedProject.projectType,
+        category: migratedProject.category
+      }, { new: true }).catch(() => {
         // Error saving migration
       });
     }
 
-    const finalProject = migratedProject;
-
-    return NextResponse.json(finalProject);
+    return NextResponse.json(migratedProject);
   } catch (error) {
     console.error('Error fetching project:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -99,6 +101,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Apply migration to the instance before modifying it
+    migrateProjectFields(project);
+
     // If user is not a Manager or Administrator, only allow status change from active to in-review
     if (!isManagerOrAdmin) {
       if (currentUserEmployee?.role !== 'User') {
@@ -125,10 +130,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (description !== undefined) project.description = description;
     if (url !== undefined) project.url = url;
     if (urls !== undefined) project.urls = urls;
-    if (projectType !== undefined) project.projectType = projectType;
-    if (category !== undefined) {
-      project.category = category;
-      if (category === 'client' && !project.clientPortalSlug) {
+    if (category !== undefined) project.category = category;
+    if (projectType !== undefined) {
+      project.projectType = projectType;
+      if (projectType === 'client' && !project.clientPortalSlug) {
         project.clientPortalSlug = crypto.randomBytes(12).toString('base64url');
         project.clientPortalToken = crypto.randomBytes(24).toString('base64url');
       }
