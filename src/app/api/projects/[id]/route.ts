@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid JSON in request body', details: errorMessage }, { status: 400 });
     }
 
-    const { name, description, url, urls, projectType, color, logo, status, endDate, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, dismissedChecklistIds } = body;
+    const { name, description, url, urls, projectType, category, color, logo, status, endDate, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, dismissedChecklistIds } = body;
 
     await connectDB();
     const { id } = await params;
@@ -125,9 +125,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (description !== undefined) project.description = description;
     if (url !== undefined) project.url = url;
     if (urls !== undefined) project.urls = urls;
-    if (projectType !== undefined) {
-      project.projectType = projectType;
-      if (projectType === 'client' && !project.clientPortalSlug) {
+    if (projectType !== undefined) project.projectType = projectType;
+    if (category !== undefined) {
+      project.category = category;
+      if (category === 'client' && !project.clientPortalSlug) {
         project.clientPortalSlug = crypto.randomBytes(12).toString('base64url');
         project.clientPortalToken = crypto.randomBytes(24).toString('base64url');
       }

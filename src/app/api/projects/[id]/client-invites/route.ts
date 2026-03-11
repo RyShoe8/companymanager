@@ -49,7 +49,7 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.projectType !== 'client') {
+    if (project.category !== 'client') {
       return NextResponse.json({ error: 'Only client projects can have client invites' }, { status: 400 });
     }
 
