@@ -53,33 +53,35 @@ export default function InspectorHost({
     const renderInnerContent = () => {
         if (type === 'project' && focusedProject) {
             return (
-                <InlineProjectView
-                    project={focusedProject}
-                    employees={employees}
-                    isManagerOrAdmin={isManagerOrAdmin}
-                    currentUserEmployeeId={currentUserEmployeeId}
-                    onAddContent={() => { /* Wait for +Create command or trigger external state */ }}
-                    onContentItemClick={(itemId) => { /* Could navigate to content:itemId */ }}
-                    contentRefreshTrigger={contentRefreshTrigger}
-                    onUpdate={async (updates) => {
-                        if (!updates || Object.keys(updates).length === 0) return;
-                        const res = await fetch(`/api/projects/${focusedProject._id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(updates),
-                        });
-                        if (!res.ok) throw new Error('Failed to save project');
-                        onRefresh();
-                    }}
-                    onDelete={async () => {
-                        const res = await fetch(`/api/projects/${focusedProject._id}`, { method: 'DELETE' });
-                        if (!res.ok) throw new Error('Failed to delete project');
-                        onRefresh();
-                        onClose();
-                    }}
-                    onClose={onClose}
-                    onRefresh={onRefresh}
-                />
+                <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+                    <InlineProjectView
+                        project={focusedProject}
+                        employees={employees}
+                        isManagerOrAdmin={isManagerOrAdmin}
+                        currentUserEmployeeId={currentUserEmployeeId}
+                        onAddContent={() => { /* Wait for +Create command or trigger external state */ }}
+                        onContentItemClick={(itemId) => { /* Could navigate to content:itemId */ }}
+                        contentRefreshTrigger={contentRefreshTrigger}
+                        onUpdate={async (updates) => {
+                            if (!updates || Object.keys(updates).length === 0) return;
+                            const res = await fetch(`/api/projects/${focusedProject._id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(updates),
+                            });
+                            if (!res.ok) throw new Error('Failed to save project');
+                            onRefresh();
+                        }}
+                        onDelete={async () => {
+                            const res = await fetch(`/api/projects/${focusedProject._id}`, { method: 'DELETE' });
+                            if (!res.ok) throw new Error('Failed to delete project');
+                            onRefresh();
+                            onClose();
+                        }}
+                        onClose={onClose}
+                        onRefresh={onRefresh}
+                    />
+                </div>
             );
         }
 
@@ -140,7 +142,7 @@ export default function InspectorHost({
         return 'Details';
     };
 
-    if (isMobile) {
+    if (isMobile || type === 'project') {
         if (!focusId) return null;
         return (
             <BottomSheet
@@ -176,11 +178,7 @@ export default function InspectorHost({
                 </button>
             </div>
             <div className="flex-1 overflow-y-auto relative">
-                {type === 'project' && focusedProject ? (
-                    <div className="p-4">{renderInnerContent()}</div>
-                ) : (
-                    renderInnerContent()
-                )}
+                {renderInnerContent()}
             </div>
         </div>
     );
