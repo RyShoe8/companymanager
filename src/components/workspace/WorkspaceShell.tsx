@@ -446,6 +446,8 @@ export default function WorkspaceShell({
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
                                     onRefresh={ws.loadData}
+                                    onAddContent={setAddContentProject}
+                                    onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
                                 />
                             </div>
                         )}
@@ -474,6 +476,8 @@ export default function WorkspaceShell({
                             isManagerOrAdmin={ws.isManagerOrAdmin}
                             currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
                             onRefresh={ws.loadData}
+                            onAddContent={setAddContentProject}
+                            onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
                         />
                     )}
 

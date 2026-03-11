@@ -7,6 +7,7 @@ import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
+import { IContentItem } from '@/lib/models/ContentItem';
 
 export type FocusType = 'project' | 'content' | 'task';
 
@@ -19,6 +20,8 @@ interface InspectorHostProps {
     isManagerOrAdmin: boolean;
     currentUserEmployeeId?: string;
     onRefresh: () => void;
+    onAddContent?: (project: IProject) => void;
+    onContentItemClick?: (item: IContentItem) => void;
 }
 
 export default function InspectorHost({
@@ -29,6 +32,8 @@ export default function InspectorHost({
     isManagerOrAdmin,
     currentUserEmployeeId,
     onRefresh,
+    onAddContent,
+    onContentItemClick,
 }: InspectorHostProps) {
     const isMobile = useIsMobile();
     const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
@@ -56,8 +61,8 @@ export default function InspectorHost({
                         employees={employees}
                         isManagerOrAdmin={isManagerOrAdmin}
                         currentUserEmployeeId={currentUserEmployeeId}
-                        onAddContent={() => { /* Wait for +Create command or trigger external state */ }}
-                        onContentItemClick={(itemId) => { /* Could navigate to content:itemId */ }}
+                        onAddContent={onAddContent}
+                        onContentItemClick={onContentItemClick}
                         contentRefreshTrigger={contentRefreshTrigger}
                         onUpdate={async (updates) => {
                             if (!updates || Object.keys(updates).length === 0) return;
