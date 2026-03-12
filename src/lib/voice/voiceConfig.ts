@@ -2,11 +2,21 @@
  * Voice configuration: provider selection, feature flags, privacy settings.
  */
 
+/** HAL-like TTS defaults (calm, measured, lower pitch) */
+export const HAL_TTS_RATE = 0.9;
+export const HAL_TTS_PITCH = 0.85;
+
 export interface VoiceConfig {
     /** STT strategy: 'webSpeech' | 'hybrid' | 'server' */
     sttStrategy: 'webSpeech' | 'hybrid' | 'server';
     /** TTS enabled */
     ttsEnabled: boolean;
+    /** TTS speech rate (0.8–2). When ttsVoicePreference is 'hal', defaults to HAL_TTS_RATE. */
+    ttsRate?: number;
+    /** TTS pitch (0.5–2). When ttsVoicePreference is 'hal', defaults to HAL_TTS_PITCH. */
+    ttsPitch?: number;
+    /** When 'hal', use HAL-like rate/pitch and prefer a deep male English voice. */
+    ttsVoicePreference?: 'default' | 'hal';
     /** Whether to store transcripts */
     storeTranscripts: boolean;
     /** Max recording duration in seconds */
@@ -18,9 +28,13 @@ export interface VoiceConfig {
 }
 
 export function getVoiceConfig(): VoiceConfig {
+    const preference: 'default' | 'hal' = 'hal';
     return {
         sttStrategy: 'hybrid', // Option B
         ttsEnabled: true,
+        ttsRate: preference === 'hal' ? HAL_TTS_RATE : undefined,
+        ttsPitch: preference === 'hal' ? HAL_TTS_PITCH : undefined,
+        ttsVoicePreference: preference,
         storeTranscripts: false,
         maxRecordingDuration: 30,
         serverSttEndpoint: '/api/voice/stt',
