@@ -891,14 +891,41 @@ export default function CalendarView({
                     return topPadding + headerHeight + collapsedItemsHeight + bottomPadding;
                   }
 
-                  // Expanded height calculation
-                  const visibleCount = Math.min(taskCount, 3);
-                  const descriptionHeight = project.description ? 40 : 0; // Description if present
-                  const estimatedHoursHeight = 48; // Estimated hours section + assigned to (space-y-2)
-                  const tasksSectionPadding = 16; // mt-4 = 16px
-                  const tasksHeaderHeight = 24; // "Tasks:" label + mb-2
-                  const taskHeight = 80; // Each task card height (matches today view)
-                  return topPadding + headerHeight + descriptionHeight + estimatedHoursHeight + tasksSectionPadding + tasksHeaderHeight + (visibleCount * taskHeight) + bottomPadding;
+                  // Expanded height calculation must match rendered weekly content.
+                  const weekStart = new Date(days[0]);
+                  weekStart.setHours(0, 0, 0, 0);
+                  const weekEnd = new Date(days[6]);
+                  weekEnd.setHours(23, 59, 59, 999);
+                  const visibleTasks = hasTasks
+                    ? project.tasks!.filter((task) => {
+                        const taskStart = new Date(task.startDate);
+                        taskStart.setHours(0, 0, 0, 0);
+                        const taskEnd = new Date(task.endDate);
+                        taskEnd.setHours(23, 59, 59, 999);
+                        return taskStart <= weekEnd && taskEnd >= weekStart;
+                      })
+                    : [];
+                  const displayedTasksCount = Math.min(visibleTasks.length, 3);
+                  const hasMoreTasks = visibleTasks.length > 3;
+                  const descriptionHeight = project.description ? 40 : 0; // project description block
+                  const estimatedHoursHeight = 56; // info block including spacing
+                  const tasksSectionPadding = 16; // mt-4
+                  const tasksHeaderHeight = 24; // label + margin
+                  const taskCardHeight = 112; // fixed weekly task card height (see rendered min-h below)
+                  const taskGapHeight = displayedTasksCount > 0 ? (displayedTasksCount - 1) * 8 : 0; // space-y-2
+                  const moreIndicatorHeight = hasMoreTasks ? 20 : 0;
+                  return (
+                    topPadding +
+                    headerHeight +
+                    descriptionHeight +
+                    estimatedHoursHeight +
+                    tasksSectionPadding +
+                    tasksHeaderHeight +
+                    displayedTasksCount * taskCardHeight +
+                    taskGapHeight +
+                    moreIndicatorHeight +
+                    bottomPadding
+                  );
                 });
 
                 // Calculate vertical stacking positions with variable heights
@@ -1104,11 +1131,11 @@ export default function CalendarView({
                                             e.stopPropagation();
                                             if (tIdx >= 0) onTaskClick?.(project, tIdx);
                                           }}
-                                          className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
+                                          className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer min-h-[112px]"
                                         >
                                           <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
                                           {task.description && (
-                                            <p className="text-sm text-text-secondary mt-1">{task.description}</p>
+                                            <p className="text-sm text-text-secondary mt-1 max-h-10 overflow-hidden">{task.description}</p>
                                           )}
                                           <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                             {task.estimatedHours && <span>{task.estimatedHours}h</span>}

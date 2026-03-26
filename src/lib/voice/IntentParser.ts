@@ -42,6 +42,37 @@ interface PatternRule {
     extractSlots: (match: RegExpMatchArray) => Record<string, string>;
 }
 
+function cleanProjectSlot(input: string | undefined): string {
+    if (!input) return '';
+    return input
+        .replace(/^\s*(?:called|named)\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function cleanTaskSlot(input: string | undefined): string {
+    if (!input) return '';
+    let value = input
+        .replace(/^\s*(?:called|named)\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // If STT leaked "project called X called Y", prefer the explicit task after last "called".
+    if (/\bproject\s+called\b/i.test(value) && /\bcalled\b/i.test(value)) {
+        const pieces = value.split(/\bcalled\b/i).map((p) => p.trim()).filter(Boolean);
+        if (pieces.length > 1) value = pieces[pieces.length - 1];
+    }
+
+    // Remove obvious trailing command echoes.
+    value = value
+        .replace(/\b(?:add|create)\s+(?:a\s+)?task\s*$/i, '')
+        .replace(/\bto\s+(?:the\s+)?project\s+.+$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return value;
+}
+
 const rules: PatternRule[] = [
     // Navigation
     {
@@ -158,13 +189,26 @@ const rules: PatternRule[] = [
     {
         type: 'ADD_TASK',
         patterns: [
-            /(?:add|create)\s+(?:a\s+)?task\s+(.+?)\s+to\s+(?:the\s+)?(?:project\s+)?(.+)/i,
-            /(?:add|create)\s+(?:a\s+)?task\s+to\s+(?:the\s+)?(?:project\s+)?(.+)/i,
+            /^(?:add|create)\s+(?:a\s+)?task\s+(.+?)\s+to\s+(?:the\s+)?project\s+(.+)$/i,
+            /^(?:add|create)\s+(?:a\s+)?task\s+to\s+(?:the\s+)?project\s+(.+?)\s+(?:called|named)\s+(.+)$/i,
+            /^(?:add|create)\s+(?:a\s+)?task\s+(?:called|named)\s+(.+?)\s+(?:for|in)\s+(?:the\s+)?project\s+(.+)$/i,
+            /^(?:add|create)\s+(?:a\s+)?task\s+for\s+(?:the\s+)?project\s+(.+?)\s+(?:called|named)\s+(.+)$/i,
         ],
-        extractSlots: (m) =>
-            m[2] !== undefined
-                ? { taskName: m[1].trim(), projectName: m[2].trim() }
-                : { taskName: 'New Task', projectName: m[1].trim() },
+        extractSlots: (m) => {
+            const raw = m[0].toLowerCase();
+            // add task to project X called Y
+            if (/task\s+to\s+(?:the\s+)?project/i.test(raw)) {
+                return {
+                    projectName: cleanProjectSlot(m[1]),
+                    taskName: cleanTaskSlot(m[2]),
+                };
+            }
+            // add task called Y for project X   OR   add task Y to project X
+            return {
+                taskName: cleanTaskSlot(m[1]),
+                projectName: cleanProjectSlot(m[2]),
+            };
+        },
     },
 
     // Rename project

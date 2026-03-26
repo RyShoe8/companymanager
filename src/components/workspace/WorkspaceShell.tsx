@@ -367,14 +367,38 @@ export default function WorkspaceShell({
         if (intent.type === 'ADD_TASK') {
             if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can add tasks' };
             const { taskName, projectName } = intent.slots;
-            const searchName = normalize(projectName);
+            const sanitizeTaskName = (raw: string) =>
+                raw
+                    .replace(/^\s*(?:called|named)\s+/i, '')
+                    .replace(/\b(?:add|create)\s+(?:a\s+)?task\b/gi, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            const sanitizeProjectName = (raw: string) =>
+                raw
+                    .replace(/^\s*(?:called|named)\s+/i, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+            const cleanedTaskName = sanitizeTaskName(taskName || '');
+            const cleanedProjectName = sanitizeProjectName(projectName || '');
+            if (!cleanedProjectName) {
+                return { success: false, message: 'I heard the task, but not a project name.' };
+            }
+            if (!cleanedTaskName || cleanedTaskName.length < 3) {
+                return { success: false, message: 'I heard the project, but not a clean task name.' };
+            }
+            if (/\bproject\b/i.test(cleanedTaskName) || /\bto\s+(?:the\s+)?project\b/i.test(cleanedTaskName)) {
+                return { success: false, message: 'Task name looked like command text. Please repeat the task title only.' };
+            }
+
+            const searchName = normalize(cleanedProjectName);
             const target = ws.allProjects.find(p => {
                 const pName = normalize(p.name);
                 return pName.includes(searchName) || searchName.includes(pName);
             });
-            if (!target) return { success: false, message: `Could not find project "${projectName}"` };
+            if (!target) return { success: false, message: `Could not find project "${cleanedProjectName}"` };
             const newTask = {
-                name: (taskName || 'New Task').trim() || 'New Task',
+                name: cleanedTaskName,
                 description: '',
                 status: 'active' as TaskStatus,
                 startDate: new Date(),

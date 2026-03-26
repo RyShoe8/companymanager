@@ -105,6 +105,25 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         [onIntent, clearMessages]
     );
 
+    // Mobile speech recognition can repeat the same clause at the end.
+    // Keep this conservative: only collapse exact repeated contiguous chunks.
+    const dedupeTrailingTranscript = useCallback((input: string): string => {
+        const normalized = input.replace(/\s+/g, ' ').trim();
+        if (!normalized) return normalized;
+        const words = normalized.split(' ');
+        if (words.length < 6) return normalized;
+
+        const maxChunk = Math.floor(words.length / 2);
+        for (let size = maxChunk; size >= 3; size--) {
+            const prev = words.slice(words.length - 2 * size, words.length - size).join(' ').toLowerCase();
+            const tail = words.slice(words.length - size).join(' ').toLowerCase();
+            if (prev === tail) {
+                return words.slice(0, words.length - size).join(' ').trim();
+            }
+        }
+        return normalized;
+    }, []);
+
     const processTranscript = useCallback(
         (text: string) => {
             console.log('[Voice] Processing finalized transcript:', text);
@@ -159,11 +178,11 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         }
         setTranscript('');
         if (text) {
-            processTranscript(text);
+            processTranscript(dedupeTrailingTranscript(text));
         } else {
             setState('idle');
         }
-    }, [processTranscript]);
+    }, [processTranscript, dedupeTrailingTranscript]);
 
     const startListening = useCallback(() => {
         if (!enabled) return;
