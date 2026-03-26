@@ -86,7 +86,7 @@ export default function RootLayout({
 }>) {
   const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
         suppressHydrationWarning

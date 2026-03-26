@@ -1,0 +1,13 @@
+---
+description: App-wide dark mode and role-based UI gates (no per-role themes)
+globs: "**/*.{tsx,ts,css}"
+alwaysApply: false
+---
+
+# UI theme and role gates
+
+- **Tailwind dark mode:** The project uses `darkMode: 'class'` in `tailwind.config.ts`. The root `<html>` element must keep `className="dark"` so `dark:` utilities are consistent for every user. Do not rely on `prefers-color-scheme` for product chrome.
+- **Do not branch layout or colors** on `Administrator` vs `Manager`. Use **`isManagerOrAdmin`** (or a specific capability flag) for showing/hiding features. Administrator-only actions may still check `currentUserRole === 'Administrator'` where intentional (e.g. CreateMenu org settings).
+- **Stale session:** When resolving the current employee from `/api/auth/me` + employees list, if no row matches, reset manager/admin flags and role to avoid showing the wrong tier of UI.
+
+When adding new surfaces, prefer design tokens and explicit `dark:` pairs that read correctly on dark shells (e.g. workspace `bg-gray-900`).
