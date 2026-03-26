@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, formatDate, getTimeframeRange } from '@/lib/utils/dateUtils';
+import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import Button from '@/components/ui/Button';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 
@@ -24,6 +25,7 @@ interface CalendarViewProps {
   onContentItemClick?: (item: IContentItem) => void;
   onAddContent?: (project: IProject, defaultDate?: Date) => void;
   onRefreshContent?: () => void;
+  onTaskClick?: (project: IProject, taskIndex: number) => void;
 }
 
 export type MergedCalendarItem =
@@ -47,6 +49,7 @@ export default function CalendarView({
   onContentItemClick,
   onAddContent,
   onRefreshContent,
+  onTaskClick,
 }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -611,8 +614,17 @@ export default function CalendarView({
                                     if (item.type === 'task') {
                                       const task = item.task;
                                       const taskKey = `${projectId}-task-${idx}-${task.name}`;
+                                      const tIdx = resolveTaskIndexInProject(project, task);
                                       return (
-                                        <div key={taskKey} className="p-3 rounded border border-border bg-background-card">
+                                        <button
+                                          key={taskKey}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (tIdx >= 0) onTaskClick?.(project, tIdx);
+                                          }}
+                                          className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
+                                        >
                                           <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
                                           {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
                                           <div className="flex gap-4 mt-2 text-xs text-text-secondary">
@@ -622,7 +634,7 @@ export default function CalendarView({
                                             )}
                                             <span className="capitalize">{(task as any).status}</span>
                                           </div>
-                                        </div>
+                                        </button>
                                       );
                                     }
                                     const c = item.content;
@@ -653,10 +665,19 @@ export default function CalendarView({
                                 <div className="space-y-1">
                                   {visible.map((item, idx) => {
                                     if (item.type === 'task') {
+                                      const tIdx = resolveTaskIndexInProject(project, item.task);
                                       return (
-                                        <div key={`${projectId}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                        <button
+                                          key={`${projectId}-t-${idx}`}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (tIdx >= 0) onTaskClick?.(project, tIdx);
+                                          }}
+                                          className={`text-sm text-white text-left w-full hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                        >
                                           {item.task.name}
-                                        </div>
+                                        </button>
                                       );
                                     }
                                     return (
@@ -993,10 +1014,19 @@ export default function CalendarView({
                                 <div className="space-y-1">
                                   {visible.map((item, idx) => {
                                     if (item.type === 'task') {
+                                      const tIdx = resolveTaskIndexInProject(project, item.task);
                                       return (
-                                        <div key={`${project._id}-t-${idx}`} className={`text-sm text-white ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                        <button
+                                          key={`${project._id}-t-${idx}`}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (tIdx >= 0) onTaskClick?.(project, tIdx);
+                                          }}
+                                          className={`text-sm text-white text-left w-full hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                        >
                                           {item.task.name}
-                                        </div>
+                                        </button>
                                       );
                                     }
                                     return (
@@ -1064,24 +1094,32 @@ export default function CalendarView({
                                 <div className="mt-4 px-6 pb-6">
                                   <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
                                   <div className="space-y-2">
-                                    {displayedTasks.map((task, taskIdx) => (
-                                      <div
-                                        key={taskIdx}
-                                        className="p-3 rounded border border-border bg-background-card"
-                                      >
-                                        <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
-                                        {task.description && (
-                                          <p className="text-sm text-text-secondary mt-1">{task.description}</p>
-                                        )}
-                                        <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                          {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                                          {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
-                                            <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
+                                    {displayedTasks.map((task, taskIdx) => {
+                                      const tIdx = resolveTaskIndexInProject(project, task);
+                                      return (
+                                        <button
+                                          key={taskIdx}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (tIdx >= 0) onTaskClick?.(project, tIdx);
+                                          }}
+                                          className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
+                                        >
+                                          <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                          {task.description && (
+                                            <p className="text-sm text-text-secondary mt-1">{task.description}</p>
                                           )}
-                                          <span className="capitalize">{task.status}</span>
-                                        </div>
-                                      </div>
-                                    ))}
+                                          <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                                            {task.estimatedHours && <span>{task.estimatedHours}h</span>}
+                                            {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
+                                              <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
+                                            )}
+                                            <span className="capitalize">{task.status}</span>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
                                     {visibleTasks.length > 3 && (
                                       <div className="text-xs text-text-secondary italic">+{visibleTasks.length - 3} more tasks</div>
                                     )}
@@ -1632,6 +1670,12 @@ export default function CalendarView({
         tasks={timeframeModalOpen ? getMergedItemsForProject(timeframeModalOpen.project, timeframeModalOpen.startDate, timeframeModalOpen.endDate, {}).taskItems : []}
         contentItems={timeframeModalOpen ? getMergedItemsForProject(timeframeModalOpen.project, timeframeModalOpen.startDate, timeframeModalOpen.endDate, {}).contentInRange : []}
         onContentItemClick={(item) => { onContentItemClick?.(item); setTimeframeModalOpen(null); }}
+        onTaskClick={(task) => {
+          if (!timeframeModalOpen) return;
+          const tIdx = resolveTaskIndexInProject(timeframeModalOpen.project, task);
+          setTimeframeModalOpen(null);
+          if (tIdx >= 0) onTaskClick?.(timeframeModalOpen.project, tIdx);
+        }}
         getEmployeeName={getEmployeeName}
       />
     </div>

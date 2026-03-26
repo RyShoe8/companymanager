@@ -52,6 +52,8 @@ export interface WorkspaceState {
     // Actions
     loadData: (options?: { silent?: boolean }) => Promise<void>;
     fetchContentItems: () => Promise<void>;
+    /** Merge one project from API (e.g. PUT response) without full reload — avoids inspector jitter */
+    patchProjectInState: (updated: IProject) => void;
 }
 
 export default function useWorkspaceData(
@@ -138,6 +140,11 @@ export default function useWorkspaceData(
                             setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
                             setCurrentUserEmployeeName(currentEmployee.name || null);
                             setCurrentUserEmployeeId(currentEmployee._id?.toString() || null);
+                        } else {
+                            setIsManagerOrAdmin(false);
+                            setCurrentUserRole(undefined);
+                            setCurrentUserEmployeeName(null);
+                            setCurrentUserEmployeeId(null);
                         }
                     }
                 }
@@ -165,6 +172,16 @@ export default function useWorkspaceData(
             }
         }
     }, [router, timeframe, currentDate]);
+
+    const patchProjectInState = useCallback((updated: IProject) => {
+        const id =
+            typeof updated._id === 'string' ? updated._id : (updated._id as { toString: () => string }).toString();
+        setAllProjects((prev) =>
+            prev.map((p) =>
+                p._id.toString() === id ? ({ ...p, ...updated, _id: p._id } as IProject) : p
+            )
+        );
+    }, []);
 
     useEffect(() => {
         loadData();
@@ -273,5 +290,6 @@ export default function useWorkspaceData(
         filteredProjects,
         loadData,
         fetchContentItems,
+        patchProjectInState,
     };
 }

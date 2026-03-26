@@ -18,6 +18,7 @@ interface ScheduleLensProps {
     timeframe: TimeframeType;
     currentDate: Date;
     onProjectClick: (project: IProject) => void;
+    onTaskClick?: (project: IProject, taskIndex: number) => void;
     onDateChange: (date: Date) => void;
     currentUserEmployeeName: string | null;
     currentUserEmployeeId: string | null;
@@ -39,6 +40,7 @@ export default function ScheduleLens({
     timeframe,
     currentDate,
     onProjectClick,
+    onTaskClick,
     onDateChange,
     currentUserEmployeeName,
     currentUserEmployeeId,
@@ -97,6 +99,7 @@ export default function ScheduleLens({
                     onRefreshContent={onRefreshContent}
                     onAddContent={onAddContent}
                     onContentItemClick={onContentItemClick}
+                    onTaskClick={onTaskClick}
                 />
             )}
 
@@ -111,6 +114,7 @@ export default function ScheduleLens({
                     timeframe={timeframe}
                     currentDate={currentDate}
                     onProjectClick={onProjectClick}
+                    onTaskClick={onTaskClick}
                     currentUserEmployeeName={currentUserEmployeeName}
                     currentUserEmployeeId={currentUserEmployeeId}
                     isManagerOrAdmin={isManagerOrAdmin}

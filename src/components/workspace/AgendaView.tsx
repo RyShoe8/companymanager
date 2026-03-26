@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, getTimeframeRange, formatDate } from '@/lib/utils/dateUtils';
+import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 
 interface AgendaViewProps {
     projects: IProject[];
@@ -14,6 +15,7 @@ interface AgendaViewProps {
     timeframe: TimeframeType;
     currentDate: Date;
     onProjectClick: (project: IProject) => void;
+    onTaskClick?: (project: IProject, taskIndex: number) => void;
     currentUserEmployeeName: string | null;
     currentUserEmployeeId: string | null;
     isManagerOrAdmin: boolean;
@@ -66,6 +68,7 @@ export default function AgendaView({
     timeframe,
     currentDate,
     onProjectClick,
+    onTaskClick,
     isManagerOrAdmin,
     onAddContent,
     onContentItemClick,
@@ -230,21 +233,29 @@ export default function AgendaView({
                                 </div>
 
                                 {/* Tasks */}
-                                {tasks.map((task) => (
-                                    <div
-                                        key={task._id?.toString() || task.name}
-                                        className="ml-6 py-1.5 flex items-center gap-2 text-sm"
-                                    >
-                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'completed' ? 'bg-green-500' : task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'
-                                            }`} />
-                                        <span className={`text-gray-300 ${task.status === 'completed' ? 'line-through text-gray-500' : ''}`}>
-                                            {task.name}
-                                        </span>
-                                        {task.estimatedHours && (
-                                            <span className="text-xs text-gray-500">{task.estimatedHours}h</span>
-                                        )}
-                                    </div>
-                                ))}
+                                {tasks.map((task) => {
+                                    const tIdx = resolveTaskIndexInProject(project, task);
+                                    return (
+                                        <button
+                                            key={task._id?.toString() || task.name}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (tIdx >= 0) onTaskClick?.(project, tIdx);
+                                            }}
+                                            className="ml-6 py-1.5 flex items-center gap-2 text-sm text-left w-[calc(100%-1.5rem)] rounded px-1 -mx-1 hover:bg-gray-800/50 transition-colors cursor-pointer"
+                                        >
+                                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'completed' ? 'bg-green-500' : task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'
+                                                }`} />
+                                            <span className={`text-gray-300 ${task.status === 'completed' ? 'line-through text-gray-500' : ''}`}>
+                                                {task.name}
+                                            </span>
+                                            {task.estimatedHours && (
+                                                <span className="text-xs text-gray-500">{task.estimatedHours}h</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
 
                                 {/* Content items */}
                                 {content.map((item) => (

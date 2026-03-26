@@ -19,6 +19,14 @@ export type IntentType =
     | 'MARK_COMPLETE'
     | 'UPDATE_PROJECT_DESCRIPTION'
     | 'RUN_COMMAND'
+    | 'ADD_TASK'
+    | 'RENAME_PROJECT'
+    | 'RENAME_TASK'
+    | 'SET_PROJECT_STATUS'
+    | 'SET_TASK_STATUS'
+    | 'OPEN_TASK'
+    | 'ASSIGN_PROJECT'
+    | 'ASSIGN_TASK'
     | 'UNKNOWN';
 
 export interface ParsedIntent {
@@ -134,6 +142,97 @@ const rules: PatternRule[] = [
         },
     },
 
+    // Open task (inspector + task focus)
+    {
+        type: 'OPEN_TASK',
+        patterns: [
+            /(?:open|show|view)\s+task\s+(.+?)(?:\s+in\s+(?:the\s+)?(?:project\s+)?(.+))?$/i,
+        ],
+        extractSlots: (m) => ({
+            name: m[1].trim(),
+            context: m[2]?.trim() ?? '',
+        }),
+    },
+
+    // Add task to project
+    {
+        type: 'ADD_TASK',
+        patterns: [
+            /(?:add|create)\s+(?:a\s+)?task\s+(.+?)\s+to\s+(?:the\s+)?(?:project\s+)?(.+)/i,
+            /(?:add|create)\s+(?:a\s+)?task\s+to\s+(?:the\s+)?(?:project\s+)?(.+)/i,
+        ],
+        extractSlots: (m) =>
+            m[2] !== undefined
+                ? { taskName: m[1].trim(), projectName: m[2].trim() }
+                : { taskName: 'New Task', projectName: m[1].trim() },
+    },
+
+    // Rename project
+    {
+        type: 'RENAME_PROJECT',
+        patterns: [
+            /(?:rename|change\s+the\s+name\s+of)\s+(?:the\s+)?(?:project\s+)?(.+?)\s+to\s+(.+)/i,
+        ],
+        extractSlots: (m) => ({ fromName: m[1].trim(), toName: m[2].trim() }),
+    },
+
+    // Rename task
+    {
+        type: 'RENAME_TASK',
+        patterns: [
+            /(?:rename|change\s+the\s+name\s+of)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+to\s+(.+?)(?:\s+in\s+(?:the\s+)?(?:project\s+)?(.+))?$/i,
+        ],
+        extractSlots: (m) => ({
+            fromName: m[1].trim(),
+            toName: m[2].trim(),
+            context: m[3]?.trim() ?? '',
+        }),
+    },
+
+    // Set project status
+    {
+        type: 'SET_PROJECT_STATUS',
+        patterns: [
+            /(?:set|change)\s+(?:the\s+)?(?:project\s+)?(.+?)\s+status\s+to\s+(.+)/i,
+        ],
+        extractSlots: (m) => ({ projectName: m[1].trim(), status: m[2].trim() }),
+    },
+
+    // Set task status
+    {
+        type: 'SET_TASK_STATUS',
+        patterns: [
+            /(?:set|change)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+status\s+to\s+(.+?)(?:\s+in\s+(?:the\s+)?(?:project\s+)?(.+))?$/i,
+        ],
+        extractSlots: (m) => ({
+            taskName: m[1].trim(),
+            status: m[2].trim(),
+            context: m[3]?.trim() ?? '',
+        }),
+    },
+
+    // Assign project to employee
+    {
+        type: 'ASSIGN_PROJECT',
+        patterns: [
+            /(?:assign)\s+(?:the\s+)?project\s+(.+?)\s+to\s+(.+)/i,
+        ],
+        extractSlots: (m) => ({ projectName: m[1].trim(), employeeName: m[2].trim() }),
+    },
+
+    // Assign task to employee
+    {
+        type: 'ASSIGN_TASK',
+        patterns: [
+            /(?:assign)\s+(?:the\s+)?task\s+(.+?)\s+to\s+(.+?)(?:\s+in\s+(?:the\s+)?(?:project\s+)?(.+))?$/i,
+        ],
+        extractSlots: (m) => ({
+            taskName: m[1].trim(),
+            employeeName: m[2].trim(),
+            context: m[3]?.trim() ?? '',
+        }),
+    },
+
     // Create content
     {
         type: 'CREATE_CONTENT',
@@ -216,6 +315,12 @@ const rules: PatternRule[] = [
             /(?:go to|open|show|view)\s+schedule/i,
             /(?:go to|open|show|view)\s+projects?/i,
             /(?:go to|open|show|view)\s+(?:capacity|team|employees)/i,
+            /(?:go to|open|show|view)\s+(?:calendar|month|week)/i,
+            /(?:go to|open|show|view)\s+agenda/i,
+            /(?:show|hide)\s+tasks/i,
+            /(?:show|hide)\s+content/i,
+            /(?:filter|show)\s+(?:channel\s+)?(?:to\s+)?(all channels|linkedin|x\b|twitter|instagram|tiktok|email|article|video|reddit|bluesky|other)/i,
+            /(?:go to|open|show|view)\s+(?:workspace|assets|employees|admin|plan|build|run)\b/i,
             /(?:create|new|add)\s+(?:a\s+)?project/i,
             /(?:close|cancel|dismiss)\s*(?:modal|inspector|panel)?\s*$/i,
             /^close\s*$/i,
@@ -226,6 +331,36 @@ const rules: PatternRule[] = [
             if (/\bschedule\b/.test(raw)) return { commandId: 'nav-schedule' };
             if (/\bprojects?\b/.test(raw)) return { commandId: 'nav-projects' };
             if (/\b(capacity|team|employees)\b/.test(raw)) return { commandId: 'nav-capacity' };
+            if (/\b(calendar|month|week)\b/.test(raw)) return { commandId: 'view-calendar' };
+            if (/\bagenda\b/.test(raw)) return { commandId: 'view-agenda' };
+            if (/\bshow\b.*\btasks\b/.test(raw)) return { commandId: 'show-tasks' };
+            if (/\bhide\b.*\btasks\b/.test(raw)) return { commandId: 'hide-tasks' };
+            if (/\bshow\b.*\bcontent\b/.test(raw)) return { commandId: 'show-content' };
+            if (/\bhide\b.*\bcontent\b/.test(raw)) return { commandId: 'hide-content' };
+            const chMatch = raw.match(
+                /(all channels|linkedin|x\b|twitter|instagram|tiktok|email|article|video|reddit|bluesky|other)/
+            );
+            if (chMatch) {
+                const c = chMatch[1];
+                if (c.includes('all')) return { commandId: 'filter-channel-all' };
+                if (c.includes('linkedin')) return { commandId: 'filter-channel-linkedin' };
+                if (c === 'x' || c.includes('twitter')) return { commandId: 'filter-channel-x' };
+                if (c.includes('instagram')) return { commandId: 'filter-channel-instagram' };
+                if (c.includes('tiktok')) return { commandId: 'filter-channel-tiktok' };
+                if (c.includes('email')) return { commandId: 'filter-channel-email' };
+                if (c.includes('article')) return { commandId: 'filter-channel-article' };
+                if (c.includes('video')) return { commandId: 'filter-channel-video' };
+                if (c.includes('reddit')) return { commandId: 'filter-channel-reddit' };
+                if (c.includes('bluesky')) return { commandId: 'filter-channel-bluesky' };
+                if (c.includes('other')) return { commandId: 'filter-channel-other' };
+            }
+            if (/\bworkspace\b/.test(raw)) return { commandId: 'nav-workspace' };
+            if (/\bassets\b/.test(raw)) return { commandId: 'nav-assets' };
+            if (/\bemployees\b/.test(raw)) return { commandId: 'nav-employees-page' };
+            if (/\badmin\b/.test(raw)) return { commandId: 'nav-admin' };
+            if (/\bplan\b/.test(raw) && !/\bproject\b/.test(raw)) return { commandId: 'nav-plan' };
+            if (/\bbuild\b/.test(raw)) return { commandId: 'nav-build' };
+            if (/\brun\b/.test(raw)) return { commandId: 'nav-run' };
             if (/\b(create|new|add)\s+(?:a\s+)?project\b/.test(raw)) return { commandId: 'create-project' };
             if (/\b(close|cancel|dismiss)\b/.test(raw)) return { commandId: 'close-inspector' };
             return { commandId: '' };

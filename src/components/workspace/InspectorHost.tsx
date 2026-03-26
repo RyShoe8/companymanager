@@ -20,6 +20,11 @@ interface InspectorHostProps {
     isManagerOrAdmin: boolean;
     currentUserEmployeeId?: string;
     onRefresh: () => void;
+    /** After a successful project PUT, merge API JSON into workspace state (avoids full reload on each save). */
+    onProjectPatched?: (project: IProject) => void;
+    /** When opening the inspector from a schedule task row, focus this task index in the project view. */
+    initialOpenTaskIndex?: number | null;
+    onInitialOpenTaskConsumed?: () => void;
     onAddContent?: (project: IProject) => void;
     onContentItemClick?: (item: IContentItem) => void;
 }
@@ -32,6 +37,9 @@ export default function InspectorHost({
     isManagerOrAdmin,
     currentUserEmployeeId,
     onRefresh,
+    onProjectPatched,
+    initialOpenTaskIndex,
+    onInitialOpenTaskConsumed,
     onAddContent,
     onContentItemClick,
 }: InspectorHostProps) {
@@ -64,6 +72,8 @@ export default function InspectorHost({
                         onAddContent={onAddContent}
                         onContentItemClick={onContentItemClick}
                         contentRefreshTrigger={contentRefreshTrigger}
+                        initialOpenTaskIndex={initialOpenTaskIndex ?? null}
+                        onInitialOpenTaskConsumed={onInitialOpenTaskConsumed}
                         onUpdate={async (updates) => {
                             if (!updates || Object.keys(updates).length === 0) return;
                             const res = await fetch(`/api/projects/${focusedProject._id}`, {
@@ -72,7 +82,12 @@ export default function InspectorHost({
                                 body: JSON.stringify(updates),
                             });
                             if (!res.ok) throw new Error('Failed to save project');
-                            onRefresh();
+                            const data = await res.json().catch(() => null);
+                            if (data && typeof data === 'object' && data._id && onProjectPatched) {
+                                onProjectPatched(data as IProject);
+                            } else {
+                                onRefresh();
+                            }
                         }}
                         onDelete={async () => {
                             const res = await fetch(`/api/projects/${focusedProject._id}`, { method: 'DELETE' });

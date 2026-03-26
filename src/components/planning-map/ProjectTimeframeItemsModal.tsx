@@ -20,6 +20,8 @@ interface ProjectTimeframeItemsModalProps {
   tasks: TimeframeTaskItem[];
   contentItems: IContentItem[];
   onContentItemClick?: (item: IContentItem) => void;
+  /** Open project inspector focused on this task (parent resolves index and closes modal). */
+  onTaskClick?: (task: IProjectTask) => void;
   getEmployeeName?: (id: string | undefined, name: string | undefined) => string | undefined;
 }
 
@@ -32,6 +34,7 @@ export default function ProjectTimeframeItemsModal({
   tasks,
   contentItems,
   onContentItemClick,
+  onTaskClick,
   getEmployeeName = () => undefined,
 }: ProjectTimeframeItemsModalProps) {
   if (!project) return null;
@@ -50,24 +53,27 @@ export default function ProjectTimeframeItemsModal({
                 <h3 className="text-sm font-semibold text-text-primary mb-2">Tasks</h3>
                 <ul className="space-y-2">
                   {tasks.map(({ task }, idx) => (
-                    <li
-                      key={`task-${idx}-${task.name}-${(task as any).startDate}`}
-                      className="p-3 rounded border border-border bg-background-card"
-                    >
-                      <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                        {task.name}
-                      </div>
-                      <div className="flex gap-4 mt-1 text-xs text-text-secondary">
-                        {(task as any).startDate && (task as any).endDate && (
-                          <span>
-                            {formatDate((task as any).startDate)} – {formatDate((task as any).endDate)}
-                          </span>
-                        )}
-                        {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo) && (
-                          <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo)}</span>
-                        )}
-                        {(task as any).status && <span className="capitalize">{(task as any).status}</span>}
-                      </div>
+                    <li key={`task-${idx}-${task.name}-${(task as any).startDate}`}>
+                      <button
+                        type="button"
+                        onClick={() => onTaskClick?.(task)}
+                        className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
+                      >
+                        <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                          {task.name}
+                        </div>
+                        <div className="flex gap-4 mt-1 text-xs text-text-secondary">
+                          {(task as any).startDate && (task as any).endDate && (
+                            <span>
+                              {formatDate((task as any).startDate)} – {formatDate((task as any).endDate)}
+                            </span>
+                          )}
+                          {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo) && (
+                            <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo)}</span>
+                          )}
+                          {(task as any).status && <span className="capitalize">{(task as any).status}</span>}
+                        </div>
+                      </button>
                     </li>
                   ))}
                 </ul>

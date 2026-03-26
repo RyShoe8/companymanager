@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { IProject } from '@/lib/models/Project';
+import { useRouter } from 'next/navigation';
+import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import useWorkspaceData, { PhaseType, LensType } from '@/lib/hooks/useWorkspaceData';
 import useIsMobile from '@/lib/hooks/useIsMobile';
@@ -25,6 +26,7 @@ import CommandPalette from '@/components/workspace/CommandPalette';
 import VoiceProvider from '@/components/voice/VoiceProvider';
 import VoiceOverlay, { VoiceButton } from '@/components/voice/VoiceOverlay';
 import { ParsedIntent } from '@/lib/voice/IntentParser';
+import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
 
 interface WorkspaceShellProps {
     initialPhase?: PhaseType;
@@ -36,6 +38,7 @@ export default function WorkspaceShell({
     initialLens = 'schedule',
 }: WorkspaceShellProps) {
     const isMobile = useIsMobile();
+    const router = useRouter();
     const ws = useWorkspaceData(initialPhase, initialLens);
 
     // Inspector / form state
@@ -45,6 +48,8 @@ export default function WorkspaceShell({
     const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
 
     const [inspectorFocus, setInspectorFocus] = useState<string | null>(null);
+    /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after InlineProjectView applies it). */
+    const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
@@ -54,15 +59,26 @@ export default function WorkspaceShell({
         setShowProjectForm(true);
     };
 
-    const handleViewProject = (project: IProject) => {
+    const closeInspector = useCallback(() => {
+        setInspectorFocus(null);
+        setInspectorOpenTaskIndex(null);
+    }, []);
+
+    const handleViewProject = useCallback((project: IProject) => {
+        setInspectorOpenTaskIndex(null);
         setInspectorFocus(`project:${project._id}`);
-    };
+    }, []);
+
+    const handleViewProjectTask = useCallback((project: IProject, taskIndex: number) => {
+        setInspectorFocus(`project:${project._id}`);
+        setInspectorOpenTaskIndex(taskIndex);
+    }, []);
 
     const handleDeleteProject = async (id: string) => {
         try {
             const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
             if (response.ok) {
-                setInspectorFocus(null);
+                closeInspector();
                 ws.loadData();
             }
         } catch {
@@ -94,11 +110,94 @@ export default function WorkspaceShell({
 
     // Voice intent execution handler (may return Promise for async actions)
     const handleIntent = useCallback(async (intent: ParsedIntent): Promise<{ success: boolean; message: string }> => {
-        if (intent.type === 'NAVIGATE' || intent.type === 'SWITCH_LENS') {
-            const place = intent.slots.place || intent.slots.lens;
-            if (place === 'schedule') { ws.setLens('schedule'); return { success: true, message: 'Switched to schedule lens' }; }
-            if (place === 'projects') { ws.setLens('projects'); return { success: true, message: 'Switched to projects lens' }; }
-            if (place === 'capacity' || place === 'employees' || place === 'team') { ws.setLens('capacity'); return { success: true, message: 'Switched to capacity lens' }; }
+        const normalize = (s: string) =>
+            s.toLowerCase().replace(/\b(the|task|item|a|an)\b/g, '').replace(/\s+/g, ' ').trim();
+
+        const mergePatchProject = async (projectId: string, body: Record<string, unknown>) => {
+            try {
+                const res = await fetch(`/api/projects/${projectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    return { ok: false as const, message: (data as { error?: string }).error || 'Update failed' };
+                }
+                const data = await res.json().catch(() => null);
+                if (data && typeof data === 'object' && (data as IProject)._id) {
+                    ws.patchProjectInState(data as IProject);
+                } else {
+                    await ws.loadData({ silent: true });
+                }
+                return { ok: true as const, message: 'Updated' };
+            } catch {
+                return { ok: false as const, message: 'Network error' };
+            }
+        };
+
+        const findEmployeeByVoice = (spoken: string) => {
+            const sn = normalize(spoken);
+            if (!sn) return null;
+            return (
+                ws.employees.find((e) => {
+                    const en = normalize(e.name);
+                    return en.includes(sn) || sn.includes(en);
+                }) ?? null
+            );
+        };
+
+        const mapProjectStatus = (raw: string): IProject['status'] | null => {
+            const s = raw.toLowerCase().trim();
+            if (s.includes('plan')) return 'planning';
+            if (s.includes('build') || s.includes('development')) return 'in-development';
+            if (s.includes('launch') || s.includes('run')) return 'launched';
+            if (s.includes('review')) return 'in-review';
+            if (s.includes('complete') || s.includes('done') || s.includes('finished')) return 'completed';
+            return null;
+        };
+
+        const mapTaskStatus = (raw: string): TaskStatus | null => {
+            const s = raw.toLowerCase().trim();
+            if (s.includes('review')) return 'in-review';
+            if (s.includes('complete') || s.includes('done') || s.includes('finished')) return 'completed';
+            if (s.includes('active')) return 'active';
+            return null;
+        };
+
+        if (intent.type === 'NAVIGATE') {
+            const place = intent.slots.place;
+            if (place === 'workspace') {
+                router.push('/workspace');
+                return { success: true, message: 'Opening workspace' };
+            }
+            if (place === 'assets') {
+                router.push('/assets');
+                return { success: true, message: 'Opening assets' };
+            }
+            if (place === 'employees') {
+                router.push('/employees');
+                return { success: true, message: 'Opening employees' };
+            }
+            if (place === 'admin') {
+                router.push('/admin');
+                return { success: true, message: 'Opening admin' };
+            }
+        }
+        if (intent.type === 'SWITCH_LENS') {
+            const lens = intent.slots.lens;
+            if (lens === 'schedule') {
+                ws.setLens('schedule');
+                return { success: true, message: 'Switched to schedule lens' };
+            }
+            if (lens === 'projects') {
+                ws.setLens('projects');
+                return { success: true, message: 'Switched to projects lens' };
+            }
+            if (lens === 'capacity') {
+                ws.setLens('capacity');
+                return { success: true, message: 'Switched to capacity lens' };
+            }
         }
         if (intent.type === 'FILTER_PHASE') {
             const phase = intent.slots.phase as PhaseType;
@@ -139,8 +238,6 @@ export default function WorkspaceShell({
                 return { success: true, message: `${intent.slots.action === 'show' ? 'Showing' : 'Hiding'} content` };
             }
         }
-        const normalize = (s: string) => s.toLowerCase().replace(/\b(the|task|item|a|an)\b/g, '').replace(/\s+/g, ' ').trim();
-
         if (intent.type === 'UPDATE_PROJECT_DESCRIPTION') {
             const { name, description } = intent.slots;
             if (!description?.trim()) return { success: false, message: 'No description text provided' };
@@ -156,11 +253,15 @@ export default function WorkspaceShell({
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ description: description.trim() }),
                 });
+                const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    return { success: false, message: data.error || 'Failed to update description' };
+                    return { success: false, message: (data as { error?: string }).error || 'Failed to update description' };
                 }
-                ws.loadData({ silent: true });
+                if (data && typeof data === 'object' && (data as IProject)._id) {
+                    ws.patchProjectInState(data as IProject);
+                } else {
+                    await ws.loadData({ silent: true });
+                }
                 return { success: true, message: `Updated description for ${target.name}` };
             } catch {
                 return { success: false, message: 'Failed to update description' };
@@ -176,6 +277,7 @@ export default function WorkspaceShell({
                     return pName.includes(searchName) || searchName.includes(pName);
                 });
                 if (target) {
+                    setInspectorOpenTaskIndex(null);
                     setInspectorFocus(`project:${target._id}`);
                     return { success: true, message: `Opening project: ${target.name}` };
                 }
@@ -185,6 +287,7 @@ export default function WorkspaceShell({
                     return cTitle.includes(searchName) || searchName.includes(cTitle);
                 });
                 if (target) {
+                    setInspectorOpenTaskIndex(null);
                     setInspectorFocus(`content:${target._id}`);
                     return { success: true, message: `Opening content: ${target.title}` };
                 }
@@ -204,6 +307,17 @@ export default function WorkspaceShell({
                     return { success: true, message: `Deleted project: ${target.name}` };
                 }
             }
+            if (entityType === 'task') {
+                const m = matchTaskInProjects(ws.allProjects, normalize, name, null, { allowCompleted: true });
+                if (m) {
+                    const { project: p, taskIdx } = m;
+                    const nextTasks = (p.tasks || []).filter((_, i) => i !== taskIdx);
+                    const r = await mergePatchProject(p._id.toString(), { tasks: nextTasks });
+                    return r.ok
+                        ? { success: true, message: `Removed task from ${p.name}` }
+                        : { success: false, message: r.message };
+                }
+            }
             return { success: false, message: `Could not find ${entityType} matching "${name}" to delete` };
         }
         if (intent.type === 'COMPLETE_TASK') {
@@ -211,9 +325,6 @@ export default function WorkspaceShell({
             const searchName = name ? normalize(name) : '';
             const searchContext = context ? normalize(context) : null;
 
-            console.log('[Voice] Matching task:', { searchName, searchContext });
-
-            // "Mark project [Name] as complete" -> mark entire project and all its tasks complete
             if ((!searchName || searchName === 'project') && searchContext) {
                 const project = ws.allProjects.find(p => {
                     const pName = normalize(p.name);
@@ -221,91 +332,151 @@ export default function WorkspaceShell({
                 });
                 if (!project) return { success: false, message: `Could not find project matching "${context}"` };
                 const updatedTasks = (project.tasks || []).map(t => ({ ...t, status: 'completed' as const }));
-                fetch(`/api/projects/${project._id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'completed', tasks: updatedTasks }),
-                }).then(() => ws.loadData({ silent: true }));
-                return { success: true, message: `Marked project "${project.name}" as complete.` };
+                const r = await mergePatchProject(project._id.toString(), { status: 'completed', tasks: updatedTasks });
+                return r.ok
+                    ? { success: true, message: `Marked project "${project.name}" as complete.` }
+                    : { success: false, message: r.message };
             }
 
-            const searchWords = searchName.split(/\s+/).filter(Boolean);
-            const wordOverlapScore = (tName: string) => {
-                const taskWords = new Set(tName.split(/\s+/).filter(Boolean));
-                let shared = 0;
-                for (const w of searchWords) {
-                    if (taskWords.has(w)) shared++;
-                }
-                return searchWords.length > 0 ? (shared / searchWords.length) * 50 : 0;
-            };
-
-            let bestMatch: { project: IProject, taskIdx: number, score: number } | null = null;
-
-            for (const p of ws.allProjects) {
-                const pName = normalize(p.name);
-                const isProjectContextMatched = searchContext
-                    ? (pName.includes(searchContext) || searchContext.includes(pName) || (searchContext.length <= 2 && pName.startsWith(searchContext)))
-                    : false;
-                const isProjectMentionedInName = searchName.includes(pName);
-
-                p.tasks?.forEach((t, idx) => {
-                    if (t.status === 'completed') return;
-
-                    const tName = normalize(t.name);
-                    let score = 0;
-
-                    if (tName === searchName) score = 100;
-                    else if (searchName.includes(tName)) score = 80;
-                    else if (tName.includes(searchName)) score = 60;
-
-                    // Huge bonus if project context explicitly matches
-                    if (score > 0 && isProjectContextMatched) score += 50;
-                    // Smaller bonus if project is mentioned in the name slot
-                    else if (score > 0 && isProjectMentionedInName) score += 20;
-
-                    if (score > 40 && (!bestMatch || score > bestMatch.score)) {
-                        bestMatch = { project: p, taskIdx: idx, score };
-                    }
-                });
-            }
-
-            if (!bestMatch && searchWords.length > 0) {
-                const WORD_OVERLAP_THRESHOLD = 25;
-                for (const p of ws.allProjects) {
-                    const pName = normalize(p.name);
-                    const contextMatch = searchContext
-                        ? (pName.includes(searchContext) || searchContext.includes(pName) || (searchContext.length <= 2 && pName.startsWith(searchContext)))
-                        : true;
-                    if (!contextMatch) continue;
-                    p.tasks?.forEach((t, idx) => {
-                        if (t.status === 'completed') return;
-                        const tName = normalize(t.name);
-                        const overlap = wordOverlapScore(tName);
-                        if (overlap >= WORD_OVERLAP_THRESHOLD && (!bestMatch || overlap > bestMatch.score)) {
-                            bestMatch = { project: p, taskIdx: idx, score: overlap };
-                        }
-                    });
-                }
-            }
-
+            const bestMatch = matchTaskInProjects(ws.allProjects, normalize, name, context, { allowCompleted: false });
             if (bestMatch) {
-                const { project: mProject, taskIdx, score } = bestMatch as { project: IProject, taskIdx: number, score: number };
+                const { project: mProject, taskIdx, score } = bestMatch;
                 const task = mProject.tasks![taskIdx];
                 const updatedTasks = [...(mProject.tasks || [])];
                 updatedTasks[taskIdx] = { ...task, status: 'completed' };
-
-                console.log('[Voice] Executing completion for:', { projectName: mProject.name, taskName: task.name, score });
-
-                fetch(`/api/projects/${mProject._id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tasks: updatedTasks }),
-                }).then(() => ws.loadData({ silent: true }));
-
-                return { success: true, message: `Marked task "${task.name}" as complete (Score: ${score})` };
+                const r = await mergePatchProject(mProject._id.toString(), { tasks: updatedTasks });
+                return r.ok
+                    ? { success: true, message: `Marked task "${task.name}" as complete (score ${Math.round(score)})` }
+                    : { success: false, message: r.message };
             }
 
             return { success: false, message: `Could not find task matching "${name}"${context ? ` for "${context}"` : ''}` };
+        }
+
+        if (intent.type === 'OPEN_TASK') {
+            const { name, context } = intent.slots;
+            const ctx = context?.trim() ? context : null;
+            const m = matchTaskInProjects(ws.allProjects, normalize, name, ctx, { allowCompleted: true });
+            if (m) {
+                handleViewProjectTask(m.project, m.taskIdx);
+                return { success: true, message: `Opening task "${m.project.tasks![m.taskIdx].name}"` };
+            }
+            return { success: false, message: `Could not find task matching "${name}"` };
+        }
+
+        if (intent.type === 'ADD_TASK') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can add tasks' };
+            const { taskName, projectName } = intent.slots;
+            const searchName = normalize(projectName);
+            const target = ws.allProjects.find(p => {
+                const pName = normalize(p.name);
+                return pName.includes(searchName) || searchName.includes(pName);
+            });
+            if (!target) return { success: false, message: `Could not find project "${projectName}"` };
+            const newTask = {
+                name: (taskName || 'New Task').trim() || 'New Task',
+                description: '',
+                status: 'active' as TaskStatus,
+                startDate: new Date(),
+                endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                estimatedHours: 0,
+                assignedTo: '',
+            };
+            const nextTasks = [...(target.tasks || []), newTask];
+            const r = await mergePatchProject(target._id.toString(), { tasks: nextTasks });
+            return r.ok
+                ? { success: true, message: `Added task to ${target.name}` }
+                : { success: false, message: r.message };
+        }
+
+        if (intent.type === 'RENAME_PROJECT') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can rename projects' };
+            const { fromName, toName } = intent.slots;
+            const searchName = normalize(fromName);
+            const target = ws.allProjects.find(p => {
+                const pName = normalize(p.name);
+                return pName.includes(searchName) || searchName.includes(pName);
+            });
+            if (!target) return { success: false, message: `Could not find project "${fromName}"` };
+            const r = await mergePatchProject(target._id.toString(), { name: toName.trim() });
+            return r.ok ? { success: true, message: `Renamed project to "${toName.trim()}"` } : { success: false, message: r.message };
+        }
+
+        if (intent.type === 'RENAME_TASK') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can rename tasks' };
+            const { fromName, toName, context } = intent.slots;
+            const ctx = context?.trim() ? context : null;
+            const m = matchTaskInProjects(ws.allProjects, normalize, fromName, ctx, { allowCompleted: true });
+            if (!m) return { success: false, message: `Could not find task "${fromName}"` };
+            const tasks = [...(m.project.tasks || [])];
+            tasks[m.taskIdx] = { ...tasks[m.taskIdx], name: toName.trim() };
+            const r = await mergePatchProject(m.project._id.toString(), { tasks });
+            return r.ok ? { success: true, message: `Renamed task to "${toName.trim()}"` } : { success: false, message: r.message };
+        }
+
+        if (intent.type === 'SET_PROJECT_STATUS') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can change project status' };
+            const { projectName, status } = intent.slots;
+            const st = mapProjectStatus(status);
+            if (!st) return { success: false, message: `Unknown status "${status}"` };
+            const searchName = normalize(projectName);
+            const target = ws.allProjects.find(p => {
+                const pName = normalize(p.name);
+                return pName.includes(searchName) || searchName.includes(pName);
+            });
+            if (!target) return { success: false, message: `Could not find project "${projectName}"` };
+            const r = await mergePatchProject(target._id.toString(), { status: st });
+            return r.ok ? { success: true, message: `Set ${target.name} to ${st}` } : { success: false, message: r.message };
+        }
+
+        if (intent.type === 'SET_TASK_STATUS') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can change task status' };
+            const { taskName, status, context } = intent.slots;
+            const st = mapTaskStatus(status);
+            if (!st) return { success: false, message: `Unknown task status "${status}"` };
+            const ctx = context?.trim() ? context : null;
+            const m = matchTaskInProjects(ws.allProjects, normalize, taskName, ctx, { allowCompleted: true });
+            if (!m) return { success: false, message: `Could not find task "${taskName}"` };
+            const tasks = [...(m.project.tasks || [])];
+            tasks[m.taskIdx] = { ...tasks[m.taskIdx], status: st };
+            const r = await mergePatchProject(m.project._id.toString(), { tasks });
+            return r.ok ? { success: true, message: `Updated task status to ${st}` } : { success: false, message: r.message };
+        }
+
+        if (intent.type === 'ASSIGN_PROJECT') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can assign projects' };
+            const { projectName, employeeName } = intent.slots;
+            const emp = findEmployeeByVoice(employeeName);
+            if (!emp) return { success: false, message: `Could not find employee "${employeeName}"` };
+            const searchName = normalize(projectName);
+            const target = ws.allProjects.find(p => {
+                const pName = normalize(p.name);
+                return pName.includes(searchName) || searchName.includes(pName);
+            });
+            if (!target) return { success: false, message: `Could not find project "${projectName}"` };
+            const existing = ((target as { assignedToEmployeeIds?: unknown[] }).assignedToEmployeeIds || []).map((id) =>
+                typeof id === 'string' ? id : (id as { toString: () => string }).toString()
+            );
+            const idStr = emp._id.toString();
+            const merged = existing.includes(idStr) ? existing : [...existing, idStr];
+            const r = await mergePatchProject(target._id.toString(), { assignedToEmployeeIds: merged });
+            return r.ok
+                ? { success: true, message: `Assigned ${target.name} to ${emp.name}` }
+                : { success: false, message: r.message };
+        }
+
+        if (intent.type === 'ASSIGN_TASK') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can assign tasks' };
+            const { taskName, employeeName, context } = intent.slots;
+            const emp = findEmployeeByVoice(employeeName);
+            if (!emp) return { success: false, message: `Could not find employee "${employeeName}"` };
+            const ctx = context?.trim() ? context : null;
+            const m = matchTaskInProjects(ws.allProjects, normalize, taskName, ctx, { allowCompleted: true });
+            if (!m) return { success: false, message: `Could not find task "${taskName}"` };
+            const tasks = [...(m.project.tasks || [])];
+            tasks[m.taskIdx] = { ...tasks[m.taskIdx], assignedToEmployeeId: emp._id as never, assignedTo: emp.name };
+            const r = await mergePatchProject(m.project._id.toString(), { tasks });
+            return r.ok ? { success: true, message: `Assigned task to ${emp.name}` } : { success: false, message: r.message };
         }
 
         if (intent.type === 'RUN_COMMAND') {
@@ -318,7 +489,7 @@ export default function WorkspaceShell({
         }
 
         return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };
-    }, [ws, handleDeleteProject]);
+    }, [ws, handleDeleteProject, router, handleViewProjectTask]);
 
     // Command Palette Registration (voice can trigger via RUN_COMMAND)
     useEffect(() => {
@@ -356,11 +527,143 @@ export default function WorkspaceShell({
                 canExecute: () => ws.isManagerOrAdmin,
                 execute: handleCreateProject,
             },
+            {
+                id: 'view-calendar',
+                label: 'Calendar view',
+                category: 'view' as const,
+                keywords: ['calendar', 'week', 'month'],
+                voicePatterns: ['show calendar', 'open calendar', 'view calendar', 'go to calendar'],
+                execute: () => {
+                    ws.setLens('schedule');
+                    ws.setScheduleMode('calendar');
+                },
+            },
+            {
+                id: 'view-agenda',
+                label: 'Agenda view',
+                category: 'view' as const,
+                keywords: ['agenda', 'list'],
+                voicePatterns: ['show agenda', 'open agenda', 'view agenda', 'go to agenda'],
+                execute: () => {
+                    ws.setLens('schedule');
+                    ws.setScheduleMode('agenda');
+                },
+            },
+            {
+                id: 'show-tasks',
+                label: 'Show tasks',
+                category: 'filter' as const,
+                keywords: ['tasks'],
+                voicePatterns: ['show tasks'],
+                execute: () => ws.setShowTasks(true),
+            },
+            {
+                id: 'hide-tasks',
+                label: 'Hide tasks',
+                category: 'filter' as const,
+                keywords: ['tasks'],
+                voicePatterns: ['hide tasks'],
+                execute: () => ws.setShowTasks(false),
+            },
+            {
+                id: 'show-content',
+                label: 'Show content',
+                category: 'filter' as const,
+                keywords: ['content'],
+                voicePatterns: ['show content'],
+                execute: () => ws.setShowContent(true),
+            },
+            {
+                id: 'hide-content',
+                label: 'Hide content',
+                category: 'filter' as const,
+                keywords: ['content'],
+                voicePatterns: ['hide content'],
+                execute: () => ws.setShowContent(false),
+            },
+            ...(
+                [
+                    ['filter-channel-all', 'All', 'All channels'] as const,
+                    ['filter-channel-linkedin', 'LinkedIn', 'LinkedIn channel'] as const,
+                    ['filter-channel-x', 'X', 'X channel'] as const,
+                    ['filter-channel-instagram', 'Instagram', 'Instagram channel'] as const,
+                    ['filter-channel-tiktok', 'TikTok', 'TikTok channel'] as const,
+                    ['filter-channel-email', 'Email', 'Email channel'] as const,
+                    ['filter-channel-article', 'Article', 'Article channel'] as const,
+                    ['filter-channel-video', 'Video', 'Video channel'] as const,
+                    ['filter-channel-reddit', 'Reddit', 'Reddit channel'] as const,
+                    ['filter-channel-bluesky', 'Bluesky', 'Bluesky channel'] as const,
+                    ['filter-channel-other', 'Other', 'Other channel'] as const,
+                ] as const
+            ).map(([id, channel, phrase]) => ({
+                id,
+                label: `Channel: ${channel}`,
+                category: 'filter' as const,
+                keywords: [channel.toLowerCase()],
+                voicePatterns: [`filter ${phrase}`, `show ${phrase}`],
+                execute: () => ws.setContentChannelFilter(channel),
+            })),
+            {
+                id: 'nav-workspace',
+                label: 'Workspace',
+                category: 'navigate' as const,
+                keywords: ['workspace'],
+                voicePatterns: ['go to workspace', 'open workspace'],
+                execute: () => router.push('/workspace'),
+            },
+            {
+                id: 'nav-assets',
+                label: 'Assets',
+                category: 'navigate' as const,
+                keywords: ['assets'],
+                voicePatterns: ['go to assets', 'open assets', 'show assets'],
+                execute: () => router.push('/assets'),
+            },
+            {
+                id: 'nav-employees-page',
+                label: 'Employees page',
+                category: 'navigate' as const,
+                keywords: ['employees'],
+                voicePatterns: ['go to employees page', 'open employees'],
+                execute: () => router.push('/employees'),
+            },
+            {
+                id: 'nav-admin',
+                label: 'Admin',
+                category: 'navigate' as const,
+                keywords: ['admin'],
+                voicePatterns: ['go to admin', 'open admin'],
+                execute: () => router.push('/admin'),
+            },
+            {
+                id: 'nav-plan',
+                label: 'Plan',
+                category: 'navigate' as const,
+                keywords: ['plan'],
+                voicePatterns: ['go to plan', 'open plan'],
+                execute: () => router.push('/plan'),
+            },
+            {
+                id: 'nav-build',
+                label: 'Build',
+                category: 'navigate' as const,
+                keywords: ['build'],
+                voicePatterns: ['go to build', 'open build'],
+                execute: () => router.push('/build'),
+            },
+            {
+                id: 'nav-run',
+                label: 'Run',
+                category: 'navigate' as const,
+                keywords: ['run'],
+                voicePatterns: ['go to run', 'open run'],
+                execute: () => router.push('/run'),
+            },
         ];
 
         commands.forEach(c => CommandRegistry.register(c));
         return () => commands.forEach(c => CommandRegistry.unregister(c.id));
-    }, [ws, ws.isManagerOrAdmin]);
+    }, [ws, ws.isManagerOrAdmin, router, handleCreateProject]);
 
     // Close inspector command (only when inspector is open, so voice "close" / "cancel" works)
     useEffect(() => {
@@ -371,11 +674,11 @@ export default function WorkspaceShell({
             category: 'view' as const,
             keywords: ['close', 'cancel', 'dismiss'],
             voicePatterns: ['close', 'close modal', 'cancel', 'dismiss', 'close inspector'],
-            execute: () => setInspectorFocus(null),
+            execute: closeInspector,
         };
         CommandRegistry.register(closeCmd);
         return () => CommandRegistry.unregister('close-inspector');
-    }, [inspectorFocus]);
+    }, [inspectorFocus, closeInspector]);
 
     // Global keyboard shortcuts
     useEffect(() => {
@@ -462,7 +765,7 @@ export default function WorkspaceShell({
                                         <option value="Bluesky">Bluesky</option>
                                         <option value="Other">Other</option>
                                     </select>
-                                    {(ws.currentUserRole === 'Manager' || ws.currentUserRole === 'Administrator') && (
+                                    {ws.isManagerOrAdmin && (
                                         <Toggle
                                             label="Show only my assignments"
                                             checked={ws.showOnlyMyAssignments}
@@ -489,6 +792,7 @@ export default function WorkspaceShell({
                                             timeframe={ws.timeframe}
                                             currentDate={ws.currentDate}
                                             onProjectClick={handleViewProject}
+                                            onTaskClick={handleViewProjectTask}
                                             onDateChange={ws.setCurrentDate}
                                             currentUserEmployeeName={ws.currentUserEmployeeName}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
@@ -546,12 +850,15 @@ export default function WorkspaceShell({
                             <div className="hidden lg:block sticky top-[30px]" style={{ height: 'calc(100vh - 60px)' }}>
                                 <InspectorHost
                                     focusId={inspectorFocus}
-                                    onClose={() => setInspectorFocus(null)}
+                                    onClose={closeInspector}
                                     projects={ws.allProjects}
                                     employees={ws.employees}
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
                                     onRefresh={() => ws.loadData({ silent: true })}
+                                    onProjectPatched={ws.patchProjectInState}
+                                    initialOpenTaskIndex={inspectorOpenTaskIndex}
+                                    onInitialOpenTaskConsumed={() => setInspectorOpenTaskIndex(null)}
                                     onAddContent={setAddContentProject}
                                     onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
                                 />
@@ -576,12 +883,15 @@ export default function WorkspaceShell({
                     {isMobile && inspectorFocus && (
                         <InspectorHost
                             focusId={inspectorFocus}
-                            onClose={() => setInspectorFocus(null)}
+                            onClose={closeInspector}
                             projects={ws.allProjects}
                             employees={ws.employees}
                             isManagerOrAdmin={ws.isManagerOrAdmin}
                             currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
-                            onRefresh={ws.loadData}
+                            onRefresh={() => ws.loadData({ silent: true })}
+                            onProjectPatched={ws.patchProjectInState}
+                            initialOpenTaskIndex={inspectorOpenTaskIndex}
+                            onInitialOpenTaskConsumed={() => setInspectorOpenTaskIndex(null)}
                             onAddContent={setAddContentProject}
                             onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
                         />

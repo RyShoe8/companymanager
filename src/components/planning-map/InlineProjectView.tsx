@@ -34,6 +34,9 @@ interface InlineProjectViewProps {
   onContentItemClick?: (item: IContentItem) => void;
   /** When this changes, project content list is refetched (e.g. after detail modal save/delete). */
   contentRefreshTrigger?: number;
+  /** Open Tasks tab and focus this row (e.g. deep-link from workspace schedule). Cleared by parent via onInitialOpenTaskConsumed. */
+  initialOpenTaskIndex?: number | null;
+  onInitialOpenTaskConsumed?: () => void;
 }
 
 function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, currentUserEmployeeId: string | null | undefined): boolean {
@@ -47,7 +50,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return false;
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     return new Set(['tasks']);
@@ -58,6 +61,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveStatusRef = useRef(saveStatus);
+  saveStatusRef.current = saveStatus;
+  const initialTaskAppliedKeyRef = useRef<string | null>(null);
   const [actionButtons, setActionButtons] = useState<{ label: string; url: string }[]>([]);
   /** When set, overrides localProject.dismissedChecklistIds for ChecklistSection (avoids mutating IProject Document). */
   const [localDismissedChecklistIds, setLocalDismissedChecklistIds] = useState<string[] | null>(null);
@@ -88,17 +94,47 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   useEffect(() => {
-    // Only reset UI state if the project ID actually changed
-    // Otherwise just sync the local data
     if (project._id.toString() !== localProject._id.toString()) {
       setLocalProject(project);
       setLocalDismissedChecklistIds(null);
       setViewTab('tasks');
       setExpandedSections(new Set(['tasks']));
-    } else {
-      setLocalProject(project);
+      initialTaskAppliedKeyRef.current = null;
+      return;
     }
+    if (saveStatusRef.current === 'saving') return;
+    setLocalProject((prev) => {
+      const pAt = (project as { updatedAt?: string | Date }).updatedAt;
+      const prevAt = (prev as { updatedAt?: string | Date }).updatedAt;
+      if (pAt != null && prevAt != null && new Date(pAt).getTime() === new Date(prevAt).getTime()) return prev;
+      return project;
+    });
   }, [project, localProject._id]);
+
+  useEffect(() => {
+    if (initialOpenTaskIndex == null) {
+      initialTaskAppliedKeyRef.current = null;
+      return;
+    }
+    const key = `${project._id.toString()}-${initialOpenTaskIndex}`;
+    if (initialTaskAppliedKeyRef.current === key) return;
+    const tasks = project.tasks || [];
+    if (initialOpenTaskIndex < 0 || initialOpenTaskIndex >= tasks.length) {
+      onInitialOpenTaskConsumed?.();
+      return;
+    }
+    initialTaskAppliedKeyRef.current = key;
+    const t = tasks[initialOpenTaskIndex];
+    setViewTab('tasks');
+    setExpandedSections((prev) => new Set(prev).add('tasks'));
+    setTaskTab(t.status === 'completed' ? 'completed' : 'active');
+    setSelectedTaskIndex(initialOpenTaskIndex);
+    setShowTaskActions(true);
+    requestAnimationFrame(() => {
+      document.getElementById(`inspector-task-row-${initialOpenTaskIndex}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      onInitialOpenTaskConsumed?.();
+    });
+  }, [initialOpenTaskIndex, project._id, project.tasks, onInitialOpenTaskConsumed]);
 
   // Fetch project action buttons (smart buttons)
   useEffect(() => {
@@ -195,7 +231,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const handleSubmitForReview = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'in-review'); setShowTaskActions(false); };
   const handleCompleteTask = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'completed'); setShowTaskActions(false); };
   const handleDeclineReview = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'active'); setShowTaskActions(false); };
-  const handleDeleteTask = async (taskIndex: number) => { await onUpdate({ tasks: (localProject.tasks || []).filter((_, idx) => idx !== taskIndex) }); setShowTaskActions(false); setSelectedTaskIndex(null); };
+  const handleDeleteTask = async (taskIndex: number) => {
+    await onUpdate({ tasks: (localProject.tasks || []).filter((_, idx) => idx !== taskIndex) });
+    setShowTaskActions(false);
+    setSelectedTaskIndex(null);
+  };
   const handleAddTask = async () => {
     const newTask = { name: 'New Task', description: '', status: 'active' as TaskStatus, startDate: new Date(), endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), estimatedHours: 0, assignedTo: '' };
     await onUpdate({ tasks: [...(localProject.tasks || []), newTask] });
@@ -211,13 +251,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   return (
     <div className="space-y-4 max-h-[85vh] overflow-y-auto">
-      {saveStatus !== 'idle' && (
-        <div className={`fixed top-4 right-4 px-3 py-1.5 rounded-lg text-sm font-medium z-50 shadow-lg ${saveStatus === 'saving' ? 'bg-blue-500 text-white animate-pulse' :
-          saveStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
-          }`}>
-          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'failed' ? 'Save failed' : 'Saved'}
-        </div>
-      )}
+      <div className="min-h-[36px] shrink-0" aria-live="polite">
+        {saveStatus !== 'idle' && (
+          <div
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium shadow-lg ${saveStatus === 'saving' ? 'bg-blue-500 text-white animate-pulse' :
+              saveStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+              }`}
+          >
+            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'failed' ? 'Save failed' : 'Saved'}
+          </div>
+        )}
+      </div>
 
       {/* Project Header Card */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
@@ -384,7 +428,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
                   return (
                     <SwipeableCard key={idx} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
-                      <div className="p-4">
+                      <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                             <EditableText value={task.name} onSave={(v) => handleTaskUpdate(idx, 'name', v)} className={`font-medium ${task.status === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`} placeholder="Task name" disabled={!isManagerOrAdmin} />
