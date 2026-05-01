@@ -18,6 +18,7 @@ import { formatDate } from '@/lib/utils/dateUtils';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import ChecklistSection from '@/components/checklist/ChecklistSection';
 import AddButton from '@/components/checklist/AddButton';
+import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
 import MultiSelect from '@/components/ui/MultiSelect';
 
 interface InlineProjectViewProps {
@@ -80,6 +81,27 @@ function isTextDocumentAssetType(type: string): boolean {
   return type === 'text' || type === 'document';
 }
 
+/** Normalized smart button row from GET /projects/:id/buttons */
+type ProjectPanelActionButton = {
+  label: string;
+  url: string;
+  kind?: 'link' | 'email';
+  password?: string;
+};
+
+function normalizeProjectActionButton(raw: unknown): ProjectPanelActionButton | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const label = typeof o.label === 'string' ? o.label : '';
+  const url = typeof o.url === 'string' ? o.url : '';
+  if (!label || !url) return null;
+  if (o.kind === 'email') {
+    const password = typeof o.password === 'string' ? o.password : undefined;
+    return password !== undefined ? { label, url, kind: 'email' as const, password } : { label, url, kind: 'email' as const };
+  }
+  return { label, url };
+}
+
 function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, currentUserEmployeeId: string | null | undefined): boolean {
   if (isManagerOrAdmin) return true;
   if (!currentUserEmployeeId) return false;
@@ -105,7 +127,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const saveStatusRef = useRef(saveStatus);
   saveStatusRef.current = saveStatus;
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
-  const [actionButtons, setActionButtons] = useState<{ label: string; url: string }[]>([]);
+  const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
+  const [credentialSheet, setCredentialSheet] = useState<{ label: string; password: string } | null>(null);
+  const [credentialReveal, setCredentialReveal] = useState(false);
   /** When set, overrides localProject.dismissedChecklistIds for ChecklistSection (avoids mutating IProject Document). */
   const [localDismissedChecklistIds, setLocalDismissedChecklistIds] = useState<string[] | null>(null);
   /** Tab for tasks vs content. */
@@ -213,7 +237,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         const res = await fetch(`/api/projects/${localProject._id}/buttons`);
         if (res.ok) {
           const data = await res.json();
-          setActionButtons(Array.isArray(data) ? data : (data.actionButtons || []));
+          const arr = Array.isArray(data) ? data : (data.actionButtons || []);
+          setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
         }
       } catch (e) {
         // ignore
@@ -373,47 +398,87 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           </div>
         )}
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-2">
-          {actionButtons.map((btn, idx) => (
-            <span key={idx} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 text-sm">
-              <a href={btn.url} target="_blank" rel="noopener noreferrer" className="font-medium text-indigo-700 dark:text-indigo-300 hover:underline truncate max-w-[180px]">
-                {btn.label}
-              </a>
-              {isManagerOrAdmin && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await fetch(`/api/projects/${localProject._id}/buttons`, {
-                      method: 'DELETE',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ index: idx }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setActionButtons(Array.isArray(data) ? data : []);
-                    }
-                  }}
-                  className="text-indigo-500 hover:text-red-600 dark:hover:text-red-400 p-0.5 shrink-0"
-                  aria-label="Remove button"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              )}
-            </span>
-          ))}
+          {actionButtons.map((btn, idx) => {
+            const isEmail = btn.kind === 'email';
+            const pillClass = isEmail
+              ? 'inline-flex items-center gap-1 rounded-lg bg-violet-50 dark:bg-violet-900/30 px-3 py-1.5 text-sm'
+              : 'inline-flex items-center gap-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 text-sm';
+            const linkClass = isEmail
+              ? 'font-medium text-violet-800 dark:text-violet-200 hover:underline truncate max-w-[160px]'
+              : 'font-medium text-indigo-700 dark:text-indigo-300 hover:underline truncate max-w-[180px]';
+            const iconMuted = isEmail
+              ? 'text-violet-600 hover:text-violet-900 dark:text-violet-400 dark:hover:text-violet-100'
+              : 'text-indigo-500 hover:text-red-600 dark:hover:text-red-400';
+
+            return (
+              <span key={idx} className={pillClass}>
+                <a href={btn.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                  {btn.label}
+                </a>
+                {isEmail && btn.password != null && btn.password !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCredentialReveal(false);
+                      setCredentialSheet({ label: btn.label, password: btn.password ?? '' });
+                    }}
+                    className={`p-0.5 shrink-0 rounded touch-manipulation ${iconMuted}`}
+                    aria-label="Show mailbox password"
+                    title="Password"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  </button>
+                )}
+                {isManagerOrAdmin && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await fetch(`/api/projects/${localProject._id}/buttons`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ index: idx }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        const arr = Array.isArray(data) ? data : [];
+                        setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
+                      }
+                    }}
+                    className={`${iconMuted} p-0.5 shrink-0`}
+                    aria-label="Remove button"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+              </span>
+            );
+          })}
           <AddButton
             projectId={localProject._id.toString()}
             phase={mapStatusToStage(localProject.status)}
             projectType={localProject.projectType || 'generic'}
             isManagerOrAdmin={isManagerOrAdmin}
-            onAddButton={async (label, url) => {
+            onAddButton={async (payload: AddSmartButtonPayload) => {
+              const body =
+                payload.kind === 'email'
+                  ? {
+                      kind: 'email',
+                      email: payload.email,
+                      password: payload.password,
+                      ...(payload.label ? { label: payload.label } : {}),
+                    }
+                  : { label: payload.label, url: payload.url };
               const res = await fetch(`/api/projects/${localProject._id}/buttons`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ label, url }),
+                body: JSON.stringify(body),
               });
               if (res.ok) {
                 const data = await res.json();
-                setActionButtons(Array.isArray(data) ? data : []);
+                const arr = Array.isArray(data) ? data : [];
+                setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
               }
             }}
             onDocumentCreated={() => {
@@ -499,7 +564,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           const res = await fetch(`/api/projects/${localProject._id}/buttons`);
           if (res.ok) {
             const data = await res.json();
-            setActionButtons(Array.isArray(data) ? data : []);
+            const arr = Array.isArray(data) ? data : [];
+            setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
           }
         }}
       />
@@ -680,6 +746,55 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           >
             Manage in Assets
           </Link>
+        </div>
+      </BottomSheet>
+
+      {/* Email smart button — mailbox password */}
+      <BottomSheet
+        isOpen={credentialSheet !== null}
+        onClose={() => {
+          setCredentialSheet(null);
+          setCredentialReveal(false);
+        }}
+        title={credentialSheet ? `Password · ${credentialSheet.label}` : 'Password'}
+        elevated
+      >
+        <div className="p-4 pb-8 space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Mailbox password for this project shortcut. Stored for your team only; use a dedicated mailbox password when possible.
+          </p>
+          {credentialSheet && credentialSheet.password ? (
+            <>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type={credentialReveal ? 'text' : 'password'}
+                  readOnly
+                  value={credentialSheet.password}
+                  className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono"
+                  aria-label="Mailbox password"
+                />
+                <Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={() => setCredentialReveal((r) => !r)}>
+                  {credentialReveal ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(credentialSheet.password);
+                    alert('Password copied.');
+                  } catch {
+                    alert('Could not copy to clipboard.');
+                  }
+                }}
+              >
+                Copy password
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No password stored for this email button.</p>
+          )}
         </div>
       </BottomSheet>
     </div>

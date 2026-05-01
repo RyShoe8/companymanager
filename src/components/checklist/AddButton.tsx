@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
-import CategoryModal from './CategoryModal';
+import CategoryModal, { type AddSmartButtonPayload } from './CategoryModal';
+
+export type { AddSmartButtonPayload };
 
 interface AddButtonProps {
   projectId: string;
   phase: 'Plan' | 'Build' | 'Run';
   projectType: string;
   isManagerOrAdmin: boolean;
-  onAddButton: (label: string, url: string) => Promise<void>;
+  onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: () => void;
 }
 

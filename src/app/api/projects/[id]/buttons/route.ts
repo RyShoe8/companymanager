@@ -6,6 +6,12 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { isValidObjectId } from '@/lib/utils/security';
 
+function isValidEmailFormat(email: string): boolean {
+  const t = email.trim();
+  if (!t || t.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -59,19 +65,45 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     const body = await request.json();
-    const { label, url, referralSourceId } = body;
-    if (!label || !url) {
-      return NextResponse.json({ error: 'label and url are required' }, { status: 400 });
-    }
+    const { label, url, referralSourceId, kind, email, password } = body;
+
     const actionButtons = Array.isArray(project.actionButtons) ? [...project.actionButtons] : [];
-    if (actionButtons.some((b: { url: string }) => b.url === url)) {
-      return NextResponse.json({ error: 'Button with this URL already exists' }, { status: 400 });
+
+    if (kind === 'email') {
+      const emailRaw = typeof email === 'string' ? email.trim() : '';
+      const passwordRaw = typeof password === 'string' ? password : '';
+      if (!emailRaw || !passwordRaw.trim()) {
+        return NextResponse.json({ error: 'email and password are required for email buttons' }, { status: 400 });
+      }
+      if (!isValidEmailFormat(emailRaw)) {
+        return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+      }
+      const mailtoUrl = `mailto:${encodeURIComponent(emailRaw)}`;
+      if (actionButtons.some((b: { url: string }) => b.url === mailtoUrl)) {
+        return NextResponse.json({ error: 'Button with this URL already exists' }, { status: 400 });
+      }
+      const displayLabel =
+        typeof label === 'string' && label.trim() ? String(label).trim() : emailRaw;
+      actionButtons.push({
+        label: displayLabel,
+        url: mailtoUrl,
+        kind: 'email',
+        password: String(passwordRaw),
+      });
+    } else {
+      if (!label || !url) {
+        return NextResponse.json({ error: 'label and url are required' }, { status: 400 });
+      }
+      const urlTrimmed = String(url).trim();
+      if (actionButtons.some((b: { url: string }) => b.url === urlTrimmed)) {
+        return NextResponse.json({ error: 'Button with this URL already exists' }, { status: 400 });
+      }
+      actionButtons.push({
+        label: String(label).trim(),
+        url: urlTrimmed,
+        ...(referralSourceId && isValidObjectId(referralSourceId) ? { referralSourceId } : {}),
+      });
     }
-    actionButtons.push({
-      label: String(label).trim(),
-      url: String(url).trim(),
-      ...(referralSourceId && isValidObjectId(referralSourceId) ? { referralSourceId } : {}),
-    });
     project.actionButtons = actionButtons;
     await project.save();
     return NextResponse.json(project.actionButtons, { status: 201 });

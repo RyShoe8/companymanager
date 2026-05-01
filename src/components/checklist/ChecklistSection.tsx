@@ -18,10 +18,13 @@ interface ChecklistSectionProps {
   projectId: string;
   phase: 'Plan' | 'Build' | 'Run';
   projectType: string;
-  actionButtons: { label: string; url: string }[];
+  actionButtons: { label: string; url: string; kind?: 'link' | 'email'; password?: string }[];
   dismissedChecklistIds: string[];
   isManagerOrAdmin: boolean;
-  onUpdate: (updates: { actionButtons?: { label: string; url: string }[]; dismissedChecklistIds?: string[] }) => Promise<void>;
+  onUpdate: (updates: {
+    actionButtons?: { label: string; url: string; kind?: 'link' | 'email'; password?: string }[];
+    dismissedChecklistIds?: string[];
+  }) => Promise<void>;
   onRefreshButtons: () => void;
 }
 

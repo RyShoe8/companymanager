@@ -17,11 +17,16 @@ export interface IProjectTask {
   status?: TaskStatus;
 }
 
+export type ProjectActionButtonKind = 'link' | 'email';
+
 /** Smart button on a project (Available vs Active lists; referralSourceId links to catalog). */
 export interface IProjectActionButton {
   label: string;
   url: string;
   referralSourceId?: Types.ObjectId; // FK to PartnerCatalog or catalog entry
+  /** Default/skip = normal URL link. `email` stores mailto URL + optional mailbox password. */
+  kind?: ProjectActionButtonKind;
+  password?: string;
 }
 
 export interface IProject extends Document {
@@ -204,6 +209,12 @@ const ProjectSchema: Schema = new Schema(
         label: { type: String, required: true, trim: true },
         url: { type: String, required: true, trim: true },
         referralSourceId: { type: Schema.Types.ObjectId, ref: 'PartnerCatalog' },
+        kind: {
+          type: String,
+          enum: ['link', 'email'],
+          default: 'link',
+        },
+        password: { type: String, trim: true },
       },
     ],
     dismissedChecklistIds: {

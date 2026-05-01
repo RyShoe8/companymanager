@@ -13,7 +13,11 @@ interface CatalogEntry {
   projectTypes?: string[];
 }
 
-type AddStep = 'type' | 'link' | 'document' | 'figma' | 'wireframe' | 'more';
+type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more';
+
+export type AddSmartButtonPayload =
+  | { kind: 'link'; label: string; url: string }
+  | { kind: 'email'; email: string; password: string; label?: string };
 
 async function readApiErrorMessage(res: Response, fallback: string): Promise<string> {
   const ct = res.headers.get('content-type') || '';
@@ -38,7 +42,7 @@ interface CategoryModalProps {
   projectType: string;
   isManagerOrAdmin: boolean;
   onClose: () => void;
-  onAddButton: (label: string, url: string) => Promise<void>;
+  onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: () => void;
 }
 
@@ -63,6 +67,10 @@ export default function CategoryModal({
   const [docContent, setDocContent] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [showCustomLinkForm, setShowCustomLinkForm] = useState(false);
+  const [emailAddr, setEmailAddr] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailLabel, setEmailLabel] = useState('');
+  const [addingEmail, setAddingEmail] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const needsCatalog = step === 'figma' || step === 'wireframe' || step === 'more';
@@ -99,10 +107,26 @@ export default function CategoryModal({
     if (!addLabel.trim() || !addUrl.trim()) return;
     setAdding(true);
     try {
-      await onAddButton(addLabel.trim(), addUrl.trim());
+      await onAddButton({ kind: 'link', label: addLabel.trim(), url: addUrl.trim() });
       onClose();
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleEmailSubmit = async () => {
+    if (!emailAddr.trim() || !emailPassword.trim()) return;
+    setAddingEmail(true);
+    try {
+      await onAddButton({
+        kind: 'email',
+        email: emailAddr.trim(),
+        password: emailPassword,
+        ...(emailLabel.trim() ? { label: emailLabel.trim() } : {}),
+      });
+      onClose();
+    } finally {
+      setAddingEmail(false);
     }
   };
 
@@ -150,6 +174,7 @@ export default function CategoryModal({
           {[
             { id: 'document' as const, label: 'Document', desc: 'Create and save a document' },
             { id: 'link' as const, label: 'Link', desc: 'Any URL with a button label' },
+            { id: 'email' as const, label: 'Email', desc: 'Mailbox address and password' },
             { id: 'figma' as const, label: 'Figma', desc: 'Design link or suggested tools' },
             { id: 'wireframe' as const, label: 'Wireframe', desc: 'Wireframe link or suggested tools' },
             { id: 'more' as const, label: 'More', desc: 'Other link types and tools' },
@@ -202,6 +227,60 @@ export default function CategoryModal({
             </Button>
           </div>
         </form>
+      );
+    }
+
+    if (step === 'email') {
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Add a mailbox shortcut. The email opens your mail app in a new tab; use the key icon on the project to view or copy the password.
+          </p>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email address</label>
+            <input
+              type="email"
+              autoComplete="email"
+              value={emailAddr}
+              onChange={(e) => setEmailAddr(e.target.value)}
+              placeholder="name@company.com"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={emailPassword}
+              onChange={(e) => setEmailPassword(e.target.value)}
+              placeholder="Mailbox password"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Display label (optional)</label>
+            <input
+              type="text"
+              value={emailLabel}
+              onChange={(e) => setEmailLabel(e.target.value)}
+              placeholder="Defaults to email address"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={handleEmailSubmit}
+              disabled={addingEmail || !emailAddr.trim() || !emailPassword.trim()}
+            >
+              {addingEmail ? 'Adding...' : 'Add to project'}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
+              Back
+            </Button>
+          </div>
+        </div>
       );
     }
 
@@ -443,7 +522,7 @@ export default function CategoryModal({
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'link' ? 'Link' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
+            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
