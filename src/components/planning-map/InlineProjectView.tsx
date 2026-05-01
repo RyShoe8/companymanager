@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
@@ -81,6 +81,11 @@ function isTextDocumentAssetType(type: string): boolean {
   return type === 'text' || type === 'document';
 }
 
+function formatLinkedAssetTypeLabel(type: string): string {
+  if (!type) return 'Other';
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
 /** Normalized smart button row from GET /projects/:id/buttons */
 type ProjectPanelActionButton = {
   label: string;
@@ -146,6 +151,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [projectContentItems, setProjectContentItems] = useState<IContentItem[]>([]);
   const [linkedAssets, setLinkedAssets] = useState<LinkedAssetRow[]>([]);
   const [linkedAssetsLoading, setLinkedAssetsLoading] = useState(true);
+  const [linkedAssetTypeFilter, setLinkedAssetTypeFilter] = useState('');
+  const [assetPendingDelete, setAssetPendingDelete] = useState<LinkedAssetRow | null>(null);
+  const [deletingLinkedAsset, setDeletingLinkedAsset] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<LinkedAssetRow | null>(null);
 
   const loadLinkedAssets = useCallback(async () => {
@@ -173,6 +181,53 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     void loadLinkedAssets();
   }, [loadLinkedAssets]);
+
+  useEffect(() => {
+    setLinkedAssetTypeFilter('');
+  }, [localProject._id]);
+
+  const linkedAssetTypeCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of linkedAssets) {
+      m.set(a.type, (m.get(a.type) ?? 0) + 1);
+    }
+    return m;
+  }, [linkedAssets]);
+
+  const linkedAssetTypesInUse = useMemo(
+    () => Array.from(linkedAssetTypeCounts.keys()).sort((a, b) => a.localeCompare(b)),
+    [linkedAssetTypeCounts]
+  );
+
+  const visibleLinkedAssets = useMemo(() => {
+    if (!linkedAssetTypeFilter) return linkedAssets;
+    return linkedAssets.filter((a) => a.type === linkedAssetTypeFilter);
+  }, [linkedAssets, linkedAssetTypeFilter]);
+
+  const confirmDeleteLinkedAsset = async () => {
+    if (!assetPendingDelete) return;
+    setDeletingLinkedAsset(true);
+    try {
+      const res = await fetch(`/api/assets/${assetPendingDelete._id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setAssetPendingDelete(null);
+        await loadLinkedAssets();
+      } else {
+        let msg = 'Could not delete asset.';
+        try {
+          const data = await res.json();
+          if (data && typeof data.error === 'string') msg = data.error;
+        } catch {
+          // ignore
+        }
+        alert(msg);
+      }
+    } catch {
+      alert('Could not delete asset.');
+    } finally {
+      setDeletingLinkedAsset(false);
+    }
+  };
 
   // Clear saved status after brief display; cleanup on unmount
   useEffect(() => {
@@ -502,53 +557,112 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               No linked assets yet. Use Add → Document or link items from the Assets page.
             </p>
           ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              {linkedAssets.map((asset) => {
-                const chipClass =
-                  'inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-sm font-medium text-emerald-800 dark:text-emerald-200 max-w-[220px]';
-                const href = linkedAssetOpenHref(asset);
-
-                if (isTextDocumentAssetType(asset.type)) {
+            <>
+              <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setLinkedAssetTypeFilter('')}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors touch-manipulation ${
+                    !linkedAssetTypeFilter
+                      ? 'bg-emerald-100 dark:bg-emerald-900/50 border-emerald-400 dark:border-emerald-600 text-emerald-900 dark:text-emerald-100 font-medium'
+                      : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  All ({linkedAssets.length})
+                </button>
+                {linkedAssetTypesInUse.map((t) => {
+                  const count = linkedAssetTypeCounts.get(t) ?? 0;
+                  const active = linkedAssetTypeFilter === t;
                   return (
                     <button
-                      key={asset._id}
+                      key={t}
                       type="button"
-                      onClick={() => setPreviewAsset(asset)}
-                      className={`${chipClass} hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-left touch-manipulation`}
+                      onClick={() => setLinkedAssetTypeFilter(active ? '' : t)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors touch-manipulation ${
+                        active
+                          ? 'bg-emerald-100 dark:bg-emerald-900/50 border-emerald-400 dark:border-emerald-600 text-emerald-900 dark:text-emerald-100 font-medium'
+                          : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
                     >
-                      <span className="truncate">{asset.name}</span>
+                      {formatLinkedAssetTypeLabel(t)} ({count})
                     </button>
                   );
-                }
-
-                if (href) {
-                  return (
-                    <span key={asset._id} className={chipClass}>
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="truncate hover:underline min-w-0"
+                })}
+              </div>
+              {visibleLinkedAssets.length === 0 ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">No assets match this type filter.</p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  {visibleLinkedAssets.map((asset) => {
+                    const chipClass =
+                      'inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-sm font-medium text-emerald-800 dark:text-emerald-200 max-w-[260px]';
+                    const href = linkedAssetOpenHref(asset);
+                    const deleteBtn = isManagerOrAdmin ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setAssetPendingDelete(asset);
+                        }}
+                        className="p-0.5 shrink-0 rounded text-emerald-700 hover:text-red-600 dark:text-emerald-300 dark:hover:text-red-400 touch-manipulation"
+                        aria-label={`Delete asset ${asset.name}`}
                       >
-                        {asset.name}
-                      </a>
-                    </span>
-                  );
-                }
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    ) : null;
 
-                return (
-                  <span key={asset._id} className={chipClass}>
-                    <Link
-                      href={`/assets?projectId=${localProject._id.toString()}`}
-                      className="truncate hover:underline min-w-0"
-                    >
-                      {asset.name}
-                    </Link>
-                    <span className="text-xs shrink-0 opacity-80">· Assets</span>
-                  </span>
-                );
-              })}
-            </div>
+                    if (isTextDocumentAssetType(asset.type)) {
+                      return (
+                        <span key={asset._id} className={`${chipClass} max-w-[280px]`}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewAsset(asset)}
+                            className="truncate flex-1 min-w-0 text-left hover:underline touch-manipulation"
+                          >
+                            {asset.name}
+                          </button>
+                          {deleteBtn}
+                        </span>
+                      );
+                    }
+
+                    if (href) {
+                      return (
+                        <span key={asset._id} className={`${chipClass} max-w-[280px]`}>
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate hover:underline min-w-0 flex-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {asset.name}
+                          </a>
+                          {deleteBtn}
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <span key={asset._id} className={`${chipClass} max-w-[280px]`}>
+                        <Link
+                          href={`/assets?projectId=${localProject._id.toString()}`}
+                          className="truncate hover:underline min-w-0 flex-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {asset.name}
+                        </Link>
+                        <span className="text-xs shrink-0 opacity-80">· Assets</span>
+                        {deleteBtn}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -753,6 +867,49 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           >
             Manage in Assets
           </Link>
+        </div>
+      </BottomSheet>
+
+      {/* Delete linked asset — confirmation required */}
+      <BottomSheet
+        isOpen={assetPendingDelete !== null}
+        onClose={() => {
+          if (!deletingLinkedAsset) setAssetPendingDelete(null);
+        }}
+        title="Delete asset?"
+        elevated
+      >
+        <div className="p-4 pb-8 space-y-4">
+          {assetPendingDelete && (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Are you sure you want to delete{' '}
+                <strong className="text-gray-900 dark:text-white">{assetPendingDelete.name}</strong>
+                {' '}({formatLinkedAssetTypeLabel(assetPendingDelete.type)})?
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                This removes the asset for your organization everywhere it appears—not only from this project.
+              </p>
+            </>
+          )}
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              disabled={deletingLinkedAsset}
+              onClick={() => setAssetPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              disabled={deletingLinkedAsset}
+              onClick={() => void confirmDeleteLinkedAsset()}
+            >
+              {deletingLinkedAsset ? 'Deleting…' : 'Delete'}
+            </Button>
+          </div>
         </div>
       </BottomSheet>
 
