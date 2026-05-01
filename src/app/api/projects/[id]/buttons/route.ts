@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import Project from '@/lib/models/Project';
+import Project, { type IProjectActionButton } from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
@@ -246,7 +246,13 @@ export async function PATCH(
       entry.kind = 'email';
     }
 
-    actionButtons[index] = entry;
+    const updatedButton: IProjectActionButton = {
+      label: entry.label,
+      url: entry.url,
+      kind: 'email',
+      ...(entry.password !== undefined ? { password: entry.password } : {}),
+    };
+    actionButtons[index] = updatedButton;
     project.actionButtons = actionButtons;
     await project.save();
     return NextResponse.json(project.actionButtons);
