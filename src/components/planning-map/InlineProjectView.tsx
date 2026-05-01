@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
@@ -40,6 +40,46 @@ interface InlineProjectViewProps {
   onInitialOpenTaskConsumed?: () => void;
 }
 
+type LinkedAssetRow = {
+  _id: string;
+  name: string;
+  type: string;
+  url?: string;
+  fileUrl?: string;
+  textContent?: string;
+};
+
+function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const id = o._id;
+  const idStr =
+    typeof id === 'string'
+      ? id
+      : id && typeof (id as { toString?: () => string }).toString === 'function'
+        ? (id as { toString: () => string }).toString()
+        : '';
+  if (!idStr) return null;
+  return {
+    _id: idStr,
+    name: typeof o.name === 'string' ? o.name : 'Untitled',
+    type: typeof o.type === 'string' ? o.type : 'other',
+    url: typeof o.url === 'string' ? o.url : undefined,
+    fileUrl: typeof o.fileUrl === 'string' ? o.fileUrl : undefined,
+    textContent: typeof o.textContent === 'string' ? o.textContent : undefined,
+  };
+}
+
+function linkedAssetOpenHref(asset: LinkedAssetRow): string | null {
+  if (asset.fileUrl) return asset.fileUrl;
+  if (asset.url) return asset.url;
+  return null;
+}
+
+function isTextDocumentAssetType(type: string): boolean {
+  return type === 'text' || type === 'document';
+}
+
 function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, currentUserEmployeeId: string | null | undefined): boolean {
   if (isManagerOrAdmin) return true;
   if (!currentUserEmployeeId) return false;
@@ -52,7 +92,6 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
 }
 
 export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
-  const router = useRouter();
   const [localProject, setLocalProject] = useState(project);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     return new Set(['tasks']);
@@ -74,6 +113,35 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
   const [projectContentItems, setProjectContentItems] = useState<IContentItem[]>([]);
+  const [linkedAssets, setLinkedAssets] = useState<LinkedAssetRow[]>([]);
+  const [linkedAssetsLoading, setLinkedAssetsLoading] = useState(true);
+  const [previewAsset, setPreviewAsset] = useState<LinkedAssetRow | null>(null);
+
+  const loadLinkedAssets = useCallback(async () => {
+    setLinkedAssetsLoading(true);
+    try {
+      const res = await fetch(`/api/assets?linkedProjectId=${localProject._id}`);
+      if (!res.ok) {
+        setLinkedAssets([]);
+        return;
+      }
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        setLinkedAssets([]);
+        return;
+      }
+      const rows = data.map(normalizeLinkedAsset).filter((x): x is LinkedAssetRow => x != null);
+      setLinkedAssets(rows);
+    } catch {
+      setLinkedAssets([]);
+    } finally {
+      setLinkedAssetsLoading(false);
+    }
+  }, [localProject._id]);
+
+  useEffect(() => {
+    void loadLinkedAssets();
+  }, [loadLinkedAssets]);
 
   // Clear saved status after brief display; cleanup on unmount
   useEffect(() => {
@@ -349,9 +417,67 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               }
             }}
             onDocumentCreated={() => {
-              router.push(`/assets?projectId=${localProject._id.toString()}`);
+              void loadLinkedAssets();
             }}
           />
+        </div>
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Linked assets</h4>
+          {linkedAssetsLoading ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">Loading…</p>
+          ) : linkedAssets.length === 0 ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              No linked assets yet. Use Add → Document or link items from the Assets page.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {linkedAssets.map((asset) => {
+                const chipClass =
+                  'inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-sm font-medium text-emerald-800 dark:text-emerald-200 max-w-[220px]';
+                const href = linkedAssetOpenHref(asset);
+
+                if (isTextDocumentAssetType(asset.type)) {
+                  return (
+                    <button
+                      key={asset._id}
+                      type="button"
+                      onClick={() => setPreviewAsset(asset)}
+                      className={`${chipClass} hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-left touch-manipulation`}
+                    >
+                      <span className="truncate">{asset.name}</span>
+                    </button>
+                  );
+                }
+
+                if (href) {
+                  return (
+                    <span key={asset._id} className={chipClass}>
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate hover:underline min-w-0"
+                      >
+                        {asset.name}
+                      </a>
+                    </span>
+                  );
+                }
+
+                return (
+                  <span key={asset._id} className={chipClass}>
+                    <Link
+                      href={`/assets?projectId=${localProject._id.toString()}`}
+                      className="truncate hover:underline min-w-0"
+                    >
+                      {asset.name}
+                    </Link>
+                    <span className="text-xs shrink-0 opacity-80">· Assets</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -534,6 +660,26 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         <div className="p-4">
           <p className="text-gray-600 dark:text-gray-400 mb-4">Are you sure you want to delete &quot;{localProject.name}&quot;? This action cannot be undone.</p>
           <div className="flex gap-2"><Button variant="secondary" onClick={() => setShowDeleteConfirm(false)} className="flex-1">Cancel</Button><Button variant="danger" onClick={() => { onDelete?.(); setShowDeleteConfirm(false); }} className="flex-1">Delete</Button></div>
+        </div>
+      </BottomSheet>
+
+      {/* Linked asset text/document preview */}
+      <BottomSheet
+        isOpen={previewAsset !== null}
+        onClose={() => setPreviewAsset(null)}
+        title={previewAsset?.name ?? 'Document'}
+        elevated
+      >
+        <div className="p-4 pb-8 space-y-4">
+          <pre className="text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200 font-sans bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 max-h-[50vh] overflow-y-auto">
+            {previewAsset?.textContent?.trim() ? previewAsset.textContent : 'No content yet.'}
+          </pre>
+          <Link
+            href={`/assets?projectId=${localProject._id.toString()}`}
+            className="inline-flex text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline"
+          >
+            Manage in Assets
+          </Link>
         </div>
       </BottomSheet>
     </div>
