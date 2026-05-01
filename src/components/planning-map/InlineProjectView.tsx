@@ -20,6 +20,7 @@ import ChecklistSection from '@/components/checklist/ChecklistSection';
 import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
 import MultiSelect from '@/components/ui/MultiSelect';
+import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -155,6 +156,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [assetPendingDelete, setAssetPendingDelete] = useState<LinkedAssetRow | null>(null);
   const [deletingLinkedAsset, setDeletingLinkedAsset] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<LinkedAssetRow | null>(null);
+  const [previewSheetMode, setPreviewSheetMode] = useState<'view' | 'edit'>('view');
+  const [previewEditName, setPreviewEditName] = useState('');
+  const [previewEditContent, setPreviewEditContent] = useState('');
+  const [previewSaving, setPreviewSaving] = useState(false);
 
   const loadLinkedAssets = useCallback(async () => {
     setLinkedAssetsLoading(true);
@@ -185,6 +190,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     setLinkedAssetTypeFilter('');
   }, [localProject._id]);
+
+  useEffect(() => {
+    if (!previewAsset) {
+      setPreviewSheetMode('view');
+      setPreviewEditName('');
+      setPreviewEditContent('');
+      return;
+    }
+    setPreviewSheetMode('view');
+    setPreviewEditName(previewAsset.name);
+    setPreviewEditContent(previewAsset.textContent ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync drafts when opening sheet or switching asset id; omit previewAsset ref so post-save identity updates do not reset edit mode
+  }, [previewAsset?._id]);
 
   const linkedAssetTypeCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -226,6 +244,49 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       alert('Could not delete asset.');
     } finally {
       setDeletingLinkedAsset(false);
+    }
+  };
+
+  const closePreviewAssetSheet = () => {
+    setPreviewSheetMode('view');
+    setPreviewAsset(null);
+  };
+
+  const savePreviewLinkedAsset = async () => {
+    if (!previewAsset || !previewEditName.trim()) return;
+    setPreviewSaving(true);
+    try {
+      const res = await fetch(`/api/assets/${previewAsset._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: previewEditName.trim(),
+          textContent: previewEditContent,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const name = typeof data.name === 'string' ? data.name : previewEditName.trim();
+        const textContent = typeof data.textContent === 'string' ? data.textContent : previewEditContent;
+        setPreviewAsset((prev) => (prev ? { ...prev, name, textContent } : null));
+        setLinkedAssets((prev) =>
+          prev.map((a) => (a._id === previewAsset._id ? { ...a, name, textContent } : a))
+        );
+        setPreviewSheetMode('view');
+      } else {
+        let msg = 'Could not save asset.';
+        try {
+          const data = await res.json();
+          if (data && typeof data.error === 'string') msg = data.error;
+        } catch {
+          // ignore
+        }
+        alert(msg);
+      }
+    } catch {
+      alert('Could not save asset.');
+    } finally {
+      setPreviewSaving(false);
     }
   };
 
@@ -472,9 +533,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               ? 'text-violet-600 hover:text-violet-900 dark:text-violet-400 dark:hover:text-violet-100'
               : 'text-indigo-500 hover:text-red-600 dark:hover:text-red-400';
 
+            const emailLink = isEmail ? emailSmartButtonHref(btn.url) : null;
+            const linkHref = emailLink?.href ?? btn.url;
+            const openLinkInNewTab = isEmail ? !!emailLink?.openInNewTab : true;
+
             return (
               <span key={idx} className={pillClass}>
-                <a href={btn.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                <a
+                  href={linkHref}
+                  {...(openLinkInNewTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  className={linkClass}
+                >
                   {btn.label}
                 </a>
                 {isEmail && btn.password != null && btn.password !== '' && (
@@ -853,20 +922,93 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       {/* Linked asset text/document preview */}
       <BottomSheet
         isOpen={previewAsset !== null}
-        onClose={() => setPreviewAsset(null)}
-        title={previewAsset?.name ?? 'Document'}
+        onClose={closePreviewAssetSheet}
+        title={
+          previewSheetMode === 'edit'
+            ? 'Edit asset'
+            : (previewAsset?.name ?? 'Document')
+        }
         elevated
       >
         <div className="p-4 pb-8 space-y-4">
-          <pre className="text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200 font-sans bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 max-h-[50vh] overflow-y-auto">
-            {previewAsset?.textContent?.trim() ? previewAsset.textContent : 'No content yet.'}
-          </pre>
-          <Link
-            href={`/assets?projectId=${localProject._id.toString()}`}
-            className="inline-flex text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline"
-          >
-            Manage in Assets
-          </Link>
+          {previewSheetMode === 'view' ? (
+            <>
+              <pre className="text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200 font-sans bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 max-h-[50vh] overflow-y-auto">
+                {previewAsset?.textContent?.trim() ? previewAsset.textContent : 'No content yet.'}
+              </pre>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (!previewAsset) return;
+                    setPreviewEditName(previewAsset.name);
+                    setPreviewEditContent(previewAsset.textContent ?? '');
+                    setPreviewSheetMode('edit');
+                  }}
+                >
+                  Edit
+                </Button>
+                <Link
+                  href={`/assets?projectId=${localProject._id.toString()}`}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 underline"
+                >
+                  More options on Assets
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={previewEditName}
+                  onChange={(e) => setPreviewEditName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  disabled={previewSaving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Content</label>
+                <textarea
+                  value={previewEditContent}
+                  onChange={(e) => setPreviewEditContent(e.target.value)}
+                  rows={12}
+                  disabled={previewSaving}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-y min-h-[120px] max-h-[50vh]"
+                  placeholder="Document body…"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={previewSaving || !previewEditName.trim()}
+                  onClick={() => void savePreviewLinkedAsset()}
+                >
+                  {previewSaving ? 'Saving…' : 'Save'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={previewSaving}
+                  onClick={() => {
+                    if (!previewAsset) return;
+                    setPreviewEditName(previewAsset.name);
+                    setPreviewEditContent(previewAsset.textContent ?? '');
+                    setPreviewSheetMode('view');
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+              <Link
+                href={`/assets?projectId=${localProject._id.toString()}`}
+                className="inline-block text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 underline"
+              >
+                More options on Assets
+              </Link>
+            </>
+          )}
         </div>
       </BottomSheet>
 
