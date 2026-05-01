@@ -115,6 +115,16 @@ function normalizeActionButtonsList(raw: unknown): ProjectPanelActionButton[] {
     .filter((b): b is ProjectPanelActionButton => b != null);
 }
 
+function mailtoAddressFromUrl(mailtoUrl: string): string {
+  const m = /^mailto:(.+)$/i.exec(String(mailtoUrl).trim());
+  if (!m) return '';
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1];
+  }
+}
+
 function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, currentUserEmployeeId: string | null | undefined): boolean {
   if (isManagerOrAdmin) return true;
   if (!currentUserEmployeeId) return false;
@@ -141,7 +151,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   saveStatusRef.current = saveStatus;
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
-  const [credentialSheet, setCredentialSheet] = useState<{ label: string; password: string } | null>(null);
+  const [credentialSheet, setCredentialSheet] = useState<{
+    index: number;
+    label: string;
+    url: string;
+    password: string;
+  } | null>(null);
+  const [credentialSheetMode, setCredentialSheetMode] = useState<'view' | 'edit'>('view');
+  const [credentialEditLabel, setCredentialEditLabel] = useState('');
+  const [credentialEditEmail, setCredentialEditEmail] = useState('');
+  const [credentialEditPassword, setCredentialEditPassword] = useState('');
+  const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialReveal, setCredentialReveal] = useState(false);
   /** When set, overrides localProject.dismissedChecklistIds for ChecklistSection (avoids mutating IProject Document). */
   const [localDismissedChecklistIds, setLocalDismissedChecklistIds] = useState<string[] | null>(null);
@@ -287,6 +307,63 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       alert('Could not save asset.');
     } finally {
       setPreviewSaving(false);
+    }
+  };
+
+  const closeCredentialSheet = () => {
+    setCredentialSheet(null);
+    setCredentialSheetMode('view');
+    setCredentialReveal(false);
+  };
+
+  const saveCredentialEmailButton = async () => {
+    if (!credentialSheet || credentialSaving) return;
+    const emailTrim = credentialEditEmail.trim();
+    if (!emailTrim) {
+      alert('Email address is required.');
+      return;
+    }
+    setCredentialSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${localProject._id}/buttons`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          index: credentialSheet.index,
+          label: credentialEditLabel,
+          email: emailTrim,
+          password: credentialEditPassword,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const arr = normalizeActionButtonsList(Array.isArray(data) ? data : []);
+        setActionButtons(arr);
+        const idx = credentialSheet.index;
+        const row = arr[idx];
+        if (row && row.kind === 'email') {
+          setCredentialSheet({
+            index: idx,
+            label: row.label,
+            url: row.url,
+            password: row.password ?? '',
+          });
+        }
+        setCredentialSheetMode('view');
+      } else {
+        let msg = 'Could not save.';
+        try {
+          const errBody = await res.json();
+          if (errBody && typeof errBody.error === 'string') msg = errBody.error;
+        } catch {
+          // ignore
+        }
+        alert(msg);
+      }
+    } catch {
+      alert('Could not save.');
+    } finally {
+      setCredentialSaving(false);
     }
   };
 
@@ -551,7 +628,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     type="button"
                     onClick={() => {
                       setCredentialReveal(false);
-                      setCredentialSheet({ label: btn.label, password: btn.password ?? '' });
+                      setCredentialSheetMode('view');
+                      setCredentialSheet({
+                        index: idx,
+                        label: btn.label,
+                        url: btn.url,
+                        password: btn.password ?? '',
+                      });
                     }}
                     className={`p-0.5 shrink-0 rounded touch-manipulation ${iconMuted}`}
                     aria-label="Show mailbox password"
@@ -1058,48 +1141,159 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       {/* Email smart button — mailbox password */}
       <BottomSheet
         isOpen={credentialSheet !== null}
-        onClose={() => {
-          setCredentialSheet(null);
-          setCredentialReveal(false);
-        }}
-        title={credentialSheet ? `Password · ${credentialSheet.label}` : 'Password'}
+        onClose={closeCredentialSheet}
+        title={
+          credentialSheetMode === 'edit'
+            ? 'Edit email shortcut'
+            : credentialSheet
+              ? `Password · ${credentialSheet.label}`
+              : 'Password'
+        }
         elevated
       >
         <div className="p-4 pb-8 space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Mailbox password for this project shortcut. Stored for your team only; use a dedicated mailbox password when possible.
           </p>
-          {credentialSheet && credentialSheet.password ? (
+          {credentialSheet && credentialSheetMode === 'view' && (
             <>
-              <div className="flex flex-col sm:flex-row gap-2">
+              {credentialSheet.password ? (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type={credentialReveal ? 'text' : 'password'}
+                      readOnly
+                      value={credentialSheet.password}
+                      className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono"
+                      aria-label="Mailbox password"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setCredentialReveal((r) => !r)}
+                    >
+                      {credentialReveal ? 'Hide' : 'Show'}
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(credentialSheet.password);
+                          alert('Password copied.');
+                        } catch {
+                          alert('Could not copy to clipboard.');
+                        }
+                      }}
+                    >
+                      Copy password
+                    </Button>
+                    {isManagerOrAdmin && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setCredentialReveal(false);
+                          setCredentialEditLabel(credentialSheet.label);
+                          setCredentialEditEmail(mailtoAddressFromUrl(credentialSheet.url));
+                          setCredentialEditPassword(credentialSheet.password);
+                          setCredentialSheetMode('edit');
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No password stored for this email button.</p>
+                  {isManagerOrAdmin && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setCredentialReveal(false);
+                        setCredentialEditLabel(credentialSheet.label);
+                        setCredentialEditEmail(mailtoAddressFromUrl(credentialSheet.url));
+                        setCredentialEditPassword(credentialSheet.password);
+                        setCredentialSheetMode('edit');
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {credentialSheet && credentialSheetMode === 'edit' && (
+            <>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Label</label>
                 <input
-                  type={credentialReveal ? 'text' : 'password'}
-                  readOnly
-                  value={credentialSheet.password}
-                  className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono"
-                  aria-label="Mailbox password"
+                  type="text"
+                  value={credentialEditLabel}
+                  onChange={(e) => setCredentialEditLabel(e.target.value)}
+                  disabled={credentialSaving}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                 />
-                <Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={() => setCredentialReveal((r) => !r)}>
-                  {credentialReveal ? 'Hide' : 'Show'}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={credentialEditEmail}
+                  onChange={(e) => setCredentialEditEmail(e.target.value)}
+                  disabled={credentialSaving}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Mailbox password</label>
+                <input
+                  type="text"
+                  value={credentialEditPassword}
+                  onChange={(e) => setCredentialEditPassword(e.target.value)}
+                  disabled={credentialSaving}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono"
+                  placeholder="Leave empty to clear stored password"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={credentialSaving || !credentialEditEmail.trim()}
+                  onClick={() => void saveCredentialEmailButton()}
+                >
+                  {credentialSaving ? 'Saving…' : 'Save'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={credentialSaving}
+                  onClick={() => {
+                    if (!credentialSheet) return;
+                    setCredentialEditLabel(credentialSheet.label);
+                    setCredentialEditEmail(mailtoAddressFromUrl(credentialSheet.url));
+                    setCredentialEditPassword(credentialSheet.password);
+                    setCredentialSheetMode('view');
+                  }}
+                >
+                  Cancel
                 </Button>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(credentialSheet.password);
-                    alert('Password copied.');
-                  } catch {
-                    alert('Could not copy to clipboard.');
-                  }
-                }}
-              >
-                Copy password
-              </Button>
             </>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No password stored for this email button.</p>
           )}
         </div>
       </BottomSheet>
