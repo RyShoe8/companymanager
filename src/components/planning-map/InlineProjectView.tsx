@@ -102,6 +102,13 @@ function normalizeProjectActionButton(raw: unknown): ProjectPanelActionButton | 
   return { label, url };
 }
 
+function normalizeActionButtonsList(raw: unknown): ProjectPanelActionButton[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr
+    .map(normalizeProjectActionButton)
+    .filter((b): b is ProjectPanelActionButton => b != null);
+}
+
 function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, currentUserEmployeeId: string | null | undefined): boolean {
   if (isManagerOrAdmin) return true;
   if (!currentUserEmployeeId) return false;
@@ -238,7 +245,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         if (res.ok) {
           const data = await res.json();
           const arr = Array.isArray(data) ? data : (data.actionButtons || []);
-          setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
+          setActionButtons(normalizeActionButtonsList(arr));
         }
       } catch (e) {
         // ignore
@@ -443,7 +450,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       if (res.ok) {
                         const data = await res.json();
                         const arr = Array.isArray(data) ? data : [];
-                        setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
+                        setActionButtons(normalizeActionButtonsList(arr));
                       }
                     }}
                     className={`${iconMuted} p-0.5 shrink-0`}
@@ -478,7 +485,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               if (res.ok) {
                 const data = await res.json();
                 const arr = Array.isArray(data) ? data : [];
-                setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
+                setActionButtons(normalizeActionButtonsList(arr));
               }
             }}
             onDocumentCreated={() => {
@@ -565,7 +572,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           if (res.ok) {
             const data = await res.json();
             const arr = Array.isArray(data) ? data : [];
-            setActionButtons(arr.map(normalizeProjectActionButton).filter((x): x is ProjectPanelActionButton => x != null));
+            setActionButtons(normalizeActionButtonsList(arr));
           }
         }}
       />
