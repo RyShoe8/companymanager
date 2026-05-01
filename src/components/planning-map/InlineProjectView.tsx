@@ -680,7 +680,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   onSave={async (v) => {
                     await handleFieldUpdate('devUrl', v.trim());
                   }}
-                  className="font-medium text-gray-900 dark:text-white min-w-0 max-w-[11rem] sm:max-w-[14rem]"
+                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem]"
                   placeholder="Dev URL"
                 />
                 {normalizeProjectUrlHref(localProject.devUrl ?? '') ? (
@@ -699,7 +699,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 href={normalizeProjectUrlHref(localProject.devUrl ?? '')!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-medium text-gray-900 hover:underline dark:text-white dark:hover:text-gray-100 max-w-[11rem] sm:max-w-[14rem]"
+                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem]"
               >
                 {truncateProjectUrlDisplay(localProject.devUrl ?? '', 40)}
               </a>
@@ -715,7 +715,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   onSave={async (v) => {
                     await handleFieldUpdate('liveUrl', v.trim());
                   }}
-                  className="font-medium text-gray-900 dark:text-white min-w-0 max-w-[11rem] sm:max-w-[14rem]"
+                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem]"
                   placeholder="Live URL"
                 />
                 {normalizeProjectUrlHref(localProject.liveUrl ?? '') ? (
@@ -734,7 +734,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 href={normalizeProjectUrlHref(localProject.liveUrl ?? '')!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate font-medium text-gray-900 hover:underline dark:text-white dark:hover:text-gray-100 max-w-[11rem] sm:max-w-[14rem]"
+                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem]"
               >
                 {truncateProjectUrlDisplay(localProject.liveUrl ?? '', 40)}
               </a>

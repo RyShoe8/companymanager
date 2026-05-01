@@ -71,7 +71,7 @@ export default function EditableText({
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleSave}
         onKeyDown={handleKeyDown}
-        className={`${className} border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        className={`${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500`}
         placeholder={placeholder}
         rows={multiline ? 3 : undefined}
       />
