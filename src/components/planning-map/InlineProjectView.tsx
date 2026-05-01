@@ -21,6 +21,7 @@ import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
+import { labelForPaletteIndex, parseCssColorInput } from '@/lib/utils/cssColorInput';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -180,6 +181,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [previewEditName, setPreviewEditName] = useState('');
   const [previewEditContent, setPreviewEditContent] = useState('');
   const [previewSaving, setPreviewSaving] = useState(false);
+  const [paletteSheetOpen, setPaletteSheetOpen] = useState(false);
+  const [paletteDraft, setPaletteDraft] = useState<string[]>(['#3b82f6']);
+  const [paletteSaving, setPaletteSaving] = useState(false);
 
   const loadLinkedAssets = useCallback(async () => {
     setLinkedAssetsLoading(true);
@@ -241,6 +245,24 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     if (!linkedAssetTypeFilter) return linkedAssets;
     return linkedAssets.filter((a) => a.type === linkedAssetTypeFilter);
   }, [linkedAssets, linkedAssetTypeFilter]);
+
+  const paletteChipSwatches = useMemo(() => {
+    const pal = localProject.colorPalette;
+    const raw =
+      Array.isArray(pal) && pal.length > 0 ? pal : [localProject.color || '#3b82f6'];
+    const out: string[] = [];
+    for (const c of raw) {
+      if (typeof c !== 'string') continue;
+      const p = parseCssColorInput(c.trim());
+      if (p.ok) out.push(p.normalized);
+      if (out.length >= 4) break;
+    }
+    if (out.length === 0) {
+      const p = parseCssColorInput(String(localProject.color || '#3b82f6'));
+      out.push(p.ok ? p.normalized : '#3b82f6');
+    }
+    return out;
+  }, [localProject.colorPalette, localProject.color]);
 
   const confirmDeleteLinkedAsset = async () => {
     if (!assetPendingDelete) return;
@@ -497,6 +519,55 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  const openPaletteSheet = useCallback(() => {
+    const pal = localProject.colorPalette;
+    const initial =
+      Array.isArray(pal) && pal.length > 0 ? pal.map((c) => String(c)) : [localProject.color || '#3b82f6'];
+    setPaletteDraft(initial.length > 0 ? initial : ['#3b82f6']);
+    setPaletteSheetOpen(true);
+  }, [localProject.colorPalette, localProject.color]);
+
+  const savePaletteFromDraft = async () => {
+    const sanitized: string[] = [];
+    for (let i = 0; i < paletteDraft.length; i++) {
+      const t = paletteDraft[i].trim();
+      if (!t) {
+        if (i === 0) {
+          alert('Primary color is required. Enter a hex or rgb() value.');
+          return;
+        }
+        continue;
+      }
+      const p = parseCssColorInput(t);
+      if (!p.ok) {
+        alert(`Invalid ${labelForPaletteIndex(i)}: ${t}. Use #hex or rgb() / rgba().`);
+        return;
+      }
+      sanitized.push(p.normalized);
+    }
+    if (sanitized.length === 0) {
+      alert('Add at least one valid color.');
+      return;
+    }
+    setPaletteSaving(true);
+    setSaveStatus('saving');
+    setLocalProject((prev) => ({ ...prev, colorPalette: sanitized, color: sanitized[0] } as IProject));
+    try {
+      await onUpdate({ colorPalette: sanitized, color: sanitized[0] });
+      setSaveStatus('saved');
+      clearSaveStatusAfterDelay();
+      setPaletteSheetOpen(false);
+    } catch (error) {
+      console.error('Error saving palette:', error);
+      setLocalProject(project);
+      setSaveStatus('failed');
+      clearSaveStatusAfterDelay('failed');
+      alert(error instanceof Error ? error.message : 'Failed to save');
+    } finally {
+      setPaletteSaving(false);
+    }
+  };
+
   const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
     const updatedTasks = [...(localProject.tasks || [])];
     const updatedTask = { ...updatedTasks[taskIndex], [field]: value };
@@ -580,6 +651,26 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Est. Hours:</span><EditableNumber value={localProject.estimatedHours} onSave={(v) => handleFieldUpdate('estimatedHours', v)} suffix="h" min={0} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">End Date:</span><EditableDate value={localProject.endDate ?? null} onSave={(v) => handleFieldUpdate('endDate', v || undefined)} placeholder="No end date" disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Tasks:</span><span className="font-medium">{localProject.tasks?.length || 0}</span></div>
+          {isManagerOrAdmin && (
+            <div className="flex items-center gap-2 text-sm">
+              <button
+                type="button"
+                onClick={() => openPaletteSheet()}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 px-2.5 py-1 font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              >
+                <span className="flex -space-x-1" aria-hidden>
+                  {paletteChipSwatches.map((swatch, i) => (
+                    <span
+                      key={`${swatch}-${i}`}
+                      className="inline-block h-4 w-4 rounded-full border border-white dark:border-gray-800 ring-1 ring-gray-300 dark:ring-gray-600 shadow-sm"
+                      style={{ backgroundColor: swatch, zIndex: paletteChipSwatches.length - i }}
+                    />
+                  ))}
+                </span>
+                Color palette
+              </button>
+            </div>
+          )}
         </div>
         {isManagerOrAdmin && employees.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
@@ -1133,6 +1224,87 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               onClick={() => void confirmDeleteLinkedAsset()}
             >
               {deletingLinkedAsset ? 'Deleting…' : 'Delete'}
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+
+      {/* Project color palette */}
+      <BottomSheet
+        isOpen={paletteSheetOpen}
+        onClose={() => {
+          if (!paletteSaving) setPaletteSheetOpen(false);
+        }}
+        title="Color palette"
+        elevated
+      >
+        <div className="p-4 pb-8 space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Primary is used on the map and logo. Enter hex (#RGB or #RRGGBB) or rgb() / rgba(). Extra rows can be left blank and are omitted when you save.
+          </p>
+          <div className="space-y-3">
+            {paletteDraft.map((row, idx) => {
+              const trimmed = row.trim();
+              const parsed = trimmed ? parseCssColorInput(trimmed) : null;
+              const ok = parsed?.ok === true;
+              return (
+                <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 w-28 shrink-0 pt-2 sm:pt-0">
+                    {labelForPaletteIndex(idx)}
+                  </span>
+                  <div
+                    className={`h-9 w-9 shrink-0 rounded-lg border-2 ${
+                      ok ? 'border-gray-200 dark:border-gray-600' : 'border-dashed border-amber-500/80 dark:border-amber-500/60 bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)_50%/8px_8px] dark:bg-[repeating-conic-gradient(#374151_0%_25%,transparent_0%_50%)_50%/8px_8px]'
+                    }`}
+                    style={ok && parsed ? { backgroundColor: parsed.normalized } : undefined}
+                    aria-hidden
+                  />
+                  <input
+                    type="text"
+                    value={row}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPaletteDraft((prev) => prev.map((x, i) => (i === idx ? v : x)));
+                    }}
+                    disabled={paletteSaving}
+                    placeholder={idx === 0 ? '#3b82f6 or rgb(59, 130, 246)' : '#RRGGBB or rgb()'}
+                    className="flex-1 min-w-0 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono"
+                  />
+                  {idx >= 1 && (
+                    <button
+                      type="button"
+                      disabled={paletteSaving}
+                      onClick={() => setPaletteDraft((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-sm text-red-600 dark:text-red-400 hover:underline shrink-0 text-left sm:text-right sm:w-16"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={paletteSaving}
+            onClick={() => setPaletteDraft((prev) => [...prev, ''])}
+          >
+            Add color
+          </Button>
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+            <Button type="button" size="sm" disabled={paletteSaving} onClick={() => void savePaletteFromDraft()}>
+              {paletteSaving ? 'Saving…' : 'Save'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={paletteSaving}
+              onClick={() => setPaletteSheetOpen(false)}
+            >
+              Cancel
             </Button>
           </div>
         </div>

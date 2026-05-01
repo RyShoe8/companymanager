@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
+import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -77,7 +78,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid JSON in request body', details: errorMessage }, { status: 400 });
     }
 
-    const { name, description, url, urls, projectType, category, color, logo, status, endDate, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, dismissedChecklistIds } = body;
+    const {
+      name,
+      description,
+      url,
+      urls,
+      projectType,
+      category,
+      color,
+      colorPalette,
+      logo,
+      status,
+      endDate,
+      estimatedHours,
+      assignedTo,
+      assignedToEmployeeId,
+      assignedToEmployeeIds,
+      assignedToNames,
+      tasks,
+      dismissedChecklistIds,
+    } = body;
 
     await connectDB();
     const { id } = await params;
@@ -119,7 +139,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Regular users cannot change other fields
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
-        projectType !== undefined || color !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
+        projectType !== undefined || color !== undefined || colorPalette !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
         assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined ||
         assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
@@ -139,6 +159,31 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
     if (color !== undefined) project.color = color;
+
+    if (colorPalette !== undefined) {
+      if (!Array.isArray(colorPalette)) {
+        return NextResponse.json({ error: 'colorPalette must be an array' }, { status: 400 });
+      }
+      const sanitized: string[] = [];
+      for (let i = 0; i < colorPalette.length; i++) {
+        const item = colorPalette[i];
+        if (typeof item !== 'string') {
+          return NextResponse.json({ error: `Invalid color at index ${i}: expected string` }, { status: 400 });
+        }
+        const t = item.trim();
+        if (!t) continue;
+        const parsed = parseCssColorInput(t);
+        if (!parsed.ok) {
+          return NextResponse.json({ error: `Invalid color at index ${i}: ${t}` }, { status: 400 });
+        }
+        sanitized.push(parsed.normalized);
+      }
+      if (sanitized.length === 0) {
+        return NextResponse.json({ error: 'colorPalette must include at least one valid color' }, { status: 400 });
+      }
+      project.colorPalette = sanitized;
+      project.color = sanitized[0];
+    }
     if (logo !== undefined) project.logo = logo || undefined;
     const previousStatus = project.status;
     if (status !== undefined) project.status = status;
