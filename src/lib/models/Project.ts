@@ -34,6 +34,10 @@ export interface IProject extends Document {
   description?: string;
   url?: string; // Legacy field, kept for backward compatibility
   urls?: string[]; // New field for multiple URLs
+  /** Dev / non-production deploy URL (workspace projects panel; e.g. preview or staging from git). */
+  devUrl?: string;
+  /** Production / live site URL (workspace projects panel). */
+  liveUrl?: string;
   projectType: ProjectType;
   category: ProjectCategory;
   color: string;
@@ -81,6 +85,14 @@ const ProjectSchema: Schema = new Schema(
     urls: {
       type: [String],
       default: [],
+    },
+    devUrl: {
+      type: String,
+      trim: true,
+    },
+    liveUrl: {
+      type: String,
+      trim: true,
     },
     projectType: {
       type: String,

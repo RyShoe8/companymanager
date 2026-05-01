@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, projectType, category, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate } = body;
+    const { name, description, url, urls, devUrl, liveUrl, projectType, category, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -168,6 +168,13 @@ export async function POST(request: NextRequest) {
 
     if (estimatedHours !== undefined) {
       projectData.estimatedHours = estimatedHours;
+    }
+
+    if (devUrl !== undefined && String(devUrl).trim()) {
+      projectData.devUrl = String(devUrl).trim();
+    }
+    if (liveUrl !== undefined && String(liveUrl).trim()) {
+      projectData.liveUrl = String(liveUrl).trim();
     }
 
     // Handle multiple employee assignments (preferred)

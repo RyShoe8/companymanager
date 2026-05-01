@@ -83,6 +83,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       description,
       url,
       urls,
+      devUrl,
+      liveUrl,
       projectType,
       category,
       color,
@@ -139,6 +141,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Regular users cannot change other fields
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
+        devUrl !== undefined || liveUrl !== undefined ||
         projectType !== undefined || color !== undefined || colorPalette !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
         assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined ||
         assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined) {
@@ -150,6 +153,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (description !== undefined) project.description = description;
     if (url !== undefined) project.url = url;
     if (urls !== undefined) project.urls = urls;
+    if (devUrl !== undefined) {
+      project.devUrl =
+        devUrl === null || devUrl === '' ? undefined : String(devUrl).trim() || undefined;
+    }
+    if (liveUrl !== undefined) {
+      project.liveUrl =
+        liveUrl === null || liveUrl === '' ? undefined : String(liveUrl).trim() || undefined;
+    }
     if (category !== undefined) project.category = category;
     if (projectType !== undefined) {
       project.projectType = projectType;

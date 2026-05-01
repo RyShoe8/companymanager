@@ -1,13 +1,177 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { IProject } from '@/lib/models/Project';
-import { mapStatusToStage, ProjectStage } from '@/lib/utils/statusMapping';
+import { mapStatusToStage } from '@/lib/utils/statusMapping';
+
+function normalizeHref(raw: string): string | null {
+    const t = raw.trim();
+    if (!t) return null;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return t;
+    if (t.startsWith('//')) return `https:${t}`;
+    return `https://${t}`;
+}
+
+function truncateUrl(s: string, max: number): string {
+    const t = s.trim();
+    if (t.length <= max) return t;
+    return `${t.slice(0, Math.max(0, max - 1))}…`;
+}
 
 interface ProjectsLensProps {
     projects: IProject[];
     onProjectClick: (project: IProject) => void;
     isManagerOrAdmin: boolean;
+    onSaveDevLiveUrls: (
+        projectId: string,
+        urls: { devUrl: string; liveUrl: string }
+    ) => Promise<{ ok: boolean; error?: string }>;
+}
+
+function ProjectDevLiveSection({
+    projectId,
+    devUrl,
+    liveUrl,
+    isManagerOrAdmin,
+    onSaveDevLiveUrls,
+}: {
+    projectId: string;
+    devUrl?: string;
+    liveUrl?: string;
+    isManagerOrAdmin: boolean;
+    onSaveDevLiveUrls: ProjectsLensProps['onSaveDevLiveUrls'];
+}) {
+    const [editing, setEditing] = useState(false);
+    const [draftDev, setDraftDev] = useState('');
+    const [draftLive, setDraftLive] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const startEdit = useCallback(() => {
+        setDraftDev((devUrl ?? '').trim());
+        setDraftLive((liveUrl ?? '').trim());
+        setSaveError(null);
+        setEditing(true);
+    }, [devUrl, liveUrl]);
+
+    const cancelEdit = useCallback(() => {
+        setEditing(false);
+        setSaveError(null);
+    }, []);
+
+    const handleSave = useCallback(async () => {
+        setSaving(true);
+        setSaveError(null);
+        const result = await onSaveDevLiveUrls(projectId, {
+            devUrl: draftDev,
+            liveUrl: draftLive,
+        });
+        setSaving(false);
+        if (result.ok) {
+            setEditing(false);
+        } else {
+            setSaveError(result.error ?? 'Save failed');
+        }
+    }, [draftDev, draftLive, onSaveDevLiveUrls, projectId]);
+
+    const devTrim = (devUrl ?? '').trim();
+    const liveTrim = (liveUrl ?? '').trim();
+    const devHref = normalizeHref(devTrim);
+    const liveHref = normalizeHref(liveTrim);
+
+    return (
+        <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
+            {editing ? (
+                <div className="space-y-2">
+                    <label className="block text-xs">
+                        <span className="text-gray-500">Dev</span>
+                        <input
+                            type="text"
+                            value={draftDev}
+                            onChange={(e) => setDraftDev(e.target.value)}
+                            placeholder="https://…"
+                            className="mt-0.5 w-full rounded border border-gray-600 bg-gray-900 text-white text-xs px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                    </label>
+                    <label className="block text-xs">
+                        <span className="text-gray-500">Live</span>
+                        <input
+                            type="text"
+                            value={draftLive}
+                            onChange={(e) => setDraftLive(e.target.value)}
+                            placeholder="https://…"
+                            className="mt-0.5 w-full rounded border border-gray-600 bg-gray-900 text-white text-xs px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                    </label>
+                    {saveError ? <p className="text-xs text-red-400">{saveError}</p> : null}
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={handleSave}
+                            className="text-xs px-2 py-1 rounded bg-primary text-white disabled:opacity-50"
+                        >
+                            {saving ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={cancelEdit}
+                            className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300 hover:bg-gray-700/50"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <div className="flex items-center gap-2 text-xs min-w-0">
+                        <span className="text-gray-500 shrink-0 w-9">Dev</span>
+                        {devHref ? (
+                            <a
+                                href={devHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-primary hover:underline truncate min-w-0"
+                            >
+                                {truncateUrl(devTrim, 44)}
+                            </a>
+                        ) : (
+                            <span className="text-gray-500 truncate">Not set</span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs min-w-0">
+                        <span className="text-gray-500 shrink-0 w-9">Live</span>
+                        {liveHref ? (
+                            <a
+                                href={liveHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-primary hover:underline truncate min-w-0"
+                            >
+                                {truncateUrl(liveTrim, 44)}
+                            </a>
+                        ) : (
+                            <span className="text-gray-500 truncate">Not set</span>
+                        )}
+                    </div>
+                    {isManagerOrAdmin ? (
+                        <div className="pt-0.5">
+                            <button
+                                type="button"
+                                onClick={startEdit}
+                                className="text-xs text-primary hover:underline"
+                            >
+                                Edit URLs
+                            </button>
+                        </div>
+                    ) : null}
+                </>
+            )}
+        </div>
+    );
 }
 
 const statusBadgeColors: Record<string, { bg: string; text: string }> = {
@@ -31,6 +195,7 @@ export default function ProjectsLens({
     projects,
     onProjectClick,
     isManagerOrAdmin,
+    onSaveDevLiveUrls,
 }: ProjectsLensProps) {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -156,6 +321,13 @@ export default function ProjectsLens({
                                         {project.description && (
                                             <p className="text-sm text-gray-400 mt-1 line-clamp-2">{project.description}</p>
                                         )}
+                                        <ProjectDevLiveSection
+                                            projectId={project._id.toString()}
+                                            devUrl={project.devUrl}
+                                            liveUrl={project.liveUrl}
+                                            isManagerOrAdmin={isManagerOrAdmin}
+                                            onSaveDevLiveUrls={onSaveDevLiveUrls}
+                                        />
                                     </div>
                                 </div>
 
