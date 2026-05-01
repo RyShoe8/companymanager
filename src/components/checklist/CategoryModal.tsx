@@ -15,6 +15,23 @@ interface CatalogEntry {
 
 type AddStep = 'type' | 'link' | 'document' | 'figma' | 'wireframe' | 'more';
 
+async function readApiErrorMessage(res: Response, fallback: string): Promise<string> {
+  const ct = res.headers.get('content-type') || '';
+  try {
+    if (ct.includes('application/json')) {
+      const data = await res.json();
+      if (data && typeof data.error === 'string') return data.error;
+      if (data && typeof data.message === 'string') return data.message;
+    } else {
+      const text = (await res.text()).trim().slice(0, 200);
+      if (text) return text;
+    }
+  } catch {
+    // ignore parse failures
+  }
+  return fallback;
+}
+
 interface CategoryModalProps {
   projectId: string;
   phase: 'Plan' | 'Build' | 'Run';
@@ -109,9 +126,11 @@ export default function CategoryModal({
         onDocumentCreated?.();
         onClose();
       } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create document');
+        const msg = await readApiErrorMessage(res, 'Failed to create document');
+        alert(msg);
       }
+    } catch {
+      alert('Could not create document. Check your connection and try again.');
     } finally {
       setSavingDoc(false);
     }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
@@ -51,6 +52,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
 }
 
 export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
+  const router = useRouter();
   const [localProject, setLocalProject] = useState(project);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     return new Set(['tasks']);
@@ -345,6 +347,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 const data = await res.json();
                 setActionButtons(Array.isArray(data) ? data : []);
               }
+            }}
+            onDocumentCreated={() => {
+              router.push(`/assets?projectId=${localProject._id.toString()}`);
             }}
           />
         </div>
