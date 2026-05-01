@@ -12,7 +12,6 @@ import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import ProjectsLens from '@/components/workspace/ProjectsLens';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
-import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
 import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
 import CreateMenu from '@/components/workspace/CreateMenu';
@@ -48,7 +47,7 @@ export default function WorkspaceShell({
     const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
 
     const [inspectorFocus, setInspectorFocus] = useState<string | null>(null);
-    /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after InlineProjectView applies it). */
+    /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -85,39 +84,6 @@ export default function WorkspaceShell({
             // Error deleting project
         }
     };
-
-    const saveProjectDevLiveUrls = useCallback(
-        async (
-            projectId: string,
-            urls: { devUrl: string; liveUrl: string }
-        ): Promise<{ ok: boolean; error?: string }> => {
-            const devUrl = urls.devUrl.trim();
-            const liveUrl = urls.liveUrl.trim();
-            try {
-                const res = await fetch(`/api/projects/${projectId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        devUrl: devUrl === '' ? '' : devUrl,
-                        liveUrl: liveUrl === '' ? '' : liveUrl,
-                    }),
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    return { ok: false, error: (data as { error?: string }).error || 'Update failed' };
-                }
-                if (data && typeof data === 'object' && (data as IProject)._id) {
-                    ws.patchProjectInState(data as IProject);
-                } else {
-                    await ws.loadData({ silent: true });
-                }
-                return { ok: true };
-            } catch {
-                return { ok: false, error: 'Network error' };
-            }
-        },
-        [ws]
-    );
 
     const handleSubmitProject = async (data: Partial<IProject>) => {
         try {
@@ -883,8 +849,6 @@ export default function WorkspaceShell({
                                 <ProjectsLens
                                     projects={ws.filteredProjects}
                                     onProjectClick={handleViewProject}
-                                    isManagerOrAdmin={ws.isManagerOrAdmin}
-                                    onSaveDevLiveUrls={saveProjectDevLiveUrls}
                                 />
                             )}
 

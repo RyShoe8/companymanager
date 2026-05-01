@@ -22,6 +22,7 @@ import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
 import { labelForPaletteIndex, parseCssColorInput } from '@/lib/utils/cssColorInput';
+import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -671,6 +672,82 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               </button>
             </div>
           )}
+          <div className="flex items-center gap-2 text-sm min-w-0 max-w-[min(100%,22rem)]">
+            <span className="text-gray-500 shrink-0 w-9">Dev</span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+              {isManagerOrAdmin ? (
+                <>
+                  <EditableText
+                    value={localProject.devUrl ?? ''}
+                    onSave={async (v) => {
+                      await handleFieldUpdate('devUrl', v.trim());
+                    }}
+                    className="text-gray-900 dark:text-white font-mono text-sm min-w-0 flex-1"
+                    placeholder="URL (optional)"
+                  />
+                  {normalizeProjectUrlHref(localProject.devUrl ?? '') ? (
+                    <a
+                      href={normalizeProjectUrlHref(localProject.devUrl ?? '')!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400 text-sm"
+                    >
+                      Open
+                    </a>
+                  ) : null}
+                </>
+              ) : normalizeProjectUrlHref(localProject.devUrl ?? '') ? (
+                <a
+                  href={normalizeProjectUrlHref(localProject.devUrl ?? '')!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate font-mono text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  {truncateProjectUrlDisplay(localProject.devUrl ?? '', 40)}
+                </a>
+              ) : (
+                <span className="text-gray-400">Not set</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-sm min-w-0 max-w-[min(100%,22rem)]">
+            <span className="text-gray-500 shrink-0 w-9">Live</span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+              {isManagerOrAdmin ? (
+                <>
+                  <EditableText
+                    value={localProject.liveUrl ?? ''}
+                    onSave={async (v) => {
+                      await handleFieldUpdate('liveUrl', v.trim());
+                    }}
+                    className="text-gray-900 dark:text-white font-mono text-sm min-w-0 flex-1"
+                    placeholder="URL (optional)"
+                  />
+                  {normalizeProjectUrlHref(localProject.liveUrl ?? '') ? (
+                    <a
+                      href={normalizeProjectUrlHref(localProject.liveUrl ?? '')!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400 text-sm"
+                    >
+                      Open
+                    </a>
+                  ) : null}
+                </>
+              ) : normalizeProjectUrlHref(localProject.liveUrl ?? '') ? (
+                <a
+                  href={normalizeProjectUrlHref(localProject.liveUrl ?? '')!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate font-mono text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  {truncateProjectUrlDisplay(localProject.liveUrl ?? '', 40)}
+                </a>
+              ) : (
+                <span className="text-gray-400">Not set</span>
+              )}
+            </div>
+          </div>
         </div>
         {isManagerOrAdmin && employees.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
