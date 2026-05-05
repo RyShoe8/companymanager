@@ -125,6 +125,44 @@ export function formatDate(date: Date | string): string {
   });
 }
 
+/** Display for UTC-normalized calendar dates (midnight UTC) — avoids prior-day label in US timezones. */
+export function formatCalendarDateUTC(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(dateObj.getTime())) {
+    return 'Invalid Date';
+  }
+  return dateObj.toLocaleDateString('en-US', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/** `YYYY-MM-DD` from `<input type="date">` → UTC midnight for that calendar day. */
+export function parseIsoDateOnlyToUtc(dateStr: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const day = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(day)) return null;
+  if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+  const utc = new Date(Date.UTC(y, mo - 1, day));
+  if (utc.getUTCFullYear() !== y || utc.getUTCMonth() !== mo - 1 || utc.getUTCDate() !== day) return null;
+  return utc;
+}
+
+/** Initial value for `type="date"` when stored dates are UTC calendar days. */
+export function toIsoDateInputValueUTC(value: Date | string): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  if (isNaN(d.getTime())) return '';
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * Format a date range to a readable string
  */

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { formatDate } from '@/lib/utils/dateUtils';
+import { formatCalendarDateUTC, parseIsoDateOnlyToUtc, toIsoDateInputValueUTC } from '@/lib/utils/dateUtils';
 
 interface EditableDateProps {
   value: Date | string | null;
@@ -21,11 +21,11 @@ export default function EditableDate({
 
   useEffect(() => {
     if (value) {
-      const date = new Date(value);
       if (showTime) {
+        const date = new Date(value);
         setEditValue(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
       } else {
-        setEditValue(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
+        setEditValue(toIsoDateInputValueUTC(value));
       }
     } else {
       setEditValue('');
@@ -36,8 +36,13 @@ export default function EditableDate({
 
   const handleSave = async () => {
     if (editValue) {
-      const newDate = new Date(editValue);
-      if (!isNaN(newDate.getTime())) await onSave(newDate);
+      if (showTime) {
+        const newDate = new Date(editValue);
+        if (!isNaN(newDate.getTime())) await onSave(newDate);
+      } else {
+        const utc = parseIsoDateOnlyToUtc(editValue);
+        if (utc) await onSave(utc);
+      }
     }
     setIsEditing(false);
   };
@@ -50,7 +55,9 @@ export default function EditableDate({
   const getDisplayValue = () => {
     if (!value) return null;
     const date = new Date(value);
-    return showTime ? date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : formatDate(date);
+    return showTime
+      ? date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : formatCalendarDateUTC(date);
   };
 
   if (disabled) return <span className={className}>{getDisplayValue() || placeholder}</span>;

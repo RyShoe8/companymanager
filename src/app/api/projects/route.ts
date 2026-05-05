@@ -215,17 +215,14 @@ export async function POST(request: NextRequest) {
         let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
         let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
 
-        // Normalize dates to midnight UTC for comparison (ignore time component)
+        // Normalize dates to midnight UTC (match PUT /projects/[id] task handling)
         if (startDate) {
-          startDate = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
+          startDate = new Date(
+            Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
+          );
         }
         if (endDate) {
-          endDate = new Date(Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()));
-        }
-
-        // Validate end date is after or equal to start date (allow same day)
-        if (endDate < startDate) {
-          throw new Error(`Task "${task.name || 'Untitled Task'}": End date must be after or equal to start date`);
+          endDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
         }
 
         const taskData: any = {

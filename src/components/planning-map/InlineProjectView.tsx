@@ -617,8 +617,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
 
   return (
-    <div className="space-y-4 max-h-[85vh] overflow-y-auto">
-      <div className="min-h-[36px] shrink-0" aria-live="polite">
+    <div className="space-y-4">
+      <div className="sticky top-0 z-20 min-h-[36px] shrink-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm -mx-1 px-1 py-1 -mt-1" aria-live="polite">
         {saveStatus !== 'idle' && (
           <div
             className={`px-3 py-1.5 rounded-lg text-sm font-medium shadow-lg ${saveStatus === 'saving' ? 'bg-blue-500 text-white animate-pulse' :

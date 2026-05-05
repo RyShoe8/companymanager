@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 
 interface Option { value: string; label: string; color?: string; }
@@ -25,17 +25,32 @@ export default function EditableSelect({ value, options, onSave, className = '',
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Calculate dropdown position when opened
+  /** `position:fixed` is viewport-relative — do not add scrollY/scrollX (breaks inside scrolled inspector). */
+  const updateDropdownPosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDropdownPosition({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: Math.max(rect.width, 120),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updateDropdownPosition();
+  }, [isOpen, updateDropdownPosition]);
+
   useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-        width: Math.max(rect.width, 120)
-      });
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+    const onScrollOrResize = () => updateDropdownPosition();
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    return () => {
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+    };
+  }, [isOpen, updateDropdownPosition]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
