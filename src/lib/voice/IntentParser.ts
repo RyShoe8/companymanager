@@ -189,6 +189,7 @@ const rules: PatternRule[] = [
     {
         type: 'ADD_TASK',
         patterns: [
+            /^(?:add|create)\s+(?:a\s+)?(?:new\s+)?task\s+under\s+(.+?)\s+(?:called|named)\s+(.+)$/i,
             /^(?:add|create)\s+(?:a\s+)?task\s+(.+?)\s+to\s+(?:the\s+)?project\s+(.+)$/i,
             /^(?:add|create)\s+(?:a\s+)?task\s+to\s+(?:the\s+)?project\s+(.+?)\s+(?:called|named)\s+(.+)$/i,
             /^(?:add|create)\s+(?:a\s+)?task\s+(?:called|named)\s+(.+?)\s+(?:for|in)\s+(?:the\s+)?project\s+(.+)$/i,
@@ -196,6 +197,13 @@ const rules: PatternRule[] = [
         ],
         extractSlots: (m) => {
             const raw = m[0].toLowerCase();
+            // add … task under PROJECT called TASK
+            if (/task\s+under\s+.+\s+(?:called|named)/i.test(raw)) {
+                return {
+                    projectName: cleanProjectSlot(m[1]),
+                    taskName: cleanTaskSlot(m[2]),
+                };
+            }
             // add task to project X called Y
             if (/task\s+to\s+(?:the\s+)?project/i.test(raw)) {
                 return {

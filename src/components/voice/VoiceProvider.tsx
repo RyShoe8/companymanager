@@ -122,6 +122,7 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
 
             let intent: ParsedIntent | null = null;
             let source: 'llm' | 'rules' = 'rules';
+            let rulesFallbackReason: string | null = null;
 
             if (llmResult.ok && llmResult.intent) {
                 intent = llmResult.intent;
@@ -129,14 +130,22 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
                 console.log('[Voice] Parsed via LLM', { type: intent.type, slots: intent.slots });
             } else {
                 if (!llmResult.ok) {
-                    if (llmResult.status === 503) {
-                        console.info('[Voice] LLM parse unavailable, using rules', llmResult.error);
-                    } else {
-                        console.warn('[Voice] LLM parse failed', llmResult.status, llmResult.error);
-                    }
-                } else if (llmResult.llmRaw) {
-                    console.warn('[Voice] LLM returned unmappable intent', llmResult.llmRaw);
+                    rulesFallbackReason =
+                        llmResult.status === 503
+                            ? 'openai_not_configured'
+                            : llmResult.status === 401
+                              ? 'unauthorized'
+                              : `request_failed_${llmResult.status}`;
+                } else {
+                    rulesFallbackReason = 'llm_json_unmapped';
                 }
+
+                console.log('[Voice] Using rules fallback:', {
+                    reason: rulesFallbackReason,
+                    detail: !llmResult.ok ? llmResult.error : llmResult.llmRaw ?? null,
+                    transcriptPreview: text.slice(0, 100),
+                });
+
                 const parsedRules = parseIntent(text);
                 intent = enrichIntentWithContext(parsedRules, wsCtx ?? undefined) ?? parsedRules;
                 source = 'rules';
@@ -146,8 +155,15 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
             setLastIntent(intent);
 
             if (intent.type === 'UNKNOWN') {
-                console.warn('[Voice] Intent not recognized', { transcript: text, source });
-                setError(`I didn't understand: "${text}"`);
+                console.warn('[Voice] Intent not recognized', { transcript: text, source, rulesFallbackReason });
+                let hint = '';
+                if (rulesFallbackReason === 'openai_not_configured') {
+                    hint =
+                        ' AI parsing is not configured on the server (set OPENAI_API_KEY on Vercel). Try phrasing like: add task review docs to project Acme.';
+                } else if (rulesFallbackReason === 'llm_json_unmapped') {
+                    hint = ' Try phrasing like: add task review docs to project Acme.';
+                }
+                setError(`I didn't understand: "${text}".${hint}`);
                 setState('idle');
                 clearMessages();
                 return;

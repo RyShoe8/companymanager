@@ -30,6 +30,7 @@ BREVO_SENDER_NAME=Nucleas (optional - defaults to "Nucleas" if not set)
 GOOGLE_CLIENT_ID=your_google_client_id (optional - for Google OAuth)
 GOOGLE_CLIENT_SECRET=your_google_client_secret (optional - for Google OAuth)
 GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback (optional - defaults to NEXTAUTH_URL + /api/auth/google/callback)
+OPENAI_API_KEY=your_openai_key (optional — enables AI intent parsing for voice and command palette; also set on Vercel for production)
 ```
 
 **Environment Variables:**
@@ -42,6 +43,7 @@ GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback (optional - d
 - `GOOGLE_CLIENT_ID` - Google OAuth Client ID (optional - enables Google sign-in)
 - `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret (optional - required if GOOGLE_CLIENT_ID is set)
 - `GOOGLE_REDIRECT_URI` - Google OAuth redirect URI (optional - defaults to NEXTAUTH_URL + /api/auth/google/callback)
+- `OPENAI_API_KEY` - OpenAI API key (optional — voice/palette intent parsing via `/api/parse-intent`; without it, rule-based parsing only)
 
 Run the development server:
 
