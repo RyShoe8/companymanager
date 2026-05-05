@@ -9,6 +9,7 @@ export type VoiceLlmRawIntent = {
   notes?: string | null;
   project_name?: string | null;
   projectId?: string | null;
+  employee_name?: string | null;
   navigation_target?: string | null;
 };
 
@@ -81,6 +82,31 @@ export function voiceLlmIntentToParsedIntent(raw: unknown, rawTranscript: string
       type: 'ADD_TASK',
       confidence: 0.9,
       slots: { taskName, projectName, projectId },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'assign_task') {
+    const taskName = str(o.title) || str(o.notes);
+    const employeeName = str(o.employee_name);
+    if (!taskName || !employeeName) return null;
+    const context = str(o.project_name) || '';
+    return {
+      type: 'ASSIGN_TASK',
+      confidence: 0.9,
+      slots: { taskName, employeeName, context },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'assign_project') {
+    const projectName = str(o.project_name);
+    const employeeName = str(o.employee_name);
+    if (!projectName || !employeeName) return null;
+    return {
+      type: 'ASSIGN_PROJECT',
+      confidence: 0.9,
+      slots: { projectName, employeeName },
       rawTranscript,
     };
   }

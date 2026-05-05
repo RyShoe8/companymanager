@@ -32,5 +32,12 @@ export function enrichIntentWithContext(
     return { ...intent, slots };
   }
 
+  if (intent.type === 'ASSIGN_TASK') {
+    if (!slots.context?.trim() && ctx.projectName) {
+      slots.context = ctx.projectName;
+    }
+    return { ...intent, slots };
+  }
+
   return intent;
 }

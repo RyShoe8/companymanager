@@ -11,7 +11,7 @@ Return ONLY valid JSON (no markdown, no explanations).
 The user message contains their spoken or typed command plus optional JSON "Context" (current screen). Use context to resolve omissions.
 
 Schema keys:
-- "action": one of "create_task" | "create_content" | "navigate" | "unknown"
+- "action": one of "create_task" | "assign_task" | "assign_project" | "create_content" | "navigate" | "unknown"
 - "entity": "task" | "content" | "navigation" | null
 - "title": string | null — task or content title
 - "channel": string | null — for content use one of: X, LinkedIn, Email, Article, Instagram, TikTok, Video, Reddit, Bluesky, Other (map synonyms: tweet/post/twitter→X, blog/long-form→Article when confident)
@@ -19,10 +19,15 @@ Schema keys:
 - "notes": string | null — extra context
 - "projectId": string | null — Mongo/ObjectId string when known from utterance or from Context.projectId when user omits project but Context supplies one for task/content actions
 - "project_name": string | null — human project name when spoken (alternative to projectId)
+- "employee_name": string | null — assignee name for assign_task / assign_project
 - "navigation_target": string | null — where to go: workspace, assets, employees, admin, schedule, projects, capacity, calendar, agenda, plan, build, run
 
 Rules:
 - If the user does not name a project for create_task or create_content but Context.projectId is non-null, set projectId to Context.projectId (and optionally infer nothing else).
+- If intent is assignment (assign, delegate, hand off, give task/project to someone), use assign_task / assign_project and never create_task.
+- For assign_task, put the existing task title in "title" and the assignee in "employee_name". Use "project_name" or "projectId" only as context disambiguation.
+- For assign_project, put project in "project_name" (or "projectId" when known) and assignee in "employee_name".
+- Use create_task only for creating a new task (verbs like add/create/new task), not for assignment verbs.
 - Resolve relative dates (today, tomorrow, next Monday, etc.) using Context.referenceDate as "today" in YYYY-MM-DD in the user's local sense — output absolute date as date (YYYY-MM-DD).
 - Use "unknown" if unsure.
 - Use null for missing optional fields when truly absent after applying context rules.
