@@ -69,6 +69,20 @@ export default function VoiceOverlay() {
                 onPatchSlots={intentCtx.patchPendingSlots}
             />
             <VoiceButton />
+            {voice.enabled && (
+                <button
+                    type="button"
+                    onClick={voice.toggleWakeWord}
+                    className={`fixed bottom-36 md:bottom-24 right-6 z-[90] px-3 py-1.5 rounded-full text-xs border ${
+                        voice.wakeWordEnabled
+                            ? 'bg-emerald-900/80 text-emerald-200 border-emerald-600'
+                            : 'bg-gray-900/80 text-gray-300 border-gray-700'
+                    }`}
+                    title="Toggle wake word mode (say Nucleas)"
+                >
+                    Wake: {voice.wakeWordEnabled ? (voice.isWakeArmed ? 'armed' : 'on') : 'off'}
+                </button>
+            )}
             {voice.enabled &&
                 (voice.state !== 'idle' || voice.error || voice.resultMessage) && (
                     <div
@@ -139,6 +153,18 @@ export default function VoiceOverlay() {
                                 <div className="flex items-center gap-2">
                                     <span className="text-green-400">✅</span>
                                     <p className="text-green-400 text-sm">{voice.resultMessage}</p>
+                                </div>
+                            )}
+
+                            {voice.state === 'idle' && voice.wakeWordEnabled && (
+                                <div className="text-[11px] text-gray-500 mt-2 space-y-0.5">
+                                    <p>Wake word mode is {voice.isWakeArmed ? 'armed' : 'enabled'} (say &ldquo;Nucleas&rdquo;).</p>
+                                    <p>
+                                        detections:{' '}
+                                        <span className="text-gray-400">{voice.wakeDetections}</span> · activations:{' '}
+                                        <span className="text-gray-400">{voice.wakeActivations}</span> · cancels:{' '}
+                                        <span className="text-gray-400">{voice.wakeUserCancels}</span>
+                                    </p>
                                 </div>
                             )}
                         </div>

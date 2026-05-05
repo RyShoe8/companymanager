@@ -25,6 +25,10 @@ export interface VoiceConfig {
     serverSttEndpoint: string;
     /** Ms of silence after last final segment before finalizing (continuous recognition). */
     endOfUtteranceMs: number;
+    /** Optional wake-word phrase for passive arming mode. */
+    wakeWord?: string;
+    /** Cooldown between wake detections to reduce false triggers. */
+    wakeWordCooldownMs?: number;
 }
 
 export function getVoiceConfig(): VoiceConfig {
@@ -39,6 +43,8 @@ export function getVoiceConfig(): VoiceConfig {
         maxRecordingDuration: 30,
         serverSttEndpoint: '/api/voice/stt',
         endOfUtteranceMs: 1400,
+        wakeWord: 'nucleas',
+        wakeWordCooldownMs: 7000,
     };
 }
 

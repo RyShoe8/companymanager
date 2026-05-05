@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
 import { parseIntent, ParsedIntent } from '@/lib/voice/IntentParser';
 import { isWebSpeechAvailable, getVoiceConfig } from '@/lib/voice/voiceConfig';
 import { fetchLlmVoiceIntent } from '@/lib/voice/fetchVoiceIntent';
@@ -24,6 +24,12 @@ export interface VoiceContextValue {
     cancelAction: () => void;
     /** After intent modal closed cancel (intent layer already cleared). */
     resetAfterExternalIntentCancel: () => void;
+    wakeWordEnabled: boolean;
+    isWakeArmed: boolean;
+    wakeDetections: number;
+    wakeActivations: number;
+    wakeUserCancels: number;
+    toggleWakeWord: () => void;
     enabled: boolean;
     pendingActionDescription: string | null;
 }
@@ -44,6 +50,12 @@ export function useVoice(): VoiceContextValue {
             confirmAction: async () => {},
             cancelAction: () => {},
             resetAfterExternalIntentCancel: () => {},
+            wakeWordEnabled: false,
+            isWakeArmed: false,
+            wakeDetections: 0,
+            wakeActivations: 0,
+            wakeUserCancels: 0,
+            toggleWakeWord: () => {},
             enabled: false,
             pendingActionDescription: null,
         };
@@ -66,16 +78,39 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
     const [resultMessage, setResultMessage] = useState<string | null>(null);
     const [pendingActionDescription, setPendingActionDescription] = useState<string | null>(null);
     const recognitionRef = useRef<any>(null);
+    const wakeRecognitionRef = useRef<any>(null);
+    const wakeCooldownUntilRef = useRef<number>(0);
     const accumulatedTranscriptRef = useRef<string>('');
     const endOfUtteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastFinalSegmentRef = useRef<string>('');
     const lastInterimRef = useRef<string>('');
+    const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+    const [isWakeArmed, setIsWakeArmed] = useState(false);
+    const [wakeDetections, setWakeDetections] = useState(0);
+    const [wakeActivations, setWakeActivations] = useState(0);
+    const [wakeUserCancels, setWakeUserCancels] = useState(0);
 
     const clearMessages = useCallback(() => {
         setTimeout(() => {
             setError(null);
             setResultMessage(null);
         }, 5000);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const raw = window.localStorage.getItem('voiceWakeWordEnabled');
+        setWakeWordEnabled(raw === '1');
+    }, []);
+
+    const toggleWakeWord = useCallback(() => {
+        setWakeWordEnabled((prev) => {
+            const next = !prev;
+            if (typeof window !== 'undefined') {
+                window.localStorage.setItem('voiceWakeWordEnabled', next ? '1' : '0');
+            }
+            return next;
+        });
     }, []);
 
     const resetVoiceChrome = useCallback(() => {
@@ -211,6 +246,14 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
 
     const startListening = useCallback(() => {
         if (!enabled) return;
+        if (wakeRecognitionRef.current) {
+            try {
+                wakeRecognitionRef.current.onend = null;
+                wakeRecognitionRef.current.stop();
+            } catch (_) {}
+            wakeRecognitionRef.current = null;
+            setIsWakeArmed(false);
+        }
         setError(null);
         setResultMessage(null);
         intentCtx.cancel();
@@ -323,6 +366,82 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
         setTranscript('');
     }, [state]);
 
+    useEffect(() => {
+        if (!enabled || !wakeWordEnabled || state !== 'idle' || !isWebSpeechAvailable()) {
+            if (wakeRecognitionRef.current) {
+                try {
+                    wakeRecognitionRef.current.onend = null;
+                    wakeRecognitionRef.current.stop();
+                } catch (_) {}
+                wakeRecognitionRef.current = null;
+            }
+            setIsWakeArmed(false);
+            return;
+        }
+
+        const SpeechRecognition =
+            (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        const wake = new SpeechRecognition();
+        wake.continuous = true;
+        wake.interimResults = true;
+        wake.lang = 'en-US';
+
+        const wakeWord = (getVoiceConfig().wakeWord || 'nucleas').toLowerCase();
+        const cooldownMs = getVoiceConfig().wakeWordCooldownMs ?? 7000;
+
+        wake.onstart = () => {
+            setIsWakeArmed(true);
+            console.log('[Voice] Wake-word armed', { wakeWord });
+        };
+
+        wake.onresult = (event: any) => {
+            let combined = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                combined += ` ${event.results[i][0].transcript || ''}`;
+            }
+            const heard = combined.toLowerCase();
+            if (!heard.includes(wakeWord)) return;
+            const now = Date.now();
+            if (now < wakeCooldownUntilRef.current) return;
+            wakeCooldownUntilRef.current = now + cooldownMs;
+            setWakeDetections((v) => v + 1);
+            console.log('[Voice] Wake-word detected', { wakeWord, at: now });
+            try {
+                wake.onend = null;
+                wake.stop();
+            } catch (_) {}
+            wakeRecognitionRef.current = null;
+            setIsWakeArmed(false);
+            setWakeActivations((v) => v + 1);
+            startListening();
+        };
+
+        wake.onerror = (event: any) => {
+            console.warn('[Voice] Wake-word detector error', event?.error);
+        };
+
+        wake.onend = () => {
+            setIsWakeArmed(false);
+            wakeRecognitionRef.current = null;
+        };
+
+        wakeRecognitionRef.current = wake;
+        wake.start();
+
+        return () => {
+            if (wakeRecognitionRef.current) {
+                try {
+                    wakeRecognitionRef.current.onend = null;
+                    wakeRecognitionRef.current.stop();
+                } catch (_) {}
+                wakeRecognitionRef.current = null;
+            }
+            setIsWakeArmed(false);
+        };
+    }, [enabled, wakeWordEnabled, state, startListening]);
+
     const confirmAction = useCallback(async () => {
         const r = await intentCtx.confirm();
         resetVoiceChrome();
@@ -340,12 +459,15 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
     }, [intentCtx, resetVoiceChrome, clearMessages]);
 
     const cancelAction = useCallback(() => {
+        if (wakeWordEnabled && state === 'confirming') {
+            setWakeUserCancels((v) => v + 1);
+        }
         intentCtx.cancel();
         resetVoiceChrome();
         console.log('[Voice] User cancelled confirmation');
         setResultMessage('Action cancelled.');
         clearMessages();
-    }, [intentCtx, resetVoiceChrome, clearMessages]);
+    }, [intentCtx, resetVoiceChrome, clearMessages, wakeWordEnabled, state]);
 
     const resetAfterExternalIntentCancel = useCallback(() => {
         resetVoiceChrome();
@@ -362,6 +484,12 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
         confirmAction,
         cancelAction,
         resetAfterExternalIntentCancel,
+        wakeWordEnabled,
+        isWakeArmed,
+        wakeDetections,
+        wakeActivations,
+        wakeUserCancels,
+        toggleWakeWord,
         enabled,
         pendingActionDescription,
     };

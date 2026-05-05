@@ -11,15 +11,25 @@ Return ONLY valid JSON (no markdown, no explanations).
 The user message contains their spoken or typed command plus optional JSON "Context" (current screen). Use context to resolve omissions.
 
 Schema keys:
-- "action": one of "create_task" | "assign_task" | "assign_project" | "create_content" | "navigate" | "unknown"
-- "entity": "task" | "content" | "navigation" | null
-- "title": string | null — task or content title
+- "action": one of "create_task" | "assign_task" | "assign_project" | "create_content" | "navigate" | "open_task" | "open_entity" | "complete_task" | "delete_entity" | "set_task_status" | "set_project_status" | "switch_lens" | "switch_view" | "filter_phase" | "set_timeframe" | "toggle_filter" | "update_project_description" | "run_command" | "unknown"
+- "entity": "task" | "project" | "content" | "asset" | "navigation" | null
+- "title": string | null — task/content/entity title
 - "channel": string | null — for content use one of: X, LinkedIn, Email, Article, Instagram, TikTok, Video, Reddit, Bluesky, Other (map synonyms: tweet/post/twitter→X, blog/long-form→Article when confident)
 - "date": string | null — MUST be ISO date YYYY-MM-DD when a calendar date applies (including phrases resolved against Context.referenceDate)
 - "notes": string | null — extra context
 - "projectId": string | null — Mongo/ObjectId string when known from utterance or from Context.projectId when user omits project but Context supplies one for task/content actions
 - "project_name": string | null — human project name when spoken (alternative to projectId)
 - "employee_name": string | null — assignee name for assign_task / assign_project
+- "status": string | null — for set_task_status / set_project_status
+- "context": string | null — disambiguation context such as project name for task operations
+- "mode": string | null — for switch_view, values like calendar|agenda
+- "lens": string | null — for switch_lens, values like schedule|projects|capacity
+- "phase": string | null — for filter_phase, values like All|Plan|Build|Run
+- "timeframe": string | null — for set_timeframe, values like today|weekly|monthly|quarterly|yearly
+- "filter": string | null — for toggle_filter, values like tasks|content|myAssignments
+- "toggle_action": string | null — for toggle_filter, values show|hide
+- "entity_type": string | null — for open_entity/delete_entity, values project|content|asset|task
+- "command_id": string | null — for run_command, direct command id when confident
 - "navigation_target": string | null — where to go: workspace, assets, employees, admin, schedule, projects, capacity, calendar, agenda, plan, build, run
 
 Rules:
@@ -28,6 +38,13 @@ Rules:
 - For assign_task, put the existing task title in "title" and the assignee in "employee_name". Use "project_name" or "projectId" only as context disambiguation.
 - For assign_project, put project in "project_name" (or "projectId" when known) and assignee in "employee_name".
 - Use create_task only for creating a new task (verbs like add/create/new task), not for assignment verbs.
+- Prefer specific actions over generic ones when clear:
+  - open task/project/content -> open_task/open_entity
+  - complete task -> complete_task
+  - set task/project status -> set_task_status/set_project_status
+  - switch lens/view/phase/timeframe/filter -> switch_lens/switch_view/filter_phase/set_timeframe/toggle_filter
+  - update project description -> update_project_description
+- For toggle_filter, set both filter and toggle_action.
 - Resolve relative dates (today, tomorrow, next Monday, etc.) using Context.referenceDate as "today" in YYYY-MM-DD in the user's local sense — output absolute date as date (YYYY-MM-DD).
 - Use "unknown" if unsure.
 - Use null for missing optional fields when truly absent after applying context rules.

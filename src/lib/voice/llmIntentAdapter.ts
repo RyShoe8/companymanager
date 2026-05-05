@@ -10,6 +10,16 @@ export type VoiceLlmRawIntent = {
   project_name?: string | null;
   projectId?: string | null;
   employee_name?: string | null;
+  status?: string | null;
+  context?: string | null;
+  mode?: string | null;
+  lens?: string | null;
+  phase?: string | null;
+  timeframe?: string | null;
+  filter?: string | null;
+  toggle_action?: string | null;
+  entity_type?: string | null;
+  command_id?: string | null;
   navigation_target?: string | null;
 };
 
@@ -18,6 +28,14 @@ function str(v: unknown): string | null {
   if (typeof v !== 'string') return String(v);
   const t = v.trim();
   return t.length ? t : null;
+}
+
+function pick(...vals: unknown[]): string {
+  for (const v of vals) {
+    const s = str(v);
+    if (s) return s;
+  }
+  return '';
 }
 
 /** Map navigation_target → ParsedIntent (aligned with WorkspaceShell handleIntent + CommandRegistry). */
@@ -123,6 +141,163 @@ export function voiceLlmIntentToParsedIntent(raw: unknown, rawTranscript: string
         project_name: str(o.project_name) || '',
         projectId: str(o.projectId) || '',
       },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'open_task') {
+    const name = pick(o.title, o.notes);
+    if (!name) return null;
+    return {
+      type: 'OPEN_TASK',
+      confidence: 0.9,
+      slots: { name, context: pick(o.context, o.project_name) },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'open_entity') {
+    const entityType = pick(o.entity_type, o.entity, 'project').toLowerCase();
+    const normalized =
+      entityType === 'task' || entityType === 'content' || entityType === 'asset' ? entityType : 'project';
+    const name = pick(o.title, o.project_name, o.notes);
+    if (!name) return null;
+    return {
+      type: 'OPEN_ENTITY',
+      confidence: 0.9,
+      slots: { entityType: normalized, name },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'complete_task') {
+    const name = pick(o.title, o.notes);
+    if (!name) return null;
+    return {
+      type: 'COMPLETE_TASK',
+      confidence: 0.9,
+      slots: { name, context: pick(o.context, o.project_name) },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'delete_entity') {
+    const entityType = pick(o.entity_type, o.entity, 'task').toLowerCase();
+    const normalized = entityType === 'project' || entityType === 'content' || entityType === 'task' ? entityType : 'task';
+    const name = pick(o.title, o.notes);
+    if (!name) return null;
+    return {
+      type: 'DELETE_ENTITY',
+      confidence: 0.9,
+      slots: { entityType: normalized, name },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'set_task_status') {
+    const taskName = pick(o.title, o.notes);
+    const status = pick(o.status, o.notes);
+    if (!taskName || !status) return null;
+    return {
+      type: 'SET_TASK_STATUS',
+      confidence: 0.9,
+      slots: { taskName, status, context: pick(o.context, o.project_name) },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'set_project_status') {
+    const projectName = pick(o.project_name, o.title);
+    const status = pick(o.status, o.notes);
+    if (!projectName || !status) return null;
+    return {
+      type: 'SET_PROJECT_STATUS',
+      confidence: 0.9,
+      slots: { projectName, status },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'switch_lens') {
+    const lens = pick(o.lens, o.navigation_target).toLowerCase();
+    if (!lens) return null;
+    return {
+      type: 'SWITCH_LENS',
+      confidence: 0.9,
+      slots: { lens },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'switch_view') {
+    const mode = pick(o.mode, o.navigation_target).toLowerCase();
+    if (!mode) return null;
+    return {
+      type: 'SWITCH_VIEW',
+      confidence: 0.9,
+      slots: { mode },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'filter_phase') {
+    const phaseRaw = pick(o.phase, o.navigation_target);
+    if (!phaseRaw) return null;
+    const p = phaseRaw.toLowerCase();
+    const phase =
+      p === 'plan' ? 'Plan' : p === 'build' ? 'Build' : p === 'run' ? 'Run' : p === 'all' ? 'All' : phaseRaw;
+    return {
+      type: 'FILTER_PHASE',
+      confidence: 0.9,
+      slots: { phase },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'set_timeframe') {
+    const timeframe = pick(o.timeframe, o.navigation_target).toLowerCase();
+    if (!timeframe) return null;
+    return {
+      type: 'SET_TIMEFRAME',
+      confidence: 0.9,
+      slots: { timeframe },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'toggle_filter') {
+    const filterRaw = pick(o.filter, o.notes).toLowerCase();
+    const actionRaw = pick(o.toggle_action).toLowerCase();
+    const filter =
+      filterRaw.includes('my') ? 'myAssignments' : filterRaw.includes('content') ? 'content' : 'tasks';
+    const toggle = actionRaw === 'hide' ? 'hide' : 'show';
+    return {
+      type: 'TOGGLE_FILTER',
+      confidence: 0.9,
+      slots: { filter, action: toggle },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'update_project_description') {
+    const name = pick(o.project_name, o.title);
+    const description = pick(o.notes);
+    if (!name || !description) return null;
+    return {
+      type: 'UPDATE_PROJECT_DESCRIPTION',
+      confidence: 0.9,
+      slots: { name, description },
+      rawTranscript,
+    };
+  }
+
+  if (action === 'run_command') {
+    const commandId = pick(o.command_id);
+    if (!commandId) return null;
+    return {
+      type: 'RUN_COMMAND',
+      confidence: 0.9,
+      slots: { commandId },
       rawTranscript,
     };
   }
