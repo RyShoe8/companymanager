@@ -165,6 +165,13 @@ export default function VoiceOverlay() {
                                         <span className="text-gray-400">{voice.wakeActivations}</span> · cancels:{' '}
                                         <span className="text-gray-400">{voice.wakeUserCancels}</span>
                                     </p>
+                                    {voice.wakeLastAlias && (
+                                        <p>
+                                            last alias:{' '}
+                                            <span className="text-gray-400">{voice.wakeLastAlias}</span> · score:{' '}
+                                            <span className="text-gray-400">{voice.wakeLastScore.toFixed(2)}</span>
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>

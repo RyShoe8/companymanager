@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
 import { parseIntent, ParsedIntent } from '@/lib/voice/IntentParser';
 import { isWebSpeechAvailable, getVoiceConfig } from '@/lib/voice/voiceConfig';
+import { detectWakeWord } from '@/lib/voice/wakeWordMatcher';
 import { fetchLlmVoiceIntent } from '@/lib/voice/fetchVoiceIntent';
 import { enrichIntentWithContext } from '@/lib/voice/enrichIntentWithContext';
 import { useIntentConfirmation } from '@/components/intent/IntentConfirmationContext';
@@ -29,6 +30,8 @@ export interface VoiceContextValue {
     wakeDetections: number;
     wakeActivations: number;
     wakeUserCancels: number;
+    wakeLastAlias: string | null;
+    wakeLastScore: number;
     toggleWakeWord: () => void;
     enabled: boolean;
     pendingActionDescription: string | null;
@@ -55,6 +58,8 @@ export function useVoice(): VoiceContextValue {
             wakeDetections: 0,
             wakeActivations: 0,
             wakeUserCancels: 0,
+            wakeLastAlias: null,
+            wakeLastScore: 0,
             toggleWakeWord: () => {},
             enabled: false,
             pendingActionDescription: null,
@@ -89,6 +94,8 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
     const [wakeDetections, setWakeDetections] = useState(0);
     const [wakeActivations, setWakeActivations] = useState(0);
     const [wakeUserCancels, setWakeUserCancels] = useState(0);
+    const [wakeLastAlias, setWakeLastAlias] = useState<string | null>(null);
+    const [wakeLastScore, setWakeLastScore] = useState(0);
 
     const clearMessages = useCallback(() => {
         setTimeout(() => {
@@ -390,6 +397,8 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
 
         const wakeWord = (getVoiceConfig().wakeWord || 'nucleas').toLowerCase();
         const cooldownMs = getVoiceConfig().wakeWordCooldownMs ?? 7000;
+        const aliases = getVoiceConfig().wakeWordAliases ?? [wakeWord];
+        const minScore = getVoiceConfig().wakeMinMatchScore ?? 0.72;
 
         wake.onstart = () => {
             setIsWakeArmed(true);
@@ -401,13 +410,30 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 combined += ` ${event.results[i][0].transcript || ''}`;
             }
-            const heard = combined.toLowerCase();
-            if (!heard.includes(wakeWord)) return;
+            const match = detectWakeWord(combined, aliases, minScore);
+            if (!match.matched) {
+                if (match.score >= Math.max(0.55, minScore - 0.12)) {
+                    console.log('[Voice] Wake candidate (below threshold)', {
+                        heard: match.normalizedHeard,
+                        score: Number(match.score.toFixed(3)),
+                        threshold: minScore,
+                    });
+                }
+                return;
+            }
             const now = Date.now();
             if (now < wakeCooldownUntilRef.current) return;
             wakeCooldownUntilRef.current = now + cooldownMs;
             setWakeDetections((v) => v + 1);
-            console.log('[Voice] Wake-word detected', { wakeWord, at: now });
+            setWakeLastAlias(match.matchedAlias);
+            setWakeLastScore(match.score);
+            console.log('[Voice] Wake-word detected', {
+                configuredWakeWord: wakeWord,
+                matchedAlias: match.matchedAlias,
+                score: Number(match.score.toFixed(3)),
+                normalizedHeard: match.normalizedHeard,
+                at: now,
+            });
             try {
                 wake.onend = null;
                 wake.stop();
@@ -489,6 +515,8 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
         wakeDetections,
         wakeActivations,
         wakeUserCancels,
+        wakeLastAlias,
+        wakeLastScore,
         toggleWakeWord,
         enabled,
         pendingActionDescription,

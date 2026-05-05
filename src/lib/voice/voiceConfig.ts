@@ -29,6 +29,10 @@ export interface VoiceConfig {
     wakeWord?: string;
     /** Cooldown between wake detections to reduce false triggers. */
     wakeWordCooldownMs?: number;
+    /** Accepted aliases/transcriptions for wake phrase. */
+    wakeWordAliases?: string[];
+    /** Minimum fuzzy match score [0..1] for wake acceptance. */
+    wakeMinMatchScore?: number;
 }
 
 export function getVoiceConfig(): VoiceConfig {
@@ -45,6 +49,8 @@ export function getVoiceConfig(): VoiceConfig {
         endOfUtteranceMs: 1400,
         wakeWord: 'nucleas',
         wakeWordCooldownMs: 7000,
+        wakeWordAliases: ['nucleas', 'nucleus', 'nuclease', 'new cleus', 'newkleeus'],
+        wakeMinMatchScore: 0.72,
     };
 }
 
