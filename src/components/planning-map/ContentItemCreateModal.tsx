@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { ContentChannel, ContentStatus } from '@/lib/models/ContentItem';
@@ -16,11 +16,22 @@ function toInputDate(d: Date): string {
 const CHANNELS: ContentChannel[] = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'];
 const STATUSES: ContentStatus[] = ['idea', 'planned', 'in_progress', 'ready', 'published'];
 
+function matchContentChannel(raw: string | undefined): ContentChannel | null {
+  if (!raw?.trim()) return null;
+  const n = raw.trim().toLowerCase();
+  const hit = CHANNELS.find((c) => c.toLowerCase() === n);
+  return hit ?? null;
+}
+
 interface ContentItemCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   project: IProject | null;
   defaultPublishDate?: Date;
+  /** Prefill from voice / commands */
+  initialTitle?: string;
+  initialChannel?: string;
+  initialNotes?: string;
   employees: IEmployee[];
   onSuccess: () => void;
 }
@@ -30,6 +41,9 @@ export default function ContentItemCreateModal({
   onClose,
   project,
   defaultPublishDate,
+  initialTitle,
+  initialChannel,
+  initialNotes,
   employees,
   onSuccess,
 }: ContentItemCreateModalProps) {
@@ -47,6 +61,17 @@ export default function ContentItemCreateModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !project) return;
+    setTitle(initialTitle?.trim() ?? '');
+    const ch = matchContentChannel(initialChannel);
+    setChannel(ch ?? 'Other');
+    setNotes(initialNotes?.trim() ?? '');
+    const base = defaultPublishDate || new Date();
+    setPublishDate(toInputDate(base));
+    setError(null);
+  }, [isOpen, project?._id, initialTitle, initialChannel, initialNotes, defaultPublishDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -12,9 +12,21 @@ interface ModalProps {
   hideCloseButton?: boolean;
   /** Use higher z-index so this modal appears above other overlays (e.g. when opened from another modal). */
   elevated?: boolean;
+  /** Above toast / voice overlays (z-[100]). */
+  stackAboveOverlays?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children, maxWidth = '2xl', headerActions, hideCloseButton = false, elevated = false }: ModalProps) {
+export default function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  maxWidth = '2xl',
+  headerActions,
+  hideCloseButton = false,
+  elevated = false,
+  stackAboveOverlays = false,
+}: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -28,7 +40,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '2x
 
   if (!isOpen) return null;
 
-  const zClass = elevated ? 'z-[70]' : 'z-50';
+  const zClass = stackAboveOverlays ? 'z-[110]' : elevated ? 'z-[70]' : 'z-50';
 
   if (maxWidth === 'full') {
     // Full-screen modal that stretches from navbar to bottom

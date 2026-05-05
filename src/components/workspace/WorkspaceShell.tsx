@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import useWorkspaceData, { PhaseType, LensType } from '@/lib/hooks/useWorkspaceData';
@@ -24,6 +24,8 @@ import CommandRegistry from '@/lib/commands/CommandRegistry';
 import CommandPalette from '@/components/workspace/CommandPalette';
 import VoiceProvider from '@/components/voice/VoiceProvider';
 import VoiceOverlay, { VoiceButton } from '@/components/voice/VoiceOverlay';
+import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmationContext';
+import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
 import { ParsedIntent } from '@/lib/voice/IntentParser';
 import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
 
@@ -38,6 +40,7 @@ export default function WorkspaceShell({
 }: WorkspaceShellProps) {
     const isMobile = useIsMobile();
     const router = useRouter();
+    const pathname = usePathname();
     const ws = useWorkspaceData(initialPhase, initialLens);
 
     // Inspector / form state
@@ -45,12 +48,32 @@ export default function WorkspaceShell({
     const [editingProject, setEditingProject] = useState<IProject | undefined>();
     const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
     const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
+    const [addContentVoicePrefill, setAddContentVoicePrefill] = useState<{
+        title?: string;
+        channel?: string;
+        notes?: string;
+    } | null>(null);
 
     const [inspectorFocus, setInspectorFocus] = useState<string | null>(null);
     /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+    const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
+
+    const workspaceIntentContext = useMemo(
+        () =>
+            buildWorkspaceIntentContext({
+                pathname: pathname || '/workspace',
+                phase: ws.phase,
+                lens: ws.lens,
+                scheduleMode: ws.scheduleMode,
+                inspectorFocus,
+                allProjects: ws.allProjects,
+            }),
+        [pathname, ws.phase, ws.lens, ws.scheduleMode, inspectorFocus, ws.allProjects]
+    );
 
     // Handlers
     const handleCreateProject = () => {
@@ -218,8 +241,42 @@ export default function WorkspaceShell({
             }
         }
         if (intent.type === 'CREATE_CONTENT') {
-            setAddContentDefaultDate(new Date());
-            setAddContentProject(null); // would need fuzzy matching real project
+            const { title, channel, date, notes, project_name, projectId } = intent.slots;
+            const titleStr = title?.trim() ?? '';
+            const channelStr = channel?.trim() ?? '';
+            const notesStr = notes?.trim() ?? '';
+            const dateStr = date?.trim();
+
+            let project: IProject | null = null;
+            const pid = projectId?.trim();
+            if (pid) {
+                project = ws.allProjects.find((p) => p._id.toString() === pid) ?? null;
+            }
+            const pname = project_name?.trim();
+            if (!project && pname) {
+                const searchName = normalize(pname);
+                project =
+                    ws.allProjects.find((p) => {
+                        const pName = normalize(p.name);
+                        return pName.includes(searchName) || searchName.includes(pName);
+                    }) ?? null;
+            }
+            if (!project) {
+                project = ws.filteredProjects[0] ?? ws.allProjects[0] ?? null;
+            }
+            if (!project) {
+                return { success: false, message: 'No project available to attach content' };
+            }
+
+            let defaultDate = new Date();
+            if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                const d = new Date(`${dateStr}T12:00:00`);
+                if (!isNaN(d.getTime())) defaultDate = d;
+            }
+
+            setAddContentProject(project);
+            setAddContentDefaultDate(defaultDate);
+            setAddContentVoicePrefill({ title: titleStr, channel: channelStr, notes: notesStr });
             return { success: true, message: 'Opening content creation form' };
         }
         if (intent.type === 'TOGGLE_FILTER') {
@@ -365,7 +422,7 @@ export default function WorkspaceShell({
 
         if (intent.type === 'ADD_TASK') {
             if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can add tasks' };
-            const { taskName, projectName } = intent.slots;
+            const { taskName, projectName, projectId } = intent.slots;
             const sanitizeTaskName = (raw: string) =>
                 raw
                     .replace(/^\s*(?:called|named)\s+/i, '')
@@ -380,8 +437,22 @@ export default function WorkspaceShell({
 
             const cleanedTaskName = sanitizeTaskName(taskName || '');
             const cleanedProjectName = sanitizeProjectName(projectName || '');
-            if (!cleanedProjectName) {
-                return { success: false, message: 'I heard the task, but not a project name.' };
+            const cleanedProjectId = projectId?.trim() ?? '';
+
+            let target: IProject | null = null;
+            if (cleanedProjectId) {
+                target = ws.allProjects.find((p) => p._id.toString() === cleanedProjectId) ?? null;
+            }
+            if (!target && cleanedProjectName) {
+                const searchName = normalize(cleanedProjectName);
+                target =
+                    ws.allProjects.find((p) => {
+                        const pName = normalize(p.name);
+                        return pName.includes(searchName) || searchName.includes(pName);
+                    }) ?? null;
+            }
+            if (!target) {
+                return { success: false, message: 'Could not resolve a project for this task.' };
             }
             if (!cleanedTaskName || cleanedTaskName.length < 3) {
                 return { success: false, message: 'I heard the project, but not a clean task name.' };
@@ -389,13 +460,6 @@ export default function WorkspaceShell({
             if (/\bproject\b/i.test(cleanedTaskName) || /\bto\s+(?:the\s+)?project\b/i.test(cleanedTaskName)) {
                 return { success: false, message: 'Task name looked like command text. Please repeat the task title only.' };
             }
-
-            const searchName = normalize(cleanedProjectName);
-            const target = ws.allProjects.find(p => {
-                const pName = normalize(p.name);
-                return pName.includes(searchName) || searchName.includes(pName);
-            });
-            if (!target) return { success: false, message: `Could not find project "${cleanedProjectName}"` };
             const newTask = {
                 name: cleanedTaskName,
                 description: '',
@@ -715,6 +779,10 @@ export default function WorkspaceShell({
         return () => window.removeEventListener('keydown', onKeyDown);
     }, []);
 
+    useEffect(() => {
+        if (isCommandPaletteOpen) setPaletteNlError(null);
+    }, [isCommandPaletteOpen]);
+
     // Default status for new projects depends on phase
     const defaultStatus = ws.phase === 'Build' ? 'in-development' : ws.phase === 'Run' ? 'launched' : 'planning';
 
@@ -727,9 +795,17 @@ export default function WorkspaceShell({
     }
 
     return (
-        <VoiceProvider onIntent={handleIntent}>
-            <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px]">
-                <div className="w-full mx-auto pt-[30px] pb-8">
+        <IntentConfirmationProvider
+            executeIntent={handleIntent}
+            onExecuted={(r, meta) => {
+                if (meta.origin === 'palette') {
+                    setPaletteNlError(r.success ? null : r.message);
+                }
+            }}
+        >
+            <VoiceProvider getWorkspaceContext={() => workspaceIntentContext}>
+                <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px]">
+                    <div className="w-full mx-auto pt-[30px] pb-8">
                     {/* ===== Workspace Header ===== */}
                     <div className="mb-4">
                         {/* Row 1: Title + Phase + Timeframe + Actions */}
@@ -755,6 +831,7 @@ export default function WorkspaceShell({
                                     onCreateContent={() => {
                                         setAddContentProject(null);
                                         setAddContentDefaultDate(new Date());
+                                        setAddContentVoicePrefill(null);
                                     }}
                                 />
                             </div>
@@ -823,6 +900,7 @@ export default function WorkspaceShell({
                                             showOnlyMyAssignments={ws.showOnlyMyAssignments}
                                             onRefreshContent={ws.fetchContentItems}
                                             onAddContent={(project, defaultDate) => {
+                                                setAddContentVoicePrefill(null);
                                                 setAddContentProject(project);
                                                 setAddContentDefaultDate(defaultDate);
                                             }}
@@ -881,7 +959,10 @@ export default function WorkspaceShell({
                                     onProjectPatched={ws.patchProjectInState}
                                     initialOpenTaskIndex={inspectorOpenTaskIndex}
                                     onInitialOpenTaskConsumed={() => setInspectorOpenTaskIndex(null)}
-                                    onAddContent={setAddContentProject}
+                                    onAddContent={(project) => {
+                                        setAddContentVoicePrefill(null);
+                                        setAddContentProject(project);
+                                    }}
                                     onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
                                 />
                             </div>
@@ -894,9 +975,13 @@ export default function WorkspaceShell({
                         onClose={() => {
                             setAddContentProject(null);
                             setAddContentDefaultDate(undefined);
+                            setAddContentVoicePrefill(null);
                         }}
                         project={addContentProject}
                         defaultPublishDate={addContentDefaultDate}
+                        initialTitle={addContentVoicePrefill?.title}
+                        initialChannel={addContentVoicePrefill?.channel}
+                        initialNotes={addContentVoicePrefill?.notes}
                         employees={ws.employees}
                         onSuccess={ws.fetchContentItems}
                     />
@@ -914,7 +999,10 @@ export default function WorkspaceShell({
                             onProjectPatched={ws.patchProjectInState}
                             initialOpenTaskIndex={inspectorOpenTaskIndex}
                             onInitialOpenTaskConsumed={() => setInspectorOpenTaskIndex(null)}
-                            onAddContent={setAddContentProject}
+                            onAddContent={(project) => {
+                                setAddContentVoicePrefill(null);
+                                setAddContentProject(project);
+                            }}
                             onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
                         />
                     )}
@@ -962,10 +1050,16 @@ export default function WorkspaceShell({
                         </Modal>
                     )}
 
-                    <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
-                    <VoiceOverlay />
+                    <CommandPalette
+                        isOpen={isCommandPaletteOpen}
+                        onClose={() => setIsCommandPaletteOpen(false)}
+                        workspaceIntentContext={workspaceIntentContext}
+                        nlError={paletteNlError}
+                    />
+                        <VoiceOverlay />
+                    </div>
                 </div>
-            </div>
-        </VoiceProvider>
+            </VoiceProvider>
+        </IntentConfirmationProvider>
     );
 }

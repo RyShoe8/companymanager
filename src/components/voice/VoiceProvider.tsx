@@ -2,33 +2,29 @@
 
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { parseIntent, ParsedIntent } from '@/lib/voice/IntentParser';
-import { isWebSpeechAvailable, getVoiceConfig, HIGH_RISK_ACTIONS, HAL_TTS_RATE, HAL_TTS_PITCH } from '@/lib/voice/voiceConfig';
+import { isWebSpeechAvailable, getVoiceConfig } from '@/lib/voice/voiceConfig';
+import { fetchLlmVoiceIntent } from '@/lib/voice/fetchVoiceIntent';
+import { enrichIntentWithContext } from '@/lib/voice/enrichIntentWithContext';
+import { useIntentConfirmation } from '@/components/intent/IntentConfirmationContext';
+import type { WorkspaceIntentContextPayload } from '@/lib/voice/workspaceIntentContext';
+import { speakClientTts } from '@/lib/voice/clientTts';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'confirming';
 
 export interface VoiceContextValue {
-    /** Current voice state */
     state: VoiceState;
-    /** Current transcript (live while listening) */
     transcript: string;
-    /** Last parsed intent */
     lastIntent: ParsedIntent | null;
-    /** Last error message */
     error: string | null;
-    /** Last result message */
     resultMessage: string | null;
-    /** Start listening */
     startListening: () => void;
-    /** Stop listening */
     stopListening: () => void;
-    /** Confirm a pending high-risk action */
-    confirmAction: () => void;
-    /** Cancel a pending action */
+    confirmAction: () => Promise<void>;
     cancelAction: () => void;
-    /** Whether voice feature is enabled */
+    /** After intent modal closed cancel (intent layer already cleared). */
+    resetAfterExternalIntentCancel: () => void;
     enabled: boolean;
-    /** Pending action description (for confirmation) */
     pendingActionDescription: string | null;
 }
 
@@ -37,17 +33,17 @@ const VoiceContext = createContext<VoiceContextValue | null>(null);
 export function useVoice(): VoiceContextValue {
     const ctx = useContext(VoiceContext);
     if (!ctx) {
-        // Return a no-op context when outside provider
         return {
             state: 'idle',
             transcript: '',
             lastIntent: null,
             error: null,
             resultMessage: null,
-            startListening: () => { },
-            stopListening: () => { },
-            confirmAction: () => { },
-            cancelAction: () => { },
+            startListening: () => {},
+            stopListening: () => {},
+            confirmAction: async () => {},
+            cancelAction: () => {},
+            resetAfterExternalIntentCancel: () => {},
             enabled: false,
             pendingActionDescription: null,
         };
@@ -57,11 +53,11 @@ export function useVoice(): VoiceContextValue {
 
 interface VoiceProviderProps {
     children: ReactNode;
-    /** Callback when intent is parsed — should execute via CommandRegistry. May return a Promise. */
-    onIntent?: (intent: ParsedIntent) => { success: boolean; message: string } | Promise<{ success: boolean; message: string }>;
+    getWorkspaceContext?: () => WorkspaceIntentContextPayload | null;
 }
 
-export default function VoiceProvider({ children, onIntent }: VoiceProviderProps) {
+export default function VoiceProvider({ children, getWorkspaceContext }: VoiceProviderProps) {
+    const intentCtx = useIntentConfirmation();
     const enabled = isFeatureEnabled('voiceEnabled');
     const [state, setState] = useState<VoiceState>('idle');
     const [transcript, setTranscript] = useState('');
@@ -70,43 +66,35 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
     const [resultMessage, setResultMessage] = useState<string | null>(null);
     const [pendingActionDescription, setPendingActionDescription] = useState<string | null>(null);
     const recognitionRef = useRef<any>(null);
-    const pendingIntentRef = useRef<ParsedIntent | null>(null);
     const accumulatedTranscriptRef = useRef<string>('');
     const endOfUtteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastFinalSegmentRef = useRef<string>('');
     const lastInterimRef = useRef<string>('');
 
     const clearMessages = useCallback(() => {
-        // Auto-clear messages after delay
         setTimeout(() => {
             setError(null);
             setResultMessage(null);
         }, 5000);
     }, []);
 
-    const executeIntent = useCallback(
-        async (intent: ParsedIntent) => {
-            if (onIntent) {
-                const result = await Promise.resolve(onIntent(intent));
-                if (result.success) {
-                    setResultMessage(result.message);
-                    speak(result.message);
-                } else {
-                    setError(result.message);
-                }
-            } else {
-                setResultMessage(`Parsed: ${intent.type} ${JSON.stringify(intent.slots)}`);
-            }
-            setState('idle');
-            setPendingActionDescription(null);
-            pendingIntentRef.current = null;
-            clearMessages();
-        },
-        [onIntent, clearMessages]
-    );
+    const resetVoiceChrome = useCallback(() => {
+        setState('idle');
+        setPendingActionDescription(null);
+    }, []);
 
-    // Mobile speech recognition can repeat the same clause at the end.
-    // Keep this conservative: only collapse exact repeated contiguous chunks.
+    const summarizeIntent = useCallback((intent: ParsedIntent) => {
+        const label = intent.type.replace(/_/g, ' ');
+        const hint =
+            intent.slots.name ||
+            intent.slots.taskName ||
+            intent.slots.title ||
+            intent.slots.commandId ||
+            intent.slots.place ||
+            '';
+        return hint ? `${label}: ${hint}` : label;
+    }, []);
+
     const dedupeTrailingTranscript = useCallback((input: string): string => {
         const normalized = input.replace(/\s+/g, ' ').trim();
         if (!normalized) return normalized;
@@ -125,37 +113,58 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
     }, []);
 
     const processTranscript = useCallback(
-        (text: string) => {
+        async (text: string) => {
             console.log('[Voice] Processing finalized transcript:', text);
             setState('processing');
-            const intent = parseIntent(text);
+
+            const wsCtx = getWorkspaceContext?.() ?? null;
+            const llmResult = await fetchLlmVoiceIntent(text, wsCtx);
+
+            let intent: ParsedIntent | null = null;
+            let source: 'llm' | 'rules' = 'rules';
+
+            if (llmResult.ok && llmResult.intent) {
+                intent = llmResult.intent;
+                source = 'llm';
+                console.log('[Voice] Parsed via LLM', { type: intent.type, slots: intent.slots });
+            } else {
+                if (!llmResult.ok) {
+                    if (llmResult.status === 503) {
+                        console.info('[Voice] LLM parse unavailable, using rules', llmResult.error);
+                    } else {
+                        console.warn('[Voice] LLM parse failed', llmResult.status, llmResult.error);
+                    }
+                } else if (llmResult.llmRaw) {
+                    console.warn('[Voice] LLM returned unmappable intent', llmResult.llmRaw);
+                }
+                intent = parseIntent(text);
+                intent = enrichIntentWithContext(intent, wsCtx ?? undefined);
+                source = 'rules';
+                console.log('[Voice] Parsed via rules', { type: intent.type, slots: intent.slots });
+            }
+
             setLastIntent(intent);
 
             if (intent.type === 'UNKNOWN') {
-                console.warn('[Voice] Intent not recognized for:', text);
+                console.warn('[Voice] Intent not recognized', { transcript: text, source });
                 setError(`I didn't understand: "${text}"`);
                 setState('idle');
                 clearMessages();
                 return;
             }
 
-            // Check if high-risk action needs confirmation
-            if (HIGH_RISK_ACTIONS.has(intent.type)) {
-                console.log('[Voice] High-risk action detected, pending confirmation:', intent.type);
-                pendingIntentRef.current = intent;
-                setPendingActionDescription(
-                    `${intent.type.replace('_', ' ').toLowerCase()}: ${intent.slots.name || intent.slots.entityType || 'item'}`
-                );
-                setState('confirming');
-                // TTS feedback
-                speak(`Are you sure you want to ${intent.type.replace('_', ' ').toLowerCase()} ${intent.slots.name || 'this item'}? Say confirm to proceed.`);
-                return;
-            }
-
-            // Execute immediately for low-risk actions
-            void executeIntent(intent);
+            intentCtx.presentConfirmation({
+                sourceText: text,
+                intent,
+                parseSource: source,
+                origin: 'voice',
+                contextSnapshot: wsCtx,
+            });
+            setPendingActionDescription(summarizeIntent(intent));
+            setState('confirming');
+            speakClientTts('Please confirm the action in the dialog.');
         },
-        [executeIntent]
+        [getWorkspaceContext, intentCtx, summarizeIntent, clearMessages]
     );
 
     const flushAndProcess = useCallback(() => {
@@ -178,7 +187,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         }
         setTranscript('');
         if (text) {
-            processTranscript(dedupeTrailingTranscript(text));
+            void processTranscript(dedupeTrailingTranscript(text));
         } else {
             setState('idle');
         }
@@ -188,6 +197,8 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         if (!enabled) return;
         setError(null);
         setResultMessage(null);
+        intentCtx.cancel();
+        resetVoiceChrome();
         setTranscript('');
         accumulatedTranscriptRef.current = '';
         lastFinalSegmentRef.current = '';
@@ -220,7 +231,6 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
                     if (result.isFinal) {
                         const trimmed = text.trim();
                         if (trimmed && trimmed === lastFinalSegmentRef.current) {
-                            // Duplicate final segment (common on mobile): skip append and timer reset so we can finalize
                             continue;
                         }
                         hadNewContent = true;
@@ -277,7 +287,7 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
             setError('Web Speech API not available. Server STT fallback not yet configured.');
             clearMessages();
         }
-    }, [enabled, flushAndProcess, state, clearMessages]);
+    }, [enabled, flushAndProcess, state, clearMessages, intentCtx, resetVoiceChrome]);
 
     const stopListening = useCallback(() => {
         if (endOfUtteranceTimerRef.current) {
@@ -297,19 +307,33 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         setTranscript('');
     }, [state]);
 
-    const confirmAction = useCallback(() => {
-        if (pendingIntentRef.current) {
-            executeIntent(pendingIntentRef.current);
+    const confirmAction = useCallback(async () => {
+        const r = await intentCtx.confirm();
+        resetVoiceChrome();
+        if (r) {
+            if (r.success) {
+                console.log('[Voice] Intent executed', r.message);
+                setResultMessage(r.message);
+                speakClientTts(r.message);
+            } else {
+                console.warn('[Voice] Intent execution failed', r.message);
+                setError(r.message);
+            }
+            clearMessages();
         }
-    }, [executeIntent]);
+    }, [intentCtx, resetVoiceChrome, clearMessages]);
 
     const cancelAction = useCallback(() => {
-        pendingIntentRef.current = null;
-        setPendingActionDescription(null);
-        setState('idle');
+        intentCtx.cancel();
+        resetVoiceChrome();
+        console.log('[Voice] User cancelled confirmation');
         setResultMessage('Action cancelled.');
         clearMessages();
-    }, [clearMessages]);
+    }, [intentCtx, resetVoiceChrome, clearMessages]);
+
+    const resetAfterExternalIntentCancel = useCallback(() => {
+        resetVoiceChrome();
+    }, [resetVoiceChrome]);
 
     const value: VoiceContextValue = {
         state,
@@ -321,48 +345,10 @@ export default function VoiceProvider({ children, onIntent }: VoiceProviderProps
         stopListening,
         confirmAction,
         cancelAction,
+        resetAfterExternalIntentCancel,
         enabled,
         pendingActionDescription,
     };
 
     return <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>;
-}
-
-/** Cached deep male English voice for HAL-like TTS (populated when getVoices() is ready) */
-let cachedHalVoice: SpeechSynthesisVoice | null = null;
-
-function getHalVoice(): SpeechSynthesisVoice | null {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length === 0) return cachedHalVoice;
-    const maleKeywords = ['male', 'david', 'daniel', 'james', 'paul', 'mark', 'google us english male'];
-    const femaleKeywords = ['female', 'samantha', 'victoria', 'karen', 'moira', 'alice', 'google uk english female'];
-    const isMaleLike = (v: SpeechSynthesisVoice) => {
-        const name = v.name.toLowerCase();
-        if (femaleKeywords.some(k => name.includes(k))) return false;
-        return maleKeywords.some(k => name.includes(k));
-    };
-    const pick = voices.find(v => v.lang.startsWith('en') && isMaleLike(v));
-    if (pick) cachedHalVoice = pick;
-    return cachedHalVoice ?? pick ?? null;
-}
-
-/** Simple TTS helper; uses config rate/pitch and HAL-like voice when ttsVoicePreference is 'hal'. */
-function speak(text: string): void {
-    if (typeof window === 'undefined') return;
-    const config = getVoiceConfig();
-    if (!config.ttsEnabled) return;
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        const isHal = config.ttsVoicePreference === 'hal';
-        const rate = config.ttsRate ?? (isHal ? HAL_TTS_RATE : 1.1);
-        const pitch = config.ttsPitch ?? (isHal ? HAL_TTS_PITCH : 1);
-        utterance.rate = Math.max(0.8, Math.min(2, rate));
-        utterance.pitch = Math.max(0.5, Math.min(2, pitch));
-        if (isHal) {
-            const voice = getHalVoice();
-            if (voice) utterance.voice = voice;
-        }
-        window.speechSynthesis.speak(utterance);
-    }
 }
