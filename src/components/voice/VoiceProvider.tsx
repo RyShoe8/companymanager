@@ -137,8 +137,8 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
                 } else if (llmResult.llmRaw) {
                     console.warn('[Voice] LLM returned unmappable intent', llmResult.llmRaw);
                 }
-                intent = parseIntent(text);
-                intent = enrichIntentWithContext(intent, wsCtx ?? undefined);
+                const parsedRules = parseIntent(text);
+                intent = enrichIntentWithContext(parsedRules, wsCtx ?? undefined) ?? parsedRules;
                 source = 'rules';
                 console.log('[Voice] Parsed via rules', { type: intent.type, slots: intent.slots });
             }
