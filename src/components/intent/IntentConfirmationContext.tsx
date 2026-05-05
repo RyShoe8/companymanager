@@ -57,7 +57,9 @@ export function IntentConfirmationProvider({
 }: IntentConfirmationProviderProps) {
   const [pending, setPending] = useState<PendingIntentConfirmation | null>(null);
   const executeRef = useRef(executeIntent);
-  const pendingCaptureRef = useRef<PendingIntentConfirmation | null>(null);
+  /** Mirrors `pending` so confirm can read latest without TS assuming ref stayed null after clear. */
+  const pendingMirrorRef = useRef<PendingIntentConfirmation | null>(null);
+  pendingMirrorRef.current = pending;
   executeRef.current = executeIntent;
 
   const presentConfirmation = useCallback((p: PendingIntentConfirmation) => {
@@ -82,12 +84,8 @@ export function IntentConfirmationProvider({
   }, []);
 
   const confirm = useCallback(async (): Promise<ExecuteResult | undefined> => {
-    pendingCaptureRef.current = null;
-    setPending((prev) => {
-      pendingCaptureRef.current = prev;
-      return null;
-    });
-    const snap = pendingCaptureRef.current;
+    const snap = pendingMirrorRef.current;
+    setPending(null);
     if (!snap) return undefined;
     const result = await Promise.resolve(executeRef.current(snap.intent));
     onExecuted?.(result, { origin: snap.origin });
