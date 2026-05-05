@@ -1,6 +1,6 @@
 import type { ParsedIntent } from '@/lib/voice/IntentParser';
 import type { WorkspaceIntentContextPayload } from '@/lib/voice/workspaceIntentContext';
-import { voiceLlmIntentToParsedIntent } from '@/lib/voice/llmIntentAdapter';
+import { rescueCreateTaskIntent, voiceLlmIntentToParsedIntent } from '@/lib/voice/llmIntentAdapter';
 import { enrichIntentWithContext } from '@/lib/voice/enrichIntentWithContext';
 
 export type ParseIntentWithContextResult =
@@ -45,6 +45,9 @@ export async function parseIntentWithContext(
 
     const intentObj = (data as { intent?: unknown }).intent;
     let parsed = voiceLlmIntentToParsedIntent(intentObj, input);
+    if (!parsed) {
+      parsed = rescueCreateTaskIntent(intentObj, input);
+    }
     parsed = enrichIntentWithContext(parsed, workspaceContext ?? undefined);
 
     return { ok: true, intent: parsed, source: 'llm', llmRaw: intentObj };

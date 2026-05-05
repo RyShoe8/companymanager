@@ -2,11 +2,21 @@ import { joinBatchTaskTitles, type ParsedIntent } from '@/lib/voice/IntentParser
 
 export type VoiceLlmRawIntent = {
   action?: string;
+  slots?: Record<string, unknown> | null;
   entity?: string | null;
   title?: string | null;
+  titles?: unknown;
+  task_titles?: unknown;
+  tasks?: unknown;
+  taskName?: string | null;
+  employeeName?: string | null;
+  assignee?: string | null;
+  assigned_to?: string | null;
   channel?: string | null;
   date?: string | null;
   notes?: string | null;
+  project?: string | null;
+  projectName?: string | null;
   project_name?: string | null;
   projectId?: string | null;
   employee_name?: string | null;
@@ -21,8 +31,6 @@ export type VoiceLlmRawIntent = {
   entity_type?: string | null;
   command_id?: string | null;
   navigation_target?: string | null;
-  /** Multiple new task titles (create_task only); JSON array from model */
-  titles?: unknown;
 };
 
 function str(v: unknown): string | null {
@@ -40,11 +48,61 @@ function pick(...vals: unknown[]): string {
   return '';
 }
 
+function obj(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function readField(o: VoiceLlmRawIntent, ...keys: string[]): unknown {
+  const top = o as Record<string, unknown>;
+  const nested = obj(o.slots);
+  for (const key of keys) {
+    if (key in top) {
+      const v = top[key];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+    if (nested && key in nested) {
+      const v = nested[key];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+  }
+  return null;
+}
+
+function splitInlineTaskList(raw: string): string[] {
+  const text = raw.trim();
+  if (!text) return [];
+  // "blog and newsletter 10 11 and 12" -> ["blog and newsletter 10", ...]
+  const series = /^(.*?\D)\s+(\d+(?:\s+(?:and\s+)?\d+)+)$/i.exec(text);
+  if (series) {
+    const base = series[1].trim();
+    const nums = series[2]
+      .replace(/\band\b/gi, ' ')
+      .split(/\s+/)
+      .filter((n) => /^\d+$/.test(n));
+    if (base && nums.length >= 2) return nums.map((n) => `${base} ${n}`);
+  }
+  const commaParts = text.split(/\s*,\s*/).map((s) => s.trim()).filter(Boolean);
+  if (commaParts.length > 1) {
+    const out: string[] = [];
+    for (const part of commaParts) {
+      out.push(...part.split(/\s+\band\b\s+/i).map((s) => s.trim()).filter(Boolean));
+    }
+    return out.length ? out : [text];
+  }
+  return [text];
+}
+
+function titleFromObjectItem(item: unknown): string | null {
+  const o = obj(item);
+  if (!o) return str(item);
+  return pick(o.title, o.name, o.task, o.taskName, o.text, o.label);
+}
+
 function titlesFromLlmArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
   for (const item of raw) {
-    const s = str(item);
+    const s = titleFromObjectItem(item);
     if (s) out.push(s);
   }
   return out;
@@ -52,10 +110,58 @@ function titlesFromLlmArray(raw: unknown): string[] {
 
 /** Ordered task titles for create_task: prefers titles[] then title/notes. */
 function collectCreateTaskTitles(o: VoiceLlmRawIntent): string[] {
-  const fromArr = titlesFromLlmArray(o.titles);
+  const fromArr = titlesFromLlmArray(
+    readField(o, 'titles', 'task_titles', 'tasks')
+  );
   if (fromArr.length > 0) return fromArr;
-  const one = str(o.title) || str(o.notes);
-  return one ? [one] : [];
+  const one = pick(
+    readField(o, 'title', 'taskName', 'task_name', 'name'),
+    readField(o, 'notes')
+  );
+  if (!one) return [];
+  return splitInlineTaskList(one);
+}
+
+function collectCreateTaskProject(o: VoiceLlmRawIntent): { projectName: string; projectId: string } {
+  return {
+    projectName: pick(readField(o, 'project_name', 'projectName', 'project')),
+    projectId: pick(readField(o, 'projectId', 'project_id')),
+  };
+}
+
+function collectCreateTaskEmployee(o: VoiceLlmRawIntent): string {
+  return pick(readField(o, 'employee_name', 'employeeName', 'assignee', 'assigned_to'));
+}
+
+export function rescueCreateTaskIntent(raw: unknown, rawTranscript: string): ParsedIntent | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as VoiceLlmRawIntent;
+  const action = str(readField(o, 'action'))?.toLowerCase();
+  if (action !== 'create_task') return null;
+  const titles = collectCreateTaskTitles(o);
+  if (titles.length === 0) return null;
+  const { projectName, projectId } = collectCreateTaskProject(o);
+  const employeeName = collectCreateTaskEmployee(o);
+  const useBatch = titles.length > 1 || !!employeeName;
+  if (useBatch) {
+    return {
+      type: 'BATCH_ADD_TASKS',
+      confidence: 0.85,
+      slots: {
+        titlesJoined: joinBatchTaskTitles(titles),
+        projectName,
+        projectId,
+        employeeName,
+      },
+      rawTranscript,
+    };
+  }
+  return {
+    type: 'ADD_TASK',
+    confidence: 0.85,
+    slots: { taskName: titles[0], projectName, projectId },
+    rawTranscript,
+  };
 }
 
 /** Map navigation_target → ParsedIntent (aligned with WorkspaceShell handleIntent + CommandRegistry). */
@@ -112,31 +218,8 @@ export function voiceLlmIntentToParsedIntent(raw: unknown, rawTranscript: string
   if (!action || action === 'unknown') return null;
 
   if (action === 'create_task') {
-    const titles = collectCreateTaskTitles(o);
-    if (titles.length === 0) return null;
-    const projectName = str(o.project_name) || '';
-    const projectId = str(o.projectId) || '';
-    const employeeName = str(o.employee_name) || '';
-    const useBatch = titles.length > 1 || (!!employeeName && titles.length === 1);
-    if (useBatch) {
-      return {
-        type: 'BATCH_ADD_TASKS',
-        confidence: 0.9,
-        slots: {
-          titlesJoined: joinBatchTaskTitles(titles),
-          projectName,
-          projectId,
-          employeeName,
-        },
-        rawTranscript,
-      };
-    }
-    return {
-      type: 'ADD_TASK',
-      confidence: 0.9,
-      slots: { taskName: titles[0], projectName, projectId },
-      rawTranscript,
-    };
+    const rescue = rescueCreateTaskIntent(raw, rawTranscript);
+    return rescue;
   }
 
   if (action === 'assign_task') {

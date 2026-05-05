@@ -161,6 +161,32 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
 
             const wsCtx = getWorkspaceContext?.() ?? null;
             const llmResult = await fetchLlmVoiceIntent(text, wsCtx);
+            const llmShapeSummary = (() => {
+                const raw = llmResult.ok ? llmResult.llmRaw : null;
+                if (!raw || typeof raw !== 'object') return null;
+                const top = raw as Record<string, unknown>;
+                const slots =
+                    top.slots && typeof top.slots === 'object' && !Array.isArray(top.slots)
+                        ? (top.slots as Record<string, unknown>)
+                        : null;
+                const read = (...keys: string[]): unknown => {
+                    for (const key of keys) {
+                        if (key in top) return top[key];
+                        if (slots && key in slots) return slots[key];
+                    }
+                    return undefined;
+                };
+                const titles = read('titles', 'task_titles', 'tasks');
+                return {
+                    action: String(read('action') ?? ''),
+                    keys: Object.keys(top).slice(0, 12),
+                    hasSlots: !!slots,
+                    titlesType: Array.isArray(titles) ? 'array' : typeof titles,
+                    titlesLen: Array.isArray(titles) ? titles.length : 0,
+                    hasEmployeeAlias: !!read('employee_name', 'employeeName', 'assignee', 'assigned_to'),
+                    hasProjectAlias: !!read('project_name', 'projectName', 'project', 'projectId'),
+                };
+            })();
 
             let intent: ParsedIntent | null = null;
             let source: 'llm' | 'rules' = 'rules';
@@ -185,6 +211,7 @@ export default function VoiceProvider({ children, getWorkspaceContext }: VoicePr
                 console.log('[Voice] Using rules fallback:', {
                     reason: rulesFallbackReason,
                     detail: !llmResult.ok ? llmResult.error : llmResult.llmRaw ?? null,
+                    llmShapeSummary: rulesFallbackReason === 'llm_json_unmapped' ? llmShapeSummary : null,
                     transcriptPreview: text.slice(0, 100),
                 });
 

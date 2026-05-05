@@ -85,6 +85,29 @@ function cleanTaskSlot(input: string | undefined): string {
     return value;
 }
 
+function splitSpokenTaskBatch(input: string): string[] {
+    const text = cleanTaskSlot(input);
+    if (!text) return [];
+    const series = /^(.*?\D)\s+(\d+(?:\s+(?:and\s+)?\d+)+)$/i.exec(text);
+    if (series) {
+        const base = cleanTaskSlot(series[1]);
+        const nums = series[2]
+            .replace(/\band\b/gi, ' ')
+            .split(/\s+/)
+            .filter((n) => /^\d+$/.test(n));
+        if (base && nums.length >= 2) return nums.map((n) => `${base} ${n}`);
+    }
+    const commaParts = text.split(/\s*,\s*/).map((p) => p.trim()).filter(Boolean);
+    if (commaParts.length > 1) {
+        const out: string[] = [];
+        for (const part of commaParts) {
+            out.push(...part.split(/\s+\band\b\s+/i).map((s) => s.trim()).filter(Boolean));
+        }
+        return out;
+    }
+    return [text];
+}
+
 const rules: PatternRule[] = [
     // Navigation
     {
@@ -194,6 +217,19 @@ const rules: PatternRule[] = [
         extractSlots: (m) => ({
             name: m[1].trim(),
             context: m[2]?.trim() ?? '',
+        }),
+    },
+
+    // Batch add + assign (LLM fallback hardening for compound utterances)
+    {
+        type: 'BATCH_ADD_TASKS',
+        patterns: [
+            /^(?:create|add)\s+(?:the\s+)?tasks?\s+(.+?)\s+(?:in|for)\s+(?:the\s+)?(?:project\s+)?(.+?)\s+and\s+assign\s+(?:them|all)\s+to\s+(.+)$/i,
+        ],
+        extractSlots: (m) => ({
+            titlesJoined: joinBatchTaskTitles(splitSpokenTaskBatch(m[1] ?? '')),
+            projectName: cleanProjectSlot(m[2]),
+            employeeName: m[3]?.trim() ?? '',
         }),
     },
 
