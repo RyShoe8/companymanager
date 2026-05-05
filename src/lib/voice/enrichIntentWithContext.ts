@@ -12,7 +12,7 @@ export function enrichIntentWithContext(
 
   const slots = { ...intent.slots };
 
-  if (intent.type === 'ADD_TASK') {
+  if (intent.type === 'ADD_TASK' || intent.type === 'BATCH_ADD_TASKS') {
     if (!slots.projectId?.trim()) {
       slots.projectId = ctx.projectId;
     }

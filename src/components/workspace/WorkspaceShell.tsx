@@ -26,7 +26,7 @@ import VoiceProvider from '@/components/voice/VoiceProvider';
 import VoiceOverlay, { VoiceButton } from '@/components/voice/VoiceOverlay';
 import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmationContext';
 import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
-import { ParsedIntent } from '@/lib/voice/IntentParser';
+import { ParsedIntent, splitBatchTaskTitles } from '@/lib/voice/IntentParser';
 import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
 import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 
@@ -215,6 +215,35 @@ export default function WorkspaceShell({
             if (s.includes('complete') || s.includes('done') || s.includes('finished')) return 'completed';
             if (s.includes('active')) return 'active';
             return null;
+        };
+
+        const sanitizeVoiceCreateTaskTitle = (raw: string) =>
+            raw
+                .replace(/^\s*(?:called|named)\s+/i, '')
+                .replace(/\b(?:add|create)\s+(?:a\s+)?tasks?\b/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+        const sanitizeVoiceProjectSlot = (raw: string) =>
+            raw
+                .replace(/^\s*(?:called|named)\s+/i, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+        const resolveVoiceTaskProject = (cleanedProjectId: string, cleanedProjectName: string): IProject | null => {
+            let target: IProject | null = null;
+            if (cleanedProjectId) {
+                target = ws.allProjects.find((p) => p._id.toString() === cleanedProjectId) ?? null;
+            }
+            if (!target && cleanedProjectName) {
+                const searchName = normalize(cleanedProjectName);
+                target =
+                    ws.allProjects.find((p) => {
+                        const pName = normalize(p.name);
+                        return pName.includes(searchName) || searchName.includes(pName);
+                    }) ?? null;
+            }
+            return target;
         };
 
         if (intent.type === 'NAVIGATE') {
@@ -450,37 +479,74 @@ export default function WorkspaceShell({
             return { success: false, message: `Could not find task matching "${name}"` };
         }
 
+        if (intent.type === 'BATCH_ADD_TASKS') {
+            if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can add tasks' };
+            const { titlesJoined, projectName, projectId, employeeName } = intent.slots;
+            const cleanedProjectName = sanitizeVoiceProjectSlot(projectName || '');
+            const cleanedProjectId = projectId?.trim() ?? '';
+
+            const target = resolveVoiceTaskProject(cleanedProjectId, cleanedProjectName);
+            if (!target) {
+                return { success: false, message: 'Could not resolve a project for these tasks.' };
+            }
+
+            const rawTitles = splitBatchTaskTitles(titlesJoined || '');
+            const cleanedTitles = rawTitles
+                .map((t) => sanitizeVoiceCreateTaskTitle(t))
+                .filter(
+                    (t) =>
+                        t.length >= 3 &&
+                        !/\bproject\b/i.test(t) &&
+                        !/\bto\s+(?:the\s+)?project\b/i.test(t)
+                );
+            if (cleanedTitles.length === 0) {
+                return { success: false, message: 'No valid task names heard.' };
+            }
+
+            let assignEmp: { _id: unknown; name: string } | null = null;
+            if (employeeName?.trim()) {
+                const employeeResolution = describeEmployeeMismatch(employeeName);
+                if (!employeeResolution.employee) {
+                    return { success: false, message: employeeResolution.error || 'Could not find employee' };
+                }
+                assignEmp = employeeResolution.employee;
+            }
+
+            console.log('[Voice]', {
+                kind: 'batch_add_tasks',
+                count: cleanedTitles.length,
+                assigned: !!assignEmp,
+            });
+
+            const weekMs = 7 * 24 * 60 * 60 * 1000;
+            const newTasks = cleanedTitles.map((name) => ({
+                name,
+                description: '',
+                status: 'active' as TaskStatus,
+                startDate: new Date(),
+                endDate: new Date(Date.now() + weekMs),
+                estimatedHours: 0,
+                assignedTo: assignEmp?.name ?? '',
+                ...(assignEmp ? { assignedToEmployeeId: assignEmp._id as never } : {}),
+            }));
+
+            const nextTasks = [...(target.tasks || []), ...newTasks];
+            const r = await mergePatchProject(target._id.toString(), { tasks: nextTasks });
+            if (!r.ok) return { success: false, message: r.message };
+            const n = cleanedTitles.length;
+            const assignHint = assignEmp ? ` Assigned to ${assignEmp.name}.` : '';
+            return { success: true, message: `Added ${n} task${n === 1 ? '' : 's'} to ${target.name}.${assignHint}` };
+        }
+
         if (intent.type === 'ADD_TASK') {
             if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can add tasks' };
             const { taskName, projectName, projectId } = intent.slots;
-            const sanitizeTaskName = (raw: string) =>
-                raw
-                    .replace(/^\s*(?:called|named)\s+/i, '')
-                    .replace(/\b(?:add|create)\s+(?:a\s+)?task\b/gi, '')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-            const sanitizeProjectName = (raw: string) =>
-                raw
-                    .replace(/^\s*(?:called|named)\s+/i, '')
-                    .replace(/\s+/g, ' ')
-                    .trim();
 
-            const cleanedTaskName = sanitizeTaskName(taskName || '');
-            const cleanedProjectName = sanitizeProjectName(projectName || '');
+            const cleanedTaskName = sanitizeVoiceCreateTaskTitle(taskName || '');
+            const cleanedProjectName = sanitizeVoiceProjectSlot(projectName || '');
             const cleanedProjectId = projectId?.trim() ?? '';
 
-            let target: IProject | null = null;
-            if (cleanedProjectId) {
-                target = ws.allProjects.find((p) => p._id.toString() === cleanedProjectId) ?? null;
-            }
-            if (!target && cleanedProjectName) {
-                const searchName = normalize(cleanedProjectName);
-                target =
-                    ws.allProjects.find((p) => {
-                        const pName = normalize(p.name);
-                        return pName.includes(searchName) || searchName.includes(pName);
-                    }) ?? null;
-            }
+            const target = resolveVoiceTaskProject(cleanedProjectId, cleanedProjectName);
             if (!target) {
                 return { success: false, message: 'Could not resolve a project for this task.' };
             }

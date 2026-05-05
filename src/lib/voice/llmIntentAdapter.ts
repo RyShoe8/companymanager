@@ -1,4 +1,4 @@
-import type { ParsedIntent } from '@/lib/voice/IntentParser';
+import { joinBatchTaskTitles, type ParsedIntent } from '@/lib/voice/IntentParser';
 
 export type VoiceLlmRawIntent = {
   action?: string;
@@ -21,6 +21,8 @@ export type VoiceLlmRawIntent = {
   entity_type?: string | null;
   command_id?: string | null;
   navigation_target?: string | null;
+  /** Multiple new task titles (create_task only); JSON array from model */
+  titles?: unknown;
 };
 
 function str(v: unknown): string | null {
@@ -36,6 +38,24 @@ function pick(...vals: unknown[]): string {
     if (s) return s;
   }
   return '';
+}
+
+function titlesFromLlmArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const item of raw) {
+    const s = str(item);
+    if (s) out.push(s);
+  }
+  return out;
+}
+
+/** Ordered task titles for create_task: prefers titles[] then title/notes. */
+function collectCreateTaskTitles(o: VoiceLlmRawIntent): string[] {
+  const fromArr = titlesFromLlmArray(o.titles);
+  if (fromArr.length > 0) return fromArr;
+  const one = str(o.title) || str(o.notes);
+  return one ? [one] : [];
 }
 
 /** Map navigation_target → ParsedIntent (aligned with WorkspaceShell handleIntent + CommandRegistry). */
@@ -92,14 +112,29 @@ export function voiceLlmIntentToParsedIntent(raw: unknown, rawTranscript: string
   if (!action || action === 'unknown') return null;
 
   if (action === 'create_task') {
-    const taskName = str(o.title) || str(o.notes);
-    if (!taskName) return null;
+    const titles = collectCreateTaskTitles(o);
+    if (titles.length === 0) return null;
     const projectName = str(o.project_name) || '';
     const projectId = str(o.projectId) || '';
+    const employeeName = str(o.employee_name) || '';
+    const useBatch = titles.length > 1 || (!!employeeName && titles.length === 1);
+    if (useBatch) {
+      return {
+        type: 'BATCH_ADD_TASKS',
+        confidence: 0.9,
+        slots: {
+          titlesJoined: joinBatchTaskTitles(titles),
+          projectName,
+          projectId,
+          employeeName,
+        },
+        rawTranscript,
+      };
+    }
     return {
       type: 'ADD_TASK',
       confidence: 0.9,
-      slots: { taskName, projectName, projectId },
+      slots: { taskName: titles[0], projectName, projectId },
       rawTranscript,
     };
   }

@@ -8,7 +8,7 @@ import type { PendingIntentConfirmation } from '@/components/intent/IntentConfir
 export type { PendingIntentConfirmation };
 
 function intentNeedsProject(intent: ParsedIntent): boolean {
-  if (intent.type === 'ADD_TASK') {
+  if (intent.type === 'ADD_TASK' || intent.type === 'BATCH_ADD_TASKS') {
     return !intent.slots.projectId?.trim() && !intent.slots.projectName?.trim();
   }
   if (intent.type === 'CREATE_CONTENT') {
@@ -95,7 +95,7 @@ export default function VoiceIntentConfirmModal({
               onChange={(e) => {
                 const id = e.target.value;
                 const p = projects.find((x) => x.id === id);
-                if (pending.intent.type === 'ADD_TASK') {
+                if (pending.intent.type === 'ADD_TASK' || pending.intent.type === 'BATCH_ADD_TASKS') {
                   onPatchSlots({ projectId: id, projectName: p?.name ?? '' });
                 } else if (pending.intent.type === 'CREATE_CONTENT') {
                   onPatchSlots({

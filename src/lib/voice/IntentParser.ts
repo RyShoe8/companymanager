@@ -20,6 +20,7 @@ export type IntentType =
     | 'UPDATE_PROJECT_DESCRIPTION'
     | 'RUN_COMMAND'
     | 'ADD_TASK'
+    | 'BATCH_ADD_TASKS'
     | 'RENAME_PROJECT'
     | 'RENAME_TASK'
     | 'SET_PROJECT_STATUS'
@@ -34,6 +35,17 @@ export interface ParsedIntent {
     confidence: number; // 0-1
     slots: Record<string, string>;
     rawTranscript: string;
+}
+
+/** Separator for BATCH_ADD_TASKS `titlesJoined` slot (unlikely in natural titles). */
+export const BATCH_TASK_TITLES_DELIM = '\u001f';
+
+export function joinBatchTaskTitles(titles: string[]): string {
+    return titles.map((t) => t.split(BATCH_TASK_TITLES_DELIM).join('')).join(BATCH_TASK_TITLES_DELIM);
+}
+
+export function splitBatchTaskTitles(joined: string): string[] {
+    return joined.split(BATCH_TASK_TITLES_DELIM).map((t) => t.trim()).filter(Boolean);
 }
 
 interface PatternRule {
