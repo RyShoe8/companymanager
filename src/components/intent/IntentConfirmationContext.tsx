@@ -57,6 +57,7 @@ export function IntentConfirmationProvider({
 }: IntentConfirmationProviderProps) {
   const [pending, setPending] = useState<PendingIntentConfirmation | null>(null);
   const executeRef = useRef(executeIntent);
+  const pendingCaptureRef = useRef<PendingIntentConfirmation | null>(null);
   executeRef.current = executeIntent;
 
   const presentConfirmation = useCallback((p: PendingIntentConfirmation) => {
@@ -81,14 +82,15 @@ export function IntentConfirmationProvider({
   }, []);
 
   const confirm = useCallback(async (): Promise<ExecuteResult | undefined> => {
-    let snapshot: PendingIntentConfirmation | null = null;
+    pendingCaptureRef.current = null;
     setPending((prev) => {
-      snapshot = prev;
+      pendingCaptureRef.current = prev;
       return null;
     });
-    if (!snapshot) return undefined;
-    const result = await Promise.resolve(executeRef.current(snapshot.intent));
-    onExecuted?.(result, { origin: snapshot.origin });
+    const snap = pendingCaptureRef.current;
+    if (!snap) return undefined;
+    const result = await Promise.resolve(executeRef.current(snap.intent));
+    onExecuted?.(result, { origin: snap.origin });
     return result;
   }, [onExecuted]);
 
