@@ -37,6 +37,7 @@ Rules:
 - If intent is assignment (assign, delegate, hand off, give task/project to someone), use assign_task / assign_project and never create_task.
 - For assign_task, put the existing task title in "title" and the assignee in "employee_name". Use "project_name" or "projectId" only as context disambiguation.
 - For assign_project, put project in "project_name" (or "projectId" when known) and assignee in "employee_name".
+- Preserve spoken assignee phrasing in "employee_name" (do not rewrite or normalize names); downstream matching handles spelling drift.
 - Use create_task only for creating a new task (verbs like add/create/new task), not for assignment verbs.
 - Prefer specific actions over generic ones when clear:
   - open task/project/content -> open_task/open_entity

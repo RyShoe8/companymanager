@@ -28,6 +28,7 @@ import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmati
 import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
 import { ParsedIntent } from '@/lib/voice/IntentParser';
 import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
+import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 
 interface WorkspaceShellProps {
     initialPhase?: PhaseType;
@@ -158,15 +159,44 @@ export default function WorkspaceShell({
             }
         };
 
-        const findEmployeeByVoice = (spoken: string) => {
-            const sn = normalize(spoken);
-            if (!sn) return null;
-            return (
-                ws.employees.find((e) => {
-                    const en = normalize(e.name);
-                    return en.includes(sn) || sn.includes(en);
-                }) ?? null
-            );
+        const findEmployeeByVoice = (spoken: string) => matchEmployeeByVoiceName(spoken, ws.employees);
+
+        const scoreBand = (score: number) => {
+            if (score >= 0.9) return 'high';
+            if (score >= 0.82) return 'medium';
+            return 'low';
+        };
+
+        const describeEmployeeMismatch = (spoken: string) => {
+            const outcome = findEmployeeByVoice(spoken);
+            if (outcome.kind === 'exact' || outcome.kind === 'fuzzy') {
+                console.log('[Voice] Employee match outcome', {
+                    category: outcome.kind,
+                    scoreBand: scoreBand(outcome.match.score),
+                });
+                return { employee: outcome.match.employee, error: null as string | null };
+            }
+
+            if (outcome.kind === 'ambiguous') {
+                const options = outcome.candidates
+                    .slice(0, 2)
+                    .map((c) => c.employee.name)
+                    .join(' or ');
+                console.log('[Voice] Employee match outcome', {
+                    category: 'ambiguous',
+                    scoreBand: scoreBand(outcome.candidates[0]?.score ?? 0),
+                });
+                return {
+                    employee: null,
+                    error: `Couldn’t confidently match "${spoken}". Did you mean ${options}?`,
+                };
+            }
+
+            console.log('[Voice] Employee match outcome', { category: 'none', scoreBand: 'none' });
+            return {
+                employee: null,
+                error: `Couldn’t confidently match employee "${spoken}". Try full first and last name.`,
+            };
         };
 
         const mapProjectStatus = (raw: string): IProject['status'] | null => {
@@ -533,8 +563,11 @@ export default function WorkspaceShell({
         if (intent.type === 'ASSIGN_PROJECT') {
             if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can assign projects' };
             const { projectName, employeeName } = intent.slots;
-            const emp = findEmployeeByVoice(employeeName);
-            if (!emp) return { success: false, message: `Could not find employee "${employeeName}"` };
+            const employeeResolution = describeEmployeeMismatch(employeeName);
+            if (!employeeResolution.employee) {
+                return { success: false, message: employeeResolution.error || 'Could not find employee' };
+            }
+            const emp = employeeResolution.employee;
             const searchName = normalize(projectName);
             const target = ws.allProjects.find(p => {
                 const pName = normalize(p.name);
@@ -555,8 +588,11 @@ export default function WorkspaceShell({
         if (intent.type === 'ASSIGN_TASK') {
             if (!ws.isManagerOrAdmin) return { success: false, message: 'Only managers can assign tasks' };
             const { taskName, employeeName, context } = intent.slots;
-            const emp = findEmployeeByVoice(employeeName);
-            if (!emp) return { success: false, message: `Could not find employee "${employeeName}"` };
+            const employeeResolution = describeEmployeeMismatch(employeeName);
+            if (!employeeResolution.employee) {
+                return { success: false, message: employeeResolution.error || 'Could not find employee' };
+            }
+            const emp = employeeResolution.employee;
             const ctx = context?.trim() ? context : null;
             const m = matchTaskInProjects(ws.allProjects, normalize, taskName, ctx, { allowCompleted: true });
             if (!m) return { success: false, message: `Could not find task "${taskName}"` };
