@@ -674,7 +674,8 @@ export default function CalendarView({
                                             e.stopPropagation();
                                             if (tIdx >= 0) onTaskClick?.(project, tIdx);
                                           }}
-                                          className={`text-sm text-white text-left w-full hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                          className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                          title={item.task.name}
                                         >
                                           {item.task.name}
                                         </button>
@@ -986,13 +987,13 @@ export default function CalendarView({
                       title={`${name} ${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                     >
                       <div
-                        className="flex items-start justify-between cursor-pointer p-6"
+                        className="flex items-start justify-between cursor-pointer p-6 min-w-0 gap-2"
                         onClick={() => onProjectClick(pos.project!)}
                       >
-                        <h4 className={`text-xl font-bold text-white ${status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                        <h4 className={`text-xl font-bold text-white min-w-0 flex-1 break-words ${status === 'completed' ? 'line-through opacity-60' : ''}`}>
                           {name}
                         </h4>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           {(() => {
                             const project = pos.project;
                             const hasTasks = project.tasks && project.tasks.length > 0;
@@ -1050,7 +1051,8 @@ export default function CalendarView({
                                             e.stopPropagation();
                                             if (tIdx >= 0) onTaskClick?.(project, tIdx);
                                           }}
-                                          className={`text-sm text-white text-left w-full hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                          className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                          title={item.task.name}
                                         >
                                           {item.task.name}
                                         </button>
@@ -1074,6 +1076,23 @@ export default function CalendarView({
                                     </button>
                                   )}
                                 </div>
+                              </div>
+                            );
+                          }
+                          if ((project.tasks?.length ?? 0) > 0) {
+                            return (
+                              <div className="px-6 pb-6">
+                                <p className="text-xs text-white/90">No tasks this week.</p>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                  }}
+                                  className="text-xs text-white underline mt-1 hover:opacity-100 opacity-90"
+                                >
+                                  View all
+                                </button>
                               </div>
                             );
                           }
@@ -1115,6 +1134,25 @@ export default function CalendarView({
                                 return taskStart <= weekEnd && taskEnd >= weekStart;
                               });
 
+                              if (visibleTasks.length === 0 && project.tasks!.length > 0) {
+                                return (
+                                  <div className="mt-4 px-6 pb-6">
+                                    <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
+                                    <p className="text-sm text-text-secondary mb-2">No tasks scheduled this week.</p>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                      }}
+                                      className="text-sm text-primary hover:underline"
+                                    >
+                                      View all
+                                    </button>
+                                  </div>
+                                );
+                              }
+
                               const displayedTasks = visibleTasks.slice(0, 3); // Limit to 3 tasks for better fit in weekly view
 
                               return (
@@ -1131,9 +1169,9 @@ export default function CalendarView({
                                             e.stopPropagation();
                                             if (tIdx >= 0) onTaskClick?.(project, tIdx);
                                           }}
-                                          className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer min-h-[112px]"
+                                          className="w-full min-w-0 text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer min-h-[112px]"
                                         >
-                                          <div className={`font-medium text-text-primary ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                          <div className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`} title={task.name}>{task.name}</div>
                                           {task.description && (
                                             <p className="text-sm text-text-secondary mt-1 max-h-10 overflow-hidden">{task.description}</p>
                                           )}
@@ -1375,7 +1413,7 @@ export default function CalendarView({
     );
   };
 
-  // Quarterly View - Each month as a large box on its own row
+  // Quarterly View — three month summary panels (same spirit as yearly view)
   const renderQuarterlyView = () => {
     const months: Date[][] = [];
     const quarter = Math.floor(viewDate.getMonth() / 3);
@@ -1387,225 +1425,54 @@ export default function CalendarView({
       months.push([monthStart, monthEnd]);
     }
 
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
     return (
-      <div className="space-y-6 p-6">
-        {months.map(([monthStart, monthEnd], idx) => {
-          const monthProjects = sortProjectsByLatestUpdate(projects.filter((p) => {
-            // Projects don't have startDate - use createdAt or earliest task startDate
-            let pStart: Date;
-            if (p.tasks && p.tasks.length > 0) {
-              const earliestTask = p.tasks.reduce((earliest, task) => {
-                return new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest;
-              });
-              pStart = new Date(earliestTask.startDate);
-            } else {
-              pStart = new Date(p.createdAt);
-            }
-            const pEnd = p.endDate ? new Date(p.endDate) : new Date(pStart.getTime() + 30 * 24 * 60 * 60 * 1000); // Default to 30 days if no endDate
-            return pStart <= monthEnd && pEnd >= monthStart;
-          }));
+      <div className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {months.map(([monthStart, monthEnd], idx) => {
+            const monthProjects = sortProjectsByLatestUpdate(
+              projects.filter((p) => {
+                let pStart: Date;
+                if (p.tasks && p.tasks.length > 0) {
+                  const earliestTask = p.tasks.reduce((earliest, task) =>
+                    new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest
+                  );
+                  pStart = new Date(earliestTask.startDate);
+                } else {
+                  pStart = new Date(p.createdAt);
+                }
+                const pEnd = p.endDate ? new Date(p.endDate) : new Date(pStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+                return pStart <= monthEnd && pEnd >= monthStart;
+              })
+            );
 
-          // Get first day of month and adjust to Monday
-          const firstDay = monthStart.getDay();
-          const mondayOffset = firstDay === 0 ? 6 : firstDay - 1;
-          const calendarStart = new Date(monthStart);
-          calendarStart.setDate(calendarStart.getDate() - mondayOffset);
-
-          // Get last day of month and adjust to Sunday
-          const lastDay = monthEnd.getDay();
-          const sundayOffset = lastDay === 0 ? 0 : 7 - lastDay;
-          const calendarEnd = new Date(monthEnd);
-          calendarEnd.setDate(calendarEnd.getDate() + sundayOffset);
-
-          const days: Date[] = [];
-          const current = new Date(calendarStart);
-          while (current <= calendarEnd) {
-            days.push(new Date(current));
-            current.setDate(current.getDate() + 1);
-          }
-
-          const weeks: Date[][] = [];
-          for (let i = 0; i < days.length; i += 7) {
-            weeks.push(days.slice(i, i + 7));
-          }
-
-          return (
-            <div
-              key={idx}
-              className="bg-background rounded-lg border border-border p-6 min-h-[400px]"
-            >
-              <h3 className="text-xl font-semibold text-text-primary mb-4">
-                {monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </h3>
-              <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 mb-2">
-                {dayNames.map((day) => (
-                  <div
-                    key={day}
-                    className="p-2 text-center text-sm font-semibold text-text-secondary"
-                  >
-                    {day}
-                  </div>
-                ))}
+            return (
+              <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+                <h3 className="text-lg font-semibold text-text-primary mb-3">
+                  {monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                </h3>
+                <div className="space-y-2">
+                  {monthProjects.map((project) => {
+                    const projectColor = project.status === 'in-review' ? '#ef4444' : project.color;
+                    return (
+                      <div
+                        key={project._id.toString()}
+                        onClick={() => onProjectClick(project)}
+                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                        style={{
+                          backgroundColor: projectColor,
+                          color: 'white',
+                        }}
+                        title={project.name}
+                      >
+                        <div className="font-medium truncate">{project.name}</div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="divide-y divide-gray-200 dark:divide-gray-700 relative">
-                {weeks.map((week, weekIdx) => (
-                  <div key={weekIdx} className="grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 min-h-[130px] relative">
-                    {week.map((day, dayIdx) => {
-                      const inMonth = day.getMonth() === monthStart.getMonth();
-                      const isCurrentDay = isToday(day);
-
-                      return (
-                        <div
-                          key={dayIdx}
-                          className={`p-2 relative ${!inMonth ? 'bg-background opacity-50' : ''} ${isCurrentDay ? 'bg-primary-light' : ''
-                            }`}
-                        >
-                          <div className={`text-sm font-medium mb-1 ${isCurrentDay ? 'text-primary' : 'text-text-primary'
-                            }`}>
-                            {day.getDate()}
-                          </div>
-                          <div className="space-y-1 min-h-[110px]" style={{ position: 'relative' }}>
-                            {/* Projects will be rendered as absolute positioned elements */}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {/* Render projects spanning across days */}
-                    {(() => {
-                      // Get all unique projects for this week
-                      const weekProjects = new Map<string, IProject>();
-                      week.forEach(day => {
-                        getProjectsForDay(day).forEach(project => {
-                          weekProjects.set(project._id.toString(), project);
-                        });
-                      });
-
-                      const allItems: Array<{ type: 'project'; project: IProject; startDate: Date; endDate: Date }> = [];
-
-                      // Add projects - projects span the full week since they have no dates
-                      const weekStart = new Date(week[0]);
-                      weekStart.setHours(0, 0, 0, 0);
-                      const weekEnd = new Date(week[6]);
-                      weekEnd.setHours(23, 59, 59, 999);
-
-                      Array.from(weekProjects.values()).forEach(project => {
-                        // Projects always exist - they span the full visible timeframe
-                        allItems.push({
-                          type: 'project',
-                          project: project,
-                          startDate: weekStart,
-                          endDate: weekEnd,
-                        });
-                      });
-
-                      // Calculate positions for each item with stacking
-                      const itemPositions = allItems.map((item) => {
-                        const itemStart = item.startDate;
-                        const itemEnd = item.endDate;
-
-                        // Find the first day in the week that overlaps with the item
-                        const weekStart = new Date(week[0]);
-                        weekStart.setHours(0, 0, 0, 0);
-                        const weekEnd = new Date(week[6]);
-                        weekEnd.setHours(23, 59, 59, 999);
-
-                        // Item start is either the item's actual start or the week start, whichever is later
-                        const displayStart = itemStart < weekStart ? weekStart : itemStart;
-                        // Item end is either the item's actual end or the week end, whichever is earlier
-                        const displayEnd = itemEnd > weekEnd ? weekEnd : itemEnd;
-
-                        const startCol = week.findIndex(d => {
-                          const dayStart = new Date(d);
-                          dayStart.setHours(0, 0, 0, 0);
-                          const dayEnd = new Date(d);
-                          dayEnd.setHours(23, 59, 59, 999);
-                          return displayStart >= dayStart && displayStart <= dayEnd;
-                        });
-                        if (startCol === -1) return null;
-
-                        // Normalize dates to midnight for accurate day-only comparison
-                        const startDayNormalized = new Date(displayStart);
-                        startDayNormalized.setHours(0, 0, 0, 0);
-                        const endDayNormalized = new Date(displayEnd);
-                        endDayNormalized.setHours(0, 0, 0, 0);
-                        const startDay = startDayNormalized.toDateString();
-                        const endDay = endDayNormalized.toDateString();
-                        // For inclusive dates: Jan 19 to Jan 20 = 2 days (19th and 20th)
-                        const daysInWeek = startDay === endDay ? 1 : Math.floor((endDayNormalized.getTime() - startDayNormalized.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                        const span = Math.min(daysInWeek, 7 - startCol);
-
-                        return {
-                          ...item,
-                          startCol,
-                          span,
-                          displayStart,
-                          displayEnd,
-                        };
-                      }).filter((pos): pos is NonNullable<typeof pos> => pos !== null);
-
-                      // Calculate vertical stacking positions
-                      const stackPositions: number[] = new Array(itemPositions.length).fill(0);
-                      const rowHeight = 18; // Height of each row in pixels
-                      const baseTop = 24; // Base top position
-
-                      for (let i = 0; i < itemPositions.length; i++) {
-                        const current = itemPositions[i];
-                        let stackLevel = 0;
-
-                        // Check all previous items to see if they overlap
-                        for (let j = 0; j < i; j++) {
-                          const previous = itemPositions[j];
-                          // Check if items overlap in time
-                          if (current.displayStart <= previous.displayEnd && current.displayEnd >= previous.displayStart) {
-                            // They overlap, so this item needs to be on a higher stack level
-                            stackLevel = Math.max(stackLevel, stackPositions[j] + 1);
-                          }
-                        }
-
-                        stackPositions[i] = stackLevel;
-                      }
-
-                      return itemPositions.map((pos, posIdx) => {
-                        const topPosition = baseTop + (stackPositions[posIdx] * rowHeight);
-                        const status = pos.project!.status;
-                        const baseColor = pos.project?.color || '#3b82f6';
-                        const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
-                        const name = pos.project!.name;
-                        const estimatedHours = getProjectEstimatedHours(pos.project!);
-                        const assignedToId = (pos.project! as any).assignedToEmployeeId?.toString();
-                        const assignedToName = pos.project!.assignedTo;
-                        const assignedTo = getEmployeeName(assignedToId, assignedToName);
-
-                        return (
-                          <div
-                            key={`${pos.project!._id.toString()}-q${idx}-w${weekIdx}`}
-                            onClick={() => onProjectClick(pos.project!)}
-                            className={`absolute text-xs px-1 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
-                            style={{
-                              backgroundColor: color,
-                              color: 'white',
-                              left: `calc(${pos.startCol * (100 / 7)}% + ${pos.startCol * 1}px)`,
-                              width: `calc(${pos.span * (100 / 7)}% - ${pos.span * 1}px)`,
-                              top: `${topPosition}px`,
-                              height: `${rowHeight - 2}px`,
-                              overflow: 'hidden',
-                              lineHeight: `${rowHeight - 2}px`,
-                            }}
-                            title={`${name}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
-                          >
-                            <div className="font-medium truncate">{name}</div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -1665,7 +1532,7 @@ export default function CalendarView({
   };
 
   return (
-    <div className="bg-background-card rounded-lg border border-border overflow-hidden">
+    <div className="bg-background-card rounded-lg border border-border overflow-x-auto overflow-y-visible">
       {/* Calendar Header with Navigation */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         <div className="flex items-center gap-2">

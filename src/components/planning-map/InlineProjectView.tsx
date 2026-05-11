@@ -152,6 +152,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const saveStatusRef = useRef(saveStatus);
   saveStatusRef.current = saveStatus;
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
+  /** After adding a task, scroll its row into view once state settles. */
+  const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
   const [credentialSheet, setCredentialSheet] = useState<{
     index: number;
@@ -453,6 +455,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     });
   }, [initialOpenTaskIndex, project._id, project.tasks, onInitialOpenTaskConsumed]);
 
+  useEffect(() => {
+    if (pendingScrollToTaskIndex == null) return;
+    const idx = pendingScrollToTaskIndex;
+    const tasks = localProject.tasks || [];
+    if (idx < 0 || idx >= tasks.length) return;
+    setPendingScrollToTaskIndex(null);
+    requestAnimationFrame(() => {
+      document.getElementById(`inspector-task-row-${idx}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }, [localProject.tasks, pendingScrollToTaskIndex]);
+
   // Fetch project action buttons (smart buttons)
   useEffect(() => {
     const fetchButtons = async () => {
@@ -605,7 +618,26 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
   const handleAddTask = async () => {
     const newTask = { name: 'New Task', description: '', status: 'active' as TaskStatus, startDate: new Date(), endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), estimatedHours: 0, assignedTo: '' };
-    await onUpdate({ tasks: [...(localProject.tasks || []), newTask] });
+    const prevTasks = localProject.tasks || [];
+    const nextTasks = [...prevTasks, newTask];
+    const newIdx = nextTasks.length - 1;
+    setSaveStatus('saving');
+    setLocalProject((prev) => ({ ...prev, tasks: nextTasks } as IProject));
+    try {
+      await onUpdate({ tasks: nextTasks });
+      setSaveStatus('saved');
+      clearSaveStatusAfterDelay();
+      setViewTab('tasks');
+      setExpandedSections((prev) => new Set(prev).add('tasks'));
+      setPendingScrollToTaskIndex(newIdx);
+    } catch (error) {
+      console.error('Error adding task:', error);
+      setLocalProject(project);
+      setPendingScrollToTaskIndex(null);
+      setSaveStatus('failed');
+      clearSaveStatusAfterDelay('failed');
+      alert(error instanceof Error ? error.message : 'Failed to save');
+    }
   };
 
   const statusOptions = [{ value: 'planning', label: 'Planning', color: '#3b82f6' }, { value: 'in-development', label: 'Building', color: '#22c55e' }, { value: 'launched', label: 'Running', color: '#a855f7' }, { value: 'completed', label: 'Completed', color: '#10b981' }];

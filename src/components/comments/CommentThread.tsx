@@ -73,7 +73,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
   const loadScreenshots = async () => {
     try {
       let url = '/api/assets?type=screenshot';
-      if (entityType === 'project') {
+      if (entityType === 'project' || entityType === 'projectTask') {
         url += `&linkedProjectId=${entityId}`;
         if (taskId) {
           url += `&linkedProjectTaskId=${taskId}`;
@@ -114,7 +114,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
         formData.append('name', file.name.replace(/\.[^/.]+$/, '') || 'Screenshot');
         formData.append('type', 'screenshot');
 
-        if (entityType === 'project') {
+        if (entityType === 'project' || entityType === 'projectTask') {
           formData.append('linkedProjectId', entityId);
           if (taskId) {
             formData.append('linkedProjectTaskId', taskId);

@@ -984,7 +984,7 @@ export default function WorkspaceShell({
                         <div className="flex-1 min-w-0">
                             {ws.lens === 'schedule' && (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                                    <div className="xl:col-span-2">
+                                    <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <ScheduleLens
                                             projects={ws.filteredProjects}
                                             contentItems={ws.contentItems}
