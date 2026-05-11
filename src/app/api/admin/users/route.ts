@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
           id: u._id.toString(),
           email: u.email,
           name: u.name || 'N/A',
+          organizationId: u.organizationId ? String(u.organizationId) : 'unknown',
           organizationName,
           organizationDomain,
           createdAt: u.createdAt,

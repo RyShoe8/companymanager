@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -9,10 +9,51 @@ interface User {
   id: string;
   email: string;
   name: string;
+  organizationId: string;
   organizationName: string;
   organizationDomain: string | null;
   createdAt: string;
   isAdmin: boolean;
+}
+
+interface OrgGroup {
+  organizationId: string;
+  displayName: string;
+  domain: string | null;
+  members: User[];
+}
+
+function buildOrgGroups(users: User[]): OrgGroup[] {
+  const map = new Map<string, User[]>();
+  for (const u of users) {
+    const key = u.organizationId || 'unknown';
+    const list = map.get(key) ?? [];
+    list.push(u);
+    map.set(key, list);
+  }
+
+  const groups: OrgGroup[] = [];
+  for (const [organizationId, members] of map) {
+    const sortedMembers = [...members].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const primary = sortedMembers[0];
+    const displayName =
+      sortedMembers.find((m) => m.organizationName && m.organizationName !== 'N/A')?.organizationName ??
+      primary.organizationName ??
+      'Unknown organization';
+    const domain =
+      sortedMembers.find((m) => m.organizationDomain)?.organizationDomain ?? null;
+    groups.push({ organizationId, displayName, domain, members: sortedMembers });
+  }
+
+  groups.sort((a, b) => {
+    const nameCmp = a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' });
+    if (nameCmp !== 0) return nameCmp;
+    return a.organizationId.localeCompare(b.organizationId);
+  });
+
+  return groups;
 }
 
 export default function AdminPage() {
@@ -23,6 +64,8 @@ export default function AdminPage() {
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  /** Org IDs in this set have their member list collapsed (empty set = all expanded). */
+  const [collapsedOrgIds, setCollapsedOrgIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -36,15 +79,30 @@ export default function AdminPage() {
           throw new Error('Failed to fetch users');
         }
         const data = await response.json();
-        setUsers(data.users);
+        const list: User[] = (data.users || []).map((u: User) => ({
+          ...u,
+          organizationId: u.organizationId ?? 'unknown',
+        }));
+        setUsers(list);
         setTotalUsers(data.totalUsers);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load users');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to load users');
       } finally {
         setLoading(false);
       }
     };
     fetchUsers();
+  }, []);
+
+  const orgGroups = useMemo(() => buildOrgGroups(users), [users]);
+
+  const toggleOrgCollapsed = useCallback((organizationId: string) => {
+    setCollapsedOrgIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(organizationId)) next.delete(organizationId);
+      else next.add(organizationId);
+      return next;
+    });
   }, []);
 
   const handleToggleAdmin = async (userId: string, currentStatus: boolean, userEmail: string) => {
@@ -66,12 +124,11 @@ export default function AdminPage() {
         throw new Error(data.error || 'Failed to update user');
       }
 
-      // Update user in list
-      setUsers(users.map(u => 
-        u.id === userId ? { ...u, isAdmin: !currentStatus } : u
-      ));
-    } catch (err: any) {
-      alert(err.message || 'Failed to update user');
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, isAdmin: !currentStatus } : u))
+      );
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update user');
     } finally {
       setUpdatingId(null);
     }
@@ -93,11 +150,10 @@ export default function AdminPage() {
         throw new Error(data.error || 'Failed to delete user');
       }
 
-      // Remove user from list
-      setUsers(users.filter(u => u.id !== userId));
-      setTotalUsers(totalUsers - 1);
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete user');
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setTotalUsers((n) => n - 1);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to delete user');
     } finally {
       setDeletingId(null);
     }
@@ -148,178 +204,238 @@ export default function AdminPage() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-xl font-semibold text-text-primary mb-4">All Users</h2>
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Email</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Name</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Organization</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Domain</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Joined</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">Role</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-text-secondary">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-text-secondary">
-                      No users found
-                    </td>
-                  </tr>
-                ) : (
-                  users.map((user) => (
-                    <tr key={user.id} className="border-b border-border hover:bg-background">
-                      <td className="py-3 px-4 text-sm text-text-primary">{user.email}</td>
-                      <td className="py-3 px-4 text-sm text-text-primary">{user.name}</td>
-                      <td className="py-3 px-4 text-sm text-text-primary">{user.organizationName}</td>
-                      <td className="py-3 px-4 text-sm text-text-primary">
-                        {user.organizationDomain ? (
+          <h2 className="text-xl font-semibold text-text-primary mb-4">Users by organization</h2>
+
+          {users.length === 0 ? (
+            <div className="text-center py-8 text-text-secondary">No users found</div>
+          ) : (
+            <div className="space-y-4">
+              {orgGroups.map((group) => {
+                const isCollapsed = collapsedOrgIds.has(group.organizationId);
+                const memberCount = group.members.length;
+
+                return (
+                  <div
+                    key={group.organizationId}
+                    className="border border-border rounded-lg overflow-hidden bg-background-card/30"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleOrgCollapsed(group.organizationId)}
+                      aria-expanded={!isCollapsed}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                    >
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
+                        <span className="text-lg font-semibold text-text-primary truncate">
+                          {group.displayName}
+                        </span>
+                        {group.domain && (
                           <a
-                            href={`https://${user.organizationDomain}`}
+                            href={`https://${group.domain}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary hover:text-primary-hover"
+                            className="text-sm text-primary hover:text-primary-hover shrink-0"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {user.organizationDomain}
+                            {group.domain}
                           </a>
-                        ) : (
-                          <span className="text-text-secondary">—</span>
                         )}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-text-secondary">
-                        {new Date(user.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        {user.isAdmin ? (
-                          <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
-                            Admin
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 rounded bg-border text-text-secondary text-xs font-medium">
-                            User
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() => handleToggleAdmin(user.id, user.isAdmin, user.email)}
-                            disabled={updatingId === user.id}
-                            className={`text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 ${
-                              user.isAdmin
-                                ? 'bg-warning-light text-warning-dark hover:bg-warning'
-                                : 'bg-primary-light text-primary-dark hover:bg-primary'
-                            }`}
-                          >
-                            {updatingId === user.id 
-                              ? 'Updating...' 
-                              : user.isAdmin 
-                                ? 'Remove Admin' 
-                                : 'Make Admin'
-                            }
-                          </button>
-                          {!user.isAdmin && (
-                            <button
-                              onClick={() => handleDelete(user.id, user.email)}
-                              disabled={deletingId === user.id}
-                              className="text-error hover:text-error-dark transition-colors disabled:opacity-50"
-                            >
-                              {deletingId === user.id ? 'Deleting...' : 'Delete'}
-                            </button>
-                          )}
+                        <span className="text-sm text-text-secondary">
+                          {memberCount} user{memberCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <span className="text-text-secondary shrink-0" aria-hidden>
+                        {isCollapsed ? '▶' : '▼'}
+                      </span>
+                    </button>
+
+                    {!isCollapsed && (
+                      <>
+                        {/* Desktop */}
+                        <div className="hidden md:block overflow-x-auto border-t border-border">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/20">
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">
+                                  Email
+                                </th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">
+                                  Name
+                                </th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">
+                                  Domain
+                                </th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">
+                                  Joined
+                                </th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-text-secondary">
+                                  Role
+                                </th>
+                                <th className="text-right py-3 px-4 text-sm font-semibold text-text-secondary">
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.members.map((user) => (
+                                <tr key={user.id} className="border-b border-border hover:bg-background">
+                                  <td className="py-3 px-4 text-sm text-text-primary">{user.email}</td>
+                                  <td className="py-3 px-4 text-sm text-text-primary">{user.name}</td>
+                                  <td className="py-3 px-4 text-sm text-text-primary">
+                                    {user.organizationDomain ? (
+                                      <a
+                                        href={`https://${user.organizationDomain}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:text-primary-hover"
+                                      >
+                                        {user.organizationDomain}
+                                      </a>
+                                    ) : (
+                                      <span className="text-text-secondary">—</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4 text-sm text-text-secondary">
+                                    {new Date(user.createdAt).toLocaleDateString()}
+                                  </td>
+                                  <td className="py-3 px-4 text-sm">
+                                    {user.isAdmin ? (
+                                      <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
+                                        Admin
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-1 rounded bg-border text-text-secondary text-xs font-medium">
+                                        User
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-4 text-sm text-right">
+                                    <div className="flex items-center justify-end gap-3">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleToggleAdmin(user.id, user.isAdmin, user.email)
+                                        }
+                                        disabled={updatingId === user.id}
+                                        className={`text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 ${
+                                          user.isAdmin
+                                            ? 'bg-warning-light text-warning-dark hover:bg-warning'
+                                            : 'bg-primary-light text-primary-dark hover:bg-primary'
+                                        }`}
+                                      >
+                                        {updatingId === user.id
+                                          ? 'Updating...'
+                                          : user.isAdmin
+                                            ? 'Remove Admin'
+                                            : 'Make Admin'}
+                                      </button>
+                                      {!user.isAdmin && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDelete(user.id, user.email)}
+                                          disabled={deletingId === user.id}
+                                          className="text-error hover:text-error-dark transition-colors disabled:opacity-50"
+                                        >
+                                          {deletingId === user.id ? 'Deleting...' : 'Delete'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {/* Mobile Card View */}
-          <div className="md:hidden space-y-4">
-            {users.length === 0 ? (
-              <div className="text-center py-8 text-text-secondary">
-                No users found
-              </div>
-            ) : (
-              users.map((user) => (
-                <Card key={user.id} className="p-4">
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-xs font-semibold text-text-secondary mb-1">Email</div>
-                      <div className="text-sm text-text-primary">{user.email}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-text-secondary mb-1">Name</div>
-                      <div className="text-sm text-text-primary">{user.name}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-text-secondary mb-1">Organization</div>
-                      <div className="text-sm text-text-primary">{user.organizationName}</div>
-                    </div>
-                    {user.organizationDomain && (
-                      <div>
-                        <div className="text-xs font-semibold text-text-secondary mb-1">Domain</div>
-                        <a
-                          href={`https://${user.organizationDomain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary hover:text-primary-hover"
-                        >
-                          {user.organizationDomain}
-                        </a>
-                      </div>
+
+                        {/* Mobile */}
+                        <div className="md:hidden border-t border-border p-3 space-y-3 bg-muted/10">
+                          {group.members.map((user) => (
+                            <Card key={user.id} className="p-4">
+                              <div className="space-y-3">
+                                <div>
+                                  <div className="text-xs font-semibold text-text-secondary mb-1">
+                                    Email
+                                  </div>
+                                  <div className="text-sm text-text-primary">{user.email}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs font-semibold text-text-secondary mb-1">
+                                    Name
+                                  </div>
+                                  <div className="text-sm text-text-primary">{user.name}</div>
+                                </div>
+                                {user.organizationDomain && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-text-secondary mb-1">
+                                      Domain
+                                    </div>
+                                    <a
+                                      href={`https://${user.organizationDomain}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm text-primary hover:text-primary-hover"
+                                    >
+                                      {user.organizationDomain}
+                                    </a>
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between pt-2 border-t border-border">
+                                  <div>
+                                    <div className="text-xs font-semibold text-text-secondary mb-1">
+                                      Role
+                                    </div>
+                                    {user.isAdmin ? (
+                                      <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
+                                        Admin
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-1 rounded bg-border text-text-secondary text-xs font-medium">
+                                        User
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleToggleAdmin(user.id, user.isAdmin, user.email)
+                                      }
+                                      disabled={updatingId === user.id}
+                                      className={`text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50 ${
+                                        user.isAdmin
+                                          ? 'bg-warning-light text-warning-dark hover:bg-warning'
+                                          : 'bg-primary-light text-primary-dark hover:bg-primary'
+                                      }`}
+                                    >
+                                      {updatingId === user.id
+                                        ? 'Updating...'
+                                        : user.isAdmin
+                                          ? 'Remove Admin'
+                                          : 'Make Admin'}
+                                    </button>
+                                    {!user.isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDelete(user.id, user.email)}
+                                        disabled={deletingId === user.id}
+                                        className="text-xs px-3 py-1.5 rounded text-error hover:bg-error-light transition-colors disabled:opacity-50"
+                                      >
+                                        {deletingId === user.id ? 'Deleting...' : 'Delete'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </>
                     )}
-                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                      <div>
-                        <div className="text-xs font-semibold text-text-secondary mb-1">Role</div>
-                        {user.isAdmin ? (
-                          <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
-                            Admin
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 rounded bg-border text-text-secondary text-xs font-medium">
-                            User
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleToggleAdmin(user.id, user.isAdmin, user.email)}
-                          disabled={updatingId === user.id}
-                          className={`text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50 ${
-                            user.isAdmin
-                              ? 'bg-warning-light text-warning-dark hover:bg-warning'
-                              : 'bg-primary-light text-primary-dark hover:bg-primary'
-                          }`}
-                        >
-                          {updatingId === user.id 
-                            ? 'Updating...' 
-                            : user.isAdmin 
-                              ? 'Remove Admin' 
-                              : 'Make Admin'
-                          }
-                        </button>
-                        {!user.isAdmin && (
-                          <button
-                            onClick={() => handleDelete(user.id, user.email)}
-                            disabled={deletingId === user.id}
-                            className="text-xs px-3 py-1.5 rounded text-error hover:bg-error-light transition-colors disabled:opacity-50"
-                          >
-                            {deletingId === user.id ? 'Deleting...' : 'Delete'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
                   </div>
-                </Card>
-              ))
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
     </div>
