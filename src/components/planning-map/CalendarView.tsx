@@ -5,6 +5,7 @@ import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, formatDate, getTimeframeRange } from '@/lib/utils/dateUtils';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
+import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import Button from '@/components/ui/Button';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 
@@ -302,7 +303,7 @@ export default function CalendarView({
     const projectIdStr = project._id.toString();
 
     const taskItems: TimeframeTaskItem[] = [];
-    if (showTasks && project.tasks && project.status !== 'launched') {
+    if (showTasks && project.tasks) {
       project.tasks.forEach((task) => {
         const taskStart = new Date((task as any).startDate);
         taskStart.setHours(0, 0, 0, 0);
@@ -558,7 +559,7 @@ export default function CalendarView({
                               className="px-3 py-1 rounded-full text-sm font-medium text-white"
                               style={{ backgroundColor: displayColor }}
                             >
-                              {project.status}
+                              {getProjectStatusDisplayLabel(project.status)}
                             </span>
                             {hasTasks && (
                               <button
@@ -1014,7 +1015,7 @@ export default function CalendarView({
                             className="px-3 py-1 rounded-full text-sm font-medium text-white"
                             style={{ backgroundColor: displayColor }}
                           >
-                            {status}
+                            {getProjectStatusDisplayLabel(status)}
                           </span>
                         </div>
                       </div>

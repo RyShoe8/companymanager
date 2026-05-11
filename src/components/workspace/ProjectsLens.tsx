@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { IProject } from '@/lib/models/Project';
-import { mapStatusToStage } from '@/lib/utils/statusMapping';
+import { getProjectStatusDisplayLabel, mapStatusToStage } from '@/lib/utils/statusMapping';
 
 interface ProjectsLensProps {
     projects: IProject[];
@@ -160,7 +160,7 @@ export default function ProjectsLens({
                                 {/* Badges */}
                                 <div className="flex flex-wrap items-center gap-2 mb-3">
                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
-                                        {project.status.replace('-', ' ')}
+                                        {getProjectStatusDisplayLabel(project.status)}
                                     </span>
                                     <span
                                         className="px-2 py-0.5 rounded text-xs font-medium"

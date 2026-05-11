@@ -5,6 +5,24 @@
 export type ProjectStage = 'Plan' | 'Build' | 'Run';
 export type BackendProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
 
+/** User-facing labels aligned with project inspector (InlineProjectView / ProjectForm). */
+export function getProjectStatusDisplayLabel(status: string): string {
+  switch (status) {
+    case 'planning':
+      return 'Planning';
+    case 'in-development':
+      return 'Building';
+    case 'launched':
+      return 'Running';
+    case 'completed':
+      return 'Completed';
+    case 'in-review':
+      return 'In Review';
+    default:
+      return status.replace(/-/g, ' ');
+  }
+}
+
 /**
  * Map backend status to frontend stage
  */

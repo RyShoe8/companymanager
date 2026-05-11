@@ -220,7 +220,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     // NOTE: Projects no longer have startDate/endDate - only tasks do
     employeeProjects.forEach((project) => {
       // Skip completed projects - they don't count toward committed hours
-      if (project.status === 'launched') return;
+      if (project.status === 'completed') return;
 
       // Calculate task hours assigned to this employee (count independently of project hours)
       let hasEmployeeTasks = false;
@@ -316,7 +316,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     const employeeProjects = getProjectsForEmployeeCalc(employee);
 
     employeeProjects.forEach((project) => {
-      if (project.status === 'launched') return; // Skip completed projects
+      if (project.status === 'completed') return;
       const stage = getProjectStage(project.status);
 
       let taskHoursInRange = 0;
