@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/services/email';
 import { escapeHtml, isValidEmail, sanitizeString } from '@/lib/utils/security';
+import connectDB from '@/lib/db/mongodb';
+import FeedbackSubmission from '@/lib/models/FeedbackSubmission';
 
 export async function POST(request: NextRequest) {
   try {
@@ -82,6 +84,21 @@ export async function POST(request: NextRequest) {
         subject: emailSubject,
         html: emailBody,
       });
+
+      try {
+        await connectDB();
+        await FeedbackSubmission.create({
+          type: type as 'Bug' | 'Feature Request' | 'Other',
+          subject,
+          message,
+          name,
+          email,
+          source: 'contact',
+          status: 'new',
+        });
+      } catch {
+        // Best-effort persistence; email already succeeded
+      }
 
       return NextResponse.json(
         { message: 'Message sent successfully' },

@@ -23,6 +23,7 @@ import Toggle from '@/components/ui/Toggle';
 import CommandRegistry from '@/lib/commands/CommandRegistry';
 import CommandPalette from '@/components/workspace/CommandPalette';
 import VoiceProvider from '@/components/voice/VoiceProvider';
+import FeedbackLauncher from '@/components/feedback/FeedbackLauncher';
 import VoiceOverlay, { VoiceButton } from '@/components/voice/VoiceOverlay';
 import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmationContext';
 import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
@@ -1158,6 +1159,7 @@ export default function WorkspaceShell({
                         workspaceIntentContext={workspaceIntentContext}
                         nlError={paletteNlError}
                     />
+                    <FeedbackLauncher />
                         <VoiceOverlay />
                     </div>
                 </div>
