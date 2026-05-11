@@ -586,12 +586,6 @@ export default function CalendarView({
                               <div className="text-sm text-white opacity-90">
                                 <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
                               </div>
-
-                              {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
-                                <div className="text-sm text-white opacity-90">
-                                  <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
-                                </div>
-                              )}
                             </div>
                           </>
                         )}
@@ -1113,12 +1107,6 @@ export default function CalendarView({
                               <div className="text-sm text-white opacity-90">
                                 <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
                               </div>
-
-                              {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo) && (
-                                <div className="text-sm text-white opacity-90">
-                                  <strong>Assigned To:</strong> {getEmployeeName((project as any).assignedToEmployeeId?.toString(), project.assignedTo)}
-                                </div>
-                              )}
                             </div>
 
                             {hasTasks && (() => {

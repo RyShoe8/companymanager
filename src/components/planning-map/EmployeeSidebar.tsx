@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
-import { IProject } from '@/lib/models/Project';
+import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, getTimeframeRange, formatDate } from '@/lib/utils/dateUtils';
 import Card from '@/components/ui/Card';
@@ -16,6 +16,19 @@ interface EmployeeSidebarProps {
   currentDate: Date;
   currentUserRole?: 'Administrator' | 'Manager' | 'User';
   currentUserEmployeeId?: string | null;
+}
+
+/** Non-completed tasks on `project` assigned to `employee` (by id or legacy name). */
+function getOpenTasksAssignedToEmployee(project: IProject, employee: IEmployee): IProjectTask[] {
+  const employeeId = employee._id.toString();
+  if (!project.tasks) return [];
+  return project.tasks.filter((task) => {
+    const taskAssignedToId = (task as { assignedToEmployeeId?: unknown }).assignedToEmployeeId?.toString();
+    const taskAssignedToName = task.assignedTo;
+    const isAssignedById = taskAssignedToId === employeeId;
+    const isAssignedByName = !!(taskAssignedToName && taskAssignedToName === employee.name);
+    return (isAssignedById || isAssignedByName) && task.status !== 'completed';
+  });
 }
 
 export default function EmployeeSidebar({ employees, projects, allProjects, contentItems, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
@@ -678,6 +691,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         const completedHours = getCompletedHours(employee);
         const totalHours = totalAvailableHours(employee);
         const employeeProjects = getProjectsForEmployee(employee);
+        const utilizationProjects = employeeProjects.filter(
+          (p) => getOpenTasksAssignedToEmployee(p, employee).length > 0
+        );
 
         const utilizationPercent = totalHours > 0 ? Math.round((committedHours / totalHours) * 100) : 0;
 
@@ -878,26 +894,13 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                   </div>
                 </div>
 
-                {/* Assigned Projects and Tasks */}
-                {employeeProjects.length > 0 && (
+                {/* Projects where this employee has assigned tasks */}
+                {utilizationProjects.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Assigned Projects:</p>
+                    <p className="text-xs font-medium text-gray-700 mb-2">Tasks assigned to you:</p>
                     <div className="space-y-1 max-h-[300px] overflow-y-auto">
-                      {employeeProjects.map((project) => {
-                        const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-                        const isAssignedToProject = projectAssignedToId === employeeId;
-
-                        const assignedTasks = project.tasks
-                          ? project.tasks.filter(task => {
-                            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-                            const taskAssignedToName = task.assignedTo;
-                            const isAssignedById = taskAssignedToId === employeeId;
-                            const isAssignedByName = taskAssignedToName && taskAssignedToName === employee.name;
-                            return (isAssignedById || isAssignedByName) && task.status !== 'completed';
-                          })
-                          : [];
-
-                        if (!isAssignedToProject && assignedTasks.length === 0) return null;
+                      {utilizationProjects.map((project) => {
+                        const assignedTasks = getOpenTasksAssignedToEmployee(project, employee);
 
                         const taskHoursList = assignedTasks.map(task => {
                           if (!task.estimatedHours || !task.startDate || !task.endDate) return null;
