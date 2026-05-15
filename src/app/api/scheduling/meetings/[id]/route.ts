@@ -1,21 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import { requireAuth } from '@/lib/auth/middleware';
-import Meeting from '@/lib/models/Meeting';
+import Meeting, { IMeeting } from '@/lib/models/Meeting';
 import Project from '@/lib/models/Project';
 import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
-import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
-import {
-  buildMeetingAgenda,
-  formatAgendaPlainText,
-} from '@/lib/scheduling/buildMeetingAgenda';
 import {
   getOrganizationUserIds,
   migrateProjectFields,
   migrateStagesToTasks,
 } from '@/lib/utils/apiHelpers';
-import { patchCalendarEventDescription } from '@/lib/scheduling/googleCalendar';
+import {
+  buildMeetingFullDescription,
+  pushMeetingDescriptionToGoogle,
+} from '@/lib/scheduling/meetingCalendarSync';
 import { Types } from 'mongoose';
+
+async function loadOrgProjects(
+  userId: string,
+  organizationId: string,
+  projectIds: Types.ObjectId[]
+) {
+  const orgUserIds = await getOrganizationUserIds(userId, organizationId);
+  const projects = await Project.find({
+    _id: { $in: projectIds },
+    userId: { $in: orgUserIds },
+  }).lean();
+  return projects.map((p) => migrateProjectFields(migrateStagesToTasks(p))) as any[];
+}
+
+async function syncMeetingAgendaToCalendar(
+  userId: string,
+  meeting: IMeeting,
+  projects: any[],
+  baseUrl: string
+) {
+  const fullDescription = buildMeetingFullDescription(meeting, projects, baseUrl);
+  await pushMeetingDescriptionToGoogle(userId, meeting, fullDescription);
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -44,46 +65,46 @@ export async function PATCH(
     if (body.end !== undefined) meeting.end = new Date(body.end);
     if (body.description !== undefined) meeting.description = body.description;
 
-    if (body.linkedProjectIds !== undefined && Array.isArray(body.linkedProjectIds)) {
+    const linkedProjectsChanged =
+      body.linkedProjectIds !== undefined && Array.isArray(body.linkedProjectIds);
+
+    if (linkedProjectsChanged) {
       meeting.linkedProjectIds = body.linkedProjectIds
         .filter((pid: string) => Types.ObjectId.isValid(pid))
         .map((pid: string) => new Types.ObjectId(pid));
     }
 
     const baseUrl = new URL(request.url).origin;
-    const agendaUrl = `${baseUrl}/scheduling/agenda/${meeting.agendaToken}`;
-    const orgUserIds = await getOrganizationUserIds(session.userId, ctx.organizationId);
-    const projects = await Project.find({
-      _id: { $in: meeting.linkedProjectIds },
-      userId: { $in: orgUserIds },
-    }).lean();
-    const migrated = projects.map((p) => migrateProjectFields(migrateStagesToTasks(p)));
-    const agendaPayload = buildMeetingAgenda(
-      {
-        title: meeting.title,
-        start: meeting.start,
-        end: meeting.end,
-        agendaUrl,
-      },
-      migrated as any
-    );
-    const agendaText = formatAgendaPlainText(agendaPayload);
-    const fullDescription = [meeting.description, agendaText].filter(Boolean).join('\n\n');
+    const projectIds = meeting.linkedProjectIds;
+    const migrated = await loadOrgProjects(session.userId, ctx.organizationId, projectIds);
 
-    if (meeting.googleEventId) {
-      const google = await getGoogleAccessTokenForUser(ctx.userId);
-      if (google) {
-        await patchCalendarEventDescription(
-          google.accessToken,
-          google.calendarId,
-          meeting.googleEventId,
-          fullDescription
-        );
+    let targets: IMeeting[] = [meeting];
+
+    if (linkedProjectsChanged && meeting.googleRecurringEventId) {
+      const siblings = await Meeting.find({
+        userId: ctx.userId,
+        googleRecurringEventId: meeting.googleRecurringEventId,
+      });
+      targets = siblings;
+      for (const sibling of siblings) {
+        sibling.linkedProjectIds = [...projectIds];
       }
     }
 
-    await meeting.save();
-    return NextResponse.json(meeting.toObject());
+    for (const target of targets) {
+      if (linkedProjectsChanged || target.linkedProjectIds.length > 0) {
+        await syncMeetingAgendaToCalendar(session.userId, target, migrated, baseUrl);
+      }
+      await target.save();
+    }
+
+    const saved = await Meeting.findById(meeting._id).lean();
+    const seriesUpdatedCount = targets.length;
+
+    return NextResponse.json({
+      ...(saved || meeting.toObject()),
+      seriesUpdatedCount: linkedProjectsChanged ? seriesUpdatedCount : undefined,
+    });
   } catch (error) {
     console.error('Meeting PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

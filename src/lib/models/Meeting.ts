@@ -7,6 +7,9 @@ export interface IMeeting extends Document {
   start: Date;
   end: Date;
   googleEventId?: string;
+  /** Google recurring series id (instance.recurringEventId). */
+  googleRecurringEventId?: string;
+  iCalUID?: string;
   agendaToken: string;
   linkedProjectIds: Types.ObjectId[];
   createdInNucleas: boolean;
@@ -23,6 +26,8 @@ const MeetingSchema = new Schema(
     start: { type: Date, required: true },
     end: { type: Date, required: true },
     googleEventId: { type: String, trim: true, sparse: true },
+    googleRecurringEventId: { type: String, trim: true, sparse: true },
+    iCalUID: { type: String, trim: true, sparse: true },
     agendaToken: { type: String, required: true, unique: true, index: true },
     linkedProjectIds: [{ type: Schema.Types.ObjectId, ref: 'Project' }],
     createdInNucleas: { type: Boolean, default: true },
@@ -32,6 +37,7 @@ const MeetingSchema = new Schema(
 );
 
 MeetingSchema.index({ userId: 1, start: 1 });
+MeetingSchema.index({ userId: 1, googleRecurringEventId: 1 }, { sparse: true });
 
 const Meeting: Model<IMeeting> =
   mongoose.models.Meeting || mongoose.model<IMeeting>('Meeting', MeetingSchema);

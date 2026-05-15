@@ -34,6 +34,7 @@ type MeetingRow = {
   agendaToken: string;
   linkedProjectIds: string[];
   googleEventId?: string;
+  googleRecurringEventId?: string;
   createdInNucleas?: boolean;
 };
 
@@ -171,17 +172,26 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
   );
 
   const handleSaveMeetingProjects = async (meetingId: string) => {
+    const editingMeeting = meetings.find((m) => m._id === meetingId);
     const res = await fetch(`/api/scheduling/meetings/${meetingId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ linkedProjectIds: editProjectIds }),
     });
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setEditingId(null);
       await loadMeetings();
-      setMessage('Meeting projects updated; agenda refreshed in calendar if linked.');
+      const count = typeof data.seriesUpdatedCount === 'number' ? data.seriesUpdatedCount : 1;
+      if (editingMeeting?.googleRecurringEventId && count > 1) {
+        setMessage(
+          `Projects linked to all ${count} occurrences; agendas refreshed in calendar.`
+        );
+      } else {
+        setMessage('Meeting projects updated; agenda refreshed in calendar if linked.');
+      }
     } else {
-      setMessage('Failed to update meeting.');
+      setMessage(data.error || 'Failed to update meeting.');
     }
   };
 
@@ -270,7 +280,14 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
               <li key={m._id} className="rounded-lg border border-gray-600 bg-gray-900/40 p-3 text-sm">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-white">{m.title}</p>
+                    <p className="font-medium text-white flex flex-wrap items-center gap-2">
+                      {m.title}
+                      {m.googleRecurringEventId && (
+                        <span className="text-xs font-normal text-gray-500 border border-gray-600 rounded px-1.5 py-0.5">
+                          Recurring
+                        </span>
+                      )}
+                    </p>
                     <p className="text-gray-400">
                       {new Date(m.start).toLocaleString()} – {new Date(m.end).toLocaleString()}
                     </p>

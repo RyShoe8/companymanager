@@ -75,6 +75,8 @@ export type GoogleCalendarEvent = {
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   htmlLink?: string;
+  recurringEventId?: string;
+  iCalUID?: string;
 };
 
 export async function listCalendarEvents(

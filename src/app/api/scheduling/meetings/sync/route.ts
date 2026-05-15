@@ -54,13 +54,18 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const existingByGoogleId = new Map<string, { _id: Types.ObjectId }>();
+    const existingByGoogleId = new Map<string, { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[] }>();
     const existing = await Meeting.find({
       userId: ctx.userId,
       googleEventId: { $exists: true, $ne: null },
-    }).select('googleEventId');
+    }).select('googleEventId linkedProjectIds');
     for (const m of existing) {
-      if (m.googleEventId) existingByGoogleId.set(m.googleEventId, { _id: m._id });
+      if (m.googleEventId) {
+        existingByGoogleId.set(m.googleEventId, {
+          _id: m._id,
+          linkedProjectIds: m.linkedProjectIds || [],
+        });
+      }
     }
 
     let imported = 0;
@@ -71,25 +76,32 @@ export async function GET(request: NextRequest) {
       const times = parseEventTimes(ev);
       if (!times) continue;
 
-      const payload = {
+      const seriesFields = {
+        googleRecurringEventId: ev.recurringEventId || undefined,
+        iCalUID: ev.iCalUID || undefined,
+      };
+
+      const payload: Record<string, unknown> = {
         title: ev.summary?.trim() || 'Untitled meeting',
         start: times.start,
         end: times.end,
-        description: ev.description,
+        ...seriesFields,
       };
 
       const found = existingByGoogleId.get(ev.id);
       if (found) {
-        await Meeting.updateOne(
-          { _id: found._id },
-          { $set: payload }
-        );
+        const hasLinkedProjects = found.linkedProjectIds.length > 0;
+        if (!hasLinkedProjects) {
+          payload.description = ev.description;
+        }
+        await Meeting.updateOne({ _id: found._id }, { $set: payload });
         updated++;
       } else {
         await Meeting.create({
           userId: ctx.userId,
           organizationId: ctx.organizationId,
           ...payload,
+          description: ev.description,
           googleEventId: ev.id,
           agendaToken: generateAgendaToken(),
           linkedProjectIds: [],
