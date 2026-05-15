@@ -10,6 +10,7 @@ import PhaseFilter from '@/components/workspace/PhaseFilter';
 import LensBar from '@/components/workspace/LensBar';
 import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
+import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
 import ProjectsLens from '@/components/workspace/ProjectsLens';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
@@ -75,6 +76,20 @@ export default function WorkspaceShell({
                 allProjects: ws.allProjects,
             }),
         [pathname, ws.phase, ws.lens, ws.scheduleMode, inspectorFocus, ws.allProjects]
+    );
+
+    const handlePhaseSelect = useCallback(
+        (p: PhaseType) => {
+            ws.setPhase(p);
+            if (pathname === '/workspace') {
+                const params = new URLSearchParams();
+                if (p !== 'All') params.set('phase', p);
+                if (ws.lens !== 'schedule') params.set('lens', ws.lens);
+                const q = params.toString();
+                router.replace(q ? `/workspace?${q}` : '/workspace', { scroll: false });
+            }
+        },
+        [ws, pathname, router]
     );
 
     // Handlers
@@ -283,8 +298,8 @@ export default function WorkspaceShell({
         }
         if (intent.type === 'FILTER_PHASE') {
             const phase = intent.slots.phase as PhaseType;
-            if (['All', 'Plan', 'Build', 'Run'].includes(phase)) {
-                ws.setPhase(phase);
+            if (['All', 'Plan', 'Build', 'Run', 'Schedule'].includes(phase)) {
+                handlePhaseSelect(phase);
                 return { success: true, message: `Filtered to ${phase} phase` };
             }
         }
@@ -679,7 +694,7 @@ export default function WorkspaceShell({
         }
 
         return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };
-    }, [ws, handleDeleteProject, router, handleViewProjectTask]);
+    }, [ws, handleDeleteProject, router, handleViewProjectTask, handlePhaseSelect]);
 
     // Command Palette Registration (voice can trigger via RUN_COMMAND)
     useEffect(() => {
@@ -886,6 +901,8 @@ export default function WorkspaceShell({
         if (isCommandPaletteOpen) setPaletteNlError(null);
     }, [isCommandPaletteOpen]);
 
+    const isSchedulingPhase = ws.phase === 'Schedule';
+
     // Default status for new projects depends on phase
     const defaultStatus = ws.phase === 'Build' ? 'in-development' : ws.phase === 'Run' ? 'launched' : 'planning';
 
@@ -916,16 +933,18 @@ export default function WorkspaceShell({
                             <h1 className="text-2xl sm:text-3xl font-bold text-white whitespace-nowrap">
                                 Workspace
                             </h1>
-                            <PhaseFilter selected={ws.phase} onSelect={ws.setPhase} />
-                            <TimeHorizonSelector
-                                selected={ws.timeframe}
-                                onSelect={(newTimeframe) => {
-                                    ws.setTimeframe(newTimeframe);
-                                    if (newTimeframe === 'today' && ws.timeframe === 'today') {
-                                        ws.setCurrentDate(new Date());
-                                    }
-                                }}
-                            />
+                            <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
+                            {!isSchedulingPhase && (
+                                <TimeHorizonSelector
+                                    selected={ws.timeframe}
+                                    onSelect={(newTimeframe) => {
+                                        ws.setTimeframe(newTimeframe);
+                                        if (newTimeframe === 'today' && ws.timeframe === 'today') {
+                                            ws.setCurrentDate(new Date());
+                                        }
+                                    }}
+                                />
+                            )}
                             <div className="flex gap-2 flex-shrink-0 ml-auto items-center">
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
@@ -940,7 +959,8 @@ export default function WorkspaceShell({
                             </div>
                         </div>
 
-                        {/* Row 2: Lens bar + view toggles */}
+                        {/* Row 2: Lens bar + view toggles (hidden in Scheduling phase) */}
+                        {!isSchedulingPhase && (
                         <div className="flex flex-wrap items-center gap-4 justify-between">
                             <LensBar selected={ws.lens} onSelect={ws.setLens} />
                             {ws.lens === 'schedule' && (
@@ -978,12 +998,16 @@ export default function WorkspaceShell({
                                 </div>
                             )}
                         </div>
+                        )}
+
                     </div>
 
                     {/* ===== Main Content ===== */}
                     <div className="flex w-full gap-6">
                         <div className="flex-1 min-w-0">
-                            {ws.lens === 'schedule' && (
+                            {isSchedulingPhase ? (
+                                <SchedulingPanel projects={ws.allProjects} />
+                            ) : ws.lens === 'schedule' ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <ScheduleLens
@@ -1024,16 +1048,16 @@ export default function WorkspaceShell({
                                         />
                                     </div>
                                 </div>
-                            )}
+                            ) : null}
 
-                            {ws.lens === 'projects' && (
+                            {!isSchedulingPhase && ws.lens === 'projects' && (
                                 <ProjectsLens
                                     projects={ws.filteredProjects}
                                     onProjectClick={handleViewProject}
                                 />
                             )}
 
-                            {ws.lens === 'capacity' && (
+                            {!isSchedulingPhase && ws.lens === 'capacity' && (
                                 <div className="max-w-4xl mx-auto">
                                     <EmployeeSidebar
                                         employees={ws.employees}

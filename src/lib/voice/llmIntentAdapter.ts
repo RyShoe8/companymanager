@@ -363,7 +363,17 @@ export function voiceLlmIntentToParsedIntent(raw: unknown, rawTranscript: string
     if (!phaseRaw) return null;
     const p = phaseRaw.toLowerCase();
     const phase =
-      p === 'plan' ? 'Plan' : p === 'build' ? 'Build' : p === 'run' ? 'Run' : p === 'all' ? 'All' : phaseRaw;
+      p === 'plan'
+        ? 'Plan'
+        : p === 'build'
+          ? 'Build'
+          : p === 'run'
+            ? 'Run'
+            : p === 'schedule'
+              ? 'Schedule'
+              : p === 'all'
+                ? 'All'
+                : phaseRaw;
     return {
       type: 'FILTER_PHASE',
       confidence: 0.9,

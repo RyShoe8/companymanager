@@ -12,6 +12,7 @@ const phases: { value: PhaseType; label: string }[] = [
     { value: 'Plan', label: 'Plan' },
     { value: 'Build', label: 'Build' },
     { value: 'Run', label: 'Run' },
+    { value: 'Schedule', label: 'Schedule' },
 ];
 
 export default function PhaseFilter({ selected, onSelect }: PhaseFilterProps) {

@@ -1,0 +1,133 @@
+import { NextRequest, NextResponse } from 'next/server';
+import connectDB from '@/lib/db/mongodb';
+import { requireAuth } from '@/lib/auth/middleware';
+import Meeting from '@/lib/models/Meeting';
+import Project from '@/lib/models/Project';
+import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
+import { generateAgendaToken } from '@/lib/scheduling/tokenCrypto';
+import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
+import {
+  buildMeetingAgenda,
+  formatAgendaPlainText,
+} from '@/lib/scheduling/buildMeetingAgenda';
+import {
+  getOrganizationUserIds,
+  migrateProjectFields,
+  migrateStagesToTasks,
+} from '@/lib/utils/apiHelpers';
+import {
+  insertCalendarEvent,
+  patchCalendarEventDescription,
+} from '@/lib/scheduling/googleCalendar';
+import { Types } from 'mongoose';
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await requireAuth(request);
+    if (session instanceof NextResponse) return session;
+
+    const ctx = await getSchedulingContext(session.userId);
+    if (!ctx) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
+
+    await connectDB();
+    const query: Record<string, unknown> = { userId: ctx.userId };
+    if (start && end) {
+      const rangeStart = new Date(start);
+      const rangeEnd = new Date(end);
+      query.start = { $lt: rangeEnd };
+      query.end = { $gt: rangeStart };
+    }
+
+    const meetings = await Meeting.find(query).sort({ start: 1 }).lean();
+    return NextResponse.json(meetings);
+  } catch (error) {
+    console.error('Meetings GET error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await requireAuth(request);
+    if (session instanceof NextResponse) return session;
+
+    const ctx = await getSchedulingContext(session.userId);
+    if (!ctx) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const { title, start, end, linkedProjectIds, description, syncToGoogle } = body;
+    if (!title || !start || !end) {
+      return NextResponse.json({ error: 'title, start, and end are required' }, { status: 400 });
+    }
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) {
+      return NextResponse.json({ error: 'Invalid start/end' }, { status: 400 });
+    }
+
+    const projectIds = Array.isArray(linkedProjectIds)
+      ? linkedProjectIds.filter((id: string) => Types.ObjectId.isValid(id)).map((id: string) => new Types.ObjectId(id))
+      : [];
+
+    await connectDB();
+    const orgUserIds = await getOrganizationUserIds(session.userId, ctx.organizationId);
+    const projects = await Project.find({
+      _id: { $in: projectIds },
+      userId: { $in: orgUserIds },
+    }).lean();
+    const migrated = projects.map((p) => migrateProjectFields(migrateStagesToTasks(p)));
+
+    const baseUrl = new URL(request.url).origin;
+    const agendaToken = generateAgendaToken();
+    const agendaUrl = `${baseUrl}/scheduling/agenda/${agendaToken}`;
+
+    const agendaPayload = buildMeetingAgenda(
+      { title: String(title).trim(), start: startDate, end: endDate, agendaUrl },
+      migrated as any
+    );
+    const agendaText = formatAgendaPlainText(agendaPayload);
+    const fullDescription = [description, agendaText].filter(Boolean).join('\n\n');
+
+    let googleEventId: string | undefined;
+    if (syncToGoogle !== false) {
+      const google = await getGoogleAccessTokenForUser(ctx.userId);
+      if (google) {
+        const created = await insertCalendarEvent(google.accessToken, google.calendarId, {
+          summary: String(title).trim(),
+          description: fullDescription,
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+        });
+        googleEventId = created.id;
+      }
+    }
+
+    const meeting = await Meeting.create({
+      userId: ctx.userId,
+      organizationId: ctx.organizationId,
+      title: String(title).trim(),
+      start: startDate,
+      end: endDate,
+      googleEventId,
+      agendaToken,
+      linkedProjectIds: projectIds,
+      createdInNucleas: true,
+      description: description || undefined,
+    });
+
+    return NextResponse.json(meeting, { status: 201 });
+  } catch (error) {
+    console.error('Meetings POST error:', error);
+    const msg = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

@@ -150,12 +150,15 @@ const rules: PatternRule[] = [
     {
         type: 'FILTER_PHASE',
         patterns: [
-            /(?:filter to|show|switch to)\s+(plan|build|run|all)/i,
-            /^(plan|build|run|all)\s*(?:phase)?$/i,
+            /(?:filter to|show|switch to)\s+(plan|build|run|schedule|all)/i,
+            /^(plan|build|run|schedule|all)\s*(?:phase)?$/i,
         ],
-        extractSlots: (m) => ({
-            phase: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(),
-        }),
+        extractSlots: (m) => {
+            const raw = m[1].toLowerCase();
+            const phase =
+                raw === 'schedule' ? 'Schedule' : raw.charAt(0).toUpperCase() + raw.slice(1);
+            return { phase };
+        },
     },
 
     // Switch lens

@@ -14,13 +14,23 @@ interface CommentThreadProps {
   taskId?: string;
   currentUserId?: string;
   showHeading?: boolean;
+  /** When set, refetch comments on this interval (ms). */
+  pollIntervalMs?: number;
 }
 
 interface CommentWithReplies extends IComment {
   replies?: CommentWithReplies[];
 }
 
-export default function CommentThread({ entityType, entityId, taskIndex, taskId, currentUserId: currentUserIdProp, showHeading = true }: CommentThreadProps) {
+export default function CommentThread({
+  entityType,
+  entityId,
+  taskIndex,
+  taskId,
+  currentUserId: currentUserIdProp,
+  showHeading = true,
+  pollIntervalMs,
+}: CommentThreadProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -41,12 +51,7 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
     }
   }, [currentUserIdProp]);
 
-  useEffect(() => {
-    loadComments();
-    loadScreenshots();
-  }, [entityType, entityId, taskIndex, taskId]);
-
-  const loadComments = async () => {
+  const loadComments = useCallback(async () => {
     try {
       const params = new URLSearchParams({
         entityType,
@@ -68,7 +73,24 @@ export default function CommentThread({ entityType, entityId, taskIndex, taskId,
     } finally {
       setLoading(false);
     }
-  };
+  }, [entityType, entityId, taskIndex, taskId]);
+
+  useEffect(() => {
+    loadComments();
+  }, [loadComments]);
+
+  useEffect(() => {
+    loadScreenshots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityType, entityId, taskIndex, taskId]);
+
+  useEffect(() => {
+    if (!pollIntervalMs || pollIntervalMs < 1000) return;
+    const id = setInterval(() => {
+      loadComments();
+    }, pollIntervalMs);
+    return () => clearInterval(id);
+  }, [pollIntervalMs, loadComments]);
 
   const loadScreenshots = async () => {
     try {

@@ -9,7 +9,7 @@ import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
 
 export type LensType = 'schedule' | 'projects' | 'capacity';
-export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run';
+export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule';
 export type ScheduleMode = 'calendar' | 'agenda';
 
 export interface WorkspaceState {
@@ -199,6 +199,7 @@ export default function useWorkspaceData(
     // Phase-filtered projects
     const projects = useMemo(() => {
         if (phase === 'All') return allProjects;
+        if (phase === 'Schedule') return [];
         return getProjectsForStage(allProjects, phase as ProjectStage);
     }, [allProjects, phase]);
 
