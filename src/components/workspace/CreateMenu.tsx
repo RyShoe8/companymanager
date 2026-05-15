@@ -8,6 +8,7 @@ interface CreateMenuProps {
     currentUserRole?: string;
     onCreateProject: () => void;
     onCreateContent: () => void;
+    onCreateMeeting: () => void;
 }
 
 export default function CreateMenu({
@@ -15,6 +16,7 @@ export default function CreateMenu({
     currentUserRole,
     onCreateProject,
     onCreateContent,
+    onCreateMeeting,
 }: CreateMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -88,6 +90,16 @@ export default function CreateMenu({
                             role="menuitem"
                         >
                             📝 New Content Item
+                        </button>
+                        <button
+                            onClick={() => {
+                                setIsOpen(false);
+                                onCreateMeeting();
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            role="menuitem"
+                        >
+                            📅 New Meeting
                         </button>
                         <button disabled className="w-full text-left px-4 py-2 text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed" role="menuitem">
                             ✓ New Task (Coming Soon)

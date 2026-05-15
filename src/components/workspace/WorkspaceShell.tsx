@@ -11,6 +11,7 @@ import LensBar from '@/components/workspace/LensBar';
 import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
+import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
 import ProjectsLens from '@/components/workspace/ProjectsLens';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
@@ -62,6 +63,8 @@ export default function WorkspaceShell({
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [showMeetingModal, setShowMeetingModal] = useState(false);
+    const [meetingRefreshKey, setMeetingRefreshKey] = useState(0);
 
     const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
 
@@ -955,6 +958,7 @@ export default function WorkspaceShell({
                                         setAddContentDefaultDate(new Date());
                                         setAddContentVoicePrefill(null);
                                     }}
+                                    onCreateMeeting={() => setShowMeetingModal(true)}
                                 />
                             </div>
                         </div>
@@ -1006,7 +1010,10 @@ export default function WorkspaceShell({
                     <div className="flex w-full gap-6">
                         <div className="flex-1 min-w-0">
                             {isSchedulingPhase ? (
-                                <SchedulingPanel projects={ws.allProjects} />
+                                <SchedulingPanel
+                                    projects={ws.allProjects}
+                                    meetingRefreshKey={meetingRefreshKey}
+                                />
                             ) : ws.lens === 'schedule' ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
@@ -1097,6 +1104,13 @@ export default function WorkspaceShell({
                     </div>
 
                     {/* ===== Modals & Sheets ===== */}
+                    <CreateMeetingModal
+                        isOpen={showMeetingModal}
+                        onClose={() => setShowMeetingModal(false)}
+                        projects={ws.allProjects}
+                        onSuccess={() => setMeetingRefreshKey((k) => k + 1)}
+                    />
+
                     <ContentItemCreateModal
                         isOpen={!!addContentProject}
                         onClose={() => {

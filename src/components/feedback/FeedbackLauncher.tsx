@@ -70,7 +70,7 @@ export default function FeedbackLauncher() {
           reset();
           setOpen(true);
         }}
-        className="fixed bottom-6 right-6 z-40 rounded-full bg-primary text-white shadow-lg px-4 py-3 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900"
+        className="fixed bottom-52 md:bottom-40 right-6 z-40 rounded-full bg-primary text-white shadow-lg px-4 py-3 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900"
         aria-label="Report a bug or request a feature"
       >
         Feedback

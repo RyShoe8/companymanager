@@ -5,6 +5,13 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { IProject } from '@/lib/models/Project';
 import Button from '@/components/ui/Button';
+import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
+import {
+  DAY_LABELS_MON_FIRST,
+  normalizeAvailabilitySlots,
+  sortSlotsMonFirst,
+  WEEK_DAYS_MON_FIRST,
+} from '@/lib/scheduling/availabilitySlots';
 
 type CalendarStatus = {
   connected: boolean;
@@ -16,6 +23,7 @@ type AvailabilitySlot = {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  enabled?: boolean;
 };
 
 type MeetingRow = {
@@ -28,8 +36,6 @@ type MeetingRow = {
   googleEventId?: string;
   createdInNucleas?: boolean;
 };
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function startOfWeek(d: Date): Date {
   const x = new Date(d);
@@ -46,9 +52,10 @@ function addDays(d: Date, n: number): Date {
 
 interface SchedulingPanelProps {
   projects: IProject[];
+  meetingRefreshKey?: number;
 }
 
-export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
+export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: SchedulingPanelProps) {
   const searchParams = useSearchParams();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
@@ -60,12 +67,7 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newStart, setNewStart] = useState('');
-  const [newEnd, setNewEnd] = useState('');
-  const [newProjectIds, setNewProjectIds] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editProjectIds, setEditProjectIds] = useState<string[]>([]);
@@ -91,7 +93,7 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
     const res = await fetch('/api/scheduling/availability');
     if (res.ok) {
       const data = await res.json();
-      setSlots(data.slots || []);
+      setSlots(sortSlotsMonFirst(normalizeAvailabilitySlots(data.slots)));
       setTimezone(data.timezone || 'America/New_York');
     }
   }, []);
@@ -105,6 +107,13 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (meetingRefreshKey > 0) {
+      loadMeetings();
+      setMessage('Meeting created.');
+    }
+  }, [meetingRefreshKey, loadMeetings]);
 
   useEffect(() => {
     if (searchParams.get('calendar_connected')) setMessage('Google Calendar connected.');
@@ -141,44 +150,25 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
     const res = await fetch('/api/scheduling/availability', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ timezone, slots }),
+      body: JSON.stringify({ timezone, slots: normalizeAvailabilitySlots(slots) }),
     });
     setSavingAvailability(false);
     setMessage(res.ok ? 'Availability saved.' : 'Failed to save availability.');
   };
 
-  const updateSlot = (index: number, patch: Partial<AvailabilitySlot>) => {
-    setSlots((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  const updateSlotByDay = (dayOfWeek: number, patch: Partial<AvailabilitySlot>) => {
+    setSlots((prev) =>
+      prev.map((s) => (s.dayOfWeek === dayOfWeek ? { ...s, ...patch } : s))
+    );
   };
 
-  const handleCreateMeeting = async () => {
-    if (!newTitle.trim() || !newStart || !newEnd) return;
-    setCreating(true);
-    const res = await fetch('/api/scheduling/meetings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: newTitle.trim(),
-        start: new Date(newStart).toISOString(),
-        end: new Date(newEnd).toISOString(),
-        linkedProjectIds: newProjectIds,
-        syncToGoogle: true,
-      }),
-    });
-    setCreating(false);
-    if (res.ok) {
-      setShowCreate(false);
-      setNewTitle('');
-      setNewStart('');
-      setNewEnd('');
-      setNewProjectIds([]);
-      await loadMeetings();
-      setMessage('Meeting created.');
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setMessage(data.error || 'Failed to create meeting.');
-    }
-  };
+  const orderedSlots = useMemo(
+    () =>
+      WEEK_DAYS_MON_FIRST.map((day) => slots.find((s) => s.dayOfWeek === day)).filter(
+        (s): s is AvailabilitySlot => !!s
+      ),
+    [slots]
+  );
 
   const handleSaveMeetingProjects = async (meetingId: string) => {
     const res = await fetch(`/api/scheduling/meetings/${meetingId}`, {
@@ -195,16 +185,15 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
     }
   };
 
-  const toggleNewProject = (id: string) => {
-    setNewProjectIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  };
-
   const toggleEditProject = (id: string) => {
     setEditProjectIds((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
+  };
+
+  const handleMeetingCreated = async () => {
+    await loadMeetings();
+    setMessage('Meeting created.');
   };
 
   if (loading) {
@@ -218,6 +207,13 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
           {message}
         </div>
       )}
+
+      <CreateMeetingModal
+        isOpen={showMeetingModal}
+        onClose={() => setShowMeetingModal(false)}
+        projects={projects}
+        onSuccess={handleMeetingCreated}
+      />
 
       <section className="rounded-lg border border-gray-700 bg-gray-800/60 p-4">
         <h2 className="text-lg font-semibold text-white mb-3">Google Calendar</h2>
@@ -260,61 +256,11 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
             <Button type="button" size="sm" variant="secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}>
               Next week
             </Button>
-            <Button type="button" size="sm" onClick={() => setShowCreate((v) => !v)}>
-              {showCreate ? 'Cancel' : 'New meeting'}
+            <Button type="button" size="sm" onClick={() => setShowMeetingModal(true)}>
+              New meeting
             </Button>
           </div>
         </div>
-
-        {showCreate && (
-          <div className="mb-4 rounded-lg border border-gray-600 bg-gray-900/50 p-4 space-y-3">
-            <input
-              type="text"
-              placeholder="Meeting title"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="w-full rounded border border-gray-600 bg-gray-800 text-white px-3 py-2 text-sm"
-            />
-            <div className="flex flex-wrap gap-3">
-              <label className="text-sm text-gray-400">
-                Start
-                <input
-                  type="datetime-local"
-                  value={newStart}
-                  onChange={(e) => setNewStart(e.target.value)}
-                  className="block mt-1 rounded border border-gray-600 bg-gray-800 text-white px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="text-sm text-gray-400">
-                End
-                <input
-                  type="datetime-local"
-                  value={newEnd}
-                  onChange={(e) => setNewEnd(e.target.value)}
-                  className="block mt-1 rounded border border-gray-600 bg-gray-800 text-white px-2 py-1 text-sm"
-                />
-              </label>
-            </div>
-            <div>
-              <p className="text-sm text-gray-400 mb-2">Link projects</p>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {projects.map((p) => (
-                  <label key={p._id.toString()} className="flex items-center gap-1 text-sm text-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={newProjectIds.includes(p._id.toString())}
-                      onChange={() => toggleNewProject(p._id.toString())}
-                    />
-                    {p.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <Button type="button" size="sm" onClick={handleCreateMeeting} disabled={creating}>
-              {creating ? 'Creating…' : 'Create meeting'}
-            </Button>
-          </div>
-        )}
 
         {meetings.length === 0 ? (
           <p className="text-sm text-gray-500">No meetings this week. Sync your calendar or create one.</p>
@@ -386,24 +332,46 @@ export default function SchedulingPanel({ projects }: SchedulingPanelProps) {
           />
         </label>
         <div className="space-y-2">
-          {slots.map((slot, index) => (
-            <div key={index} className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="w-10 text-gray-400">{DAY_LABELS[slot.dayOfWeek]}</span>
-              <input
-                type="time"
-                value={slot.startTime}
-                onChange={(e) => updateSlot(index, { startTime: e.target.value })}
-                className="rounded border border-gray-600 bg-gray-800 text-white px-2 py-1"
-              />
-              <span className="text-gray-500">to</span>
-              <input
-                type="time"
-                value={slot.endTime}
-                onChange={(e) => updateSlot(index, { endTime: e.target.value })}
-                className="rounded border border-gray-600 bg-gray-800 text-white px-2 py-1"
-              />
-            </div>
-          ))}
+          {orderedSlots.map((slot) => {
+            const enabled = slot.enabled !== false;
+            return (
+              <div key={slot.dayOfWeek} className="flex flex-wrap items-center gap-3 text-sm">
+                <label className="flex items-center gap-1.5 text-gray-300 cursor-pointer min-w-[5.5rem]">
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={(e) =>
+                      updateSlotByDay(slot.dayOfWeek, { enabled: e.target.checked })
+                    }
+                    className="rounded border-gray-600"
+                  />
+                  <span className="text-xs text-gray-400">Available</span>
+                </label>
+                <span className="w-10 text-gray-400 font-medium">
+                  {DAY_LABELS_MON_FIRST[slot.dayOfWeek]}
+                </span>
+                <input
+                  type="time"
+                  value={slot.startTime}
+                  disabled={!enabled}
+                  onChange={(e) =>
+                    updateSlotByDay(slot.dayOfWeek, { startTime: e.target.value })
+                  }
+                  className="rounded border border-gray-600 bg-gray-800 text-white px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+                <span className="text-gray-500">to</span>
+                <input
+                  type="time"
+                  value={slot.endTime}
+                  disabled={!enabled}
+                  onChange={(e) =>
+                    updateSlotByDay(slot.dayOfWeek, { endTime: e.target.value })
+                  }
+                  className="rounded border border-gray-600 bg-gray-800 text-white px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+              </div>
+            );
+          })}
         </div>
         <Button
           type="button"

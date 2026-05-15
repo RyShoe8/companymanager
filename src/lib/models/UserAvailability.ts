@@ -4,6 +4,7 @@ export interface IAvailabilitySlot {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  enabled?: boolean;
 }
 
 export interface IUserAvailability extends Document {
@@ -18,6 +19,7 @@ const AvailabilitySlotSchema = new Schema(
     dayOfWeek: { type: Number, required: true, min: 0, max: 6 },
     startTime: { type: String, required: true, trim: true },
     endTime: { type: String, required: true, trim: true },
+    enabled: { type: Boolean, default: true },
   },
   { _id: false }
 );
