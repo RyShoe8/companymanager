@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import { exchangeCodeForTokens } from '@/lib/scheduling/googleCalendar';
+import {
+  exchangeCodeForTokens,
+  getCalendarOAuthRedirectUri,
+} from '@/lib/scheduling/googleCalendar';
 import { upsertGoogleConnection } from '@/lib/scheduling/calendarConnection';
 import { Types } from 'mongoose';
 
@@ -31,9 +34,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${workspaceUrl}&calendar_error=invalid_state`);
     }
 
-    const redirectUri =
-      process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
-      `${baseUrl}/api/scheduling/google/callback`;
+    const redirectUri = getCalendarOAuthRedirectUri(baseUrl);
 
     const tokens = await exchangeCodeForTokens(code, redirectUri);
     if (!tokens.refresh_token) {

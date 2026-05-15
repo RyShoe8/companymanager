@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getCalendarOAuthScopes } from '@/lib/scheduling/googleCalendar';
+import {
+  getCalendarOAuthRedirectUri,
+  getCalendarOAuthScopes,
+} from '@/lib/scheduling/googleCalendar';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,10 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Google OAuth not configured' }, { status: 500 });
     }
 
-    const baseUrl = new URL(request.url).origin;
-    const redirectUri =
-      process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
-      `${baseUrl}/api/scheduling/google/callback`;
+    const redirectUri = getCalendarOAuthRedirectUri(new URL(request.url).origin);
 
     const state = Buffer.from(JSON.stringify({ userId: session.userId })).toString('base64url');
 

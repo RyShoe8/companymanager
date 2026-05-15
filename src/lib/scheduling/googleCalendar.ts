@@ -1,5 +1,18 @@
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar';
+const CALENDAR_CALLBACK_PATH = '/api/scheduling/google/callback';
+
+/** Must match a URI registered in Google Cloud OAuth client "Authorized redirect URIs". */
+export function getCalendarOAuthRedirectUri(requestOrigin?: string): string {
+  if (process.env.GOOGLE_CALENDAR_REDIRECT_URI) {
+    return process.env.GOOGLE_CALENDAR_REDIRECT_URI;
+  }
+  const base = process.env.NEXTAUTH_URL?.replace(/\/$/, '') || requestOrigin;
+  if (!base) {
+    throw new Error('Calendar OAuth redirect URI: set GOOGLE_CALENDAR_REDIRECT_URI or NEXTAUTH_URL');
+  }
+  return `${base}${CALENDAR_CALLBACK_PATH}`;
+}
 
 export function getCalendarOAuthScopes(): string {
   return CALENDAR_SCOPE;

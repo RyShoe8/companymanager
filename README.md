@@ -29,7 +29,9 @@ BREVO_SENDER_EMAIL=theteam@nucleas.app
 BREVO_SENDER_NAME=Nucleas (optional - defaults to "Nucleas" if not set)
 GOOGLE_CLIENT_ID=your_google_client_id (optional - for Google OAuth)
 GOOGLE_CLIENT_SECRET=your_google_client_secret (optional - for Google OAuth)
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback (optional - defaults to NEXTAUTH_URL + /api/auth/google/callback)
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback (optional - login only)
+GOOGLE_CALENDAR_REDIRECT_URI=http://localhost:3000/api/scheduling/google/callback (optional - calendar connect; register in GCP)
+CALENDAR_TOKEN_ENCRYPTION_KEY=random_32_char_secret (optional - encrypts calendar refresh tokens)
 OPENAI_API_KEY=your_openai_key (optional — enables AI intent parsing for voice and command palette; also set on Vercel for production)
 ```
 
@@ -42,7 +44,9 @@ OPENAI_API_KEY=your_openai_key (optional — enables AI intent parsing for voice
 - `BREVO_SENDER_NAME` - Name to display as sender (optional - defaults to "Nucleas")
 - `GOOGLE_CLIENT_ID` - Google OAuth Client ID (optional - enables Google sign-in)
 - `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret (optional - required if GOOGLE_CLIENT_ID is set)
-- `GOOGLE_REDIRECT_URI` - Google OAuth redirect URI (optional - defaults to NEXTAUTH_URL + /api/auth/google/callback)
+- `GOOGLE_REDIRECT_URI` - Google sign-in redirect URI (optional - defaults to NEXTAUTH_URL + `/api/auth/google/callback`)
+- `GOOGLE_CALENDAR_REDIRECT_URI` - Google Calendar OAuth redirect (optional - defaults to NEXTAUTH_URL + `/api/scheduling/google/callback`; must match GCP Authorized redirect URIs — see [docs/google-calendar-oauth.md](docs/google-calendar-oauth.md))
+- `CALENDAR_TOKEN_ENCRYPTION_KEY` - Encrypts stored calendar refresh tokens (recommended in production)
 - `OPENAI_API_KEY` - OpenAI API key (optional — voice/palette intent parsing via `/api/parse-intent`; without it, rule-based parsing only)
 
 Run the development server:

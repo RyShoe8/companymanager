@@ -44,6 +44,19 @@ In the Vercel project settings, add the following environment variables:
   - Create a Blob store in your Vercel project (Storage tab) and add the token as an environment variable.
   - Leave unset for local development (logos are saved to `public/uploads/projects/`).
 
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Same OAuth client as Google sign-in (optional but required for Google login and calendar)
+
+- `GOOGLE_REDIRECT_URI`: Login callback only (optional)
+  - Production: `https://nucleas.app/api/auth/google/callback`
+
+- `GOOGLE_CALENDAR_REDIRECT_URI`: **Calendar connect callback** (required for Workspace → Schedule → Connect Google Calendar)
+  - Production: `https://nucleas.app/api/scheduling/google/callback`
+  - Must be listed in Google Cloud **Authorized redirect URIs** (separate from login callback)
+
+- `CALENDAR_TOKEN_ENCRYPTION_KEY`: Random secret to encrypt stored Google Calendar refresh tokens (recommended in production)
+
+See [docs/google-calendar-oauth.md](docs/google-calendar-oauth.md) for Google Cloud Console steps (enable Calendar API, consent screen scope, redirect URIs).
+
 ### 4. MongoDB Atlas Configuration
 
 1. Ensure your MongoDB Atlas cluster allows connections from anywhere (0.0.0.0/0) or add Vercel IPs
