@@ -42,18 +42,52 @@ export function getBrevoConfigurationError(): string | null {
   return null;
 }
 
+type BrevoErrorBody = { message?: string; code?: string };
+
 type AxiosLikeError = {
-  response?: { status?: number; data?: { message?: string; code?: string } };
+  response?: {
+    status?: number;
+    statusCode?: number;
+    data?: BrevoErrorBody;
+    body?: BrevoErrorBody;
+  };
   message?: string;
 };
 
-export function formatBrevoError(error: unknown): string {
+export const BREVO_KEY_DISABLED_MESSAGE =
+  'Your Brevo API key is disabled. In Brevo go to Settings → SMTP & API → API Keys, enable the key used in BREVO_API_KEY (or create a new one), update Vercel if you rotated it, then redeploy.';
+
+function parseBrevoError(error: unknown): {
+  status?: number;
+  message?: string;
+  code?: string;
+} {
   const err = error as AxiosLikeError;
-  const status = err.response?.status;
-  const brevoMessage = err.response?.data?.message;
+  const response = err.response;
+  const status = response?.status ?? response?.statusCode;
+  const body = response?.data ?? response?.body;
+  return {
+    status,
+    message: body?.message,
+    code: body?.code,
+  };
+}
+
+function formatBrevo401Message(brevoMessage?: string): string {
+  if (brevoMessage && /not enabled/i.test(brevoMessage)) {
+    return BREVO_KEY_DISABLED_MESSAGE;
+  }
+  if (brevoMessage) {
+    return `Brevo unauthorized: ${brevoMessage}`;
+  }
+  return 'Brevo API key is invalid or unauthorized. Use a REST API v3 key in BREVO_API_KEY (Vercel env), then redeploy.';
+}
+
+export function formatBrevoError(error: unknown): string {
+  const { status, message: brevoMessage } = parseBrevoError(error);
 
   if (status === 401) {
-    return 'Brevo API key is invalid or unauthorized. Use a REST API v3 key in BREVO_API_KEY (Vercel env), then redeploy.';
+    return formatBrevo401Message(brevoMessage);
   }
   if (status === 403) {
     return 'Brevo API key lacks permission to send transactional email.';
@@ -70,12 +104,8 @@ export function formatBrevoError(error: unknown): string {
 }
 
 export function logBrevoError(context: string, error: unknown): void {
-  const err = error as AxiosLikeError;
-  console.error(context, {
-    status: err.response?.status,
-    message: err.response?.data?.message,
-    code: err.response?.data?.code,
-  });
+  const { status, message, code } = parseBrevoError(error);
+  console.error(context, { status, message, code });
 }
 
 function initBrevoClients(key: string): {
@@ -243,7 +273,7 @@ If you didn't expect this invitation, you can safely ignore this email.
     await apiInstance.sendTransacEmail(sendSmtpEmail);
   } catch (error: unknown) {
     logBrevoError('Error sending invitation email', error);
-    throw new Error(formatBrevoError(error));
+    throw error;
   }
 }
 
@@ -374,7 +404,7 @@ export async function sendClientPortalInviteEmail(data: ClientPortalInviteData):
     await apiInstance.sendTransacEmail(sendSmtpEmail);
   } catch (error: unknown) {
     logBrevoError('Error sending client portal invite email', error);
-    throw new Error(formatBrevoError(error));
+    throw error;
   }
 }
 
@@ -416,6 +446,6 @@ export async function sendEmail(data: SendEmailData): Promise<void> {
     await apiInstance.sendTransacEmail(sendSmtpEmail);
   } catch (error: unknown) {
     logBrevoError('Error sending email', error);
-    throw new Error(formatBrevoError(error));
+    throw error;
   }
 }

@@ -76,6 +76,12 @@ If an invite fails to send, the employee record is still created; the Team page 
 - Fix: Set a valid REST key in Vercel → Environment Variables → Production, then **redeploy** (env changes do not apply until the next deployment).
 - Verify: Sign in as a system admin and open `GET /api/admin/brevo-health` — `canSend` should be `true` when the key is valid.
 
+**"API Key is not enabled" (401 with message in logs)**
+
+- Symptom: Logs show `message: 'API Key is not enabled'` or the Team page says the Brevo API key is disabled.
+- Cause: The REST key in Vercel exists but is **turned off** in the Brevo dashboard (creating a key is not enough — it must be enabled).
+- Fix: [Brevo → Settings → SMTP & API → API Keys](https://app.brevo.com/settings/keys/api) → enable the key (or create a new one) → update `BREVO_API_KEY` in Vercel if you rotated it → **redeploy**.
+
 ### 4. MongoDB Atlas Configuration
 
 1. Ensure your MongoDB Atlas cluster allows connections from anywhere (0.0.0.0/0) or add Vercel IPs
