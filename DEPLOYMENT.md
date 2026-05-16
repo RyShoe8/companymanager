@@ -29,8 +29,10 @@ In the Vercel project settings, add the following environment variables:
   - Format: `https://your-app.vercel.app`
   - Vercel will provide this after first deployment
   
-- `BREVO_API_KEY`: Your Brevo API key for sending emails
+- `BREVO_API_KEY`: Your Brevo **REST API v3** key for sending emails (required for team member invites)
   - Get your API key from: https://app.brevo.com/settings/keys/api
+  - Use a REST API key, **not** an SMTP key (`xsmtpsib-…`). SMTP keys do not work with the Brevo SDK used by this app.
+  - If missing or wrong, employees save successfully but invite emails are not delivered (`emailSent: false` in the API response; use **Resend invite** on the Team page after fixing the key).
   
 - `BREVO_SENDER_EMAIL`: Email address to send from
   - **Must be set to:** `theteam@nucleas.app`
@@ -56,6 +58,16 @@ In the Vercel project settings, add the following environment variables:
 - `CALENDAR_TOKEN_ENCRYPTION_KEY`: Random secret to encrypt stored Google Calendar refresh tokens (recommended in production)
 
 See [docs/google-calendar-oauth.md](docs/google-calendar-oauth.md) for Google Cloud Console steps (enable Calendar API, consent screen scope, redirect URIs).
+
+#### Employee invite emails
+
+Team member invites are sent when you add or update an employee with an email (before they register). Requirements:
+
+- `BREVO_API_KEY` must be a valid REST API v3 key (see above).
+- `NEXTAUTH_URL` should match your production URL (e.g. `https://nucleas.app`) so invite links in emails point to the correct host.
+- Sender `theteam@nucleas.app` must be verified in Brevo.
+
+If an invite fails to send, the employee record is still created; the Team page shows a warning and a **Resend invite** action for pending members.
 
 ### 4. MongoDB Atlas Configuration
 

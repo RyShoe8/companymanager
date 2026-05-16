@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
 import { deleteBrevoContact } from '@/lib/services/email';
+import { inviteEmployeeByEmail } from '@/lib/services/employeeInvitation';
 import { isValidObjectId, sanitizeString, isValidEmail } from '@/lib/utils/security';
 import { Types } from 'mongoose';
 
@@ -114,12 +115,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
       employee.employeeType = employeeType;
     }
+    const previousEmail = employee.email?.toLowerCase();
+    let emailAddedOrChanged = false;
+
     if (email !== undefined) {
       email = sanitizeString(email, 254);
       if (email && !isValidEmail(email)) {
         return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
       }
-      employee.email = email || undefined;
+      const newEmail = email ? email.toLowerCase() : undefined;
+      if (newEmail !== previousEmail) {
+        emailAddedOrChanged = true;
+      }
+      employee.email = newEmail;
     }
     if (userId !== undefined) {
       // Only allow setting userId if it's not already set, or if admin is explicitly updating it
@@ -149,6 +157,34 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await employee.save();
+
+    let emailSent: boolean | undefined;
+    let emailError: string | undefined;
+    let invitation;
+
+    if (
+      employee.email &&
+      !employee.userId &&
+      emailAddedOrChanged
+    ) {
+      const existingUser = await User.findOne({ email: employee.email });
+      if (existingUser) {
+        return NextResponse.json(
+          { error: 'A user with this email already exists' },
+          { status: 400 }
+        );
+      }
+
+      const inviteResult = await inviteEmployeeByEmail({
+        employee,
+        inviterUser: user,
+        inviterUserId: session.userId,
+        emailChanged: emailAddedOrChanged,
+      });
+      invitation = inviteResult.invitation;
+      emailSent = inviteResult.emailSent;
+      emailError = inviteResult.emailError;
+    }
 
     // If name changed, update all assignments in projects and operations
     // Now using employeeId, so we can precisely update only THIS employee's assignments
@@ -189,9 +225,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     }
 
-    return NextResponse.json(employee);
+    return NextResponse.json({
+      employee,
+      ...(invitation ? { invitation } : {}),
+      ...(emailSent !== undefined ? { emailSent, emailError } : {}),
+    });
   } catch (error) {
-    // Update employee error
+    console.error('Error updating employee:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

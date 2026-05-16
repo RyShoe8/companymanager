@@ -4,7 +4,8 @@ import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { generateInvitationToken } from '@/lib/utils/invitation';
-import { sendInvitationEmail, createBrevoContact } from '@/lib/services/email';
+import { createBrevoContact } from '@/lib/services/email';
+import { sendEmployeeInvitationEmail } from '@/lib/services/employeeInvitation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -175,37 +176,17 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Send invitation email (only if we have a token)
-      if (invitation && invitation.token) {
-        try {
-          // Get organization name
-          const Organization = (await import('@/lib/models/Organization')).default;
-          const adminUserId = user.organizationId;
-          const organization = await Organization.findOne({ userId: adminUserId });
-          const organizationName = organization?.name || 'the organization';
-          
-          // Get base URL from request headers or environment
-          const origin = request.headers.get('origin') || request.headers.get('host');
-          let baseUrl: string | undefined;
-          if (origin) {
-            // If origin is a full URL, use it; otherwise construct from host
-            baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
-          }
-          const { getInvitationLink } = await import('@/lib/utils/invitation');
-          const invitationLink = getInvitationLink(invitation.token, baseUrl);
-          await sendInvitationEmail({
-            recipientEmail: email.toLowerCase(),
-            recipientName: name,
-            inviterName: user.name || user.email,
-            organizationName: organizationName,
-            invitationLink,
-            role,
-            expiresInDays: 7,
-          });
-        } catch (emailError: any) {
-          // Failed to send invitation email
-          // Don't fail the request if email fails - invitation is still created/updated
-        }
+      let emailSent = false;
+      let emailError: string | undefined;
+
+      if (invitation && invitation.token && employee) {
+        const emailResult = await sendEmployeeInvitationEmail({
+          invitation,
+          employee,
+          inviterUser: user,
+        });
+        emailSent = emailResult.emailSent;
+        emailError = emailResult.emailError;
       }
 
       // Add contact to Brevo
@@ -224,7 +205,7 @@ export async function POST(request: NextRequest) {
         // Don't fail the request if Brevo fails
       }
 
-      return NextResponse.json({ employee, invitation }, { status: 201 });
+      return NextResponse.json({ employee, invitation, emailSent, emailError }, { status: 201 });
     }
 
     // If no email, create employee without invitation

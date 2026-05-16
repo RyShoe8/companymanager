@@ -4,8 +4,8 @@ import Invitation from '@/lib/models/Invitation';
 import Employee from '@/lib/models/Employee';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
-import { generateInvitationToken, getInvitationLink } from '@/lib/utils/invitation';
-import { sendInvitationEmail } from '@/lib/services/email';
+import { generateInvitationToken } from '@/lib/utils/invitation';
+import { sendEmployeeInvitationEmail } from '@/lib/services/employeeInvitation';
 
 /**
  * GET /api/invitations - Get all invitations for the organization
@@ -124,38 +124,16 @@ export async function POST(request: NextRequest) {
       invitedBy: session.userId,
     });
 
-    // Send invitation email
-    try {
-      // Get organization name
-      const Organization = (await import('@/lib/models/Organization')).default;
-      const adminUserId = user.organizationId;
-      const organization = await Organization.findOne({ userId: adminUserId });
-      const organizationName = organization?.name || 'the organization';
-      
-      // Get base URL from request headers or environment
-      const origin = request.headers.get('origin') || request.headers.get('host');
-      let baseUrl: string | undefined;
-      if (origin) {
-        // If origin is a full URL, use it; otherwise construct from host
-        baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
-      }
-      const invitationLink = getInvitationLink(token, baseUrl);
-      await sendInvitationEmail({
-        recipientEmail: email.toLowerCase(),
-        recipientName: name || email.split('@')[0],
-        inviterName: user.name || user.email,
-        organizationName: organizationName,
-        invitationLink,
-        role: role || 'User',
-        expiresInDays: 7,
-      });
-    } catch (emailError) {
-      // Failed to send invitation email
-      // Don't fail the request if email fails - invitation is still created
-      // Could optionally delete the invitation here, but keeping it allows retry
-    }
+    const emailResult = await sendEmployeeInvitationEmail({
+      invitation,
+      employee,
+      inviterUser: user,
+    });
 
-    return NextResponse.json(invitation, { status: 201 });
+    return NextResponse.json(
+      { ...invitation.toObject(), emailSent: emailResult.emailSent, emailError: emailResult.emailError },
+      { status: 201 }
+    );
   } catch (error) {
     // Create invitation error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

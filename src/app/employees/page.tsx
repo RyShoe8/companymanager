@@ -15,6 +15,7 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<IEmployee | undefined>();
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -76,6 +77,31 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleResendInvite = async (employeeId: string) => {
+    setResendingId(employeeId);
+    try {
+      const response = await fetch(`/api/employees/${employeeId}/resend-invite`, {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        alert(`Error: ${result.error || 'Failed to resend invitation'}`);
+        return;
+      }
+      if (result.emailSent) {
+        alert('Invitation email sent successfully.');
+      } else {
+        alert(
+          `Could not send invitation email${result.emailError ? `: ${result.emailError}` : '.'}`
+        );
+      }
+    } catch {
+      alert('Failed to resend invitation. Please try again.');
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   const handleSubmitEmployee = async (data: Partial<IEmployee>) => {
     try {
       const url = editingEmployee ? `/api/employees/${editingEmployee._id}` : '/api/employees';
@@ -91,9 +117,15 @@ export default function EmployeesPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        // Error response
         alert(`Error: ${errorData.error || 'Failed to save team member'}`);
         return;
+      }
+
+      const result = await response.json();
+      if (result.emailSent === false) {
+        alert(
+          `Team member saved, but the invite email could not be sent${result.emailError ? `: ${result.emailError}` : '.'} Use Resend invite to try again.`
+        );
       }
 
       setShowEmployeeForm(false);
@@ -135,7 +167,7 @@ export default function EmployeesPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-1">{employee.name}</h3>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className={`text-xs px-2 py-1 rounded ${
                         employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
@@ -150,6 +182,11 @@ export default function EmployeesPage() {
                         {employee.employeeType === 'full-time' ? 'Full-Time' :
                          employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
                       </span>
+                      {employee.email && !employee.userId && (
+                        <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-800">
+                          Pending invite
+                        </span>
+                      )}
                     </div>
                     {employee.jobTitle && (
                       <p className="text-sm text-gray-600 mb-1">{employee.jobTitle}</p>
@@ -159,6 +196,16 @@ export default function EmployeesPage() {
                     </p>
                     {employee.email && (
                       <p className="text-xs text-gray-500 mt-1">{employee.email}</p>
+                    )}
+                    {employee.email && !employee.userId && currentUserEmployee?.role === 'Administrator' && (
+                      <button
+                        type="button"
+                        onClick={() => handleResendInvite(employee._id.toString())}
+                        disabled={resendingId === employee._id.toString()}
+                        className="mt-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
+                      >
+                        {resendingId === employee._id.toString() ? 'Sending…' : 'Resend invite'}
+                      </button>
                     )}
                   </div>
                   {currentUserEmployee?.role === 'Administrator' && (
