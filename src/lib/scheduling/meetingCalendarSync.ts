@@ -6,6 +6,7 @@ import {
 } from '@/lib/scheduling/buildMeetingAgenda';
 import { patchCalendarEventDescription } from '@/lib/scheduling/googleCalendar';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
+import { Types } from 'mongoose';
 
 export function buildMeetingFullDescription(
   meeting: Pick<IMeeting, 'title' | 'start' | 'end' | 'description' | 'agendaToken'>,
@@ -27,7 +28,7 @@ export function buildMeetingFullDescription(
 }
 
 export async function pushMeetingDescriptionToGoogle(
-  userId: string,
+  userId: Types.ObjectId,
   meeting: Pick<IMeeting, 'googleEventId'>,
   fullDescription: string
 ): Promise<void> {

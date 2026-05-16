@@ -29,7 +29,7 @@ async function loadOrgProjects(
 }
 
 async function syncMeetingAgendaToCalendar(
-  userId: string,
+  userId: Types.ObjectId,
   meeting: IMeeting,
   projects: any[],
   baseUrl: string
@@ -93,7 +93,7 @@ export async function PATCH(
 
     for (const target of targets) {
       if (linkedProjectsChanged || target.linkedProjectIds.length > 0) {
-        await syncMeetingAgendaToCalendar(session.userId, target, migrated, baseUrl);
+        await syncMeetingAgendaToCalendar(ctx.userId, target, migrated, baseUrl);
       }
       await target.save();
     }
