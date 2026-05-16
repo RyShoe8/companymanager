@@ -8,29 +8,27 @@ export function generateInvitationToken(): string {
 }
 
 /**
- * Generate invitation link URL
- * Uses VERCEL_URL in production, NEXTAUTH_URL if set, or falls back to localhost
+ * Canonical public app URL for user-facing links (emails, invites).
+ * Never uses VERCEL_URL — that is a deployment hostname, not the product domain.
+ */
+export function getAppBaseUrl(): string {
+  const nextAuth = process.env.NEXTAUTH_URL?.trim();
+  if (nextAuth) return nextAuth.replace(/\/$/, '');
+
+  const publicUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (publicUrl) return publicUrl.replace(/\/$/, '');
+
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:3000';
+  }
+
+  return 'https://nucleas.app';
+}
+
+/**
+ * Generate invitation link URL for employee org invites (/register?token=...)
  */
 export function getInvitationLink(token: string, baseUrl?: string): string {
-  let url = baseUrl;
-  
-  if (!url) {
-    // In Vercel, use VERCEL_URL (automatically set) or construct from headers
-    if (process.env.VERCEL_URL) {
-      // VERCEL_URL doesn't include protocol, so add https://
-      const vercelUrl = process.env.VERCEL_URL;
-      url = vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
-    } else if (process.env.NEXT_PUBLIC_APP_URL) {
-      url = process.env.NEXT_PUBLIC_APP_URL;
-    } else if (process.env.NEXTAUTH_URL) {
-      url = process.env.NEXTAUTH_URL;
-    } else {
-      url = 'http://localhost:3000';
-    }
-  }
-  
-  // Ensure URL doesn't have trailing slash
-  url = url.replace(/\/$/, '');
-  
+  const url = (baseUrl ?? getAppBaseUrl()).replace(/\/$/, '');
   return `${url}/register?token=${token}`;
 }

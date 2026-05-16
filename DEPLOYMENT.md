@@ -64,7 +64,7 @@ See [docs/google-calendar-oauth.md](docs/google-calendar-oauth.md) for Google Cl
 Team member invites are sent when you add or update an employee with an email (before they register). Requirements:
 
 - `BREVO_API_KEY` must be a valid REST API v3 key (see above).
-- `NEXTAUTH_URL` should match your production URL (e.g. `https://nucleas.app`) so invite links in emails point to the correct host.
+- `NEXTAUTH_URL` should match your production URL (e.g. `https://nucleas.app`) so invite links in emails point to the correct host. Invite links use `NEXTAUTH_URL` (or `https://nucleas.app` as fallback) — **not** `VERCEL_URL`, which would send employees to a `*.vercel.app` deployment URL.
 - Sender `theteam@nucleas.app` must be verified in Brevo.
 
 If an invite fails to send, the employee record is still created; the Team page shows a warning and a **Resend invite** action for pending members.
