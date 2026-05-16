@@ -4,7 +4,7 @@ import Organization from '@/lib/models/Organization';
 import { IEmployee, EmployeeRole, EmployeeTeam, EmployeeType } from '@/lib/models/Employee';
 import { IUser } from '@/lib/models/User';
 import { generateInvitationToken, getInvitationLink } from '@/lib/utils/invitation';
-import { sendInvitationEmail } from '@/lib/services/email';
+import { formatBrevoError, logBrevoError, sendInvitationEmail } from '@/lib/services/email';
 
 export interface EmailSendResult {
   emailSent: boolean;
@@ -136,9 +136,8 @@ export async function sendEmployeeInvitationEmail(params: {
 
     return { emailSent: true };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to send invitation email';
-    console.error('Failed to send employee invitation email:', error);
-    return { emailSent: false, emailError: message };
+    logBrevoError('Failed to send employee invitation email', error);
+    return { emailSent: false, emailError: formatBrevoError(error) };
   }
 }
 

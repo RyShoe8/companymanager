@@ -69,6 +69,13 @@ Team member invites are sent when you add or update an employee with an email (b
 
 If an invite fails to send, the employee record is still created; the Team page shows a warning and a **Resend invite** action for pending members.
 
+**Troubleshooting HTTP 401 on invite emails**
+
+- Symptom: Vercel logs show `Failed to send employee invitation email: AxiosError 401` and the Team page warns that the invite could not be sent.
+- Cause: `BREVO_API_KEY` is missing, revoked, has extra whitespace/quotes, or is an SMTP key (`xsmtpsib-`) instead of a REST API v3 key.
+- Fix: Set a valid REST key in Vercel → Environment Variables → Production, then **redeploy** (env changes do not apply until the next deployment).
+- Verify: Sign in as a system admin and open `GET /api/admin/brevo-health` — `canSend` should be `true` when the key is valid.
+
 ### 4. MongoDB Atlas Configuration
 
 1. Ensure your MongoDB Atlas cluster allows connections from anywhere (0.0.0.0/0) or add Vercel IPs

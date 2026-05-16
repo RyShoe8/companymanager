@@ -1,31 +1,150 @@
 import * as brevo from '@getbrevo/brevo';
 
-const apiKey = process.env.BREVO_API_KEY;
+export type BrevoKeyType = 'missing' | 'smtp' | 'rest';
 
-if (!apiKey) {
-  // BREVO_API_KEY is not set. Email functionality will be disabled.
-} else {
-  // Check if it's an SMTP key (starts with xsmtpsib-) - SDK needs REST API key
-  if (apiKey.startsWith('xsmtpsib-')) {
-    // WARNING: You are using an SMTP API key. The Brevo SDK requires a REST API v3 key.
-    // Please get your REST API key from: https://app.brevo.com/settings/keys/api
+function readRawBrevoApiKey(): string {
+  return (process.env.BREVO_API_KEY ?? '').trim();
+}
+
+export function getBrevoKeyType(): BrevoKeyType {
+  const key = readRawBrevoApiKey();
+  if (!key) return 'missing';
+  if (key.startsWith('xsmtpsib-')) return 'smtp';
+  return 'rest';
+}
+
+/** Valid REST API v3 key, or null if missing / SMTP / too short */
+export function getBrevoApiKey(): string | null {
+  const key = readRawBrevoApiKey();
+  if (!key) return null;
+  if (key.startsWith('xsmtpsib-')) return null;
+  if (key.length < 16) return null;
+  return key;
+}
+
+export function getBrevoSenderEmail(): string {
+  const fromEnv = (process.env.BREVO_SENDER_EMAIL ?? '').trim();
+  return fromEnv || 'theteam@nucleas.app';
+}
+
+export function getBrevoConfigurationError(): string | null {
+  const keyType = getBrevoKeyType();
+  if (keyType === 'missing') {
+    return 'Brevo API is not configured. Set BREVO_API_KEY in your environment (Vercel → Environment Variables).';
   }
+  if (keyType === 'smtp') {
+    return 'BREVO_API_KEY is an SMTP key (xsmtpsib-). Use a REST API v3 key from https://app.brevo.com/settings/keys/api';
+  }
+  const key = getBrevoApiKey();
+  if (!key) {
+    return 'BREVO_API_KEY appears invalid. Use a REST API v3 key from Brevo and redeploy.';
+  }
+  return null;
+}
+
+type AxiosLikeError = {
+  response?: { status?: number; data?: { message?: string; code?: string } };
+  message?: string;
+};
+
+export function formatBrevoError(error: unknown): string {
+  const err = error as AxiosLikeError;
+  const status = err.response?.status;
+  const brevoMessage = err.response?.data?.message;
+
+  if (status === 401) {
+    return 'Brevo API key is invalid or unauthorized. Use a REST API v3 key in BREVO_API_KEY (Vercel env), then redeploy.';
+  }
+  if (status === 403) {
+    return 'Brevo API key lacks permission to send transactional email.';
+  }
+  if (status === 400 && brevoMessage) {
+    if (/sender|from|verified|domain/i.test(brevoMessage)) {
+      return `Sender email not verified in Brevo: ${brevoMessage}`;
+    }
+    return brevoMessage;
+  }
+  if (brevoMessage) return brevoMessage;
+  if (error instanceof Error) return error.message;
+  return 'Failed to send email via Brevo';
+}
+
+export function logBrevoError(context: string, error: unknown): void {
+  const err = error as AxiosLikeError;
+  console.error(context, {
+    status: err.response?.status,
+    message: err.response?.data?.message,
+    code: err.response?.data?.code,
+  });
+}
+
+function initBrevoClients(key: string): {
+  transactional: brevo.TransactionalEmailsApi;
+  contacts: brevo.ContactsApi;
+} {
+  const transactional = new brevo.TransactionalEmailsApi();
+  transactional.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, key);
+
+  const contacts = new brevo.ContactsApi();
+  contacts.setApiKey(brevo.ContactsApiApiKeys.apiKey, key);
+
+  return { transactional, contacts };
 }
 
 let apiInstance: brevo.TransactionalEmailsApi | null = null;
 let contactsApiInstance: brevo.ContactsApi | null = null;
 
-if (apiKey) {
+const initialKey = getBrevoApiKey();
+if (initialKey) {
   try {
-    apiInstance = new brevo.TransactionalEmailsApi();
-    apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, apiKey);
-    
-    contactsApiInstance = new brevo.ContactsApi();
-    contactsApiInstance.setApiKey(brevo.ContactsApiApiKeys.apiKey, apiKey);
-  } catch (error) {
-    // Error initializing Brevo API instances
+    const clients = initBrevoClients(initialKey);
+    apiInstance = clients.transactional;
+    contactsApiInstance = clients.contacts;
+  } catch {
     apiInstance = null;
     contactsApiInstance = null;
+  }
+}
+
+export type BrevoHealthStatus = {
+  configured: boolean;
+  keyType: BrevoKeyType;
+  canSend: boolean;
+  configurationError: string | null;
+};
+
+export async function getBrevoHealthStatus(): Promise<BrevoHealthStatus> {
+  const keyType = getBrevoKeyType();
+  const configurationError = getBrevoConfigurationError();
+  const key = getBrevoApiKey();
+
+  if (!key) {
+    return {
+      configured: false,
+      keyType,
+      canSend: false,
+      configurationError,
+    };
+  }
+
+  try {
+    const accountApi = new brevo.AccountApi();
+    accountApi.setApiKey(brevo.AccountApiApiKeys.apiKey, key);
+    await accountApi.getAccount();
+    return {
+      configured: true,
+      keyType: 'rest',
+      canSend: true,
+      configurationError: null,
+    };
+  } catch (error: unknown) {
+    logBrevoError('Brevo health check failed', error);
+    return {
+      configured: true,
+      keyType: 'rest',
+      canSend: false,
+      configurationError: formatBrevoError(error),
+    };
   }
 }
 
@@ -43,8 +162,9 @@ export interface InvitationEmailData {
  * Send an invitation email via Brevo
  */
 export async function sendInvitationEmail(data: InvitationEmailData): Promise<void> {
-  if (!apiInstance) {
-    throw new Error('Brevo API is not configured. Please set BREVO_API_KEY environment variable.');
+  const configError = getBrevoConfigurationError();
+  if (configError || !apiInstance) {
+    throw new Error(configError ?? 'Brevo API is not configured.');
   }
 
   const sendSmtpEmail = new brevo.SendSmtpEmail();
@@ -52,8 +172,7 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
   sendSmtpEmail.subject = `You've been invited to join ${data.organizationName || 'Nucleas'}`;
   sendSmtpEmail.to = [{ email: data.recipientEmail, name: data.recipientName || data.recipientEmail }];
   
-  // Brevo requires a sender email - always use theteam@nucleas.app
-  const senderEmail = 'theteam@nucleas.app';
+  const senderEmail = getBrevoSenderEmail();
   
   // Always use production URL for logo to ensure email clients can access it
   // Email clients proxy images, so we need a stable, publicly accessible URL
@@ -122,9 +241,9 @@ If you didn't expect this invitation, you can safely ignore this email.
 
   try {
     await apiInstance.sendTransacEmail(sendSmtpEmail);
-  } catch (error: any) {
-    // Error sending invitation email
-    throw error;
+  } catch (error: unknown) {
+    logBrevoError('Error sending invitation email', error);
+    throw new Error(formatBrevoError(error));
   }
 }
 
@@ -223,15 +342,16 @@ export interface ClientPortalInviteData {
  * Send a client portal invite email
  */
 export async function sendClientPortalInviteEmail(data: ClientPortalInviteData): Promise<void> {
-  if (!apiInstance) {
-    throw new Error('Brevo API is not configured. Please set BREVO_API_KEY environment variable.');
+  const configError = getBrevoConfigurationError();
+  if (configError || !apiInstance) {
+    throw new Error(configError ?? 'Brevo API is not configured.');
   }
 
   const sendSmtpEmail = new brevo.SendSmtpEmail();
   sendSmtpEmail.subject = `You have access to ${data.projectName} – Nucleas Client Portal`;
   sendSmtpEmail.to = [{ email: data.recipientEmail }];
   sendSmtpEmail.sender = {
-    email: 'theteam@nucleas.app',
+    email: getBrevoSenderEmail(),
     name: process.env.BREVO_SENDER_NAME || 'Nucleas',
   };
 
@@ -250,7 +370,12 @@ export async function sendClientPortalInviteEmail(data: ClientPortalInviteData):
   `;
   sendSmtpEmail.textContent = `You have access to ${data.projectName}. Open the client portal: ${data.portalLink}`;
 
-  await apiInstance.sendTransacEmail(sendSmtpEmail);
+  try {
+    await apiInstance.sendTransacEmail(sendSmtpEmail);
+  } catch (error: unknown) {
+    logBrevoError('Error sending client portal invite email', error);
+    throw new Error(formatBrevoError(error));
+  }
 }
 
 export interface SendEmailData {
@@ -264,8 +389,9 @@ export interface SendEmailData {
  * Send a generic email via Brevo
  */
 export async function sendEmail(data: SendEmailData): Promise<void> {
-  if (!apiInstance) {
-    throw new Error('Brevo API is not configured. Please set BREVO_API_KEY environment variable.');
+  const configError = getBrevoConfigurationError();
+  if (configError || !apiInstance) {
+    throw new Error(configError ?? 'Brevo API is not configured.');
   }
 
   const sendSmtpEmail = new brevo.SendSmtpEmail();
@@ -273,8 +399,7 @@ export async function sendEmail(data: SendEmailData): Promise<void> {
   sendSmtpEmail.subject = data.subject;
   sendSmtpEmail.to = [{ email: data.to }];
   
-  // Brevo requires a sender email - always use theteam@nucleas.app
-  const senderEmail = 'theteam@nucleas.app';
+  const senderEmail = getBrevoSenderEmail();
   
   sendSmtpEmail.sender = {
     email: senderEmail,
@@ -289,8 +414,8 @@ export async function sendEmail(data: SendEmailData): Promise<void> {
 
   try {
     await apiInstance.sendTransacEmail(sendSmtpEmail);
-  } catch (error: any) {
-    // Error sending email
-    throw error;
+  } catch (error: unknown) {
+    logBrevoError('Error sending email', error);
+    throw new Error(formatBrevoError(error));
   }
 }
