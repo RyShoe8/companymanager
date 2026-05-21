@@ -27,6 +27,8 @@ export async function GET(request: NextRequest) {
     }
     lastSyncByUser.set(session.userId, now);
 
+    await connectDB();
+
     const ctx = await getSchedulingContext(session.userId);
     if (!ctx) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
@@ -51,8 +53,6 @@ export async function GET(request: NextRequest) {
       start.toISOString(),
       end.toISOString()
     );
-
-    await connectDB();
 
     const existingByGoogleId = new Map<string, { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[] }>();
     const existing = await Meeting.find({

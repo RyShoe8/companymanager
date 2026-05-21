@@ -1,3 +1,4 @@
+import connectDB from '@/lib/db/mongodb';
 import UserCalendarConnection from '@/lib/models/UserCalendarConnection';
 import { decryptToken, encryptToken } from '@/lib/scheduling/tokenCrypto';
 import { refreshAccessToken } from '@/lib/scheduling/googleCalendar';
@@ -6,6 +7,7 @@ import { Types } from 'mongoose';
 export async function getGoogleAccessTokenForUser(
   userId: Types.ObjectId
 ): Promise<{ accessToken: string; calendarId: string } | null> {
+  await connectDB();
   const conn = await UserCalendarConnection.findOne({ userId, provider: 'google' });
   if (!conn?.refreshTokenEncrypted) return null;
   const refreshToken = decryptToken(conn.refreshTokenEncrypted);
@@ -18,6 +20,7 @@ export async function upsertGoogleConnection(
   refreshToken: string,
   calendarId = 'primary'
 ): Promise<void> {
+  await connectDB();
   await UserCalendarConnection.findOneAndUpdate(
     { userId },
     {
