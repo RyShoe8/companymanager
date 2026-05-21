@@ -147,10 +147,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null);
   const [showTaskActions, setShowTaskActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
-  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveStatusRef = useRef(saveStatus);
-  saveStatusRef.current = saveStatus;
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
@@ -392,18 +388,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
-  // Clear saved status after brief display; cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
-    };
-  }, []);
-
-  const clearSaveStatusAfterDelay = (status: 'saved' | 'failed' = 'saved') => {
-    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
-    savedTimeoutRef.current = setTimeout(() => setSaveStatus('idle'), status === 'failed' ? 2500 : 1200);
-  };
-
   const toggleTaskComments = (taskIdx: number) => {
     setExpandedTaskComments(prev => {
       const newSet = new Set(prev);
@@ -421,7 +405,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       initialTaskAppliedKeyRef.current = null;
       return;
     }
-    if (saveStatusRef.current === 'saving') return;
     setLocalProject((prev) => {
       const pAt = (project as { updatedAt?: string | Date }).updatedAt;
       const prevAt = (prev as { updatedAt?: string | Date }).updatedAt;
@@ -517,18 +500,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const handleFieldUpdate = async (field: string, value: any) => {
-    setSaveStatus('saving');
     setLocalProject(prev => ({ ...prev, [field]: value } as IProject));
     try {
       const updates = { [field]: value };
       await onUpdate(updates);
-      setSaveStatus('saved');
-      clearSaveStatusAfterDelay();
     } catch (error) {
       console.error('Error in handleFieldUpdate:', error);
       setLocalProject(project);
-      setSaveStatus('failed');
-      clearSaveStatusAfterDelay('failed');
       alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
@@ -564,18 +542,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       return;
     }
     setPaletteSaving(true);
-    setSaveStatus('saving');
     setLocalProject((prev) => ({ ...prev, colorPalette: sanitized, color: sanitized[0] } as IProject));
     try {
       await onUpdate({ colorPalette: sanitized, color: sanitized[0] });
-      setSaveStatus('saved');
-      clearSaveStatusAfterDelay();
       setPaletteSheetOpen(false);
     } catch (error) {
       console.error('Error saving palette:', error);
       setLocalProject(project);
-      setSaveStatus('failed');
-      clearSaveStatusAfterDelay('failed');
       alert(error instanceof Error ? error.message : 'Failed to save');
     } finally {
       setPaletteSaving(false);
@@ -593,17 +566,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
 
     updatedTasks[taskIndex] = updatedTask;
-    setSaveStatus('saving');
     setLocalProject(prev => ({ ...prev, tasks: updatedTasks } as IProject));
     try {
       await onUpdate({ tasks: updatedTasks });
-      setSaveStatus('saved');
-      clearSaveStatusAfterDelay();
     } catch (error) {
       console.error('Error updating task:', error);
       setLocalProject(project);
-      setSaveStatus('failed');
-      clearSaveStatusAfterDelay('failed');
       alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
@@ -621,12 +589,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const prevTasks = localProject.tasks || [];
     const nextTasks = [...prevTasks, newTask];
     const newIdx = nextTasks.length - 1;
-    setSaveStatus('saving');
     setLocalProject((prev) => ({ ...prev, tasks: nextTasks } as IProject));
     try {
       await onUpdate({ tasks: nextTasks });
-      setSaveStatus('saved');
-      clearSaveStatusAfterDelay();
       setViewTab('tasks');
       setExpandedSections((prev) => new Set(prev).add('tasks'));
       setPendingScrollToTaskIndex(newIdx);
@@ -634,8 +599,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       console.error('Error adding task:', error);
       setLocalProject(project);
       setPendingScrollToTaskIndex(null);
-      setSaveStatus('failed');
-      clearSaveStatusAfterDelay('failed');
       alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
@@ -646,33 +609,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
   const employeeOptions = employees.map(emp => ({ value: emp._id.toString(), label: emp.name }));
 
-
+  const dismissedChecklistIds = useMemo(() => {
+    const raw = localDismissedChecklistIds ?? localProject.dismissedChecklistIds ?? [];
+    return raw.map((id) => id.toString());
+  }, [
+    localDismissedChecklistIds,
+    (localProject.dismissedChecklistIds ?? []).map((id) => id.toString()).join(','),
+  ]);
 
   return (
     <div className="space-y-4">
-      <div
-        className="sticky top-0 z-20 relative h-9 shrink-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm -mx-1 px-1 -mt-1"
-        aria-live="polite"
-      >
-        <div
-          className={`absolute right-1 top-1 px-3 py-1.5 rounded-lg text-sm font-medium shadow-lg transition-opacity duration-150 ${
-            saveStatus === 'idle'
-              ? 'opacity-0 pointer-events-none'
-              : 'opacity-100'
-          } ${
-            saveStatus === 'saving'
-              ? 'bg-blue-500 text-white animate-pulse'
-              : saveStatus === 'failed'
-                ? 'bg-red-600 text-white'
-                : saveStatus === 'saved'
-                  ? 'bg-green-600 text-white'
-                  : ''
-          }`}
-        >
-          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'failed' ? 'Save failed' : saveStatus === 'saved' ? 'Saved' : ''}
-        </div>
-      </div>
-
       {/* Project Header Card */}
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex items-start gap-3">
@@ -1030,7 +976,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         phase={mapStatusToStage(localProject.status)}
         projectType={localProject.category || 'generic'}
         actionButtons={actionButtons}
-        dismissedChecklistIds={localDismissedChecklistIds ?? (localProject.dismissedChecklistIds || []).map((id) => id.toString())}
+        dismissedChecklistIds={dismissedChecklistIds}
         isManagerOrAdmin={isManagerOrAdmin}
         onUpdate={async (updates) => {
           await onUpdate(updates as Partial<IProject>);

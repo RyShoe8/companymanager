@@ -33,6 +33,14 @@ function getReferralUrl(url: string | undefined): string {
   return url ? url.trim() : '';
 }
 
+function filterChecklistEntries(entries: CatalogEntry[], dismissedIds: string[]): CatalogEntry[] {
+  const withChecklist = entries.filter(
+    (e) => e.checklistSentence && e.checklistNumber !== undefined && e.checklistNumber !== null
+  );
+  const sorted = withChecklist.sort((a, b) => (a.checklistNumber ?? 0) - (b.checklistNumber ?? 0));
+  return sorted.filter((e) => !dismissedIds.includes(e._id));
+}
+
 export default function ChecklistSection({
   projectId,
   phase,
@@ -43,12 +51,16 @@ export default function ChecklistSection({
   onUpdate,
   onRefreshButtons,
 }: ChecklistSectionProps) {
+  const [catalogAll, setCatalogAll] = useState<CatalogEntry[]>([]);
   const [checklistItems, setChecklistItems] = useState<CatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryForItem, setCategoryForItem] = useState<{ sentence: string; entries: CatalogEntry[] } | null>(null);
   const [addUrlForEntry, setAddUrlForEntry] = useState<{ entry: CatalogEntry; label: string; url: string } | null>(null);
 
+  const dismissedKey = dismissedChecklistIds.join(',');
+
   useEffect(() => {
+    let cancelled = false;
     const fetchCatalog = async () => {
       setLoading(true);
       try {
@@ -57,21 +69,29 @@ export default function ChecklistSection({
         if (res.ok) {
           const data = await res.json();
           const entries = (data.entries || []) as CatalogEntry[];
-          const withChecklist = entries.filter(
-            (e) => e.checklistSentence && e.checklistNumber !== undefined && e.checklistNumber !== null
-          );
-          const sorted = withChecklist.sort((a, b) => (a.checklistNumber ?? 0) - (b.checklistNumber ?? 0));
-          const notDismissed = sorted.filter((e) => !dismissedChecklistIds.includes(e._id));
-          setChecklistItems(notDismissed);
+          if (!cancelled) {
+            setCatalogAll(entries);
+          }
+        } else if (!cancelled) {
+          setCatalogAll([]);
         }
-      } catch (e) {
-        setChecklistItems([]);
+      } catch {
+        if (!cancelled) {
+          setCatalogAll([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchCatalog();
-  }, [phase, projectType, dismissedChecklistIds]);
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, projectType]);
+
+  useEffect(() => {
+    setChecklistItems(filterChecklistEntries(catalogAll, dismissedChecklistIds));
+  }, [dismissedKey, catalogAll]);
 
   const handleCreate = (entry: CatalogEntry) => {
     const url = getReferralUrl(entry.url);
@@ -93,8 +113,13 @@ export default function ChecklistSection({
   };
 
   const handleDismiss = async (entryId: string) => {
+    setChecklistItems((prev) => prev.filter((e) => e._id !== entryId));
     const next = [...dismissedChecklistIds, entryId];
-    await onUpdate({ dismissedChecklistIds: next });
+    try {
+      await onUpdate({ dismissedChecklistIds: next });
+    } catch {
+      setChecklistItems(filterChecklistEntries(catalogAll, dismissedChecklistIds));
+    }
   };
 
   const openCategoryForItem = async (sentence: string) => {
