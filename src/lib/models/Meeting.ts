@@ -28,7 +28,7 @@ const MeetingSchema = new Schema(
     googleEventId: { type: String, trim: true, sparse: true },
     googleRecurringEventId: { type: String, trim: true, sparse: true },
     iCalUID: { type: String, trim: true, sparse: true },
-    agendaToken: { type: String, required: true, unique: true, index: true },
+    agendaToken: { type: String, required: true, index: true },
     linkedProjectIds: [{ type: Schema.Types.ObjectId, ref: 'Project' }],
     createdInNucleas: { type: Boolean, default: true },
     description: { type: String, trim: true },
@@ -38,6 +38,8 @@ const MeetingSchema = new Schema(
 
 MeetingSchema.index({ userId: 1, start: 1 });
 MeetingSchema.index({ userId: 1, googleRecurringEventId: 1 }, { sparse: true });
+MeetingSchema.index({ organizationId: 1, iCalUID: 1 }, { sparse: true });
+MeetingSchema.index({ organizationId: 1, googleRecurringEventId: 1 }, { sparse: true });
 
 const Meeting: Model<IMeeting> =
   mongoose.models.Meeting || mongoose.model<IMeeting>('Meeting', MeetingSchema);

@@ -650,16 +650,27 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-20 min-h-[36px] shrink-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm -mx-1 px-1 py-1 -mt-1" aria-live="polite">
-        {saveStatus !== 'idle' && (
-          <div
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium shadow-lg ${saveStatus === 'saving' ? 'bg-blue-500 text-white animate-pulse' :
-              saveStatus === 'failed' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
-              }`}
-          >
-            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'failed' ? 'Save failed' : 'Saved'}
-          </div>
-        )}
+      <div
+        className="sticky top-0 z-20 relative h-9 shrink-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm -mx-1 px-1 -mt-1"
+        aria-live="polite"
+      >
+        <div
+          className={`absolute right-1 top-1 px-3 py-1.5 rounded-lg text-sm font-medium shadow-lg transition-opacity duration-150 ${
+            saveStatus === 'idle'
+              ? 'opacity-0 pointer-events-none'
+              : 'opacity-100'
+          } ${
+            saveStatus === 'saving'
+              ? 'bg-blue-500 text-white animate-pulse'
+              : saveStatus === 'failed'
+                ? 'bg-red-600 text-white'
+                : saveStatus === 'saved'
+                  ? 'bg-green-600 text-white'
+                  : ''
+          }`}
+        >
+          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'failed' ? 'Save failed' : saveStatus === 'saved' ? 'Saved' : ''}
+        </div>
       </div>
 
       {/* Project Header Card */}

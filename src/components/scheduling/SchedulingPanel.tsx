@@ -182,13 +182,24 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
     if (res.ok) {
       setEditingId(null);
       await loadMeetings();
-      const count = typeof data.seriesUpdatedCount === 'number' ? data.seriesUpdatedCount : 1;
-      if (editingMeeting?.googleRecurringEventId && count > 1) {
+      const participants =
+        typeof data.participantsUpdatedCount === 'number' ? data.participantsUpdatedCount : 1;
+      const calendars =
+        typeof data.calendarsPatchedCount === 'number' ? data.calendarsPatchedCount : 0;
+      if (editingMeeting?.googleRecurringEventId && participants > 1) {
         setMessage(
-          `Projects linked to all ${count} occurrences; agendas refreshed in calendar.`
+          `Projects linked across ${participants} meeting records${calendars > 0 ? `; ${calendars} Google Calendar${calendars === 1 ? '' : 's'} updated with agenda` : ''}.`
+        );
+      } else if (participants > 1) {
+        setMessage(
+          `Projects linked for ${participants} team members${calendars > 0 ? `; ${calendars} calendar${calendars === 1 ? '' : 's'} updated` : ' in Nucleas'}.`
         );
       } else {
-        setMessage('Meeting projects updated; agenda refreshed in calendar if linked.');
+        setMessage(
+          calendars > 0
+            ? 'Meeting projects updated; agenda refreshed in your Google Calendar.'
+            : 'Meeting projects updated.'
+        );
       }
     } else {
       setMessage(data.error || 'Failed to update meeting.');

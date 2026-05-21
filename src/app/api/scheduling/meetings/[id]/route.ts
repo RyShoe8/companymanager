@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import { requireAuth } from '@/lib/auth/middleware';
-import Meeting, { IMeeting } from '@/lib/models/Meeting';
+import Meeting from '@/lib/models/Meeting';
 import Project from '@/lib/models/Project';
 import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
 import {
@@ -9,10 +9,8 @@ import {
   migrateProjectFields,
   migrateStagesToTasks,
 } from '@/lib/utils/apiHelpers';
-import {
-  buildMeetingFullDescription,
-  pushMeetingDescriptionToGoogle,
-} from '@/lib/scheduling/meetingCalendarSync';
+import { propagateMeetingProjectsAndCalendars } from '@/lib/scheduling/meetingPropagation';
+import { getAppBaseUrl } from '@/lib/utils/invitation';
 import { Types } from 'mongoose';
 
 async function loadOrgProjects(
@@ -26,16 +24,6 @@ async function loadOrgProjects(
     userId: { $in: orgUserIds },
   }).lean();
   return projects.map((p) => migrateProjectFields(migrateStagesToTasks(p))) as any[];
-}
-
-async function syncMeetingAgendaToCalendar(
-  userId: Types.ObjectId,
-  meeting: IMeeting,
-  projects: any[],
-  baseUrl: string
-) {
-  const fullDescription = buildMeetingFullDescription(meeting, projects, baseUrl);
-  await pushMeetingDescriptionToGoogle(userId, meeting, fullDescription);
 }
 
 export async function PATCH(
@@ -68,42 +56,44 @@ export async function PATCH(
     const linkedProjectsChanged =
       body.linkedProjectIds !== undefined && Array.isArray(body.linkedProjectIds);
 
+    let participantsUpdatedCount: number | undefined;
+    let calendarsPatchedCount: number | undefined;
+    let seriesUpdatedCount: number | undefined;
+
     if (linkedProjectsChanged) {
-      meeting.linkedProjectIds = body.linkedProjectIds
+      const projectIds = body.linkedProjectIds
         .filter((pid: string) => Types.ObjectId.isValid(pid))
         .map((pid: string) => new Types.ObjectId(pid));
-    }
 
-    const baseUrl = new URL(request.url).origin;
-    const projectIds = meeting.linkedProjectIds;
-    const migrated = await loadOrgProjects(session.userId, ctx.organizationId, projectIds);
+      meeting.linkedProjectIds = projectIds;
 
-    let targets: IMeeting[] = [meeting];
+      const baseUrl = getAppBaseUrl();
+      const migrated = await loadOrgProjects(session.userId, ctx.organizationId, projectIds);
 
-    if (linkedProjectsChanged && meeting.googleRecurringEventId) {
-      const siblings = await Meeting.find({
-        userId: ctx.userId,
-        googleRecurringEventId: meeting.googleRecurringEventId,
+      const result = await propagateMeetingProjectsAndCalendars({
+        anchor: meeting,
+        linkedProjectIds: projectIds,
+        projects: migrated,
+        baseUrl,
+        syncCalendar: true,
       });
-      targets = siblings;
-      for (const sibling of siblings) {
-        sibling.linkedProjectIds = [...projectIds];
-      }
-    }
 
-    for (const target of targets) {
-      if (linkedProjectsChanged || target.linkedProjectIds.length > 0) {
-        await syncMeetingAgendaToCalendar(ctx.userId, target, migrated, baseUrl);
-      }
-      await target.save();
+      participantsUpdatedCount = result.participantsUpdatedCount;
+      calendarsPatchedCount = result.calendarsPatchedCount;
+      seriesUpdatedCount = meeting.googleRecurringEventId
+        ? result.participantsUpdatedCount
+        : undefined;
+    } else {
+      await meeting.save();
     }
 
     const saved = await Meeting.findById(meeting._id).lean();
-    const seriesUpdatedCount = targets.length;
 
     return NextResponse.json({
       ...(saved || meeting.toObject()),
-      seriesUpdatedCount: linkedProjectsChanged ? seriesUpdatedCount : undefined,
+      participantsUpdatedCount,
+      calendarsPatchedCount,
+      seriesUpdatedCount,
     });
   } catch (error) {
     console.error('Meeting PATCH error:', error);
