@@ -113,9 +113,16 @@ export async function insertCalendarEvent(
     start: string;
     end: string;
     recurrence?: string[];
+    attendees?: { email: string }[];
+    sendUpdates?: 'all' | 'externalOnly' | 'none';
   }
 ): Promise<GoogleCalendarEvent> {
-  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  let url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  const sendUpdates =
+    event.sendUpdates ?? (event.attendees?.length ? 'all' : undefined);
+  if (sendUpdates) {
+    url += `?sendUpdates=${encodeURIComponent(sendUpdates)}`;
+  }
   const body: Record<string, unknown> = {
     summary: event.summary,
     description: event.description,
@@ -124,6 +131,9 @@ export async function insertCalendarEvent(
   };
   if (event.recurrence?.length) {
     body.recurrence = event.recurrence;
+  }
+  if (event.attendees?.length) {
+    body.attendees = event.attendees;
   }
   const res = await fetch(url, {
     method: 'POST',

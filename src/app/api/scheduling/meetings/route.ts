@@ -28,8 +28,10 @@ import {
 } from '@/lib/scheduling/recurrence';
 import {
   filterSeriesInstances,
+  importMeetingsForInvitedUsers,
   upsertMeetingsFromGoogleEvents,
 } from '@/lib/scheduling/importGoogleMeetings';
+import { resolveMeetingInvitees } from '@/lib/scheduling/meetingAttendees';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -74,7 +76,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, start, end, linkedProjectIds, description, syncToGoogle, recurrence } = body;
+    const {
+      title,
+      start,
+      end,
+      linkedProjectIds,
+      description,
+      syncToGoogle,
+      recurrence,
+      attendeeEmployeeIds,
+      externalAttendeeEmails,
+    } = body;
     if (!title || !start || !end) {
       return NextResponse.json({ error: 'title, start, and end are required' }, { status: 400 });
     }
@@ -110,6 +122,28 @@ export async function POST(request: NextRequest) {
       : [];
 
     await connectDB();
+
+    let invitees;
+    try {
+      invitees = await resolveMeetingInvitees(
+        ctx.organizationId,
+        attendeeEmployeeIds,
+        externalAttendeeEmails,
+        session.userId
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Invalid invitees';
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    const hasInvitees = invitees.googleAttendees.length > 0;
+    if (hasInvitees && syncToGoogle === false) {
+      return NextResponse.json(
+        { error: 'Invites require Google Calendar sync.' },
+        { status: 400 }
+      );
+    }
+
     const orgUserIds = await getOrganizationUserIds(session.userId, ctx.organizationId);
     const projects = await Project.find({
       _id: { $in: projectIds },
@@ -127,6 +161,24 @@ export async function POST(request: NextRequest) {
     );
     const agendaText = formatAgendaPlainText(agendaPayload);
     const fullDescription = [description, agendaText].filter(Boolean).join('\n\n');
+
+    const upsertInviteOptions = {
+      linkedProjectIds: projectIds,
+      attendeeEmployeeIds: invitees.attendeeEmployeeIds,
+      externalAttendeeEmails: invitees.externalAttendeeEmails,
+      createdInNucleas: true,
+      defaultDescription: description || undefined,
+    };
+
+    const calendarEventBase = {
+      summary: String(title).trim(),
+      description: fullDescription,
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+      ...(hasInvitees
+        ? { attendees: invitees.googleAttendees, sendUpdates: 'all' as const }
+        : {}),
+    };
 
     if (preset !== 'none') {
       if (syncToGoogle === false) {
@@ -159,10 +211,7 @@ export async function POST(request: NextRequest) {
       }
 
       const created = await insertCalendarEvent(google.accessToken, google.calendarId, {
-        summary: String(title).trim(),
-        description: fullDescription,
-        start: startDate.toISOString(),
-        end: endDate.toISOString(),
+        ...calendarEventBase,
         recurrence: recurrenceRules,
       });
 
@@ -175,10 +224,17 @@ export async function POST(request: NextRequest) {
       );
       const seriesEvents = filterSeriesInstances(events, created.id);
 
-      const { imported, updated } = await upsertMeetingsFromGoogleEvents(ctx, seriesEvents, {
-        linkedProjectIds: projectIds,
-        createdInNucleas: true,
-        defaultDescription: description || undefined,
+      const { imported, updated } = await upsertMeetingsFromGoogleEvents(ctx, seriesEvents, upsertInviteOptions);
+
+      await importMeetingsForInvitedUsers({
+        organizationId: ctx.organizationId,
+        invitedUserIds: invitees.invitedUserIds,
+        organizerUserId: ctx.userId,
+        rangeStart: startDate,
+        rangeEnd: importEnd,
+        iCalUID: created.iCalUID,
+        googleRecurringEventId: created.id,
+        upsertOptions: upsertInviteOptions,
       });
 
       const meetings = await Meeting.find({
@@ -198,23 +254,47 @@ export async function POST(request: NextRequest) {
           updated,
           instanceCount: meetings.length,
           meetings,
+          invitesSent: invitees.googleAttendees.length,
+          skippedAttendees: invitees.skipped,
         },
         { status: 201 }
       );
     }
 
     let googleEventId: string | undefined;
+    let iCalUID: string | undefined;
     if (syncToGoogle !== false) {
       const google = await getGoogleAccessTokenForUser(ctx.userId);
-      if (google) {
-        const created = await insertCalendarEvent(google.accessToken, google.calendarId, {
-          summary: String(title).trim(),
-          description: fullDescription,
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-        });
-        googleEventId = created.id;
+      if (!google && hasInvitees) {
+        return NextResponse.json(
+          { error: 'Connect Google Calendar to send meeting invites.' },
+          { status: 400 }
+        );
       }
+      if (google) {
+        const created = await insertCalendarEvent(google.accessToken, google.calendarId, calendarEventBase);
+        googleEventId = created.id;
+        iCalUID = created.iCalUID;
+
+        if (hasInvitees) {
+          const importEnd = new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+          await importMeetingsForInvitedUsers({
+            organizationId: ctx.organizationId,
+            invitedUserIds: invitees.invitedUserIds,
+            organizerUserId: ctx.userId,
+            rangeStart: startDate,
+            rangeEnd: importEnd,
+            iCalUID: created.iCalUID,
+            googleRecurringEventId: undefined,
+            upsertOptions: upsertInviteOptions,
+          });
+        }
+      }
+    } else if (hasInvitees) {
+      return NextResponse.json(
+        { error: 'Invites require Google Calendar sync.' },
+        { status: 400 }
+      );
     }
 
     const meeting = await Meeting.create({
@@ -224,13 +304,23 @@ export async function POST(request: NextRequest) {
       start: startDate,
       end: endDate,
       googleEventId,
+      iCalUID,
       agendaToken,
       linkedProjectIds: projectIds,
+      attendeeEmployeeIds: invitees.attendeeEmployeeIds,
+      externalAttendeeEmails: invitees.externalAttendeeEmails,
       createdInNucleas: true,
       description: description || undefined,
     });
 
-    return NextResponse.json(meeting, { status: 201 });
+    return NextResponse.json(
+      {
+        ...meeting.toObject(),
+        invitesSent: invitees.googleAttendees.length,
+        skippedAttendees: invitees.skipped,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Meetings POST error:', error);
     const msg = error instanceof Error ? error.message : 'Internal server error';

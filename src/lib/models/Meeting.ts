@@ -12,6 +12,10 @@ export interface IMeeting extends Document {
   iCalUID?: string;
   agendaToken: string;
   linkedProjectIds: Types.ObjectId[];
+  /** Org employees invited to this meeting. */
+  attendeeEmployeeIds?: Types.ObjectId[];
+  /** External guest emails (normalized lowercase). */
+  externalAttendeeEmails?: string[];
   createdInNucleas: boolean;
   description?: string;
   createdAt: Date;
@@ -30,6 +34,8 @@ const MeetingSchema = new Schema(
     iCalUID: { type: String, trim: true, sparse: true },
     agendaToken: { type: String, required: true, index: true },
     linkedProjectIds: [{ type: Schema.Types.ObjectId, ref: 'Project' }],
+    attendeeEmployeeIds: [{ type: Schema.Types.ObjectId, ref: 'Employee' }],
+    externalAttendeeEmails: [{ type: String, trim: true, lowercase: true }],
     createdInNucleas: { type: Boolean, default: true },
     description: { type: String, trim: true },
   },

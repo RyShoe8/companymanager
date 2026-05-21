@@ -1012,6 +1012,8 @@ export default function WorkspaceShell({
                             {isSchedulingPhase ? (
                                 <SchedulingPanel
                                     projects={ws.allProjects}
+                                    employees={ws.employees}
+                                    currentUserEmployeeId={ws.currentUserEmployeeId}
                                     meetingRefreshKey={meetingRefreshKey}
                                 />
                             ) : ws.lens === 'schedule' ? (
@@ -1108,6 +1110,8 @@ export default function WorkspaceShell({
                         isOpen={showMeetingModal}
                         onClose={() => setShowMeetingModal(false)}
                         projects={ws.allProjects}
+                        employees={ws.employees}
+                        currentUserEmployeeId={ws.currentUserEmployeeId}
                         onSuccess={() => setMeetingRefreshKey((k) => k + 1)}
                     />
 

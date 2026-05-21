@@ -20,6 +20,8 @@ type MeetingAnchor = Pick<
   | 'googleEventId'
   | 'title'
   | 'description'
+  | 'attendeeEmployeeIds'
+  | 'externalAttendeeEmails'
 >;
 
 /**
@@ -68,6 +70,12 @@ export async function propagateMeetingProjectsAndCalendars(params: {
   for (const target of targets) {
     target.linkedProjectIds = [...linkedProjectIds];
     target.agendaToken = canonicalAgendaToken;
+    if (anchor.attendeeEmployeeIds?.length) {
+      target.attendeeEmployeeIds = [...anchor.attendeeEmployeeIds];
+    }
+    if (anchor.externalAttendeeEmails?.length) {
+      target.externalAttendeeEmails = [...anchor.externalAttendeeEmails];
+    }
 
     if (syncCalendar && target.linkedProjectIds.length > 0 && target.googleEventId) {
       const fullDescription = buildMeetingFullDescription(target, projects, baseUrl);

@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { IProject } from '@/lib/models/Project';
+import { IEmployee } from '@/lib/models/Employee';
 import Button from '@/components/ui/Button';
-import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
+import CreateMeetingModal, { type MeetingCreateSuccessInfo } from '@/components/scheduling/CreateMeetingModal';
 import {
   DAY_LABELS_MON_FIRST,
   normalizeAvailabilitySlots,
@@ -33,10 +34,31 @@ type MeetingRow = {
   end: string;
   agendaToken: string;
   linkedProjectIds: string[];
+  attendeeEmployeeIds?: string[];
+  externalAttendeeEmails?: string[];
   googleEventId?: string;
   googleRecurringEventId?: string;
   createdInNucleas?: boolean;
 };
+
+function formatMeetingInvitees(
+  m: MeetingRow,
+  employees: IEmployee[]
+): string | null {
+  const names: string[] = [];
+  for (const id of m.attendeeEmployeeIds || []) {
+    const emp = employees.find((e) => e._id.toString() === id);
+    if (emp) names.push(emp.name);
+  }
+  const external = m.externalAttendeeEmails?.length || 0;
+  if (names.length === 0 && external === 0) return null;
+  const parts: string[] = [];
+  if (names.length > 0) parts.push(names.join(', '));
+  if (external > 0) {
+    parts.push(`${external} guest${external === 1 ? '' : 's'}`);
+  }
+  return `With: ${parts.join(' + ')}`;
+}
 
 function startOfWeek(d: Date): Date {
   const x = new Date(d);
@@ -53,10 +75,17 @@ function addDays(d: Date, n: number): Date {
 
 interface SchedulingPanelProps {
   projects: IProject[];
+  employees?: IEmployee[];
+  currentUserEmployeeId?: string | null;
   meetingRefreshKey?: number;
 }
 
-export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: SchedulingPanelProps) {
+export default function SchedulingPanel({
+  projects,
+  employees = [],
+  currentUserEmployeeId,
+  meetingRefreshKey = 0,
+}: SchedulingPanelProps) {
   const searchParams = useSearchParams();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
@@ -212,9 +241,16 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
     );
   };
 
-  const handleMeetingCreated = async () => {
+  const handleMeetingCreated = async (info?: MeetingCreateSuccessInfo) => {
     await loadMeetings();
-    setMessage('Meeting created.');
+    let msg = 'Meeting created.';
+    if (info?.invitesSent && info.invitesSent > 0) {
+      msg += ` ${info.invitesSent} calendar invite${info.invitesSent === 1 ? '' : 's'} sent.`;
+    }
+    if (info?.skippedAttendees?.length) {
+      msg += ` ${info.skippedAttendees.length} could not be invited (missing email).`;
+    }
+    setMessage(msg);
   };
 
   if (loading) {
@@ -233,6 +269,8 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
         isOpen={showMeetingModal}
         onClose={() => setShowMeetingModal(false)}
         projects={projects}
+        employees={employees}
+        currentUserEmployeeId={currentUserEmployeeId}
         onSuccess={handleMeetingCreated}
       />
 
@@ -287,7 +325,9 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
           <p className="text-sm text-gray-500">No meetings this week. Sync your calendar or create one.</p>
         ) : (
           <ul className="space-y-3">
-            {meetings.map((m) => (
+            {meetings.map((m) => {
+              const inviteeLine = formatMeetingInvitees(m, employees);
+              return (
               <li key={m._id} className="rounded-lg border border-gray-600 bg-gray-900/40 p-3 text-sm">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
@@ -302,6 +342,9 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
                     <p className="text-gray-400">
                       {new Date(m.start).toLocaleString()} – {new Date(m.end).toLocaleString()}
                     </p>
+                    {inviteeLine && (
+                      <p className="text-gray-500 text-xs mt-0.5">{inviteeLine}</p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Link
@@ -343,7 +386,8 @@ export default function SchedulingPanel({ projects, meetingRefreshKey = 0 }: Sch
                   </div>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

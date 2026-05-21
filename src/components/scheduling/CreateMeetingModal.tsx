@@ -1,18 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { IProject } from '@/lib/models/Project';
+import { IEmployee } from '@/lib/models/Employee';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { validateRecurrenceInput } from '@/lib/scheduling/recurrence';
 
+export type MeetingCreateSuccessInfo = {
+  invitesSent?: number;
+  skippedAttendees?: { name: string; reason: string }[];
+};
+
 interface CreateMeetingModalProps {
   isOpen: boolean;
   onClose: () => void;
   projects: IProject[];
-  onSuccess?: () => void;
+  employees: IEmployee[];
+  currentUserEmployeeId?: string | null;
+  onSuccess?: (info?: MeetingCreateSuccessInfo) => void;
 }
 
 const REPEAT_OPTIONS: { value: RecurrencePreset; label: string }[] = [
@@ -29,13 +37,21 @@ const END_OPTIONS: { value: RecurrenceEnd; label: string }[] = [
   { value: 'after', label: 'After' },
 ];
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
 const inputClass =
   'block mt-1 w-full rounded-lg border border-border bg-background-card text-text-primary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
+
+function employeeHasInviteEmail(emp: IEmployee): boolean {
+  return !!(emp.email?.trim() || emp.userId);
+}
 
 export default function CreateMeetingModal({
   isOpen,
   onClose,
   projects,
+  employees,
+  currentUserEmployeeId,
   onSuccess,
 }: CreateMeetingModalProps) {
   const [title, setTitle] = useState('');
@@ -46,8 +62,31 @@ export default function CreateMeetingModal({
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [recurrenceCount, setRecurrenceCount] = useState('10');
   const [linkedProjectIds, setLinkedProjectIds] = useState<string[]>([]);
+  const [attendeeEmployeeIds, setAttendeeEmployeeIds] = useState<string[]>([]);
+  const [externalEmails, setExternalEmails] = useState<string[]>([]);
+  const [externalEmailInput, setExternalEmailInput] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const inviteableEmployees = useMemo(
+    () =>
+      employees.filter(
+        (e) =>
+          e._id.toString() !== currentUserEmployeeId &&
+          employeeHasInviteEmail(e)
+      ),
+    [employees, currentUserEmployeeId]
+  );
+
+  const employeesWithoutEmail = useMemo(
+    () =>
+      employees.filter(
+        (e) =>
+          e._id.toString() !== currentUserEmployeeId &&
+          !employeeHasInviteEmail(e)
+      ),
+    [employees, currentUserEmployeeId]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -59,6 +98,9 @@ export default function CreateMeetingModal({
     setRecurrenceUntil('');
     setRecurrenceCount('10');
     setLinkedProjectIds([]);
+    setAttendeeEmployeeIds([]);
+    setExternalEmails([]);
+    setExternalEmailInput('');
     setError(null);
   }, [isOpen]);
 
@@ -66,6 +108,28 @@ export default function CreateMeetingModal({
     setLinkedProjectIds((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
+  };
+
+  const toggleAttendee = (id: string) => {
+    setAttendeeEmployeeIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  };
+
+  const addExternalEmail = () => {
+    const email = externalEmailInput.trim().toLowerCase();
+    if (!email) return;
+    if (!EMAIL_RE.test(email)) {
+      setError('Enter a valid email address for external guests.');
+      return;
+    }
+    if (externalEmails.includes(email)) {
+      setExternalEmailInput('');
+      return;
+    }
+    setExternalEmails((prev) => [...prev, email]);
+    setExternalEmailInput('');
+    setError(null);
   };
 
   const handleClose = () => {
@@ -123,6 +187,8 @@ export default function CreateMeetingModal({
         start: startDate.toISOString(),
         end: endDate.toISOString(),
         linkedProjectIds,
+        attendeeEmployeeIds,
+        externalAttendeeEmails: externalEmails,
         syncToGoogle: true,
       };
 
@@ -145,7 +211,10 @@ export default function CreateMeetingModal({
         setError(typeof data.error === 'string' ? data.error : 'Failed to create meeting.');
         return;
       }
-      onSuccess?.();
+      onSuccess?.({
+        invitesSent: typeof data.invitesSent === 'number' ? data.invitesSent : undefined,
+        skippedAttendees: Array.isArray(data.skippedAttendees) ? data.skippedAttendees : undefined,
+      });
       onClose();
     } catch {
       setError('Failed to create meeting.');
@@ -254,6 +323,76 @@ export default function CreateMeetingModal({
             )}
           </div>
         )}
+
+        <div>
+          <p className="text-sm font-medium text-text-primary mb-2">Invite team members (optional)</p>
+          <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto rounded-lg border border-border p-3 bg-background-card">
+            {inviteableEmployees.length === 0 ? (
+              <p className="text-sm text-text-secondary">No team members with email available to invite.</p>
+            ) : (
+              inviteableEmployees.map((emp) => (
+                <label
+                  key={emp._id.toString()}
+                  className="flex items-center gap-1.5 text-sm text-text-primary cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={attendeeEmployeeIds.includes(emp._id.toString())}
+                    onChange={() => toggleAttendee(emp._id.toString())}
+                  />
+                  {emp.name}
+                </label>
+              ))
+            )}
+          </div>
+          {employeesWithoutEmail.length > 0 && (
+            <p className="text-xs text-text-secondary mt-1">
+              {employeesWithoutEmail.map((e) => e.name).join(', ')} cannot be invited until an email is added in Team settings.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-text-primary mb-2">External guests (optional)</p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={externalEmailInput}
+              onChange={(e) => setExternalEmailInput(e.target.value)}
+              placeholder="email@example.com"
+              className={inputClass + ' mt-0 flex-1'}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addExternalEmail();
+                }
+              }}
+            />
+            <Button type="button" variant="secondary" size="sm" className="shrink-0 self-end" onClick={addExternalEmail}>
+              Add
+            </Button>
+          </div>
+          {externalEmails.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {externalEmails.map((email) => (
+                <li
+                  key={email}
+                  className="inline-flex items-center gap-1 rounded-full bg-background-card border border-border px-2 py-0.5 text-xs text-text-primary"
+                >
+                  {email}
+                  <button
+                    type="button"
+                    className="text-text-secondary hover:text-text-primary"
+                    onClick={() => setExternalEmails((prev) => prev.filter((e) => e !== email))}
+                    aria-label={`Remove ${email}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div>
           <p className="text-sm font-medium text-text-primary mb-2">Link projects (optional)</p>
