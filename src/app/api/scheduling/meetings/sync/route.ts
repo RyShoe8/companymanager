@@ -5,12 +5,8 @@ import Meeting from '@/lib/models/Meeting';
 import UserCalendarConnection from '@/lib/models/UserCalendarConnection';
 import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
-import {
-  listCalendarEvents,
-  parseEventTimes,
-} from '@/lib/scheduling/googleCalendar';
-import { generateAgendaToken } from '@/lib/scheduling/tokenCrypto';
-import { Types } from 'mongoose';
+import { listCalendarEvents } from '@/lib/scheduling/googleCalendar';
+import { upsertMeetingsFromGoogleEvents } from '@/lib/scheduling/importGoogleMeetings';
 
 const SYNC_COOLDOWN_MS = 15_000;
 const lastSyncByUser = new Map<string, number>();
@@ -54,62 +50,9 @@ export async function GET(request: NextRequest) {
       end.toISOString()
     );
 
-    const existingByGoogleId = new Map<string, { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[] }>();
-    const existing = await Meeting.find({
-      userId: ctx.userId,
-      googleEventId: { $exists: true, $ne: null },
-    }).select('googleEventId linkedProjectIds');
-    for (const m of existing) {
-      if (m.googleEventId) {
-        existingByGoogleId.set(m.googleEventId, {
-          _id: m._id,
-          linkedProjectIds: m.linkedProjectIds || [],
-        });
-      }
-    }
-
-    let imported = 0;
-    let updated = 0;
-
-    for (const ev of events) {
-      if (!ev.id) continue;
-      const times = parseEventTimes(ev);
-      if (!times) continue;
-
-      const seriesFields = {
-        googleRecurringEventId: ev.recurringEventId || undefined,
-        iCalUID: ev.iCalUID || undefined,
-      };
-
-      const payload: Record<string, unknown> = {
-        title: ev.summary?.trim() || 'Untitled meeting',
-        start: times.start,
-        end: times.end,
-        ...seriesFields,
-      };
-
-      const found = existingByGoogleId.get(ev.id);
-      if (found) {
-        const hasLinkedProjects = found.linkedProjectIds.length > 0;
-        if (!hasLinkedProjects) {
-          payload.description = ev.description;
-        }
-        await Meeting.updateOne({ _id: found._id }, { $set: payload });
-        updated++;
-      } else {
-        await Meeting.create({
-          userId: ctx.userId,
-          organizationId: ctx.organizationId,
-          ...payload,
-          description: ev.description,
-          googleEventId: ev.id,
-          agendaToken: generateAgendaToken(),
-          linkedProjectIds: [],
-          createdInNucleas: false,
-        });
-        imported++;
-      }
-    }
+    const { imported, updated } = await upsertMeetingsFromGoogleEvents(ctx, events, {
+      createdInNucleas: false,
+    });
 
     await UserCalendarConnection.updateOne(
       { userId: ctx.userId },

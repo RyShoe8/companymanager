@@ -112,21 +112,26 @@ export async function insertCalendarEvent(
     description?: string;
     start: string;
     end: string;
+    recurrence?: string[];
   }
 ): Promise<GoogleCalendarEvent> {
   const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  const body: Record<string, unknown> = {
+    summary: event.summary,
+    description: event.description,
+    start: { dateTime: event.start },
+    end: { dateTime: event.end },
+  };
+  if (event.recurrence?.length) {
+    body.recurrence = event.recurrence;
+  }
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      summary: event.summary,
-      description: event.description,
-      start: { dateTime: event.start },
-      end: { dateTime: event.end },
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.text();

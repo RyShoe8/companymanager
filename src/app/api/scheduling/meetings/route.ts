@@ -17,8 +17,19 @@ import {
 } from '@/lib/utils/apiHelpers';
 import {
   insertCalendarEvent,
-  patchCalendarEventDescription,
+  listCalendarEvents,
 } from '@/lib/scheduling/googleCalendar';
+import {
+  buildRecurrenceRule,
+  getRecurrenceImportRangeEnd,
+  type RecurrenceEnd,
+  type RecurrencePreset,
+  validateRecurrenceInput,
+} from '@/lib/scheduling/recurrence';
+import {
+  filterSeriesInstances,
+  upsertMeetingsFromGoogleEvents,
+} from '@/lib/scheduling/importGoogleMeetings';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -63,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, start, end, linkedProjectIds, description, syncToGoogle } = body;
+    const { title, start, end, linkedProjectIds, description, syncToGoogle, recurrence } = body;
     if (!title || !start || !end) {
       return NextResponse.json({ error: 'title, start, and end are required' }, { status: 400 });
     }
@@ -72,6 +83,26 @@ export async function POST(request: NextRequest) {
     const endDate = new Date(end);
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) {
       return NextResponse.json({ error: 'Invalid start/end' }, { status: 400 });
+    }
+
+    const preset: RecurrencePreset =
+      recurrence?.preset && recurrence.preset !== 'none' ? recurrence.preset : 'none';
+    const recurrenceEnd: RecurrenceEnd = recurrence?.end || 'never';
+    const untilDate = recurrence?.until ? new Date(recurrence.until) : undefined;
+    const recurrenceCount =
+      recurrence?.count != null ? Number(recurrence.count) : undefined;
+
+    if (preset !== 'none') {
+      const validationErr = validateRecurrenceInput({
+        preset,
+        start: startDate,
+        end: recurrenceEnd,
+        until: untilDate,
+        count: recurrenceCount,
+      });
+      if (validationErr) {
+        return NextResponse.json({ error: validationErr }, { status: 400 });
+      }
     }
 
     const projectIds = Array.isArray(linkedProjectIds)
@@ -96,6 +127,81 @@ export async function POST(request: NextRequest) {
     );
     const agendaText = formatAgendaPlainText(agendaPayload);
     const fullDescription = [description, agendaText].filter(Boolean).join('\n\n');
+
+    if (preset !== 'none') {
+      if (syncToGoogle === false) {
+        return NextResponse.json(
+          { error: 'Recurring meetings require Google Calendar sync.' },
+          { status: 400 }
+        );
+      }
+
+      const google = await getGoogleAccessTokenForUser(ctx.userId);
+      if (!google) {
+        return NextResponse.json(
+          { error: 'Connect Google Calendar to create recurring meetings.' },
+          { status: 400 }
+        );
+      }
+
+      let recurrenceRules: string[];
+      try {
+        recurrenceRules = buildRecurrenceRule({
+          preset,
+          start: startDate,
+          end: recurrenceEnd,
+          until: untilDate,
+          count: recurrenceCount,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Invalid recurrence';
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+
+      const created = await insertCalendarEvent(google.accessToken, google.calendarId, {
+        summary: String(title).trim(),
+        description: fullDescription,
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        recurrence: recurrenceRules,
+      });
+
+      const importEnd = getRecurrenceImportRangeEnd(startDate, recurrenceEnd, untilDate);
+      const events = await listCalendarEvents(
+        google.accessToken,
+        google.calendarId,
+        startDate.toISOString(),
+        importEnd.toISOString()
+      );
+      const seriesEvents = filterSeriesInstances(events, created.id);
+
+      const { imported, updated } = await upsertMeetingsFromGoogleEvents(ctx, seriesEvents, {
+        linkedProjectIds: projectIds,
+        createdInNucleas: true,
+        defaultDescription: description || undefined,
+      });
+
+      const meetings = await Meeting.find({
+        userId: ctx.userId,
+        $or: [
+          { googleRecurringEventId: created.id },
+          { googleEventId: created.id },
+        ],
+      })
+        .sort({ start: 1 })
+        .lean();
+
+      return NextResponse.json(
+        {
+          seriesId: created.id,
+          imported,
+          updated,
+          instanceCount: meetings.length,
+          meetings,
+        },
+        { status: 201 }
+      );
+    }
 
     let googleEventId: string | undefined;
     if (syncToGoogle !== false) {

@@ -5,6 +5,8 @@ import { IProject } from '@/lib/models/Project';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
+import { validateRecurrenceInput } from '@/lib/scheduling/recurrence';
 
 interface CreateMeetingModalProps {
   isOpen: boolean;
@@ -12,6 +14,23 @@ interface CreateMeetingModalProps {
   projects: IProject[];
   onSuccess?: () => void;
 }
+
+const REPEAT_OPTIONS: { value: RecurrencePreset; label: string }[] = [
+  { value: 'none', label: 'Does not repeat' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'biweekly', label: 'Every 2 weeks' },
+  { value: 'monthly', label: 'Monthly' },
+];
+
+const END_OPTIONS: { value: RecurrenceEnd; label: string }[] = [
+  { value: 'never', label: 'Never' },
+  { value: 'on', label: 'On date' },
+  { value: 'after', label: 'After' },
+];
+
+const inputClass =
+  'block mt-1 w-full rounded-lg border border-border bg-background-card text-text-primary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
 
 export default function CreateMeetingModal({
   isOpen,
@@ -22,6 +41,10 @@ export default function CreateMeetingModal({
   const [title, setTitle] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
+  const [recurrenceEnd, setRecurrenceEnd] = useState<RecurrenceEnd>('never');
+  const [recurrenceUntil, setRecurrenceUntil] = useState('');
+  const [recurrenceCount, setRecurrenceCount] = useState('10');
   const [linkedProjectIds, setLinkedProjectIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +54,10 @@ export default function CreateMeetingModal({
     setTitle('');
     setStart('');
     setEnd('');
+    setRepeatPreset('none');
+    setRecurrenceEnd('never');
+    setRecurrenceUntil('');
+    setRecurrenceCount('10');
     setLinkedProjectIds([]);
     setError(null);
   }, [isOpen]);
@@ -52,19 +79,66 @@ export default function CreateMeetingModal({
       setError('Title, start, and end are required.');
       return;
     }
+
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) {
+      setError('End must be after start.');
+      return;
+    }
+
+    let untilIso: string | undefined;
+    if (repeatPreset !== 'none' && recurrenceEnd === 'on') {
+      if (!recurrenceUntil) {
+        setError('Choose an end date for the series.');
+        return;
+      }
+      untilIso = new Date(`${recurrenceUntil}T23:59:59`).toISOString();
+    }
+
+    const countNum =
+      repeatPreset !== 'none' && recurrenceEnd === 'after'
+        ? parseInt(recurrenceCount, 10)
+        : undefined;
+
+    if (repeatPreset !== 'none') {
+      const validationErr = validateRecurrenceInput({
+        preset: repeatPreset,
+        start: startDate,
+        end: recurrenceEnd,
+        until: untilIso ? new Date(untilIso) : undefined,
+        count: countNum,
+      });
+      if (validationErr) {
+        setError(validationErr);
+        return;
+      }
+    }
+
     setCreating(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = {
+        title: title.trim(),
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        linkedProjectIds,
+        syncToGoogle: true,
+      };
+
+      if (repeatPreset !== 'none') {
+        body.recurrence = {
+          preset: repeatPreset,
+          end: recurrenceEnd,
+          ...(recurrenceEnd === 'on' && untilIso ? { until: untilIso } : {}),
+          ...(recurrenceEnd === 'after' && countNum != null ? { count: countNum } : {}),
+        };
+      }
+
       const res = await fetch('/api/scheduling/meetings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          start: new Date(start).toISOString(),
-          end: new Date(end).toISOString(),
-          linkedProjectIds,
-          syncToGoogle: true,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -79,6 +153,8 @@ export default function CreateMeetingModal({
       setCreating(false);
     }
   };
+
+  const showRecurrenceEnd = repeatPreset !== 'none';
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="New meeting" maxWidth="md">
@@ -104,7 +180,7 @@ export default function CreateMeetingModal({
               value={start}
               onChange={(e) => setStart(e.target.value)}
               required
-              className="block mt-1 w-full rounded-lg border border-border bg-background-card text-text-primary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className={inputClass}
             />
           </label>
           <label className="text-sm text-text-primary">
@@ -114,10 +190,71 @@ export default function CreateMeetingModal({
               value={end}
               onChange={(e) => setEnd(e.target.value)}
               required
-              className="block mt-1 w-full rounded-lg border border-border bg-background-card text-text-primary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className={inputClass}
             />
           </label>
         </div>
+
+        <label className="text-sm text-text-primary block">
+          Repeat
+          <select
+            value={repeatPreset}
+            onChange={(e) => setRepeatPreset(e.target.value as RecurrencePreset)}
+            className={inputClass}
+          >
+            {REPEAT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {showRecurrenceEnd && (
+          <div className="space-y-3 rounded-lg border border-border p-3 bg-background-card">
+            <label className="text-sm text-text-primary block">
+              Ends
+              <select
+                value={recurrenceEnd}
+                onChange={(e) => setRecurrenceEnd(e.target.value as RecurrenceEnd)}
+                className={inputClass}
+              >
+                {END_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {recurrenceEnd === 'on' && (
+              <label className="text-sm text-text-primary block">
+                End date
+                <input
+                  type="date"
+                  value={recurrenceUntil}
+                  onChange={(e) => setRecurrenceUntil(e.target.value)}
+                  required
+                  className={inputClass}
+                />
+              </label>
+            )}
+            {recurrenceEnd === 'after' && (
+              <label className="text-sm text-text-primary block">
+                Occurrences
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={recurrenceCount}
+                  onChange={(e) => setRecurrenceCount(e.target.value)}
+                  required
+                  className={inputClass}
+                />
+              </label>
+            )}
+          </div>
+        )}
+
         <div>
           <p className="text-sm font-medium text-text-primary mb-2">Link projects (optional)</p>
           <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto rounded-lg border border-border p-3 bg-background-card">
