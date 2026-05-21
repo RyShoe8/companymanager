@@ -112,6 +112,7 @@ export async function insertCalendarEvent(
     description?: string;
     start: string;
     end: string;
+    timeZone: string;
     recurrence?: string[];
     attendees?: { email: string }[];
     sendUpdates?: 'all' | 'externalOnly' | 'none';
@@ -126,8 +127,8 @@ export async function insertCalendarEvent(
   const body: Record<string, unknown> = {
     summary: event.summary,
     description: event.description,
-    start: { dateTime: event.start },
-    end: { dateTime: event.end },
+    start: { dateTime: event.start, timeZone: event.timeZone },
+    end: { dateTime: event.end, timeZone: event.timeZone },
   };
   if (event.recurrence?.length) {
     body.recurrence = event.recurrence;

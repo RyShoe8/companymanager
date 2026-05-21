@@ -3,7 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import { requireAuth } from '@/lib/auth/middleware';
 import Meeting from '@/lib/models/Meeting';
 import Project from '@/lib/models/Project';
-import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
+import { getSchedulingContext, getUserSchedulingTimezone } from '@/lib/scheduling/schedulingContext';
 import { generateAgendaToken } from '@/lib/scheduling/tokenCrypto';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
 import {
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
       recurrence,
       attendeeEmployeeIds,
       externalAttendeeEmails,
+      timeZone: bodyTimeZone,
     } = body;
     if (!title || !start || !end) {
       return NextResponse.json({ error: 'title, start, and end are required' }, { status: 400 });
@@ -122,6 +123,8 @@ export async function POST(request: NextRequest) {
       : [];
 
     await connectDB();
+
+    const schedulingTimeZone = await getUserSchedulingTimezone(ctx.userId, bodyTimeZone);
 
     let invitees;
     try {
@@ -175,6 +178,7 @@ export async function POST(request: NextRequest) {
       description: fullDescription,
       start: startDate.toISOString(),
       end: endDate.toISOString(),
+      timeZone: schedulingTimeZone,
       ...(hasInvitees
         ? { attendees: invitees.googleAttendees, sendUpdates: 'all' as const }
         : {}),

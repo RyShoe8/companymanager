@@ -271,6 +271,7 @@ export default function SchedulingPanel({
         projects={projects}
         employees={employees}
         currentUserEmployeeId={currentUserEmployeeId}
+        schedulingTimeZone={timezone}
         onSuccess={handleMeetingCreated}
       />
 

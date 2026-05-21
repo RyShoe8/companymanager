@@ -20,6 +20,7 @@ interface CreateMeetingModalProps {
   projects: IProject[];
   employees: IEmployee[];
   currentUserEmployeeId?: string | null;
+  schedulingTimeZone?: string;
   onSuccess?: (info?: MeetingCreateSuccessInfo) => void;
 }
 
@@ -52,6 +53,7 @@ export default function CreateMeetingModal({
   projects,
   employees,
   currentUserEmployeeId,
+  schedulingTimeZone,
   onSuccess,
 }: CreateMeetingModalProps) {
   const [title, setTitle] = useState('');
@@ -190,6 +192,7 @@ export default function CreateMeetingModal({
         attendeeEmployeeIds,
         externalAttendeeEmails: externalEmails,
         syncToGoogle: true,
+        ...(schedulingTimeZone ? { timeZone: schedulingTimeZone } : {}),
       };
 
       if (repeatPreset !== 'none') {
