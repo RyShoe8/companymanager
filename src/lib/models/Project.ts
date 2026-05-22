@@ -43,6 +43,8 @@ export interface IProject extends Document {
   color: string;
   /** Ordered palette: [0] = primary (kept in sync with `color` on save). Hex or rgb()/rgba() strings. */
   colorPalette?: string[];
+  /** Ordered brand typefaces: [0] = primary font family name (or CSS font-family stack). */
+  fontPalette?: string[];
   logo?: string; // Project logo URL
   status: ProjectStatus;
   endDate?: Date; // Optional end date - project stops appearing on status page after this date
@@ -112,6 +114,10 @@ const ProjectSchema: Schema = new Schema(
       default: '#3b82f6', // blue-500
     },
     colorPalette: {
+      type: [String],
+      default: undefined,
+    },
+    fontPalette: {
       type: [String],
       default: undefined,
     },

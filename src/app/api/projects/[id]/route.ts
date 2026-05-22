@@ -8,6 +8,7 @@ import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } fr
 import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 import { parseCssColorInput } from '@/lib/utils/cssColorInput';
+import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput } from '@/lib/utils/fontPaletteInput';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -89,6 +90,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       category,
       color,
       colorPalette,
+      fontPalette,
       logo,
       status,
       endDate,
@@ -142,7 +144,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       // Regular users cannot change other fields
       if (name !== undefined || description !== undefined || url !== undefined || urls !== undefined ||
         devUrl !== undefined || liveUrl !== undefined ||
-        projectType !== undefined || color !== undefined || colorPalette !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
+        projectType !== undefined || color !== undefined || colorPalette !== undefined || fontPalette !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
         assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined ||
         assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
@@ -194,6 +196,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
       project.colorPalette = sanitized;
       project.color = sanitized[0];
+    }
+
+    if (fontPalette !== undefined) {
+      if (!Array.isArray(fontPalette)) {
+        return NextResponse.json({ error: 'fontPalette must be an array' }, { status: 400 });
+      }
+      if (fontPalette.length > maxFontPaletteEntries) {
+        return NextResponse.json(
+          { error: `fontPalette cannot exceed ${maxFontPaletteEntries} entries` },
+          { status: 400 }
+        );
+      }
+      const sanitizedFonts: string[] = [];
+      for (let i = 0; i < fontPalette.length; i++) {
+        const item = fontPalette[i];
+        if (typeof item !== 'string') {
+          return NextResponse.json({ error: `Invalid font at index ${i}: expected string` }, { status: 400 });
+        }
+        const t = item.trim();
+        if (!t) continue;
+        const parsed = parseFontFamilyInput(t);
+        if (!parsed.ok) {
+          return NextResponse.json(
+            { error: `Invalid ${labelForFontPaletteIndex(i)}: ${t}. Use letters, numbers, spaces, commas, quotes, or hyphens.` },
+            { status: 400 }
+          );
+        }
+        sanitizedFonts.push(parsed.normalized);
+      }
+      if (sanitizedFonts.length === 0) {
+        return NextResponse.json({ error: 'fontPalette must include at least one valid font' }, { status: 400 });
+      }
+      project.fontPalette = sanitizedFonts;
     }
     if (logo !== undefined) project.logo = logo || undefined;
     const previousStatus = project.status;

@@ -22,6 +22,11 @@ import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
 import { labelForPaletteIndex, parseCssColorInput } from '@/lib/utils/cssColorInput';
+import {
+  labelForFontPaletteIndex,
+  maxFontPaletteEntries,
+  parseFontFamilyInput,
+} from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 
 interface InlineProjectViewProps {
@@ -183,6 +188,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [paletteSheetOpen, setPaletteSheetOpen] = useState(false);
   const [paletteDraft, setPaletteDraft] = useState<string[]>(['#3b82f6']);
   const [paletteSaving, setPaletteSaving] = useState(false);
+  const [fontSheetOpen, setFontSheetOpen] = useState(false);
+  const [fontDraft, setFontDraft] = useState<string[]>(['']);
+  const [fontSaving, setFontSaving] = useState(false);
 
   const loadLinkedAssets = useCallback(async () => {
     setLinkedAssetsLoading(true);
@@ -262,6 +270,21 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
     return out;
   }, [localProject.colorPalette, localProject.color]);
+
+  const fontChipPreview = useMemo(() => {
+    const pal = localProject.fontPalette;
+    if (!Array.isArray(pal) || pal.length === 0) return [];
+    const out: string[] = [];
+    for (const f of pal) {
+      if (typeof f !== 'string') continue;
+      const t = f.trim();
+      if (!t) continue;
+      const p = parseFontFamilyInput(t);
+      if (p.ok) out.push(p.normalized);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }, [localProject.fontPalette]);
 
   const confirmDeleteLinkedAsset = async () => {
     if (!assetPendingDelete) return;
@@ -555,6 +578,56 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  const openFontSheet = useCallback(() => {
+    const pal = localProject.fontPalette;
+    const initial =
+      Array.isArray(pal) && pal.length > 0 ? pal.map((f) => String(f)) : [''];
+    setFontDraft(initial.length > 0 ? initial : ['']);
+    setFontSheetOpen(true);
+  }, [localProject.fontPalette]);
+
+  const saveFontFromDraft = async () => {
+    const sanitized: string[] = [];
+    for (let i = 0; i < fontDraft.length; i++) {
+      const t = fontDraft[i].trim();
+      if (!t) {
+        if (i === 0) {
+          alert('Primary font is required. Enter a font family name.');
+          return;
+        }
+        continue;
+      }
+      const p = parseFontFamilyInput(t);
+      if (!p.ok) {
+        alert(
+          `Invalid ${labelForFontPaletteIndex(i)}: ${t}. Use letters, numbers, spaces, commas, quotes, or hyphens.`
+        );
+        return;
+      }
+      sanitized.push(p.normalized);
+    }
+    if (sanitized.length === 0) {
+      alert('Add at least one valid font.');
+      return;
+    }
+    if (sanitized.length > maxFontPaletteEntries) {
+      alert(`You can save at most ${maxFontPaletteEntries} fonts.`);
+      return;
+    }
+    setFontSaving(true);
+    setLocalProject((prev) => ({ ...prev, fontPalette: sanitized } as IProject));
+    try {
+      await onUpdate({ fontPalette: sanitized });
+      setFontSheetOpen(false);
+    } catch (error) {
+      console.error('Error saving fonts:', error);
+      setLocalProject(project);
+      alert(error instanceof Error ? error.message : 'Failed to save');
+    } finally {
+      setFontSaving(false);
+    }
+  };
+
   const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
     const updatedTasks = [...(localProject.tasks || [])];
     const updatedTask = { ...updatedTasks[taskIndex], [field]: value };
@@ -640,9 +713,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Category:</span><EditableSelect value={localProject.category || 'generic'} options={categoryOptions} onSave={(v) => handleFieldUpdate('category', v)} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Est. Hours:</span><EditableNumber value={localProject.estimatedHours} onSave={(v) => handleFieldUpdate('estimatedHours', v)} suffix="h" min={0} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">End Date:</span><EditableDate value={localProject.endDate ?? null} onSave={(v) => handleFieldUpdate('endDate', v || undefined)} placeholder="No end date" disabled={!isManagerOrAdmin} /></div>
-          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Tasks:</span><span className="font-medium">{localProject.tasks?.length || 0}</span></div>
           {isManagerOrAdmin && (
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <button
                 type="button"
                 onClick={() => openPaletteSheet()}
@@ -658,6 +730,35 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   ))}
                 </span>
                 Color palette
+              </button>
+              <button
+                type="button"
+                onClick={() => openFontSheet()}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 px-2.5 py-1 font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              >
+                {fontChipPreview.length > 0 ? (
+                  <span
+                    className="text-xs text-gray-600 dark:text-gray-300 max-w-[10rem] truncate"
+                    style={
+                      fontChipPreview[0] &&
+                      /^[\p{L}\p{N}\s\-]+$/u.test(fontChipPreview[0]) &&
+                      !fontChipPreview[0].includes(',')
+                        ? { fontFamily: fontChipPreview[0] }
+                        : undefined
+                    }
+                    title={fontChipPreview.join(', ')}
+                    aria-hidden
+                  >
+                    {fontChipPreview
+                      .map((name) => (name.length > 14 ? `${name.slice(0, 12)}…` : name))
+                      .join(' · ')}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400 dark:text-gray-500" aria-hidden>
+                    Aa
+                  </span>
+                )}
+                Fonts
               </button>
             </div>
           )}
@@ -1363,6 +1464,100 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               size="sm"
               disabled={paletteSaving}
               onClick={() => setPaletteSheetOpen(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+
+      {/* Project font listing */}
+      <BottomSheet
+        isOpen={fontSheetOpen}
+        onClose={() => {
+          if (!fontSaving) setFontSheetOpen(false);
+        }}
+        title="Fonts"
+        elevated
+      >
+        <div className="p-4 pb-8 space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Brand typefaces for this project. Primary is required. Extra rows can be left blank and are omitted when you save.
+          </p>
+          <div className="space-y-3">
+            {fontDraft.map((row, idx) => {
+              const trimmed = row.trim();
+              const parsed = trimmed ? parseFontFamilyInput(trimmed) : null;
+              const ok = parsed?.ok === true;
+              const previewFamily =
+                ok && parsed && /^[\p{L}\p{N}\s\-]+$/u.test(parsed.normalized) && !parsed.normalized.includes(',')
+                  ? parsed.normalized
+                  : undefined;
+              return (
+                <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 w-28 shrink-0 pt-2 sm:pt-0">
+                    {labelForFontPaletteIndex(idx)}
+                  </span>
+                  {previewFamily ? (
+                    <span
+                      className="text-lg shrink-0 text-gray-700 dark:text-gray-200 w-9 text-center"
+                      style={{ fontFamily: previewFamily }}
+                      aria-hidden
+                    >
+                      Aa
+                    </span>
+                  ) : (
+                    <span
+                      className="text-lg shrink-0 text-gray-400 dark:text-gray-500 w-9 text-center"
+                      aria-hidden
+                    >
+                      Aa
+                    </span>
+                  )}
+                  <input
+                    type="text"
+                    value={row}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFontDraft((prev) => prev.map((x, i) => (i === idx ? v : x)));
+                    }}
+                    disabled={fontSaving}
+                    placeholder={idx === 0 ? 'Inter' : 'Georgia or "Inter", sans-serif'}
+                    className="flex-1 min-w-0 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  />
+                  {idx >= 1 && (
+                    <button
+                      type="button"
+                      disabled={fontSaving}
+                      onClick={() => setFontDraft((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-sm text-red-600 dark:text-red-400 hover:underline shrink-0 text-left sm:text-right sm:w-16"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={fontSaving || fontDraft.length >= maxFontPaletteEntries}
+            onClick={() => setFontDraft((prev) => [...prev, ''])}
+          >
+            Add font
+          </Button>
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+            <Button type="button" size="sm" disabled={fontSaving} onClick={() => void saveFontFromDraft()}>
+              {fontSaving ? 'Saving…' : 'Save'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={fontSaving}
+              onClick={() => setFontSheetOpen(false)}
             >
               Cancel
             </Button>
