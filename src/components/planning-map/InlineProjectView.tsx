@@ -946,7 +946,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   ? {
                       kind: 'email',
                       email: payload.email,
-                      password: payload.password,
+                      ...(payload.password?.trim() ? { password: payload.password.trim() } : {}),
                       ...(payload.label ? { label: payload.label } : {}),
                     }
                   : { label: payload.label, url: payload.url };

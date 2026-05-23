@@ -17,7 +17,7 @@ type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
-  | { kind: 'email'; email: string; password: string; label?: string };
+  | { kind: 'email'; email: string; password?: string; label?: string };
 
 async function readApiErrorMessage(res: Response, fallback: string): Promise<string> {
   const ct = res.headers.get('content-type') || '';
@@ -115,13 +115,13 @@ export default function CategoryModal({
   };
 
   const handleEmailSubmit = async () => {
-    if (!emailAddr.trim() || !emailPassword.trim()) return;
+    if (!emailAddr.trim()) return;
     setAddingEmail(true);
     try {
       await onAddButton({
         kind: 'email',
         email: emailAddr.trim(),
-        password: emailPassword,
+        ...(emailPassword.trim() ? { password: emailPassword } : {}),
         ...(emailLabel.trim() ? { label: emailLabel.trim() } : {}),
       });
       onClose();
@@ -174,7 +174,7 @@ export default function CategoryModal({
           {[
             { id: 'document' as const, label: 'Document', desc: 'Create and save a document' },
             { id: 'link' as const, label: 'Link', desc: 'Any URL with a button label' },
-            { id: 'email' as const, label: 'Email', desc: 'Mailbox address and password' },
+            { id: 'email' as const, label: 'Email', desc: 'Mailbox address; optional stored password' },
             { id: 'figma' as const, label: 'Figma', desc: 'Design link or suggested tools' },
             { id: 'wireframe' as const, label: 'Wireframe', desc: 'Wireframe link or suggested tools' },
             { id: 'more' as const, label: 'More', desc: 'Other link types and tools' },
@@ -234,7 +234,7 @@ export default function CategoryModal({
       return (
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Add a mailbox shortcut. The email opens your mail app in a new tab; use the key icon on the project to view or copy the password.
+            Add a mailbox shortcut. The email opens your mail app in a new tab. Password is optional; if you save one, use the key icon on the project to view or copy it.
           </p>
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email address</label>
@@ -248,7 +248,7 @@ export default function CategoryModal({
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Password</label>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Password (optional)</label>
             <input
               type="password"
               autoComplete="new-password"
@@ -272,7 +272,7 @@ export default function CategoryModal({
             <Button
               size="sm"
               onClick={handleEmailSubmit}
-              disabled={addingEmail || !emailAddr.trim() || !emailPassword.trim()}
+              disabled={addingEmail || !emailAddr.trim()}
             >
               {addingEmail ? 'Adding...' : 'Add to project'}
             </Button>

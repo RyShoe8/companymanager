@@ -88,8 +88,8 @@ export async function POST(
     if (kind === 'email') {
       const emailRaw = typeof email === 'string' ? email.trim() : '';
       const passwordRaw = typeof password === 'string' ? password : '';
-      if (!emailRaw || !passwordRaw.trim()) {
-        return NextResponse.json({ error: 'email and password are required for email buttons' }, { status: 400 });
+      if (!emailRaw) {
+        return NextResponse.json({ error: 'email is required for email buttons' }, { status: 400 });
       }
       if (!isValidEmailFormat(emailRaw)) {
         return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
@@ -104,7 +104,7 @@ export async function POST(
         label: displayLabel,
         url: mailtoUrl,
         kind: 'email',
-        password: String(passwordRaw),
+        ...(passwordRaw.trim() ? { password: passwordRaw.trim() } : {}),
       });
     } else {
       if (!label || !url) {
