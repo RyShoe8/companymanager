@@ -9,6 +9,7 @@ import Select from '@/components/ui/Select';
 import MultiSelect from '@/components/ui/MultiSelect';
 import Button from '@/components/ui/Button';
 import { Types } from 'mongoose';
+import { taskAssigneeSelectOptions } from '@/lib/utils/projectTeam';
 
 interface ProjectFormProps {
   project?: IProject;
@@ -503,10 +504,14 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
                       }}
                       options={[
                         { value: '', label: 'None' },
-                        ...employees.map(emp => ({
-                          value: emp._id.toString(),
-                          label: emp.name
-                        }))
+                        ...taskAssigneeSelectOptions(
+                          employees,
+                          {
+                            assignedToEmployeeIds: assignedToEmployeeIds.map((id) => id),
+                            assignedToEmployeeId: assignedToEmployeeIds[0],
+                          },
+                          (task as { assignedToEmployeeId?: unknown }).assignedToEmployeeId
+                        ),
                       ]}
                     />
                   </div>

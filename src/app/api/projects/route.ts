@@ -4,6 +4,7 @@ import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { getDefaultTaskDates, parseDateSafe } from '@/lib/utils/dateUtils';
+import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -210,6 +211,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (tasks && Array.isArray(tasks)) {
+      const assigneeError = validateTaskAssigneesOnProjectTeam(projectData, tasks);
+      if (assigneeError) {
+        return NextResponse.json({ error: assigneeError }, { status: 400 });
+      }
+
       projectData.tasks = await Promise.all(tasks.map(async (task: any) => {
         const defaultDates = getDefaultTaskDates();
         let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
@@ -252,6 +258,10 @@ export async function POST(request: NextRequest) {
 
         return taskData;
       }));
+      const postAssigneeError = validateTaskAssigneesOnProjectTeam(projectData, projectData.tasks ?? []);
+      if (postAssigneeError) {
+        return NextResponse.json({ error: postAssigneeError }, { status: 400 });
+      }
     }
 
     const project = await Project.create(projectData);

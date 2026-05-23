@@ -23,6 +23,7 @@ import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
 import { labelForPaletteIndex, parseCssColorInput } from '@/lib/utils/cssColorInput';
+import { taskAssigneeSelectOptions } from '@/lib/utils/projectTeam';
 import {
   labelForFontPaletteIndex,
   maxFontPaletteEntries,
@@ -683,7 +684,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const projectTypeOptions = [{ value: 'internal', label: 'Internal' }, { value: 'client', label: 'Client' }];
   const categoryOptions = [{ value: 'website', label: 'Website' }, { value: 'store', label: 'Store' }, { value: 'app', label: 'App' }, { value: 'generic', label: 'Generic' }];
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
-  const employeeOptions = employees.map(emp => ({ value: emp._id.toString(), label: emp.name }));
 
   const dismissedChecklistIds = useMemo(() => {
     const raw = localDismissedChecklistIds ?? localProject.dismissedChecklistIds ?? [];
@@ -1178,7 +1178,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                               <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                               <EditableSelect
                                 value={(task as any).assignedToEmployeeId?.toString() || ''}
-                                options={[{ value: '', label: 'Unassigned' }, ...employeeOptions]}
+                                options={[
+                                  { value: '', label: 'Unassigned' },
+                                  ...taskAssigneeSelectOptions(
+                                    employees,
+                                    localProject,
+                                    (task as { assignedToEmployeeId?: unknown }).assignedToEmployeeId
+                                  ),
+                                ]}
                                 onSave={(v: string) => handleTaskUpdate(idx, 'assignedToEmployeeId', v || undefined)}
                                 disabled={!isManagerOrAdmin}
                                 className="!px-1 !py-0.5 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/20"

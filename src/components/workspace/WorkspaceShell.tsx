@@ -31,6 +31,7 @@ import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmati
 import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
 import { ParsedIntent, splitBatchTaskTitles } from '@/lib/voice/IntentParser';
 import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
+import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 
 interface WorkspaceShellProps {
@@ -681,6 +682,9 @@ export default function WorkspaceShell({
             const ctx = context?.trim() ? context : null;
             const m = matchTaskInProjects(ws.allProjects, normalize, taskName, ctx, { allowCompleted: true });
             if (!m) return { success: false, message: `Could not find task "${taskName}"` };
+            if (!isEmployeeOnProjectTeam(m.project, emp._id)) {
+                return { success: false, message: `Add ${emp.name} to the project team first` };
+            }
             const tasks = [...(m.project.tasks || [])];
             tasks[m.taskIdx] = { ...tasks[m.taskIdx], assignedToEmployeeId: emp._id as never, assignedTo: emp.name };
             const r = await mergePatchProject(m.project._id.toString(), { tasks });

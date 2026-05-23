@@ -9,6 +9,7 @@ import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput } from '@/lib/utils/fontPaletteInput';
+import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -299,6 +300,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Only process tasks if they're being updated (skip if only status/other fields are being updated)
     if (tasks !== undefined) {
       if (Array.isArray(tasks)) {
+        const assigneeError = validateTaskAssigneesOnProjectTeam(project, tasks);
+        if (assigneeError) {
+          return NextResponse.json({ error: assigneeError }, { status: 400 });
+        }
+
         // Debug: Log received tasks to verify status is included
         console.log('Processing tasks update:', tasks.length, 'tasks');
 
@@ -384,6 +390,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
           return taskData;
         }));
+        const postAssigneeError = validateTaskAssigneesOnProjectTeam(project, project.tasks ?? []);
+        if (postAssigneeError) {
+          return NextResponse.json({ error: postAssigneeError }, { status: 400 });
+        }
       } else {
         project.tasks = [];
       }
