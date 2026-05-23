@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { formatCalendarDateUTC, parseIsoDateOnlyToUtc, toIsoDateInputValueUTC } from '@/lib/utils/dateUtils';
 
 interface EditableDateProps {
@@ -12,12 +12,19 @@ interface EditableDateProps {
   showTime?: boolean;
   /** When true, clearing the input calls onSave(null). */
   clearable?: boolean;
+  /** When true and value is unset, render nothing until editing. */
+  hideWhenEmpty?: boolean;
+  /** Open the editor on mount (e.g. after clicking an external label). */
+  startInEditMode?: boolean;
+  /** Called when editing closes (save, blur, or Escape). */
+  onEditEnd?: () => void;
 }
 
 export default function EditableDate({
   value, onSave, className = '', placeholder = 'Set date', disabled = false, showTime = false, clearable = false,
+  hideWhenEmpty = false, startInEditMode = false, onEditEnd,
 }: EditableDateProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(startInEditMode);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -34,12 +41,20 @@ export default function EditableDate({
     }
   }, [value, showTime]);
 
+  useEffect(() => {
+    if (startInEditMode) setIsEditing(true);
+  }, [startInEditMode]);
   useEffect(() => { if (isEditing && inputRef.current) inputRef.current.focus(); }, [isEditing]);
+
+  const closeEditing = useCallback(() => {
+    setIsEditing(false);
+    onEditEnd?.();
+  }, [onEditEnd]);
 
   const handleSave = async () => {
     if (!editValue) {
       if (clearable) await onSave(null);
-      setIsEditing(false);
+      closeEditing();
       return;
     }
     if (showTime) {
@@ -49,12 +64,12 @@ export default function EditableDate({
       const utc = parseIsoDateOnlyToUtc(editValue);
       if (utc) await onSave(utc);
     }
-    setIsEditing(false);
+    closeEditing();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); handleSave(); }
-    else if (e.key === 'Escape') setIsEditing(false);
+    else if (e.key === 'Escape') closeEditing();
   };
 
   const getDisplayValue = () => {
@@ -65,7 +80,12 @@ export default function EditableDate({
       : formatCalendarDateUTC(date);
   };
 
-  if (disabled) return <span className={className}>{getDisplayValue() || placeholder}</span>;
+  const isEmpty = !value;
+
+  if (disabled) {
+    if (hideWhenEmpty && isEmpty) return null;
+    return <span className={className}>{getDisplayValue() || placeholder}</span>;
+  }
 
   if (isEditing) {
     return (
@@ -74,6 +94,8 @@ export default function EditableDate({
         className={`${className} border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm`} />
     );
   }
+
+  if (hideWhenEmpty && isEmpty) return null;
 
   return (
     <span onClick={() => setIsEditing(true)}

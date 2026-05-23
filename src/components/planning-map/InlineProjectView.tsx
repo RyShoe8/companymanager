@@ -175,6 +175,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [viewTab, setViewTab] = useState<'tasks' | 'content'>('tasks');
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
+  const [editingEstHours, setEditingEstHours] = useState(false);
+  const [editingEndDate, setEditingEndDate] = useState(false);
   const [projectContentItems, setProjectContentItems] = useState<IContentItem[]>([]);
   const [linkedAssets, setLinkedAssets] = useState<LinkedAssetRow[]>([]);
   const [linkedAssetsLoading, setLinkedAssetsLoading] = useState(true);
@@ -684,6 +686,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const projectTypeOptions = [{ value: 'internal', label: 'Internal' }, { value: 'client', label: 'Client' }];
   const categoryOptions = [{ value: 'website', label: 'Website' }, { value: 'store', label: 'Store' }, { value: 'app', label: 'App' }, { value: 'generic', label: 'Generic' }];
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
+  const hasEstHours = localProject.estimatedHours != null;
+  const hasEndDate = !!localProject.endDate;
+  const compactFieldLabelClass =
+    'text-sm text-gray-500 rounded px-1 py-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700';
 
   const dismissedChecklistIds = useMemo(() => {
     const raw = localDismissedChecklistIds ?? localProject.dismissedChecklistIds ?? [];
@@ -714,8 +720,47 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Type:</span><EditableSelect value={localProject.projectType || 'client'} options={projectTypeOptions} onSave={(v) => handleFieldUpdate('projectType', v)} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Category:</span><EditableSelect value={localProject.category || 'generic'} options={categoryOptions} onSave={(v) => handleFieldUpdate('category', v)} disabled={!isManagerOrAdmin} /></div>
-          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Est. Hours:</span><EditableNumber value={localProject.estimatedHours} onSave={(v) => handleFieldUpdate('estimatedHours', v)} suffix="h" min={0} disabled={!isManagerOrAdmin} /></div>
-          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">End Date:</span><EditableDate value={localProject.endDate ?? null} onSave={(v) => handleFieldUpdate('endDate', v)} placeholder="No end date" clearable disabled={!isManagerOrAdmin} /></div>
+          {hasEstHours || editingEstHours ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">Est. Hours:</span>
+              <EditableNumber
+                value={localProject.estimatedHours}
+                onSave={(v) => handleFieldUpdate('estimatedHours', v)}
+                suffix="h"
+                min={0}
+                disabled={!isManagerOrAdmin}
+                hideWhenEmpty
+                startInEditMode={editingEstHours}
+                onEditEnd={() => setEditingEstHours(false)}
+              />
+            </div>
+          ) : isManagerOrAdmin ? (
+            <button type="button" onClick={() => setEditingEstHours(true)} className={compactFieldLabelClass}>
+              Est. Hours
+            </button>
+          ) : (
+            <span className="text-sm text-gray-500">Est. Hours</span>
+          )}
+          {hasEndDate || editingEndDate ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">End Date:</span>
+              <EditableDate
+                value={localProject.endDate ?? null}
+                onSave={(v) => handleFieldUpdate('endDate', v)}
+                clearable
+                disabled={!isManagerOrAdmin}
+                hideWhenEmpty
+                startInEditMode={editingEndDate}
+                onEditEnd={() => setEditingEndDate(false)}
+              />
+            </div>
+          ) : isManagerOrAdmin ? (
+            <button type="button" onClick={() => setEditingEndDate(true)} className={compactFieldLabelClass}>
+              End Date
+            </button>
+          ) : (
+            <span className="text-sm text-gray-500">End Date</span>
+          )}
           {isManagerOrAdmin && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <button
