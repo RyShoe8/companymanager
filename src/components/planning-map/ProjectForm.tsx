@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 import { Types } from 'mongoose';
 import { taskAssigneeSelectOptions } from '@/lib/utils/projectTeam';
 
-type ProjectFormSubmit = Partial<IProject> & { endDate?: Date | null };
+type ProjectFormSubmit = Omit<Partial<IProject>, 'endDate'> & { endDate?: Date | null };
 
 interface ProjectFormProps {
   project?: IProject;
