@@ -35,6 +35,8 @@ interface InlineProjectViewProps {
   isManagerOrAdmin: boolean;
   currentUserEmployeeId?: string | null;
   onUpdate: (updates: Partial<IProject>) => Promise<void>;
+  /** Merge logo and other inspector edits into workspace project list without full reload. */
+  onProjectPatched?: (project: IProject) => void;
   onDelete?: () => void;
   onClose: () => void;
   onRefresh: () => void;
@@ -143,7 +145,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return false;
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
     return new Set(['tasks']);
@@ -534,6 +536,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  const handleLogoUpdate = useCallback(
+    (logoUrl: string | undefined) => {
+      setLocalProject((prev) => {
+        const next = { ...prev, logo: logoUrl } as IProject;
+        onProjectPatched?.(next);
+        return next;
+      });
+    },
+    [onProjectPatched]
+  );
+
   const openPaletteSheet = useCallback(() => {
     const pal = localProject.colorPalette;
     const initial =
@@ -700,7 +713,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             logo={localProject.logo}
             color={localProject.color || '#3b82f6'}
             isManagerOrAdmin={isManagerOrAdmin}
-            onLogoUpdate={(logoUrl) => handleFieldUpdate('logo', logoUrl)}
+            onLogoUpdate={handleLogoUpdate}
           />
           <div className="flex-1 min-w-0">
             <EditableText value={localProject.name} onSave={(v) => handleFieldUpdate('name', v)} className="text-xl font-bold text-gray-900 dark:text-white block w-full" placeholder="Project name" disabled={!isManagerOrAdmin} />

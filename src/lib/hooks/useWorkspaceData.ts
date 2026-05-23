@@ -177,9 +177,14 @@ export default function useWorkspaceData(
         const id =
             typeof updated._id === 'string' ? updated._id : (updated._id as { toString: () => string }).toString();
         setAllProjects((prev) =>
-            prev.map((p) =>
-                p._id.toString() === id ? ({ ...p, ...updated, _id: p._id } as IProject) : p
-            )
+            prev.map((p) => {
+                if (p._id.toString() !== id) return p;
+                const next = { ...p, ...updated, _id: p._id } as IProject;
+                if ('logo' in updated && (updated.logo === null || updated.logo === undefined)) {
+                    next.logo = undefined;
+                }
+                return next;
+            })
         );
     }, []);
 

@@ -74,6 +74,7 @@ export default function InspectorHost({
                         contentRefreshTrigger={contentRefreshTrigger}
                         initialOpenTaskIndex={initialOpenTaskIndex ?? null}
                         onInitialOpenTaskConsumed={onInitialOpenTaskConsumed}
+                        onProjectPatched={onProjectPatched}
                         onUpdate={async (updates) => {
                             if (!updates || Object.keys(updates).length === 0) return;
                             const res = await fetch(`/api/projects/${focusedProject._id}`, {

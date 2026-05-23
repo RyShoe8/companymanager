@@ -141,6 +141,7 @@ export default function ProjectLogo({ projectId, logo, color = '#3b82f6', isMana
       >
         {logo ? (
           <Image
+            key={logo}
             src={logo}
             alt="Project logo"
             width={logoSizePx}
