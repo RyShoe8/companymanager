@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 
 interface EditableTextProps {
   value: string;
@@ -8,6 +8,8 @@ interface EditableTextProps {
   className?: string;
   placeholder?: string;
   multiline?: boolean;
+  /** While editing, switch from input to textarea once length reaches this count. */
+  autoMultilineAfter?: number;
   disabled?: boolean;
 }
 
@@ -17,15 +19,27 @@ export default function EditableText({
   className = '',
   placeholder = 'Click to edit',
   multiline = false,
+  autoMultilineAfter,
   disabled = false,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const prevUseMultilineRef = useRef(false);
+
+  const useMultiline =
+    multiline ||
+    (autoMultilineAfter != null && editValue.length >= autoMultilineAfter);
 
   useEffect(() => {
     setEditValue(value);
   }, [value]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      prevUseMultilineRef.current = false;
+    }
+  }, [isEditing]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -35,6 +49,21 @@ export default function EditableText({
       }
     }
   }, [isEditing, multiline]);
+
+  useLayoutEffect(() => {
+    if (multiline) return;
+    if (
+      isEditing &&
+      useMultiline &&
+      !prevUseMultilineRef.current &&
+      inputRef.current instanceof HTMLTextAreaElement
+    ) {
+      const len = editValue.length;
+      inputRef.current.focus();
+      inputRef.current.setSelectionRange(len, len);
+    }
+    prevUseMultilineRef.current = useMultiline;
+  }, [isEditing, useMultiline, editValue.length, multiline]);
 
   const handleSave = async () => {
     if (editValue !== value) {
@@ -49,7 +78,7 @@ export default function EditableText({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !multiline && !e.shiftKey) {
+    if (e.key === 'Enter' && !useMultiline && !e.shiftKey) {
       e.preventDefault();
       handleSave();
     } else if (e.key === 'Escape') {
@@ -62,18 +91,31 @@ export default function EditableText({
   }
 
   if (isEditing) {
-    const InputComponent = multiline ? 'textarea' : 'input';
+    const editClassName = `${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full block`;
+    if (useMultiline) {
+      return (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className={`${editClassName} resize-y min-h-[4.5rem]`}
+          placeholder={placeholder}
+          rows={3}
+        />
+      );
+    }
     return (
-      <InputComponent
-        ref={inputRef as any}
+      <input
+        ref={inputRef as React.RefObject<HTMLInputElement>}
         type="text"
         value={editValue}
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleSave}
         onKeyDown={handleKeyDown}
-        className={`${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        className={editClassName}
         placeholder={placeholder}
-        rows={multiline ? 3 : undefined}
       />
     );
   }

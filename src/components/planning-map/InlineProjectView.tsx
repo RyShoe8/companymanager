@@ -148,9 +148,6 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
 
 export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
-    return new Set(['tasks']);
-  });
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
   const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null);
   const [showTaskActions, setShowTaskActions] = useState(false);
@@ -427,7 +424,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setLocalProject(project);
       setLocalDismissedChecklistIds(null);
       setViewTab('tasks');
-      setExpandedSections(new Set(['tasks']));
       initialTaskAppliedKeyRef.current = null;
       return;
     }
@@ -454,7 +450,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     initialTaskAppliedKeyRef.current = key;
     const t = tasks[initialOpenTaskIndex];
     setViewTab('tasks');
-    setExpandedSections((prev) => new Set(prev).add('tasks'));
     setTaskTab(t.status === 'completed' ? 'completed' : 'active');
     setSelectedTaskIndex(initialOpenTaskIndex);
     setShowTaskActions(true);
@@ -518,11 +513,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     } catch {
       // ignore
     }
-  };
-
-
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => { const newSet = new Set(prev); newSet.has(section) ? newSet.delete(section) : newSet.add(section); return newSet; });
   };
 
   const handleFieldUpdate = async (field: string, value: any) => {
@@ -680,7 +670,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     try {
       await onUpdate({ tasks: nextTasks });
       setViewTab('tasks');
-      setExpandedSections((prev) => new Set(prev).add('tasks'));
       setPendingScrollToTaskIndex(newIdx);
     } catch (error) {
       console.error('Error adding task:', error);
@@ -1167,8 +1156,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                            <EditableText value={task.name} onSave={(v) => handleTaskUpdate(idx, 'name', v)} className={`font-medium ${task.status === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`} placeholder="Task name" disabled={!isManagerOrAdmin} />
-                            {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." disabled={!isManagerOrAdmin} />}
+                            <EditableText value={task.name} onSave={(v) => handleTaskUpdate(idx, 'name', v)} className={`font-medium ${task.status === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`} placeholder="Task name" autoMultilineAfter={100} disabled={!isManagerOrAdmin} />
+                            {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
                           </div>
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                             <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs" />
@@ -1198,12 +1187,22 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           )}
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => toggleTaskComments(idx)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-                            <span className="text-xs">{expandedTaskComments.has(idx) ? '▼' : '▶'}</span> Comments
-                          </button>
+                          <div className="flex items-center justify-between gap-2">
+                            <button onClick={() => toggleTaskComments(idx)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                              <span className="text-xs">{expandedTaskComments.has(idx) ? '▼' : '▶'}</span> Comments
+                            </button>
+                            {!expandedTaskComments.has(idx) && (
+                              <EntityScreenshotButton
+                                entityType="projectTask"
+                                entityId={localProject._id.toString()}
+                                taskIndex={idx}
+                                taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
+                              />
+                            )}
+                          </div>
                           {expandedTaskComments.has(idx) && (
                             <div className="mt-2">
-                              <CommentThread entityType="projectTask" entityId={project._id.toString()} taskIndex={idx} taskId={(project.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} />
+                              <CommentThread entityType="projectTask" entityId={localProject._id.toString()} taskIndex={idx} taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} />
                             </div>
                           )}
                         </div>
@@ -1215,25 +1214,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             )}
           </div>
         )}
-      </div>
-
-      {/* Comments Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div onClick={() => toggleSection('comments')} className="w-full flex items-center justify-between p-4 cursor-pointer">
-          <div className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <span className="text-gray-500 text-sm">{expandedSections.has('comments') ? '▼' : '▶'}</span>
-            Comments
-          </div>
-          {!expandedSections.has('comments') && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <EntityScreenshotButton
-                entityType="project"
-                entityId={localProject._id.toString()}
-              />
-            </div>
-          )}
-        </div>
-        {expandedSections.has('comments') && <div className="border-t border-gray-100 dark:border-gray-700 p-4"><CommentThread entityType="project" entityId={project._id.toString()} /></div>}
       </div>
 
       {/* Action Buttons - one Close at bottom, same size as Delete */}
