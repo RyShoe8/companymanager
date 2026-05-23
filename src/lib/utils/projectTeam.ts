@@ -1,7 +1,7 @@
 import type { IEmployee } from '@/lib/models/Employee';
-import type { IProject } from '@/lib/models/Project';
 
-type ProjectTeamSource = Pick<IProject, 'assignedToEmployeeIds'> & {
+export type ProjectTeamSource = {
+  assignedToEmployeeIds?: unknown[];
   assignedToEmployeeId?: unknown;
 };
 
