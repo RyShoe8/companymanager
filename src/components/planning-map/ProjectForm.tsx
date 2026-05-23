@@ -175,7 +175,7 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
       category,
       color,
       status,
-      endDate: endDate ? new Date(endDate) : undefined,
+      endDate: endDate ? new Date(endDate) : project ? null : undefined,
     };
 
     if (project && estimatedHours) {

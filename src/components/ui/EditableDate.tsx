@@ -5,15 +5,17 @@ import { formatCalendarDateUTC, parseIsoDateOnlyToUtc, toIsoDateInputValueUTC } 
 
 interface EditableDateProps {
   value: Date | string | null;
-  onSave: (value: Date) => void | Promise<void>;
+  onSave: (value: Date | null) => void | Promise<void>;
   className?: string;
   placeholder?: string;
   disabled?: boolean;
   showTime?: boolean;
+  /** When true, clearing the input calls onSave(null). */
+  clearable?: boolean;
 }
 
 export default function EditableDate({
-  value, onSave, className = '', placeholder = 'Set date', disabled = false, showTime = false,
+  value, onSave, className = '', placeholder = 'Set date', disabled = false, showTime = false, clearable = false,
 }: EditableDateProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -35,14 +37,17 @@ export default function EditableDate({
   useEffect(() => { if (isEditing && inputRef.current) inputRef.current.focus(); }, [isEditing]);
 
   const handleSave = async () => {
-    if (editValue) {
-      if (showTime) {
-        const newDate = new Date(editValue);
-        if (!isNaN(newDate.getTime())) await onSave(newDate);
-      } else {
-        const utc = parseIsoDateOnlyToUtc(editValue);
-        if (utc) await onSave(utc);
-      }
+    if (!editValue) {
+      if (clearable) await onSave(null);
+      setIsEditing(false);
+      return;
+    }
+    if (showTime) {
+      const newDate = new Date(editValue);
+      if (!isNaN(newDate.getTime())) await onSave(newDate);
+    } else {
+      const utc = parseIsoDateOnlyToUtc(editValue);
+      if (utc) await onSave(utc);
     }
     setIsEditing(false);
   };

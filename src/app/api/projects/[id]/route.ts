@@ -235,7 +235,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const previousStatus = project.status;
     if (status !== undefined) project.status = status;
     if (endDate !== undefined) {
-      project.endDate = endDate === null || endDate === '' ? undefined : new Date(endDate);
+      if (endDate === null || endDate === '') {
+        project.set('endDate', undefined);
+      } else {
+        project.endDate = new Date(endDate);
+      }
     }
     if (estimatedHours !== undefined) {
       project.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
