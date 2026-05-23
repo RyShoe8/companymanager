@@ -11,9 +11,11 @@ import Button from '@/components/ui/Button';
 import { Types } from 'mongoose';
 import { taskAssigneeSelectOptions } from '@/lib/utils/projectTeam';
 
+type ProjectFormSubmit = Partial<IProject> & { endDate?: Date | null };
+
 interface ProjectFormProps {
   project?: IProject;
-  onSubmit: (data: Partial<IProject>) => void;
+  onSubmit: (data: ProjectFormSubmit) => void;
   onCancel: () => void;
   userRole?: 'Administrator' | 'Manager' | 'User';
 }
@@ -167,7 +169,7 @@ export default function ProjectForm({ project, onSubmit, onCancel, userRole }: P
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const submitData: Partial<IProject> = {
+    const submitData: ProjectFormSubmit = {
       name,
       description,
       urls: urls.filter(url => url.trim() !== ''),
