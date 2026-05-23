@@ -13,6 +13,7 @@ import SwipeableCard from '@/components/ui/SwipeableCard';
 import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import CommentThread from '@/components/comments/CommentThread';
+import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 import ProjectLogo from '@/components/projects/ProjectLogo';
 import { formatDate } from '@/lib/utils/dateUtils';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
@@ -1223,6 +1224,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             <span className="text-gray-500 text-sm">{expandedSections.has('comments') ? '▼' : '▶'}</span>
             Comments
           </div>
+          {!expandedSections.has('comments') && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <EntityScreenshotButton
+                entityType="project"
+                entityId={localProject._id.toString()}
+              />
+            </div>
+          )}
         </div>
         {expandedSections.has('comments') && <div className="border-t border-gray-100 dark:border-gray-700 p-4"><CommentThread entityType="project" entityId={project._id.toString()} /></div>}
       </div>

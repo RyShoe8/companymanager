@@ -5,6 +5,7 @@ import { IComment } from '@/lib/models/Comment';
 import { IAsset } from '@/lib/models/Asset';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 
 interface CommentThreadProps {
   entityType: 'project' | 'projectTask';
@@ -111,56 +112,6 @@ export default function CommentThread({
       }
     } catch (error) {
       // Error loading screenshots
-    }
-  };
-
-  const handleAddScreenshot = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    input.onchange = async (e) => {
-      const files = (e.target as HTMLInputElement).files;
-      if (files && files.length > 0) {
-        await handleUploadScreenshots(Array.from(files));
-      }
-    };
-    input.click();
-  };
-
-  const handleUploadScreenshots = async (files: File[]) => {
-    try {
-      const uploadPromises = files.map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('name', file.name.replace(/\.[^/.]+$/, '') || 'Screenshot');
-        formData.append('type', 'screenshot');
-
-        if (entityType === 'project' || entityType === 'projectTask') {
-          formData.append('linkedProjectId', entityId);
-          if (taskId) {
-            formData.append('linkedProjectTaskId', taskId);
-          } else if (taskIndex !== undefined) {
-            formData.append('linkedProjectTaskIndex', taskIndex.toString());
-          }
-        }
-
-        const response = await fetch('/api/assets/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
-        }
-        return response.json();
-      });
-
-      await Promise.all(uploadPromises);
-      loadScreenshots();
-    } catch (error) {
-      // Error uploading screenshots
-      alert('Failed to upload screenshots');
     }
   };
 
@@ -454,15 +405,13 @@ export default function CommentThread({
           >
             Post
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={handleAddScreenshot}
-            className="h-[38px] min-h-0 whitespace-nowrap flex-shrink-0"
-          >
-            Add Screenshot
-          </Button>
+          <EntityScreenshotButton
+            entityType={entityType}
+            entityId={entityId}
+            taskIndex={taskIndex}
+            taskId={taskId}
+            onUploaded={loadScreenshots}
+          />
         </div>
       </div>
     </div>
