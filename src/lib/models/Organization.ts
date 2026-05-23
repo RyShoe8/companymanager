@@ -3,6 +3,8 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface IOrganization extends Document {
   userId: mongoose.Types.ObjectId; // The admin user who owns this organization
   name: string;
+  /** Unique slug (legacy DB index); derived from userId on create. */
+  slug: string;
   domain?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -21,6 +23,14 @@ const OrganizationSchema: Schema = new Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    slug: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+      unique: true,
+      index: true,
     },
     domain: {
       type: String,

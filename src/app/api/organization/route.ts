@@ -4,6 +4,22 @@ import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
 import Organization from '@/lib/models/Organization';
 import { sanitizeString } from '@/lib/utils/security';
+import { organizationSlugFromUserId } from '@/lib/utils/organizationSlug';
+import { isMongoDuplicateKeyError } from '@/lib/utils/mongoErrors';
+
+function organizationErrorResponse(error: unknown) {
+  console.error('[organization] create/update failed', error);
+  if (isMongoDuplicateKeyError(error)) {
+    return NextResponse.json(
+      {
+        error:
+          'Organization could not be created due to a data conflict. Please contact support if this continues.',
+      },
+      { status: 409 }
+    );
+  }
+  return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,6 +48,7 @@ export async function GET(request: NextRequest) {
     if (!organization && isAdmin) {
       organization = await Organization.create({
         userId: user._id,
+        slug: organizationSlugFromUserId(user._id),
         name: user.name || 'My Organization',
       });
     }
@@ -47,8 +64,7 @@ export async function GET(request: NextRequest) {
       isAdmin, // Include admin status so frontend can show/hide edit controls
     });
   } catch (error) {
-    // Get organization error
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return organizationErrorResponse(error);
   }
 }
 
@@ -99,10 +115,14 @@ export async function PUT(request: NextRequest) {
     if (!organization) {
       organization = await Organization.create({
         userId: user._id,
+        slug: organizationSlugFromUserId(user._id),
         name: name.trim(),
         domain: domain?.trim() || undefined,
       });
     } else {
+      if (!organization.slug && organization.userId) {
+        organization.slug = organizationSlugFromUserId(organization.userId);
+      }
       organization.name = name.trim();
       if (domain !== undefined) {
         organization.domain = domain.trim() || undefined;
@@ -122,7 +142,6 @@ export async function PUT(request: NextRequest) {
       },
     });
   } catch (error) {
-    // Update organization error
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return organizationErrorResponse(error);
   }
 }

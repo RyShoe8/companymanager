@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { migrateOrganizationSlugs } from '@/lib/db/migrateOrganizationSlugs';
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -42,6 +43,11 @@ async function connectDB(): Promise<typeof mongoose> {
 
   try {
     cached.conn = await cached.promise;
+    try {
+      await migrateOrganizationSlugs();
+    } catch (migrateErr) {
+      console.error('[organization] slug migration failed', migrateErr);
+    }
   } catch (e) {
     cached.promise = null;
     throw e;
