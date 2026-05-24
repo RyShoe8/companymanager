@@ -3,7 +3,21 @@
 import { useOsInstall } from './OsInstallProvider';
 
 export default function OsInstallButton() {
-    const { showInstallButton, openInstallModal } = useOsInstall();
+    const { showInstallButton, showOpenDesktopButton, openInstallModal, openDesktopAppModal } =
+        useOsInstall();
+
+    if (showOpenDesktopButton) {
+        return (
+            <button
+                type="button"
+                onClick={() => openDesktopAppModal()}
+                title="Nucleas OS is installed — open from your taskbar or Start menu."
+                className="text-xs px-2.5 py-1 rounded border border-border text-text-secondary hover:bg-background-elevated hover:text-text-primary transition-colors"
+            >
+                Open desktop app
+            </button>
+        );
+    }
 
     if (!showInstallButton) return null;
 

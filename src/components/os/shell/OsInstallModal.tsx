@@ -7,8 +7,10 @@ interface OsInstallModalProps {
     onClose: () => void;
     canPrompt: boolean;
     isAlreadyInstalled: boolean;
+    showManualInstalledLink: boolean;
     onInstall: () => Promise<boolean>;
     onDismiss: () => void;
+    onConfirmInstalled: () => void;
 }
 
 export default function OsInstallModal({
@@ -16,8 +18,10 @@ export default function OsInstallModal({
     onClose,
     canPrompt,
     isAlreadyInstalled,
+    showManualInstalledLink,
     onInstall,
     onDismiss,
+    onConfirmInstalled,
 }: OsInstallModalProps) {
     useEffect(() => {
         if (!isOpen) return;
@@ -66,7 +70,7 @@ export default function OsInstallModal({
                             </h2>
                             <p className="mt-1 text-sm text-text-secondary leading-relaxed">
                                 {isAlreadyInstalled
-                                    ? 'Open Nucleas OS from your taskbar or Start menu for the full desktop experience.'
+                                    ? 'You are in the browser. Open Nucleas OS from your taskbar or Start menu for the full desktop experience and chromeless pop-out windows.'
                                     : 'Run Nucleas as a desktop app for chromeless pop-out windows on Windows.'}
                             </p>
                         </div>
@@ -96,6 +100,19 @@ export default function OsInstallModal({
                                 </>
                             )}
                         </div>
+                    )}
+
+                    {showManualInstalledLink && (
+                        <p className="text-center text-xs text-text-muted">
+                            Already installed?{' '}
+                            <button
+                                type="button"
+                                onClick={onConfirmInstalled}
+                                className="text-primary hover:underline font-medium"
+                            >
+                                I already installed it
+                            </button>
+                        </p>
                     )}
 
                     <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">

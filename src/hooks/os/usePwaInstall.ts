@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-    detectPwaInstalledAsync,
+    detectInstalledRelatedAppAsync,
     isOsHost,
-    isPwaInstalled,
+    isRunningAsInstalledPwa,
+    isRunningInBrowserTab,
     markPwaInstalled,
 } from '@/lib/os/pwaInstall';
 
@@ -14,25 +15,28 @@ export interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePwaInstall() {
-    const [isInstalled, setIsInstalled] = useState(false);
+    const [isRunningAsPwa, setIsRunningAsPwa] = useState(false);
+    const [installedRelatedApp, setInstalledRelatedApp] = useState(false);
     const [isOs, setIsOs] = useState(false);
     const [installCheckPending, setInstallCheckPending] = useState(true);
     const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
 
     const refreshInstalled = useCallback(async () => {
-        const sync = isPwaInstalled();
-        if (sync) {
-            setIsInstalled(true);
+        const runningAsPwa = isRunningAsInstalledPwa();
+        setIsRunningAsPwa(runningAsPwa);
+        if (runningAsPwa) {
+            setInstalledRelatedApp(false);
             return true;
         }
-        const asyncResult = await detectPwaInstalledAsync();
-        setIsInstalled(asyncResult);
-        return asyncResult;
+        const related = await detectInstalledRelatedAppAsync();
+        setInstalledRelatedApp(related);
+        return related;
     }, []);
 
     useEffect(() => {
         setIsOs(isOsHost());
-        setIsInstalled(isPwaInstalled());
+        setIsRunningAsPwa(isRunningAsInstalledPwa());
+        setInstalledRelatedApp(false);
 
         let cancelled = false;
         (async () => {
@@ -60,7 +64,7 @@ export function usePwaInstall() {
 
         const onAppInstalled = () => {
             markPwaInstalled();
-            setIsInstalled(true);
+            setInstalledRelatedApp(true);
             setDeferred(null);
         };
 
@@ -94,19 +98,28 @@ export function usePwaInstall() {
         setDeferred(null);
         if (outcome === 'accepted') {
             markPwaInstalled();
-            setIsInstalled(true);
+            setInstalledRelatedApp(true);
             return true;
         }
         return false;
     }, [deferred]);
 
+    const inBrowserTab = isOs && isRunningInBrowserTab();
+
     return {
         isOsHost: isOs,
-        isInstalled,
-        setIsInstalled,
+        isRunningAsPwa,
+        installedRelatedApp,
+        isRunningInBrowserTab: inBrowserTab,
         installCheckPending,
         canPrompt,
         promptInstall,
         refreshInstalled,
+        /** @deprecated Use isRunningAsPwa */
+        isInstalled: isRunningAsPwa,
+        setIsInstalled: (value: boolean) => {
+            if (value) setInstalledRelatedApp(true);
+            else setInstalledRelatedApp(false);
+        },
     };
 }

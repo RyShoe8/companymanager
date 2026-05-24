@@ -89,7 +89,7 @@ export default function EditableNumber({
 
   return (
     <span onClick={() => setIsEditing(true)}
-      className={`${className} ${displayColorClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors`}>
+      className={`${className} ${displayColorClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors leading-none inline-flex items-center`}>
       {displayValue || placeholder}
     </span>
   );

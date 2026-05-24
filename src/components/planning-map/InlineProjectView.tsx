@@ -1416,7 +1416,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm px-2 py-1 shrink-0">Delete</button>
                     </div>
                     {employees.length > 0 && (
-                      <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1 min-w-[8rem]">
                           <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1496,16 +1496,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             )}
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
-                            <EditableDate value={task.startDate} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} className="text-gray-900" placeholder="Start" disabled={!isManagerOrAdmin} />
-                            <span>→</span>
-                            <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900" placeholder="End" disabled={!isManagerOrAdmin} />
+                            <EditableDate value={task.startDate} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} className="text-gray-900 leading-none py-0" placeholder="Start" disabled={!isManagerOrAdmin} />
+                            <span className="leading-none">→</span>
+                            <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900 leading-none py-0" placeholder="End" disabled={!isManagerOrAdmin} />
                           </div>
                           {estimatingTaskIndices.has(idx) ? (
-                            <span className="text-gray-400 italic">Estimating…</span>
+                            <span className="text-gray-400 italic leading-none">Estimating…</span>
                           ) : (
-                            <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
+                            <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} className="leading-none py-0" suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
                           )}
                           {employees.length > 0 && (
                             <div className="flex items-center gap-1 min-w-[8rem]">

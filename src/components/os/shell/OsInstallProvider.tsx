@@ -13,16 +13,20 @@ import { usePwaInstall } from '@/hooks/os/usePwaInstall';
 import {
     hasSeenInstallOnLoad,
     isInstallDismissed,
+    isRunningAsInstalledPwa,
     markInstallDismissed,
     markInstallEngaged,
+    markPwaInstalled,
     markSeenInstallOnLoad,
 } from '@/lib/os/pwaInstall';
 import OsInstallModal from './OsInstallModal';
 
 interface OsInstallContextValue {
     openInstallModal: (onClose?: () => void) => void | Promise<void>;
+    openDesktopAppModal: (onClose?: () => void) => void | Promise<void>;
     isInstalled: boolean;
     showInstallButton: boolean;
+    showOpenDesktopButton: boolean;
 }
 
 const OsInstallContext = createContext<OsInstallContextValue | null>(null);
@@ -38,18 +42,21 @@ export function useOsInstall(): OsInstallContextValue {
 export function OsInstallProvider({ children }: { children: ReactNode }) {
     const {
         isOsHost,
-        isInstalled,
-        setIsInstalled,
+        isRunningAsPwa,
+        installedRelatedApp,
+        isRunningInBrowserTab: inBrowserTab,
         installCheckPending,
         canPrompt,
         promptInstall,
         refreshInstalled,
     } = usePwaInstall();
     const [modalOpen, setModalOpen] = useState(false);
+    const [modalAlreadyInstalled, setModalAlreadyInstalled] = useState(false);
     const onCloseRef = useRef<(() => void) | null>(null);
 
     const closeModal = useCallback(() => {
         setModalOpen(false);
+        setModalAlreadyInstalled(false);
         const cb = onCloseRef.current;
         onCloseRef.current = null;
         cb?.();
@@ -57,25 +64,47 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
 
     const openInstallModal = useCallback(
         async (onClose?: () => void) => {
-            const installed = await refreshInstalled();
-            if (installed) {
-                setIsInstalled(true);
+            if (isRunningAsInstalledPwa()) {
+                onClose?.();
+                return;
+            }
+            const related = await refreshInstalled();
+            onCloseRef.current = onClose ?? null;
+            setModalAlreadyInstalled(related);
+            setModalOpen(true);
+        },
+        [refreshInstalled]
+    );
+
+    const openDesktopAppModal = useCallback(
+        async (onClose?: () => void) => {
+            await refreshInstalled();
+            if (isRunningAsInstalledPwa()) {
                 onClose?.();
                 return;
             }
             onCloseRef.current = onClose ?? null;
+            setModalAlreadyInstalled(true);
             setModalOpen(true);
         },
-        [refreshInstalled, setIsInstalled]
+        [refreshInstalled]
     );
 
     useEffect(() => {
-        if (!isOsHost || installCheckPending || isInstalled || isInstallDismissed() || hasSeenInstallOnLoad()) {
+        if (
+            !isOsHost ||
+            installCheckPending ||
+            isRunningAsPwa ||
+            installedRelatedApp ||
+            isInstallDismissed() ||
+            hasSeenInstallOnLoad()
+        ) {
             return;
         }
         markSeenInstallOnLoad();
+        setModalAlreadyInstalled(false);
         setModalOpen(true);
-    }, [isOsHost, isInstalled, installCheckPending]);
+    }, [isOsHost, isRunningAsPwa, installedRelatedApp, installCheckPending]);
 
     const handleInstall = useCallback(async (): Promise<boolean> => {
         markInstallEngaged();
@@ -88,14 +117,26 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         markInstallDismissed();
     }, []);
 
-    const showInstallButton = isOsHost && !isInstalled && !installCheckPending;
+    const handleConfirmInstalled = useCallback(() => {
+        markPwaInstalled();
+        markInstallEngaged();
+        void refreshInstalled();
+        closeModal();
+    }, [closeModal, refreshInstalled]);
+
+    const showInstallButton =
+        isOsHost && inBrowserTab && !installCheckPending && !installedRelatedApp;
+    const showOpenDesktopButton =
+        isOsHost && inBrowserTab && !installCheckPending && installedRelatedApp;
 
     return (
         <OsInstallContext.Provider
             value={{
                 openInstallModal,
-                isInstalled,
+                openDesktopAppModal,
+                isInstalled: isRunningAsPwa,
                 showInstallButton,
+                showOpenDesktopButton,
             }}
         >
             {children}
@@ -103,9 +144,13 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
                 isOpen={modalOpen}
                 onClose={closeModal}
                 canPrompt={canPrompt}
-                isAlreadyInstalled={isInstalled}
+                isAlreadyInstalled={modalAlreadyInstalled || isRunningAsPwa}
+                showManualInstalledLink={
+                    inBrowserTab && !modalAlreadyInstalled && !installedRelatedApp
+                }
                 onInstall={handleInstall}
                 onDismiss={handleDismiss}
+                onConfirmInstalled={handleConfirmInstalled}
             />
         </OsInstallContext.Provider>
     );

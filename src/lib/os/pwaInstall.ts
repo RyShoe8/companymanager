@@ -25,6 +25,17 @@ function isInstalledDisplayMode(): boolean {
     );
 }
 
+/** User is inside the installed PWA window (not a normal browser tab). */
+export function isRunningAsInstalledPwa(): boolean {
+    if (typeof window === 'undefined') return false;
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    return isInstalledDisplayMode() || nav.standalone === true;
+}
+
+export function isRunningInBrowserTab(): boolean {
+    return isOsHost() && !isRunningAsInstalledPwa();
+}
+
 export function hasPwaInstalledFlag(): boolean {
     return readFlag(PWA_INSTALL_KEYS.installed);
 }
@@ -33,35 +44,36 @@ export function markPwaInstalled(): void {
     writeFlag(PWA_INSTALL_KEYS.installed);
 }
 
+/** Running as PWA or user confirmed / detected install via related-apps API. */
 export function isPwaInstalled(): boolean {
-    if (typeof window === 'undefined') return false;
-    const nav = window.navigator as Navigator & { standalone?: boolean };
-    return (
-        isInstalledDisplayMode() ||
-        nav.standalone === true ||
-        hasPwaInstalledFlag()
-    );
+    return isRunningAsInstalledPwa() || hasPwaInstalledFlag();
 }
 
-export async function detectPwaInstalledAsync(): Promise<boolean> {
-    if (isPwaInstalled()) return true;
+export async function detectInstalledRelatedAppAsync(): Promise<boolean> {
     if (typeof window === 'undefined') return false;
 
     const nav = window.navigator as Navigator & {
         getInstalledRelatedApps?: () => Promise<unknown[]>;
     };
-    if (typeof nav.getInstalledRelatedApps === 'function') {
-        try {
-            const apps = await nav.getInstalledRelatedApps();
-            if (apps.length > 0) {
-                markPwaInstalled();
-                return true;
-            }
-        } catch {
-            // ignore — API may be unavailable or blocked
-        }
+    if (typeof nav.getInstalledRelatedApps !== 'function') {
+        return hasPwaInstalledFlag();
     }
-    return false;
+
+    try {
+        const apps = await nav.getInstalledRelatedApps();
+        if (apps.length > 0) {
+            markPwaInstalled();
+            return true;
+        }
+    } catch {
+        // ignore — API may be unavailable or blocked
+    }
+    return hasPwaInstalledFlag();
+}
+
+export async function detectPwaInstalledAsync(): Promise<boolean> {
+    if (isRunningAsInstalledPwa()) return true;
+    return detectInstalledRelatedAppAsync();
 }
 
 function readFlag(key: string): boolean {
@@ -115,5 +127,5 @@ export function markInstallEngaged(): void {
 }
 
 export function shouldShowInstallPrompt(): boolean {
-    return isOsHost() && !isPwaInstalled() && !isInstallDismissed();
+    return isOsHost() && isRunningInBrowserTab() && !hasPwaInstalledFlag() && !isInstallDismissed();
 }
