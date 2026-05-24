@@ -18,26 +18,17 @@ const ICON_PATHS = [
 
 export function buildNucleasOsManifest(origin: string) {
     const base = origin.replace(/\/$/, '');
-    const startUrl = `${base}/`;
-    const manifestUrl = `${base}/nucleas-os.webmanifest`;
 
     return {
         ...NUCLEAS_OS_MANIFEST_DISPLAY,
-        id: startUrl,
-        start_url: startUrl,
-        scope: `${base}/`,
-        prefer_related_applications: false,
+        id: '/',
+        start_url: '/',
+        scope: '/',
         icons: ICON_PATHS.map(({ path, sizes, purpose }) => ({
             src: `${base}${path}`,
             sizes,
             type: 'image/png',
             purpose,
         })),
-        related_applications: [
-            {
-                platform: 'webapp',
-                url: manifestUrl,
-            },
-        ],
     };
 }

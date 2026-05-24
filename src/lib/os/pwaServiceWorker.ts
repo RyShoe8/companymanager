@@ -3,10 +3,12 @@ export type OsSwStatus = 'idle' | 'registering' | 'active' | 'pending' | 'error'
 type SwState = {
     status: OsSwStatus;
     errorMessage: string | null;
+    controlled: boolean;
 };
 
-let state: SwState = { status: 'idle', errorMessage: null };
+let state: SwState = { status: 'idle', errorMessage: null, controlled: false };
 const listeners = new Set<() => void>();
+let controllerListenerAttached = false;
 
 function notify() {
     listeners.forEach((cb) => cb());
@@ -21,34 +23,58 @@ export function subscribeOsSwState(cb: () => void): () => void {
     return () => listeners.delete(cb);
 }
 
-function setState(status: OsSwStatus, errorMessage: string | null = null) {
-    state = { status, errorMessage };
+function syncControlledStatus(status: OsSwStatus, errorMessage: string | null = null) {
+    const controlled = typeof navigator !== 'undefined' && Boolean(navigator.serviceWorker?.controller);
+    if (controlled) {
+        state = { status: 'active', errorMessage: null, controlled: true };
+    } else if (status === 'active' || status === 'pending' || status === 'registering') {
+        state = {
+            status: 'pending',
+            errorMessage: errorMessage ?? 'Reload this page once to activate the service worker.',
+            controlled: false,
+        };
+    } else {
+        state = { status, errorMessage, controlled: false };
+    }
     notify();
+}
+
+function attachControllerListener() {
+    if (controllerListenerAttached || typeof navigator === 'undefined') return;
+    if (!('serviceWorker' in navigator)) return;
+    controllerListenerAttached = true;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        syncControlledStatus(state.status, state.errorMessage);
+    });
 }
 
 /** Register the OS service worker; no-op outside os.* host. */
 export async function registerOsServiceWorker(): Promise<void> {
     if (typeof window === 'undefined') return;
     if (!window.location.host.startsWith('os.')) {
-        setState('idle');
+        state = { status: 'idle', errorMessage: null, controlled: false };
+        notify();
         return;
     }
     if (!('serviceWorker' in navigator)) {
-        setState('unsupported', 'Service workers are not supported in this browser.');
+        state = { status: 'unsupported', errorMessage: 'Service workers are not supported in this browser.', controlled: false };
+        notify();
         return;
     }
 
-    setState('registering');
-    try {
-        const registration = await navigator.serviceWorker.register('/os-sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
+    attachControllerListener();
+    syncControlledStatus('registering');
 
-        if (navigator.serviceWorker.controller || registration.active) {
-            setState('active');
-        } else {
-            setState('pending', 'Reload this page once to activate the service worker.');
-        }
+    try {
+        await navigator.serviceWorker.register('/os-sw.js', { scope: '/' });
+        await navigator.serviceWorker.ready;
+        syncControlledStatus('active');
     } catch (err) {
-        setState('error', err instanceof Error ? err.message : 'Service worker registration failed.');
+        state = {
+            status: 'error',
+            errorMessage: err instanceof Error ? err.message : 'Service worker registration failed.',
+            controlled: false,
+        };
+        notify();
     }
 }

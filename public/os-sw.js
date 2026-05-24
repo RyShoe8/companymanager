@@ -1,8 +1,8 @@
 // Minimal service worker for PWA installability on os.nucleas.app.
 // Pass-through network fetch (required for beforeinstallprompt on Chromium).
 
-self.addEventListener('install', () => {
-    // Stay in waiting until next navigation unless explicitly activated.
+self.addEventListener('install', (event) => {
+    event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event) => {

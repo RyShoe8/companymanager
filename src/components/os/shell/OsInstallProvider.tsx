@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { usePwaInstall } from '@/hooks/os/usePwaInstall';
 import {
+    clearInstallReminders,
     hasSeenInstallOnLoad,
     isInstallDismissed,
     isRunningAsInstalledPwa,
@@ -51,7 +52,10 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         refreshInstalled,
         swStatus,
         swErrorMessage,
+        swControlled,
         manifestOk,
+        manifestLinkHref,
+        manifestOriginMismatch,
         installabilityHint,
     } = usePwaInstall();
     const [modalOpen, setModalOpen] = useState(false);
@@ -132,6 +136,10 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         closeModal();
     }, [closeModal, refreshInstalled]);
 
+    const handleResetReminders = useCallback(() => {
+        clearInstallReminders();
+    }, []);
+
     const showInstallButton =
         isOsHost && inBrowserTab && !installCheckPending && !installedRelatedApp;
     const showOpenDesktopButton =
@@ -159,12 +167,16 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
                 showMenuInstallConfirm={showMenuInstallConfirm}
                 swStatus={swStatus}
                 swErrorMessage={swErrorMessage}
+                swControlled={swControlled}
                 manifestOk={manifestOk}
+                manifestLinkHref={manifestLinkHref}
+                manifestOriginMismatch={manifestOriginMismatch}
                 installDismissed={isInstallDismissed()}
                 installabilityHint={installabilityHint}
                 onInstall={handleInstall}
                 onDismiss={handleDismiss}
                 onConfirmMenuInstall={handleConfirmMenuInstall}
+                onResetReminders={handleResetReminders}
             />
         </OsInstallContext.Provider>
     );

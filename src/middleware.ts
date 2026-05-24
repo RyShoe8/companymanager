@@ -42,6 +42,13 @@ export function middleware(request: NextRequest) {
       pathname === '/os-sw.js' ||
       sharedPrefixes.some((p) => pathname.startsWith(p)));
 
+  // PWA assets on os.* must be public (Chrome installability probe has no session)
+  if (isOsSharedRoute) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-nucleas-shell', 'os');
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // Allow access to auth pages, setup page, admin page, public pages, and API routes
   if (
     (pathname === '/' && !isOsHost) ||
@@ -83,12 +90,6 @@ export function middleware(request: NextRequest) {
   }
 
   if (isOsHost) {
-    if (isOsSharedRoute) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-nucleas-shell', 'os');
-      return NextResponse.next({ request: { headers: requestHeaders } });
-    }
-
     // OS shell home
     if (pathname === '/') {
       url.pathname = '/os';

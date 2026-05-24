@@ -12,22 +12,24 @@ interface OsInstallModalProps {
     showMenuInstallConfirm: boolean;
     swStatus: OsSwStatus;
     swErrorMessage: string | null;
+    swControlled: boolean;
     manifestOk: boolean | null;
+    manifestLinkHref: string | null;
+    manifestOriginMismatch: boolean;
     installDismissed: boolean;
     installabilityHint: InstallabilityHint;
     onInstall: () => Promise<boolean>;
     onDismiss: () => void;
     onConfirmMenuInstall: () => void;
+    onResetReminders: () => void;
 }
 
-function swStatusLabel(status: OsSwStatus): string {
+function swStatusLabel(status: OsSwStatus, controlled: boolean): string {
+    if (status === 'active' && controlled) return 'Active (controlling)';
+    if (status === 'active' || status === 'pending' || status === 'registering') {
+        return controlled ? 'Active (controlling)' : 'Registered (reload required)';
+    }
     switch (status) {
-        case 'active':
-            return 'Active';
-        case 'registering':
-            return 'Registering…';
-        case 'pending':
-            return 'Pending (reload may be required)';
         case 'error':
             return 'Error';
         case 'unsupported':
@@ -45,12 +47,16 @@ export default function OsInstallModal({
     showMenuInstallConfirm,
     swStatus,
     swErrorMessage,
+    swControlled,
     manifestOk,
+    manifestLinkHref,
+    manifestOriginMismatch,
     installDismissed,
     installabilityHint,
     onInstall,
     onDismiss,
     onConfirmMenuInstall,
+    onResetReminders,
 }: OsInstallModalProps) {
     useEffect(() => {
         if (!isOpen) return;
@@ -145,18 +151,43 @@ export default function OsInstallModal({
                     <div className="rounded-lg border border-border/80 bg-background/50 px-3 py-2 text-xs text-text-muted space-y-1">
                         <p>
                             <span className="text-text-secondary">Service worker:</span>{' '}
-                            {swStatusLabel(swStatus)}
+                            {swStatusLabel(swStatus, swControlled)}
                             {swErrorMessage ? ` — ${swErrorMessage}` : ''}
                         </p>
                         <p>
-                            <span className="text-text-secondary">Manifest:</span>{' '}
+                            <span className="text-text-secondary">SW controlled:</span>{' '}
+                            {swControlled ? 'Yes' : 'No'}
+                        </p>
+                        <p>
+                            <span className="text-text-secondary">Manifest fetch:</span>{' '}
                             {manifestOk === null ? 'Checking…' : manifestOk ? 'OK' : 'Not reachable'}
                         </p>
-                        {installDismissed && (
-                            <p className="text-amber-400/90">Install reminders were dismissed earlier (Not now).</p>
+                        {manifestLinkHref && (
+                            <p className="break-all">
+                                <span className="text-text-secondary">Manifest link:</span> {manifestLinkHref}
+                            </p>
                         )}
-                        {!canPrompt && installabilityHint === 'no-prompt-yet' && (
+                        {manifestOriginMismatch && (
+                            <p className="text-amber-400/90">
+                                Manifest link points to the wrong host — reload after deploy or contact support.
+                            </p>
+                        )}
+                        {installDismissed && (
+                            <p className="text-amber-400/90">
+                                Install reminders were dismissed earlier (Not now). This does not block browser install.
+                            </p>
+                        )}
+                        {!canPrompt && installabilityHint === 'no-prompt-yet' && !manifestOriginMismatch && (
                             <p>Spend a moment on this page, then check the browser menu for Install.</p>
+                        )}
+                        {(installDismissed || installabilityHint === 'dismissed') && (
+                            <button
+                                type="button"
+                                onClick={onResetReminders}
+                                className="text-primary hover:underline font-medium mt-1"
+                            >
+                                Reset install reminders
+                            </button>
                         )}
                     </div>
 
@@ -187,6 +218,7 @@ export default function OsInstallModal({
                                 <button
                                     type="button"
                                     onClick={handleNotNow}
+                                    title="Hides our install reminders only — does not block browser install"
                                     className="px-4 py-2 text-sm rounded-lg border border-border text-text-secondary hover:bg-background-elevated hover:text-text-primary transition-colors"
                                 >
                                     Not now

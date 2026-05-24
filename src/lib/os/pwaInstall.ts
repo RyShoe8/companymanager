@@ -129,3 +129,16 @@ export function markInstallEngaged(): void {
 export function shouldShowInstallPrompt(): boolean {
     return isOsHost() && isRunningInBrowserTab() && !hasPwaInstalledFlag() && !isInstallDismissed();
 }
+
+/** Clear reminder flags only — does not mark the app as installed. */
+export function clearInstallReminders(): void {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.removeItem(PWA_INSTALL_KEYS.seenOnLoad);
+        localStorage.removeItem(PWA_INSTALL_KEYS.seenOnModules);
+        localStorage.removeItem(PWA_INSTALL_KEYS.dismissed);
+        localStorage.removeItem(PWA_INSTALL_KEYS.engaged);
+    } catch {
+        // ignore quota / private mode
+    }
+}

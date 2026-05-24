@@ -22,6 +22,27 @@ export interface BeforeInstallPromptEvent extends Event {
 
 export type InstallabilityHint = 'ready' | 'dismissed' | 'no-prompt-yet';
 
+function getDomManifestHref(): string | null {
+    if (typeof document === 'undefined') return null;
+    const link = document.querySelector('link[rel="manifest"]');
+    const href = link?.getAttribute('href');
+    if (!href) return null;
+    try {
+        return new URL(href, window.location.href).href;
+    } catch {
+        return href;
+    }
+}
+
+function isManifestOriginMismatch(href: string | null): boolean {
+    if (!href || typeof window === 'undefined') return false;
+    try {
+        return new URL(href).host !== window.location.host;
+    } catch {
+        return false;
+    }
+}
+
 async function checkManifestReachable(): Promise<boolean> {
     try {
         const res = await fetch('/nucleas-os.webmanifest', { cache: 'no-store' });
@@ -41,12 +62,22 @@ export function usePwaInstall() {
     const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
     const [swStatus, setSwStatus] = useState<OsSwStatus>('idle');
     const [swErrorMessage, setSwErrorMessage] = useState<string | null>(null);
+    const [swControlled, setSwControlled] = useState(false);
     const [manifestOk, setManifestOk] = useState<boolean | null>(null);
+    const [manifestLinkHref, setManifestLinkHref] = useState<string | null>(null);
+    const [manifestOriginMismatch, setManifestOriginMismatch] = useState(false);
+
+    const syncManifestDiagnostics = useCallback(() => {
+        const href = getDomManifestHref();
+        setManifestLinkHref(href);
+        setManifestOriginMismatch(isManifestOriginMismatch(href));
+    }, []);
 
     const syncSwState = useCallback(() => {
-        const { status, errorMessage } = getOsSwState();
+        const { status, errorMessage, controlled } = getOsSwState();
         setSwStatus(status);
         setSwErrorMessage(errorMessage);
+        setSwControlled(controlled);
     }, []);
 
     const refreshInstalled = useCallback(async () => {
@@ -66,6 +97,7 @@ export function usePwaInstall() {
         setIsRunningAsPwa(isRunningAsInstalledPwa());
         setInstalledRelatedApp(false);
         syncSwState();
+        syncManifestDiagnostics();
 
         let cancelled = false;
         (async () => {
@@ -76,6 +108,7 @@ export function usePwaInstall() {
             if (!cancelled) {
                 setManifestOk(manifestReachable);
                 setInstallCheckPending(false);
+                syncManifestDiagnostics();
             }
         })();
 
@@ -108,6 +141,7 @@ export function usePwaInstall() {
         const onVisibilityOrFocus = () => {
             if (document.visibilityState === 'visible') {
                 void refreshInstalled();
+                syncManifestDiagnostics();
                 if (isOsHost()) {
                     void checkManifestReachable().then(setManifestOk);
                 }
@@ -128,7 +162,7 @@ export function usePwaInstall() {
             window.removeEventListener('focus', onVisibilityOrFocus);
             document.removeEventListener('visibilitychange', onVisibilityOrFocus);
         };
-    }, [refreshInstalled, syncSwState]);
+    }, [refreshInstalled, syncManifestDiagnostics, syncSwState]);
 
     const canPrompt = Boolean(deferred);
 
@@ -164,7 +198,10 @@ export function usePwaInstall() {
         refreshInstalled,
         swStatus,
         swErrorMessage,
+        swControlled,
         manifestOk,
+        manifestLinkHref,
+        manifestOriginMismatch,
         installabilityHint,
         /** @deprecated Use isRunningAsPwa */
         isInstalled: isRunningAsPwa,
