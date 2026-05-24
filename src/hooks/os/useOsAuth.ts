@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export type OsRole = 'Administrator' | 'Manager' | 'User' | null;
 
@@ -9,16 +9,21 @@ export interface OsAuthState {
     userId: string | null;
     email: string | null;
     name: string | null;
+    profilePicture: string | null;
+    isAdmin: boolean;
     employeeId: string | null;
     role: OsRole;
     isManagerOrAdmin: boolean;
     error: string | null;
+    refetch: () => void;
 }
 
 interface MeResponse {
     id: string;
     email?: string;
     name?: string;
+    profilePicture?: string | null;
+    isAdmin?: boolean;
 }
 
 interface EmployeeResponse {
@@ -29,11 +34,13 @@ interface EmployeeResponse {
     role?: 'Administrator' | 'Manager' | 'User';
 }
 
-const initialState: OsAuthState = {
+const initialState: Omit<OsAuthState, 'refetch'> = {
     loading: true,
     userId: null,
     email: null,
     name: null,
+    profilePicture: null,
+    isAdmin: false,
     employeeId: null,
     role: null,
     isManagerOrAdmin: false,
@@ -46,7 +53,10 @@ const initialState: OsAuthState = {
  * fields the OS shell needs (identity + role).
  */
 export function useOsAuth(): OsAuthState {
-    const [state, setState] = useState<OsAuthState>(initialState);
+    const [state, setState] = useState<Omit<OsAuthState, 'refetch'>>(initialState);
+    const [refreshToken, setRefreshToken] = useState(0);
+
+    const refetch = useCallback(() => setRefreshToken((t) => t + 1), []);
 
     useEffect(() => {
         let cancelled = false;
@@ -87,6 +97,8 @@ export function useOsAuth(): OsAuthState {
                         userId: me.id,
                         email: me.email ?? null,
                         name: me.name ?? null,
+                        profilePicture: me.profilePicture ?? null,
+                        isAdmin: Boolean(me.isAdmin),
                         employeeId: employee?._id ?? null,
                         role,
                         isManagerOrAdmin,
@@ -107,7 +119,7 @@ export function useOsAuth(): OsAuthState {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [refreshToken]);
 
-    return state;
+    return { ...state, refetch };
 }

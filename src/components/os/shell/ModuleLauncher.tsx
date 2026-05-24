@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModuleRegistry } from '@/hooks/os/useModuleRegistry';
 import { useWindowManager } from '@/hooks/os/useWindowManager';
+import { useOsInstall } from './OsInstallProvider';
 
 export default function ModuleLauncher() {
     const modules = useModuleRegistry();
     const wm = useWindowManager();
+    const { tryModulesClick } = useOsInstall();
     const [open, setOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -25,7 +27,9 @@ export default function ModuleLauncher() {
         <div ref={containerRef} className="relative">
             <button
                 type="button"
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => {
+                    tryModulesClick(() => setOpen((o) => !o));
+                }}
                 className="px-3 h-8 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-sm flex items-center gap-2"
                 aria-haspopup="menu"
                 aria-expanded={open}

@@ -15,6 +15,7 @@ import { registerOsModules } from './modules/registerModules';
 import { registerOsCommands } from './commands/registerOsCommands';
 import WindowManagerProvider from './state/WindowManagerProvider';
 import OsShell from './shell/OsShell';
+import { OsInstallProvider } from './shell/OsInstallProvider';
 import { warmPopoutScreenCache } from '@/lib/os/popoutPlacement';
 
 // Register modules once at module load so the registry is ready before any
@@ -37,9 +38,11 @@ export default function OsRoot({ children }: OsRootProps) {
 
     return (
         <WindowManagerProvider userId={auth.userId}>
-            <OsIntentLayer>
-                <OsShell>{children}</OsShell>
-            </OsIntentLayer>
+            <OsInstallProvider>
+                <OsIntentLayer>
+                    <OsShell>{children}</OsShell>
+                </OsIntentLayer>
+            </OsInstallProvider>
         </WindowManagerProvider>
     );
 }
