@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import useIsMobile from '@/lib/hooks/useIsMobile';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
@@ -27,6 +27,8 @@ interface InspectorHostProps {
     onInitialOpenTaskConsumed?: () => void;
     onAddContent?: (project: IProject) => void;
     onContentItemClick?: (item: IContentItem) => void;
+    contentRefreshTrigger?: number;
+    onContentListChanged?: () => void;
 }
 
 export default function InspectorHost({
@@ -42,9 +44,10 @@ export default function InspectorHost({
     onInitialOpenTaskConsumed,
     onAddContent,
     onContentItemClick,
+    contentRefreshTrigger,
+    onContentListChanged,
 }: InspectorHostProps) {
     const isMobile = useIsMobile();
-    const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
 
     const { type, id } = useMemo(() => {
         if (!focusId) return { type: null, id: null };
@@ -110,12 +113,14 @@ export default function InspectorHost({
                     onClose={onClose}
                     contentItemId={id}
                     employees={employees}
+                    isManagerOrAdmin={isManagerOrAdmin}
                     onSaved={() => {
                         onRefresh();
-                        setContentRefreshTrigger((t) => t + 1);
+                        onContentListChanged?.();
                     }}
                     onDeleted={() => {
                         onRefresh();
+                        onContentListChanged?.();
                         onClose();
                     }}
                     isInline={true}

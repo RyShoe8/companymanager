@@ -2,9 +2,13 @@
 
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
-import CategoryModal, { type AddSmartButtonPayload } from './CategoryModal';
+import CategoryModal, {
+  type AddSmartButtonPayload,
+  type AssetLinkContext,
+  type PendingAssetPayload,
+} from './CategoryModal';
 
-export type { AddSmartButtonPayload };
+export type { AddSmartButtonPayload, AssetLinkContext, PendingAssetPayload };
 
 interface AddButtonProps {
   projectId: string;
@@ -13,15 +17,30 @@ interface AddButtonProps {
   isManagerOrAdmin: boolean;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: () => void;
+  linkContext?: AssetLinkContext;
+  mode?: 'live' | 'draft';
+  onPendingAsset?: (asset: PendingAssetPayload) => void;
+  label?: string;
 }
 
-export default function AddButton({ projectId, phase, projectType, isManagerOrAdmin, onAddButton, onDocumentCreated }: AddButtonProps) {
+export default function AddButton({
+  projectId,
+  phase,
+  projectType,
+  isManagerOrAdmin,
+  onAddButton,
+  onDocumentCreated,
+  linkContext,
+  mode = 'live',
+  onPendingAsset,
+  label = 'Add',
+}: AddButtonProps) {
   const [showModal, setShowModal] = useState(false);
 
   return (
     <>
       <Button variant="secondary" size="sm" onClick={() => setShowModal(true)}>
-        Add
+        {label}
       </Button>
       {showModal && (
         <CategoryModal
@@ -32,6 +51,9 @@ export default function AddButton({ projectId, phase, projectType, isManagerOrAd
           onClose={() => setShowModal(false)}
           onAddButton={onAddButton}
           onDocumentCreated={onDocumentCreated}
+          linkContext={linkContext}
+          mode={mode}
+          onPendingAsset={onPendingAsset}
         />
       )}
     </>

@@ -6,6 +6,8 @@ import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { isValidObjectId } from '@/lib/utils/security';
+import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
+import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
 
 const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
@@ -72,7 +74,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!doc) return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
 
     const body = await request.json();
-    const { title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl, estimatedHours } = body;
+    const { title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl, distributionMethods, estimatedHours } = body;
 
     if (title !== undefined) doc.title = String(title).trim();
     if (channel !== undefined && CHANNELS.includes(channel)) doc.channel = channel;
@@ -82,6 +84,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (keywords !== undefined) doc.keywords = Array.isArray(keywords) ? keywords.map(String) : [];
     if (internalLinks !== undefined) doc.internalLinks = Array.isArray(internalLinks) ? internalLinks.map(String) : [];
     if (externalUrl !== undefined) doc.externalUrl = externalUrl === '' ? undefined : String(externalUrl).trim();
+    if (distributionMethods !== undefined) {
+      doc.distributionMethods = Array.isArray(distributionMethods)
+        ? distributionMethods.filter((m: unknown) => typeof m === 'string' && isDistributionMethod(m))
+        : [];
+    }
     if (estimatedHours !== undefined) {
       if (estimatedHours === null || estimatedHours === '') {
         doc.estimatedHours = undefined;
@@ -97,6 +104,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (assignedToEmployeeId === null || assignedToEmployeeId === '') {
         doc.assignedToEmployeeId = undefined;
       } else if (isValidObjectId(assignedToEmployeeId)) {
+        const project = await Project.findById(doc.projectId).lean();
+        if (project && !isEmployeeOnProjectTeam(project as Parameters<typeof isEmployeeOnProjectTeam>[0], assignedToEmployeeId)) {
+          return NextResponse.json({ error: 'Assignee must be on the project team' }, { status: 400 });
+        }
         doc.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
       }
     }

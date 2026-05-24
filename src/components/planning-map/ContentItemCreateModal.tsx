@@ -3,9 +3,16 @@
 import { useState, useEffect } from 'react';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
-import { ContentChannel, ContentStatus } from '@/lib/models/ContentItem';
+import { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
+import ContentTargetingSection, { parseKeywordsInput } from '@/components/planning-map/ContentTargetingSection';
+import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
+import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
+import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
+import { createPendingAssets } from '@/lib/utils/linkedAssets';
+
 function toInputDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -28,11 +35,11 @@ interface ContentItemCreateModalProps {
   onClose: () => void;
   project: IProject | null;
   defaultPublishDate?: Date;
-  /** Prefill from voice / commands */
   initialTitle?: string;
   initialChannel?: string;
   initialNotes?: string;
   employees: IEmployee[];
+  isManagerOrAdmin?: boolean;
   onSuccess: () => void;
 }
 
@@ -45,6 +52,7 @@ export default function ContentItemCreateModal({
   initialChannel,
   initialNotes,
   employees,
+  isManagerOrAdmin = true,
   onSuccess,
 }: ContentItemCreateModalProps) {
   const defaultDate = defaultPublishDate || new Date();
@@ -55,12 +63,16 @@ export default function ContentItemCreateModal({
   const [notes, setNotes] = useState('');
   const [assignedToEmployeeId, setAssignedToEmployeeId] = useState<string>('');
   const [keywords, setKeywords] = useState('');
-  const [internalLinks, setInternalLinks] = useState('');
+  const [internalLinks, setInternalLinks] = useState<string[]>([]);
   const [externalUrl, setExternalUrl] = useState('');
+  const [distributionMethods, setDistributionMethods] = useState<DistributionMethod[]>([]);
   const [estimatedHours, setEstimatedHours] = useState('');
+  const [pendingAssets, setPendingAssets] = useState<PendingAssetPayload[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const assigneeOptions = project ? filterEmployeesForTaskAssignment(employees, project) : employees;
 
   useEffect(() => {
     if (!isOpen || !project) return;
@@ -73,6 +85,28 @@ export default function ContentItemCreateModal({
     setError(null);
   }, [isOpen, project?._id, initialTitle, initialChannel, initialNotes, defaultPublishDate]);
 
+  const toggleDistribution = (method: DistributionMethod) => {
+    setDistributionMethods((prev) =>
+      prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method]
+    );
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setChannel('Other');
+    setPublishDate(toInputDate(new Date()));
+    setStatus('planned');
+    setNotes('');
+    setAssignedToEmployeeId('');
+    setKeywords('');
+    setInternalLinks([]);
+    setExternalUrl('');
+    setDistributionMethods([]);
+    setEstimatedHours('');
+    setPendingAssets([]);
+    setShowAdvanced(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project) return;
@@ -83,6 +117,7 @@ export default function ContentItemCreateModal({
     setIsSubmitting(true);
     setError(null);
     try {
+      const filteredLinks = internalLinks.map((s) => s.trim()).filter(Boolean);
       const body: Record<string, unknown> = {
         projectId: project._id.toString(),
         title: title.trim(),
@@ -90,9 +125,10 @@ export default function ContentItemCreateModal({
         status,
         notes: notes.trim() || undefined,
         assignedToEmployeeId: assignedToEmployeeId || undefined,
-        keywords: keywords.trim() ? keywords.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
-        internalLinks: internalLinks.trim() ? internalLinks.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+        keywords: keywords.trim() ? parseKeywordsInput(keywords) : undefined,
+        internalLinks: filteredLinks.length > 0 ? filteredLinks : undefined,
         externalUrl: externalUrl.trim() || undefined,
+        distributionMethods: distributionMethods.length > 0 ? distributionMethods : undefined,
         estimatedHours: estimatedHours.trim() ? Number(estimatedHours) : undefined,
       };
       if (publishDate) {
@@ -108,19 +144,14 @@ export default function ContentItemCreateModal({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to create content');
       }
+      const created = (await res.json()) as IContentItem;
+      const contentId = created._id?.toString?.() ?? (created._id as unknown as string);
+      if (contentId && pendingAssets.length > 0) {
+        await createPendingAssets(contentId, pendingAssets);
+      }
       onSuccess();
       onClose();
-      setTitle('');
-      setChannel('Other');
-      setPublishDate(toInputDate(new Date()));
-      setStatus('planned');
-      setNotes('');
-      setAssignedToEmployeeId('');
-      setKeywords('');
-      setInternalLinks('');
-      setExternalUrl('');
-      setEstimatedHours('');
-      setShowAdvanced(false);
+      resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create content');
     } finally {
@@ -145,6 +176,7 @@ export default function ContentItemCreateModal({
             autoFocus
           />
         </div>
+        <motionlessDistribution distributionMethods={distributionMethods} onToggle={toggleDistribution} />
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1">Channel *</label>
           <select
@@ -180,12 +212,10 @@ export default function ContentItemCreateModal({
         </div>
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
-          <textarea
+          <AutoGrowTextarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Optional notes"
-            rows={2}
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary resize-none"
           />
         </div>
         <div>
@@ -196,7 +226,7 @@ export default function ContentItemCreateModal({
             className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
           >
             <option value="">Unassigned</option>
-            {employees.map((emp) => (
+            {assigneeOptions.map((emp) => (
               <option key={emp._id.toString()} value={emp._id.toString()}>{emp.name}</option>
             ))}
           </select>
@@ -212,59 +242,24 @@ export default function ContentItemCreateModal({
           />
         </div>
 
-        <div className="pt-2 border-t border-gray-700">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full focus:outline-none"
-          >
-            <svg
-              className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-            Advanced settings
-          </button>
-        </div>
+        <ContentTargetingSection
+          project={project}
+          isManagerOrAdmin={isManagerOrAdmin}
+          expanded={showAdvanced}
+          onToggle={() => setShowAdvanced(!showAdvanced)}
+          keywords={keywords}
+          onKeywordsChange={setKeywords}
+          internalLinks={internalLinks}
+          onInternalLinksChange={setInternalLinks}
+          externalUrl={externalUrl}
+          onExternalUrlChange={setExternalUrl}
+          mode="draft"
+          pendingAssets={pendingAssets}
+          onPendingAsset={(asset) => setPendingAssets((prev) => [...prev, asset])}
+          onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
+        />
 
-        {showAdvanced && (
-          <div className="space-y-4 animate-in slide-in-from-top-2">
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1">Target keywords (comma-separated)</label>
-              <input
-                type="text"
-                value={keywords}
-                onChange={(e) => setKeywords(e.target.value)}
-                placeholder="e.g. keyword1, keyword2"
-                className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1">Internal links (comma-separated URLs or slugs)</label>
-              <input
-                type="text"
-                value={internalLinks}
-                onChange={(e) => setInternalLinks(e.target.value)}
-                placeholder="e.g. /page1, https://..."
-                className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1">External link (OneUp, Google Doc, etc.)</label>
-              <input
-                type="url"
-                value={externalUrl}
-                onChange={(e) => setExternalUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-              />
-            </div>
-          </div>
-        )}
-        {error && <div className="text-red-500 text-sm">{error}</div>}
+        {error && <motionlessError message={error} />}
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
           <Button type="submit" disabled={isSubmitting} className="flex-1">{isSubmitting ? 'Creating...' : 'Create'}</Button>
@@ -272,4 +267,45 @@ export default function ContentItemCreateModal({
       </form>
     </Modal>
   );
+}
+
+function motionlessDistribution({
+  distributionMethods,
+  onToggle,
+}: {
+  distributionMethods: DistributionMethod[];
+  onToggle: (method: DistributionMethod) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-text-primary mb-2">Distribution methods</label>
+      <div className="flex flex-wrap gap-2">
+        {DISTRIBUTION_METHODS.map((method) => {
+          const checked = distributionMethods.includes(method);
+          return (
+            <label
+              key={method}
+              className={`inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
+                checked
+                  ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-600 text-indigo-900 dark:text-indigo-100'
+                  : 'border-border text-text-secondary hover:bg-gray-50 dark:hover:bg-gray-800'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => onToggle(method)}
+                className="sr-only"
+              />
+              {method}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function motionlessError({ message }: { message: string }) {
+  return <div className="text-red-500 text-sm">{message}</div>;
 }

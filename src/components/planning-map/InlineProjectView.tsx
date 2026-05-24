@@ -30,6 +30,7 @@ import {
   parseFontFamilyInput,
 } from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
+import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -1169,8 +1170,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   <div key={item._id.toString()} className="flex items-center justify-between gap-2 py-3 first:pt-0">
                     <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
                       <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{item.title}</span>
-                      <span className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                      <span className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
                         <span className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700">{item.channel}</span>
+                        {Array.isArray(item.distributionMethods) && item.distributionMethods.length > 0 && item.distributionMethods.map((m) => (
+                          <span key={m} className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">{m}</span>
+                        ))}
                         {item.publishDate && <span>{formatDate(new Date(item.publishDate))}</span>}
                         {item.status === 'published' && <span className="opacity-70">Published</span>}
                       </span>
@@ -1258,6 +1262,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             </div>
                           )}
                         </div>
+                        <TaskLinkedAssets
+                          project={localProject}
+                          taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
+                          isManagerOrAdmin={isManagerOrAdmin}
+                        />
                       </div>
                     </SwipeableCard>
                   )

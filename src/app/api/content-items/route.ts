@@ -4,6 +4,8 @@ import ContentItem from '@/lib/models/ContentItem';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
+import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
 import { isValidObjectId } from '@/lib/utils/security';
 
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
     const body = await request.json();
-    const { projectId, title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl, estimatedHours } = body;
+    const { projectId, title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl, distributionMethods, estimatedHours } = body;
 
     if (!projectId || !title || !channel) {
       return NextResponse.json({ error: 'projectId, title, and channel are required' }, { status: 400 });
@@ -144,6 +146,9 @@ export async function POST(request: NextRequest) {
       doc.publishDate = new Date(publishDate);
     }
     if (assignedToEmployeeId && isValidObjectId(assignedToEmployeeId)) {
+      if (!isEmployeeOnProjectTeam(project as Parameters<typeof isEmployeeOnProjectTeam>[0], assignedToEmployeeId)) {
+        return NextResponse.json({ error: 'Assignee must be on the project team' }, { status: 400 });
+      }
       doc.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
     }
     if (keywords !== undefined) {
@@ -154,6 +159,11 @@ export async function POST(request: NextRequest) {
     }
     if (externalUrl !== undefined && externalUrl !== '') {
       doc.externalUrl = String(externalUrl).trim();
+    }
+    if (distributionMethods !== undefined) {
+      doc.distributionMethods = Array.isArray(distributionMethods)
+        ? distributionMethods.filter((m: unknown) => typeof m === 'string' && isDistributionMethod(m))
+        : [];
     }
     if (estimatedHours !== undefined && estimatedHours !== null && estimatedHours !== '') {
       const parsedHours = Number(estimatedHours);

@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     const linkedProjectId = formData.get('linkedProjectId') as string | null;
     const linkedProjectTaskIndex = formData.get('linkedProjectTaskIndex') as string | null;
     const linkedProjectTaskId = formData.get('linkedProjectTaskId') as string | null;
+    const linkedContentItemId = formData.get('linkedContentItemId') as string | null;
 
     if (!file || !name) {
       return NextResponse.json({ error: 'File and name are required' }, { status: 400 });
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
     // Validate ObjectIds if provided
     if (linkedProjectId && !isValidObjectId(linkedProjectId)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
+    }
+    if (linkedContentItemId && !isValidObjectId(linkedContentItemId)) {
+      return NextResponse.json({ error: 'Invalid content item ID' }, { status: 400 });
     }
 
     // Prefer stable taskId; fall back to task index for legacy
@@ -133,6 +137,9 @@ export async function POST(request: NextRequest) {
     }
     if (taskIndex !== undefined) {
       assetData.linkedProjectTaskIndex = taskIndex;
+    }
+    if (linkedContentItemId) {
+      assetData.linkedContentItemId = linkedContentItemId;
     }
 
     const asset = await Asset.create(assetData);

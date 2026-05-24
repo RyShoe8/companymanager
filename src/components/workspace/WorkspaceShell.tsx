@@ -66,6 +66,7 @@ export default function WorkspaceShell({
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [showMeetingModal, setShowMeetingModal] = useState(false);
     const [meetingRefreshKey, setMeetingRefreshKey] = useState(0);
+    const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
 
     const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
 
@@ -1104,6 +1105,8 @@ export default function WorkspaceShell({
                                         setAddContentProject(project);
                                     }}
                                     onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
+                                    contentRefreshTrigger={contentRefreshTrigger}
+                                    onContentListChanged={() => setContentRefreshTrigger((t) => t + 1)}
                                 />
                             </div>
                         )}
@@ -1132,7 +1135,11 @@ export default function WorkspaceShell({
                         initialChannel={addContentVoicePrefill?.channel}
                         initialNotes={addContentVoicePrefill?.notes}
                         employees={ws.employees}
-                        onSuccess={ws.fetchContentItems}
+                        isManagerOrAdmin={ws.isManagerOrAdmin}
+                        onSuccess={async () => {
+                            await ws.fetchContentItems();
+                            setContentRefreshTrigger((t) => t + 1);
+                        }}
                     />
 
                     {/* Mobile Inspector Bottom Sheet */}
@@ -1153,6 +1160,8 @@ export default function WorkspaceShell({
                                 setAddContentProject(project);
                             }}
                             onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
+                            contentRefreshTrigger={contentRefreshTrigger}
+                            onContentListChanged={() => setContentRefreshTrigger((t) => t + 1)}
                         />
                     )}
 

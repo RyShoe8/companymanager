@@ -19,6 +19,23 @@ export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
   | { kind: 'email'; email: string; password?: string; label?: string };
 
+export type PendingAssetPayload = {
+  name: string;
+  type: 'text' | 'link';
+  url?: string;
+  textContent?: string;
+  linkedProjectId: string;
+  linkedContentItemId?: string;
+  linkedProjectTaskId?: string;
+  tags?: string[];
+};
+
+export type AssetLinkContext = {
+  linkedProjectId: string;
+  linkedContentItemId?: string;
+  linkedProjectTaskId?: string;
+};
+
 async function readApiErrorMessage(res: Response, fallback: string): Promise<string> {
   const ct = res.headers.get('content-type') || '';
   try {
@@ -44,6 +61,9 @@ interface CategoryModalProps {
   onClose: () => void;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: () => void;
+  linkContext?: AssetLinkContext;
+  mode?: 'live' | 'draft';
+  onPendingAsset?: (asset: PendingAssetPayload) => void;
 }
 
 export default function CategoryModal({
@@ -54,6 +74,9 @@ export default function CategoryModal({
   onClose,
   onAddButton,
   onDocumentCreated,
+  linkContext,
+  mode = 'live',
+  onPendingAsset,
 }: CategoryModalProps) {
   const [step, setStep] = useState<AddStep>('type');
   const [entries, setEntries] = useState<CatalogEntry[]>([]);
@@ -72,6 +95,46 @@ export default function CategoryModal({
   const [emailLabel, setEmailLabel] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
+  const isEntityContext = !!(linkContext?.linkedContentItemId || linkContext?.linkedProjectTaskId);
+  const useAssetFlow = isEntityContext || mode === 'draft';
+
+  const buildAssetPayload = (partial: Omit<PendingAssetPayload, 'linkedProjectId'>): PendingAssetPayload => ({
+    linkedProjectId: effectiveProjectId,
+    linkedContentItemId: linkContext?.linkedContentItemId,
+    linkedProjectTaskId: linkContext?.linkedProjectTaskId,
+    tags: [],
+    ...partial,
+  });
+
+  const saveAsset = async (payload: PendingAssetPayload): Promise<boolean> => {
+    if (mode === 'draft') {
+      onPendingAsset?.(payload);
+      return true;
+    }
+    try {
+      const res = await fetch('/api/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        onDocumentCreated?.();
+        return true;
+      }
+      const msg = await readApiErrorMessage(res, 'Failed to create asset');
+      alert(msg);
+      return false;
+    } catch {
+      alert('Could not create asset. Check your connection and try again.');
+      return false;
+    }
+  };
+
+  const handleEntityLink = async (label: string, url: string) => {
+    return saveAsset(buildAssetPayload({ name: label.trim(), type: 'link', url: url.trim() }));
+  };
 
   const needsCatalog = step === 'figma' || step === 'wireframe' || step === 'more';
   const catalogLinkType = step === 'figma' ? 'figma' : step === 'wireframe' ? 'wireframe' : null;
@@ -107,8 +170,13 @@ export default function CategoryModal({
     if (!addLabel.trim() || !addUrl.trim()) return;
     setAdding(true);
     try {
-      await onAddButton({ kind: 'link', label: addLabel.trim(), url: addUrl.trim() });
-      onClose();
+      if (useAssetFlow) {
+        const ok = await handleEntityLink(addLabel, addUrl);
+        if (ok) onClose();
+      } else {
+        await onAddButton({ kind: 'link', label: addLabel.trim(), url: addUrl.trim() });
+        onClose();
+      }
     } finally {
       setAdding(false);
     }
@@ -118,13 +186,19 @@ export default function CategoryModal({
     if (!emailAddr.trim()) return;
     setAddingEmail(true);
     try {
-      await onAddButton({
-        kind: 'email',
-        email: emailAddr.trim(),
-        ...(emailPassword.trim() ? { password: emailPassword } : {}),
-        ...(emailLabel.trim() ? { label: emailLabel.trim() } : {}),
-      });
-      onClose();
+      if (useAssetFlow) {
+        const label = emailLabel.trim() || emailAddr.trim();
+        const ok = await handleEntityLink(label, `mailto:${emailAddr.trim()}`);
+        if (ok) onClose();
+      } else {
+        await onAddButton({
+          kind: 'email',
+          email: emailAddr.trim(),
+          ...(emailPassword.trim() ? { password: emailPassword } : {}),
+          ...(emailLabel.trim() ? { label: emailLabel.trim() } : {}),
+        });
+        onClose();
+      }
     } finally {
       setAddingEmail(false);
     }
@@ -135,26 +209,14 @@ export default function CategoryModal({
     if (!docName.trim()) return;
     setSavingDoc(true);
     try {
-      const res = await fetch('/api/assets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const ok = await saveAsset(
+        buildAssetPayload({
           name: docName.trim(),
           type: 'text',
           textContent: docContent.trim() || undefined,
-          linkedProjectId: projectId,
-          tags: [],
-        }),
-      });
-      if (res.ok) {
-        onDocumentCreated?.();
-        onClose();
-      } else {
-        const msg = await readApiErrorMessage(res, 'Failed to create document');
-        alert(msg);
-      }
-    } catch {
-      alert('Could not create document. Check your connection and try again.');
+        })
+      );
+      if (ok) onClose();
     } finally {
       setSavingDoc(false);
     }
@@ -196,7 +258,9 @@ export default function CategoryModal({
     if (step === 'document') {
       return (
         <form onSubmit={handleDocumentSubmit} className="space-y-3">
-          <p className="text-sm text-gray-600 dark:text-gray-400">Create a document linked to this project.</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {isEntityContext ? 'Create a document linked to this item.' : 'Create a document linked to this project.'}
+          </p>
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Document name</label>
             <input
@@ -310,7 +374,7 @@ export default function CategoryModal({
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
-              {adding ? 'Adding...' : 'Add to project'}
+              {adding ? 'Adding...' : isEntityContext ? 'Add asset' : 'Add to project'}
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setStep('type')}>
               Back
