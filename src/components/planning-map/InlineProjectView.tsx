@@ -917,7 +917,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             socialLinks={(localProject.socialLinks ?? []) as IProjectSocialLink[]}
             socialsToolbarVisible={localProject.socialsToolbarVisible !== false}
             isManagerOrAdmin={isManagerOrAdmin}
-            onUpdate={handleFieldUpdate}
+            onUpdate={async (updates) => {
+              setLocalProject((prev) => ({ ...prev, ...updates } as IProject));
+              try {
+                await onUpdate(updates);
+              } catch (error) {
+                setLocalProject(project);
+                alert(error instanceof Error ? error.message : 'Failed to save');
+              }
+            }}
           />
         </div>
         {isManagerOrAdmin && employees.length > 0 && (
@@ -1022,7 +1030,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 alert('That social link is already on this project.');
                 return;
               }
-              await handleFieldUpdate({ socialLinks: [...existing, parsed] });
+              await handleFieldUpdate('socialLinks', [...existing, parsed]);
             }}
             onAddButton={async (payload: AddSmartButtonPayload) => {
               const body =
