@@ -42,11 +42,11 @@ export default function ModuleLauncher() {
                     <div className="px-3 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
                         Open module
                     </div>
-                    {modules.length === 0 ? (
+                    {modules.filter((m) => !m.launcherHidden).length === 0 ? (
                         <div className="px-3 py-4 text-sm text-zinc-500">No modules registered.</div>
                     ) : (
                         <ul>
-                            {modules.map((m) => (
+                            {modules.filter((m) => !m.launcherHidden).map((m) => (
                                 <li key={m.id}>
                                     <button
                                         type="button"

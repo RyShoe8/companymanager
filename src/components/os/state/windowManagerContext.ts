@@ -1,10 +1,10 @@
 'use client';
 
 import { createContext } from 'react';
-import type { WindowState, WorkspaceLayout } from '@/lib/os/types';
+import type { OpenWindowOptions, WindowState, WorkspaceLayout } from '@/lib/os/types';
 
 export interface WindowManagerActions {
-    open: (moduleId: string) => string | null;
+    open: (moduleId: string, options?: OpenWindowOptions) => string | null;
     close: (windowId: string) => void;
     focus: (windowId: string) => void;
     move: (windowId: string, x: number, y: number) => void;

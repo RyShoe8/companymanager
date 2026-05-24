@@ -32,6 +32,8 @@ export interface ModuleDefinition {
     canPopout: boolean;
     /** Minimum role allowed to open this module. */
     permissions: OsPermissionLevel;
+    /** When true, hidden from the module launcher and palette open commands. */
+    launcherHidden?: boolean;
     /** Render the module body. Receives the owning window id for self-control. */
     render: (ctx: ModuleRenderContext) => ReactNode;
 }
@@ -39,6 +41,7 @@ export interface ModuleDefinition {
 export interface ModuleRenderContext {
     windowId: string;
     moduleId: string;
+    payload?: Record<string, string>;
 }
 
 export interface WindowState {
@@ -53,6 +56,13 @@ export interface WindowState {
     maximized: boolean;
     /** Reserved for Phase 4 pop-out support. Never true in Phase 1. */
     poppedOut: boolean;
+    /** Module-specific serializable data (e.g. projectId). */
+    payload?: Record<string, string>;
+}
+
+export interface OpenWindowOptions {
+    position?: { x: number; y: number };
+    payload?: Record<string, string>;
 }
 
 export interface WorkspaceLayout {

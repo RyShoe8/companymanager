@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import ModuleRegistry from '@/lib/os/moduleRegistry';
 import type { ModuleDefinition } from '@/lib/os/types';
 import ProjectsModule from './ProjectsModule';
+import ProjectDetailModule from './ProjectDetailModule';
 import VoiceModule from './VoiceModule';
 import PlaceholderModule from './PlaceholderModule';
 
@@ -30,6 +31,17 @@ export function registerOsModules(): void {
             canPopout: true,
             permissions: 'member',
             render: () => createElement(ProjectsModule),
+        },
+        {
+            id: 'project-detail',
+            title: 'Project',
+            icon: '📋',
+            defaultSize: { width: 900, height: 700 },
+            minSize: { width: 480, height: 360 },
+            canPopout: true,
+            permissions: 'member',
+            launcherHidden: true,
+            render: (ctx) => createElement(ProjectDetailModule, ctx),
         },
         {
             id: 'tasks',

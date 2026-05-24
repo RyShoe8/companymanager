@@ -16,7 +16,13 @@ export const initialLayout: WorkspaceLayout = {
 };
 
 export type WindowAction =
-    | { type: 'OPEN'; moduleId: string; module: ModuleDefinition; position?: { x: number; y: number } }
+    | {
+          type: 'OPEN';
+          moduleId: string;
+          module: ModuleDefinition;
+          position?: { x: number; y: number };
+          payload?: Record<string, string>;
+      }
     | { type: 'CLOSE'; windowId: string }
     | { type: 'FOCUS'; windowId: string }
     | { type: 'MOVE'; windowId: string; x: number; y: number }
@@ -25,6 +31,7 @@ export type WindowAction =
     | { type: 'MAXIMIZE'; windowId: string }
     | { type: 'RESTORE'; windowId: string }
     | { type: 'HYDRATE'; layout: WorkspaceLayout }
+    | { type: 'CLAMP_WINDOWS'; windows: WindowState[] }
     | { type: 'RESET' };
 
 function generateWindowId(moduleId: string): string {
@@ -44,6 +51,9 @@ export function windowReducer(state: WorkspaceLayout, action: WindowAction): Wor
         case 'HYDRATE':
             return action.layout;
 
+        case 'CLAMP_WINDOWS':
+            return { ...state, windows: action.windows };
+
         case 'RESET':
             return initialLayout;
 
@@ -61,6 +71,7 @@ export function windowReducer(state: WorkspaceLayout, action: WindowAction): Wor
                 minimized: false,
                 maximized: false,
                 poppedOut: false,
+                payload: action.payload,
             };
             return {
                 windows: [...state.windows, newWindow],

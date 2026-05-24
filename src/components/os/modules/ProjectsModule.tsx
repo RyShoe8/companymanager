@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useWindowManager } from '@/hooks/os/useWindowManager';
 
 interface ProjectSummary {
     _id: string;
@@ -9,6 +10,7 @@ interface ProjectSummary {
 }
 
 export default function ProjectsModule() {
+    const wm = useWindowManager();
     const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +35,15 @@ export default function ProjectsModule() {
         };
     }, []);
 
+    const openProject = (project: ProjectSummary) => {
+        wm.open('project-detail', {
+            payload: {
+                projectId: project._id,
+                projectName: project.name,
+            },
+        });
+    };
+
     if (error) {
         return (
             <div className="p-4 text-sm text-red-400">
@@ -52,16 +63,22 @@ export default function ProjectsModule() {
     return (
         <ul className="divide-y divide-zinc-800">
             {projects.map((p) => (
-                <li
-                    key={p._id}
-                    className="px-4 py-2 hover:bg-zinc-900 cursor-default flex items-center justify-between"
-                >
-                    <span className="text-sm text-zinc-100 truncate">{p.name}</span>
-                    {p.status && (
-                        <span className="text-[11px] text-zinc-500 uppercase tracking-wide">
-                            {p.status}
-                        </span>
-                    )}
+                <li key={p._id}>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            openProject(p);
+                        }}
+                        className="w-full px-4 py-2 hover:bg-zinc-900 cursor-pointer flex items-center justify-between text-left"
+                    >
+                        <span className="text-sm text-zinc-100 truncate">{p.name}</span>
+                        {p.status && (
+                            <span className="text-[11px] text-zinc-500 uppercase tracking-wide ml-2 flex-shrink-0">
+                                {p.status}
+                            </span>
+                        )}
+                    </button>
                 </li>
             ))}
         </ul>

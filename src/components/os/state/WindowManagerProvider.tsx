@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } f
 import { initialLayout, windowReducer } from '@/lib/os/windowManager';
 import { loadOsState, saveOsState } from '@/lib/os/persistence';
 import ModuleRegistry from '@/lib/os/moduleRegistry';
-import type { PersistedOsState } from '@/lib/os/types';
+import type { OpenWindowOptions, PersistedOsState } from '@/lib/os/types';
+import {
+    clampLayoutWindows,
+    getOsViewportBounds,
+    payloadsMatch,
+} from '@/lib/os/viewportBounds';
 import { WindowManagerContext, type WindowManagerContextValue } from './windowManagerContext';
 
 const SAVE_DEBOUNCE_MS = 300;
@@ -18,14 +23,45 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
     const [layout, dispatch] = useReducer(windowReducer, initialLayout);
     const hydratedRef = useRef(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const layoutRef = useRef(layout);
+    layoutRef.current = layout;
 
     useEffect(() => {
         const persisted = loadOsState(userId);
         if (persisted.layout.windows.length > 0 || persisted.layout.nextZIndex > initialLayout.nextZIndex) {
-            dispatch({ type: 'HYDRATE', layout: persisted.layout });
+            const clampedWindows = clampLayoutWindows(
+                persisted.layout.windows,
+                getOsViewportBounds()
+            );
+            dispatch({
+                type: 'HYDRATE',
+                layout: { ...persisted.layout, windows: clampedWindows },
+            });
         }
         hydratedRef.current = true;
     }, [userId]);
+
+    useEffect(() => {
+        const onResize = () => {
+            const current = layoutRef.current;
+            if (current.windows.length === 0) return;
+            const clamped = clampLayoutWindows(current.windows, getOsViewportBounds());
+            const changed = clamped.some((w, i) => {
+                const prev = current.windows[i];
+                return (
+                    w.x !== prev.x ||
+                    w.y !== prev.y ||
+                    w.width !== prev.width ||
+                    w.height !== prev.height
+                );
+            });
+            if (changed) {
+                dispatch({ type: 'CLAMP_WINDOWS', windows: clamped });
+            }
+        };
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     useEffect(() => {
         if (!hydratedRef.current) return;
@@ -44,14 +80,32 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
         };
     }, [layout, userId]);
 
-    const open = useCallback((moduleId: string): string | null => {
+    const open = useCallback((moduleId: string, options?: OpenWindowOptions): string | null => {
         const mod = ModuleRegistry.get(moduleId);
         if (!mod) {
             console.warn(`[OS] Tried to open unknown module: ${moduleId}`);
             return null;
         }
-        dispatch({ type: 'OPEN', moduleId, module: mod });
-        return moduleId;
+
+        const current = layoutRef.current;
+        if (options?.payload) {
+            const existing = current.windows.find(
+                (w) => w.moduleId === moduleId && payloadsMatch(w.payload, options.payload)
+            );
+            if (existing) {
+                dispatch({ type: 'FOCUS', windowId: existing.id });
+                return existing.id;
+            }
+        }
+
+        dispatch({
+            type: 'OPEN',
+            moduleId,
+            module: mod,
+            position: options?.position,
+            payload: options?.payload,
+        });
+        return null;
     }, []);
 
     const close = useCallback((windowId: string) => {

@@ -2,7 +2,7 @@ import CommandRegistry, { type Command } from '@/lib/commands/CommandRegistry';
 import ModuleRegistry from '@/lib/os/moduleRegistry';
 
 interface OsCommandActions {
-    openModule: (moduleId: string) => string | null;
+    openModule: (moduleId: string, options?: { payload?: Record<string, string> }) => string | null;
     focusNextWindow: () => void;
     closeAll: () => void;
     resetLayout: () => void;
@@ -21,7 +21,9 @@ export function registerOsCommands(actions: OsCommandActions): () => void {
         registered.push(cmd.id);
     };
 
-    ModuleRegistry.list().forEach((m) => {
+    ModuleRegistry.list()
+        .filter((m) => !m.launcherHidden)
+        .forEach((m) => {
         register({
             id: `os.openModule.${m.id}`,
             label: `Open ${m.title}`,

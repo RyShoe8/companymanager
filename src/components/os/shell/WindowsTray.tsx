@@ -13,6 +13,10 @@ export default function WindowsTray() {
             ) : (
                 wm.windows.map((w) => {
                     const mod = ModuleRegistry.get(w.moduleId);
+                    const label =
+                        w.moduleId === 'project-detail' && w.payload?.projectName
+                            ? w.payload.projectName
+                            : mod?.title ?? w.moduleId;
                     const isActive = wm.activeWindowId === w.id && !w.minimized;
                     return (
                         <button
@@ -32,7 +36,7 @@ export default function WindowsTray() {
                             aria-pressed={isActive}
                         >
                             <span aria-hidden>{mod?.icon ?? '•'}</span>
-                            <span className="truncate max-w-[140px]">{mod?.title ?? w.moduleId}</span>
+                            <span className="truncate max-w-[140px]">{label}</span>
                             {w.minimized && <span className="text-[10px] text-zinc-500">min</span>}
                         </button>
                     );

@@ -29,7 +29,7 @@ export default function ModuleCanvas() {
                 if (!mod) return null;
                 return (
                     <FloatingWindow key={w.id} window={w} module={mod}>
-                        {mod.render({ windowId: w.id, moduleId: w.moduleId })}
+                        {mod.render({ windowId: w.id, moduleId: w.moduleId, payload: w.payload })}
                     </FloatingWindow>
                 );
             })}

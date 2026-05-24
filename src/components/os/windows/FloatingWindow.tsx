@@ -2,6 +2,8 @@
 
 import { type ReactNode, useCallback } from 'react';
 import type { ModuleDefinition, WindowState } from '@/lib/os/types';
+import { clampToViewport } from '@/lib/os/clampToViewport';
+import { getOsViewportBounds, OS_INSET_BOTTOM, OS_INSET_TOP } from '@/lib/os/viewportBounds';
 import { useWindowManager } from '@/hooks/os/useWindowManager';
 import { useDraggable } from './useDraggable';
 import { useResizable } from './useResizable';
@@ -17,16 +19,25 @@ export default function FloatingWindow({ window: w, module, children }: Floating
 
     const handleDrag = useCallback(
         (x: number, y: number) => {
-            wm.move(w.id, x, y);
+            const clamped = clampToViewport(
+                { x, y, width: w.width, height: w.height },
+                getOsViewportBounds()
+            );
+            wm.move(w.id, clamped.x, clamped.y);
         },
-        [wm, w.id]
+        [wm, w.id, w.width, w.height]
     );
 
     const handleResize = useCallback(
         (width: number, height: number) => {
-            wm.resize(w.id, width, height);
+            const clamped = clampToViewport(
+                { x: w.x, y: w.y, width, height },
+                getOsViewportBounds()
+            );
+            wm.move(w.id, clamped.x, clamped.y);
+            wm.resize(w.id, clamped.width, clamped.height);
         },
-        [wm, w.id]
+        [wm, w.id, w.x, w.y]
     );
 
     const { onPointerDown: onHeaderPointerDown, dragging } = useDraggable({
@@ -53,13 +64,17 @@ export default function FloatingWindow({ window: w, module, children }: Floating
     }, [wm, w.id]);
 
     const isActive = wm.activeWindowId === w.id;
+    const windowTitle =
+        w.moduleId === 'project-detail' && w.payload?.projectName
+            ? w.payload.projectName
+            : module.title;
 
     const style: React.CSSProperties = w.maximized
         ? {
             left: 0,
-            top: 48,
+            top: OS_INSET_TOP,
             width: '100%',
-            height: 'calc(100vh - 48px - 56px)',
+            height: `calc(100vh - ${OS_INSET_TOP}px - ${OS_INSET_BOTTOM}px)`,
             zIndex: w.zIndex,
         }
         : {
@@ -72,7 +87,7 @@ export default function FloatingWindow({ window: w, module, children }: Floating
     return (
         <div
             role="dialog"
-            aria-label={module.title}
+            aria-label={windowTitle}
             className={`absolute ${w.maximized ? '' : 'top-0 left-0'} bg-zinc-900 border rounded-lg shadow-2xl flex flex-col overflow-hidden select-none ${
                 isActive ? 'border-zinc-600' : 'border-zinc-800'
             } ${dragging || resizing ? '' : 'transition-shadow'}`}
@@ -89,7 +104,7 @@ export default function FloatingWindow({ window: w, module, children }: Floating
                 <span className="text-sm leading-none" aria-hidden>
                     {module.icon}
                 </span>
-                <span className="flex-1 text-sm font-medium text-zinc-100 truncate">{module.title}</span>
+                <span className="flex-1 text-sm font-medium text-zinc-100 truncate">{windowTitle}</span>
                 <WindowButton
                     label="Minimize"
                     onClick={(e) => {
