@@ -89,7 +89,7 @@ export default function ContentTargetingSection({
 
   return (
     <>
-      <motionlessToggle expanded={expanded} onToggle={onToggle} />
+      <TargetingToggle expanded={expanded} onToggle={onToggle} />
 
       {expanded && (
         <div className="space-y-4 animate-in slide-in-from-top-2">
@@ -203,7 +203,7 @@ export default function ContentTargetingSection({
   );
 }
 
-function motionlessToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
+function TargetingToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   return (
     <div className="pt-2 border-t border-gray-700">
       <button

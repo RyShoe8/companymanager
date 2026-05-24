@@ -5,6 +5,23 @@ export type ProjectType = 'internal' | 'client';
 export type ProjectCategory = 'website' | 'store' | 'app' | 'generic';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
 
+export type SocialNetwork =
+  | 'x'
+  | 'linkedin'
+  | 'instagram'
+  | 'tiktok'
+  | 'reddit'
+  | 'bluesky'
+  | 'youtube'
+  | 'facebook'
+  | 'github'
+  | 'other';
+
+export interface IProjectSocialLink {
+  network: SocialNetwork;
+  url: string;
+}
+
 export interface IProjectTask {
   _id?: Types.ObjectId; // Mongoose adds by default; use for stable task references (project.tasks.id(taskId))
   name: string;
@@ -39,6 +56,10 @@ export interface IProject extends Document {
   devUrl?: string;
   /** Production / live site URL (workspace projects panel). */
   liveUrl?: string;
+  /** Social profile links shown after Live URL in project overview. */
+  socialLinks?: IProjectSocialLink[];
+  /** When false, Socials toolbar button is hidden; add via smart button instead. */
+  socialsToolbarVisible?: boolean;
   projectType: ProjectType;
   category: ProjectCategory;
   color: string;
@@ -96,6 +117,23 @@ const ProjectSchema: Schema = new Schema(
     liveUrl: {
       type: String,
       trim: true,
+    },
+    socialLinks: {
+      type: [
+        {
+          network: {
+            type: String,
+            enum: ['x', 'linkedin', 'instagram', 'tiktok', 'reddit', 'bluesky', 'youtube', 'facebook', 'github', 'other'],
+            required: true,
+          },
+          url: { type: String, trim: true, required: true },
+        },
+      ],
+      default: [],
+    },
+    socialsToolbarVisible: {
+      type: Boolean,
+      default: true,
     },
     projectType: {
       type: String,
@@ -275,6 +313,7 @@ ProjectSchema.index({ assignedToEmployeeId: 1 });
 ProjectSchema.index({ assignedToEmployeeIds: 1 });
 ProjectSchema.index({ 'tasks.assignedToEmployeeId': 1 });
 ProjectSchema.index({ 'tasks.assignedToEmployeeIds': 1 });
+ProjectSchema.index({ 'socialLinks.network': 1 });
 ProjectSchema.index({ createdAt: -1 });
 
 const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);

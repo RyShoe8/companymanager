@@ -45,7 +45,7 @@ export default function TaskLinkedAssets({ project, taskId, isManagerOrAdmin }: 
 
   return (
     <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-      <motionlessHeader />
+      <LinkedAssetsHeader />
       {isManagerOrAdmin && taskId && (
         <AddButton
           projectId={projectId}
@@ -93,7 +93,7 @@ export default function TaskLinkedAssets({ project, taskId, isManagerOrAdmin }: 
   );
 }
 
-function motionlessHeader() {
+function LinkedAssetsHeader() {
   return (
     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
       Assets

@@ -31,6 +31,9 @@ import {
 } from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
+import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
+import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
+import type { IProjectSocialLink } from '@/lib/models/Project';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -910,6 +913,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <span className="text-gray-400">Not set</span>
             )}
           </div>
+          <ProjectSocialsBar
+            socialLinks={(localProject.socialLinks ?? []) as IProjectSocialLink[]}
+            socialsToolbarVisible={localProject.socialsToolbarVisible !== false}
+            isManagerOrAdmin={isManagerOrAdmin}
+            onUpdate={handleFieldUpdate}
+          />
         </div>
         {isManagerOrAdmin && employees.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
@@ -1004,6 +1013,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             phase={mapStatusToStage(localProject.status)}
             projectType={localProject.projectType || 'generic'}
             isManagerOrAdmin={isManagerOrAdmin}
+            socialsToolbarHidden={localProject.socialsToolbarVisible === false}
+            onAddSocial={async (url) => {
+              const parsed = parseSocialLinkInput(url);
+              if (!parsed) throw new Error('Invalid URL');
+              const existing = (localProject.socialLinks ?? []) as IProjectSocialLink[];
+              if (existing.some((l) => l.url === parsed.url)) {
+                alert('That social link is already on this project.');
+                return;
+              }
+              await handleFieldUpdate({ socialLinks: [...existing, parsed] });
+            }}
             onAddButton={async (payload: AddSmartButtonPayload) => {
               const body =
                 payload.kind === 'email'

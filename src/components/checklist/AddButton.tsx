@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Button from '@/components/ui/Button';
 import CategoryModal, {
   type AddSmartButtonPayload,
@@ -21,6 +21,8 @@ interface AddButtonProps {
   mode?: 'live' | 'draft';
   onPendingAsset?: (asset: PendingAssetPayload) => void;
   label?: string;
+  socialsToolbarHidden?: boolean;
+  onAddSocial?: (url: string) => Promise<void>;
 }
 
 export default function AddButton({
@@ -34,8 +36,27 @@ export default function AddButton({
   mode = 'live',
   onPendingAsset,
   label = 'Add',
+  socialsToolbarHidden = false,
+  onAddSocial,
 }: AddButtonProps) {
   const [showModal, setShowModal] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    return () => setShowModal(false);
+  }, []);
+
+  useEffect(() => {
+    if (!showModal) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const panel = panelRef.current;
+      if (panel && !panel.contains(e.target as Node)) {
+        setShowModal(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [showModal]);
 
   return (
     <>
@@ -54,6 +75,9 @@ export default function AddButton({
           linkContext={linkContext}
           mode={mode}
           onPendingAsset={onPendingAsset}
+          socialsToolbarHidden={socialsToolbarHidden}
+          onAddSocial={onAddSocial}
+          panelRef={panelRef}
         />
       )}
     </>

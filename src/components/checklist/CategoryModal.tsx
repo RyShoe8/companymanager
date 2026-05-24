@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
+import SocialIcon from '@/components/projects/SocialIcon';
+import { detectSocialNetwork, parseSocialLinkInput, SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
 
 interface CatalogEntry {
   _id: string;
@@ -13,7 +15,7 @@ interface CatalogEntry {
   projectTypes?: string[];
 }
 
-type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more';
+type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more' | 'social';
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
@@ -64,6 +66,9 @@ interface CategoryModalProps {
   linkContext?: AssetLinkContext;
   mode?: 'live' | 'draft';
   onPendingAsset?: (asset: PendingAssetPayload) => void;
+  socialsToolbarHidden?: boolean;
+  onAddSocial?: (url: string) => Promise<void>;
+  panelRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function CategoryModal({
@@ -77,6 +82,9 @@ export default function CategoryModal({
   linkContext,
   mode = 'live',
   onPendingAsset,
+  socialsToolbarHidden = false,
+  onAddSocial,
+  panelRef,
 }: CategoryModalProps) {
   const [step, setStep] = useState<AddStep>('type');
   const [entries, setEntries] = useState<CatalogEntry[]>([]);
@@ -94,6 +102,8 @@ export default function CategoryModal({
   const [emailPassword, setEmailPassword] = useState('');
   const [emailLabel, setEmailLabel] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
+  const [socialUrl, setSocialUrl] = useState('');
+  const [addingSocial, setAddingSocial] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
@@ -166,6 +176,14 @@ export default function CategoryModal({
     inputRef.current?.focus();
   }, [step]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   const handleAddSubmit = async () => {
     if (!addLabel.trim() || !addUrl.trim()) return;
     setAdding(true);
@@ -228,19 +246,41 @@ export default function CategoryModal({
     setAddUrl(entry.url || '');
   };
 
+  const handleSocialSubmit = async () => {
+    if (!onAddSocial || !socialUrl.trim()) return;
+    const parsed = parseSocialLinkInput(socialUrl);
+    if (!parsed) {
+      alert('Enter a valid social URL.');
+      return;
+    }
+    setAddingSocial(true);
+    try {
+      await onAddSocial(parsed.url);
+      onClose();
+    } catch {
+      alert('Failed to save social link.');
+    } finally {
+      setAddingSocial(false);
+    }
+  };
+
   const renderStep = () => {
     if (step === 'type') {
+      const typeOptions: { id: AddStep; label: string; desc: string }[] = [
+        { id: 'document', label: 'Document', desc: 'Create and save a document' },
+        { id: 'link', label: 'Link', desc: 'Any URL with a button label' },
+        { id: 'email', label: 'Email', desc: 'Mailbox address; optional stored password' },
+        { id: 'figma', label: 'Figma', desc: 'Design link or suggested tools' },
+        { id: 'wireframe', label: 'Wireframe', desc: 'Wireframe link or suggested tools' },
+        { id: 'more', label: 'More', desc: 'Other link types and tools' },
+      ];
+      if (socialsToolbarHidden && onAddSocial && !useAssetFlow) {
+        typeOptions.splice(1, 0, { id: 'social', label: 'Socials', desc: 'Add a social profile URL' });
+      }
       return (
         <div className="space-y-2">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Choose a type of link or content to add.</p>
-          {[
-            { id: 'document' as const, label: 'Document', desc: 'Create and save a document' },
-            { id: 'link' as const, label: 'Link', desc: 'Any URL with a button label' },
-            { id: 'email' as const, label: 'Email', desc: 'Mailbox address; optional stored password' },
-            { id: 'figma' as const, label: 'Figma', desc: 'Design link or suggested tools' },
-            { id: 'wireframe' as const, label: 'Wireframe', desc: 'Wireframe link or suggested tools' },
-            { id: 'more' as const, label: 'More', desc: 'Other link types and tools' },
-          ].map(({ id, label, desc }) => (
+          {typeOptions.map(({ id, label, desc }) => (
             <button
               key={id}
               type="button"
@@ -339,6 +379,40 @@ export default function CategoryModal({
               disabled={addingEmail || !emailAddr.trim()}
             >
               {addingEmail ? 'Adding...' : 'Add to project'}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
+              Back
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 'social') {
+      const detected = socialUrl.trim() ? detectSocialNetwork(socialUrl) : null;
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Paste a social profile URL. We detect the network automatically.
+          </p>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Profile URL</label>
+            <input
+              type="url"
+              value={socialUrl}
+              onChange={(e) => setSocialUrl(e.target.value)}
+              placeholder="https://linkedin.com/company/..."
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          {detected && socialUrl.trim() && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+              Detected: <SocialIcon network={detected} size={14} /> {SOCIAL_NETWORK_LABELS[detected]}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => void handleSocialSubmit()} disabled={addingSocial || !socialUrl.trim()}>
+              {addingSocial ? 'Adding...' : 'Add social'}
             </Button>
             <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
               Back
@@ -577,16 +651,17 @@ export default function CategoryModal({
 
   const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
+        ref={panelRef}
         className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl mx-4 max-h-[80vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
+            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

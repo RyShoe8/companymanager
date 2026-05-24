@@ -176,7 +176,7 @@ export default function ContentItemCreateModal({
             autoFocus
           />
         </div>
-        <motionlessDistribution distributionMethods={distributionMethods} onToggle={toggleDistribution} />
+        <DistributionSection distributionMethods={distributionMethods} onToggle={toggleDistribution} />
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1">Channel *</label>
           <select
@@ -259,7 +259,7 @@ export default function ContentItemCreateModal({
           onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
         />
 
-        {error && <motionlessError message={error} />}
+        {error && <ErrorMessage message={error} />}
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
           <Button type="submit" disabled={isSubmitting} className="flex-1">{isSubmitting ? 'Creating...' : 'Create'}</Button>
@@ -269,7 +269,7 @@ export default function ContentItemCreateModal({
   );
 }
 
-function motionlessDistribution({
+function DistributionSection({
   distributionMethods,
   onToggle,
 }: {
@@ -306,6 +306,6 @@ function motionlessDistribution({
   );
 }
 
-function motionlessError({ message }: { message: string }) {
+function ErrorMessage({ message }: { message: string }) {
   return <div className="text-red-500 text-sm">{message}</div>;
 }

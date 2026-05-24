@@ -252,7 +252,7 @@ export default function ContentItemDetailModal({
         <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
         <AutoGrowTextarea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
-      <motionlessAssignee assigneeOptions={assigneeOptions} value={assignedToEmployeeId} onChange={setAssignedToEmployeeId} />
+      <AssigneeSelect assigneeOptions={assigneeOptions} value={assignedToEmployeeId} onChange={setAssignedToEmployeeId} />
       <div>
         <label className="block text-sm font-medium text-text-primary mb-1">Estimated hours</label>
         <input
@@ -304,7 +304,7 @@ export default function ContentItemDetailModal({
   );
 }
 
-function motionlessAssignee({
+function AssigneeSelect({
   assigneeOptions,
   value,
   onChange,

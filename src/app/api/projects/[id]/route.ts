@@ -10,6 +10,7 @@ import { Types } from 'mongoose';
 import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput } from '@/lib/utils/fontPaletteInput';
 import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
+import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -102,6 +103,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       assignedToNames,
       tasks,
       dismissedChecklistIds,
+      socialLinks,
+      socialsToolbarVisible,
     } = body;
 
     await connectDB();
@@ -147,7 +150,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         devUrl !== undefined || liveUrl !== undefined ||
         projectType !== undefined || color !== undefined || colorPalette !== undefined || fontPalette !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
         assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined ||
-        assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined) {
+        assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined ||
+        socialLinks !== undefined || socialsToolbarVisible !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
       }
     }
@@ -163,6 +167,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (liveUrl !== undefined) {
       project.liveUrl =
         liveUrl === null || liveUrl === '' ? undefined : String(liveUrl).trim() || undefined;
+    }
+    if (socialLinks !== undefined) {
+      const socialError = validateSocialLinksUpdate(socialLinks);
+      if (socialError) {
+        return NextResponse.json({ error: socialError }, { status: 400 });
+      }
+      project.socialLinks = sanitizeSocialLinks(socialLinks) ?? [];
+    }
+    if (socialsToolbarVisible !== undefined) {
+      project.socialsToolbarVisible = socialsToolbarVisible !== false;
     }
     if (category !== undefined) project.category = category;
     if (projectType !== undefined) {
