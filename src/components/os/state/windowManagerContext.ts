@@ -2,6 +2,11 @@
 
 import { createContext } from 'react';
 import type { OpenWindowOptions, WindowState, WorkspaceLayout } from '@/lib/os/types';
+import type { PopoutPlacementOverride } from '@/lib/os/popoutPlacement';
+
+export interface PopOutOptions {
+    placement?: PopoutPlacementOverride;
+}
 
 export interface WindowManagerActions {
     open: (moduleId: string, options?: OpenWindowOptions) => string | null;
@@ -13,7 +18,7 @@ export interface WindowManagerActions {
     maximize: (windowId: string) => void;
     restore: (windowId: string) => void;
     resetLayout: () => void;
-    popOut: (windowId: string) => boolean;
+    popOut: (windowId: string, options?: PopOutOptions) => boolean;
     popIn: (windowId: string) => void;
     focusPopout: (windowId: string) => void;
 }

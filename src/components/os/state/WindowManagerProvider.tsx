@@ -12,7 +12,7 @@ import {
     getOsViewportBounds,
     payloadsMatch,
 } from '@/lib/os/viewportBounds';
-import { WindowManagerContext, type WindowManagerContextValue } from './windowManagerContext';
+import { WindowManagerContext, type PopOutOptions, type WindowManagerContextValue } from './windowManagerContext';
 
 const SAVE_DEBOUNCE_MS = 300;
 
@@ -167,7 +167,7 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
         popoutRefs.current.delete(windowId);
     }, []);
 
-    const popOut = useCallback((windowId: string): boolean => {
+    const popOut = useCallback((windowId: string, options?: PopOutOptions): boolean => {
         const current = layoutRef.current;
         const target = current.windows.find((w) => w.id === windowId);
         if (!target || target.poppedOut) {
@@ -189,7 +189,7 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
         });
         dispatch({ type: 'POP_OUT', windowId });
 
-        const popup = openPopoutWindow(target, mod);
+        const popup = openPopoutWindow(target, mod, { placement: options?.placement });
         if (!popup) {
             const reverted = windowReducer(nextLayout, { type: 'POP_IN', windowId });
             saveOsState(userId, {

@@ -12,8 +12,7 @@ export const NUCLEAS_OS_MANIFEST_DISPLAY = {
 const ICON_PATHS = [
     { path: '/icons/pwa-192.png', sizes: '192x192', purpose: 'any' as const },
     { path: '/icons/pwa-512.png', sizes: '512x512', purpose: 'any' as const },
-    { path: '/icons/pwa-512.png', sizes: '512x512', purpose: 'maskable' as const },
-    { path: '/images/icon.png', sizes: '192x192', purpose: 'any' as const },
+    { path: '/icons/pwa-512-maskable.png', sizes: '512x512', purpose: 'maskable' as const },
 ];
 
 export function buildNucleasOsManifest(origin: string) {

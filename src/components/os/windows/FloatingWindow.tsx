@@ -1,8 +1,13 @@
 'use client';
 
-import { type ReactNode, useCallback, useState } from 'react';
+import { type ReactNode, useCallback, useRef, useState } from 'react';
 import type { ModuleDefinition, WindowState } from '@/lib/os/types';
 import { clampToViewport } from '@/lib/os/clampToViewport';
+import {
+    isNearPopoutEdge,
+    isPointerOutsideOsViewport,
+    pointerToScreenPlacement,
+} from '@/lib/os/tearOffPopout';
 import { getOsViewportBounds, OS_INSET_BOTTOM, OS_INSET_TOP } from '@/lib/os/viewportBounds';
 import { useWindowManager } from '@/hooks/os/useWindowManager';
 import { useDraggable } from './useDraggable';
@@ -17,6 +22,8 @@ interface FloatingWindowProps {
 export default function FloatingWindow({ window: w, module, children }: FloatingWindowProps) {
     const wm = useWindowManager();
     const [popoutError, setPopoutError] = useState<string | null>(null);
+    const [nearEdge, setNearEdge] = useState(false);
+    const grabOffsetRef = useRef({ x: 0, y: 0 });
 
     const handleDrag = useCallback(
         (x: number, y: number) => {
@@ -25,8 +32,34 @@ export default function FloatingWindow({ window: w, module, children }: Floating
                 getOsViewportBounds()
             );
             wm.move(w.id, clamped.x, clamped.y);
+            if (module.canPopout && !w.poppedOut) {
+                setNearEdge(isNearPopoutEdge(clamped.x, clamped.y, w.width, w.height));
+            }
         },
-        [wm, w.id, w.width, w.height]
+        [wm, w.id, w.width, w.height, w.poppedOut, module.canPopout]
+    );
+
+    const handleDragStart = useCallback(() => {
+        wm.focus(w.id);
+        setNearEdge(false);
+    }, [wm, w.id]);
+
+    const handleDragEnd = useCallback(
+        (x: number, y: number, event: PointerEvent) => {
+            setNearEdge(false);
+            if (!module.canPopout || w.poppedOut || w.maximized) return;
+            if (!isPointerOutsideOsViewport(event.clientX, event.clientY)) return;
+
+            const placement = pointerToScreenPlacement(
+                event.clientX,
+                event.clientY,
+                grabOffsetRef.current.x,
+                grabOffsetRef.current.y
+            );
+            const ok = wm.popOut(w.id, { placement });
+            setPopoutError(ok ? null : 'Allow pop-ups for this site to pop out modules.');
+        },
+        [wm, w.id, w.poppedOut, w.maximized, module.canPopout]
     );
 
     const handleResize = useCallback(
@@ -41,13 +74,25 @@ export default function FloatingWindow({ window: w, module, children }: Floating
         [wm, w.id, w.x, w.y]
     );
 
-    const { onPointerDown: onHeaderPointerDown, dragging } = useDraggable({
+    const { onPointerDown: draggablePointerDown, dragging } = useDraggable({
         x: w.x,
         y: w.y,
-        onDragStart: () => wm.focus(w.id),
+        onDragStart: handleDragStart,
         onDrag: handleDrag,
+        onDragEnd: handleDragEnd,
         disabled: w.maximized,
     });
+
+    const onHeaderPointerDown = useCallback(
+        (e: React.PointerEvent<HTMLElement>) => {
+            grabOffsetRef.current = {
+                x: e.clientX - w.x,
+                y: e.clientY - w.y,
+            };
+            draggablePointerDown(e);
+        },
+        [w.x, w.y, draggablePointerDown]
+    );
 
     const { onPointerDown: onResizePointerDown, resizing } = useResizable({
         width: w.width,
@@ -72,18 +117,18 @@ export default function FloatingWindow({ window: w, module, children }: Floating
 
     const style: React.CSSProperties = w.maximized
         ? {
-            left: 0,
-            top: OS_INSET_TOP,
-            width: '100%',
-            height: `calc(100vh - ${OS_INSET_TOP}px - ${OS_INSET_BOTTOM}px)`,
-            zIndex: w.zIndex,
-        }
+              left: 0,
+              top: OS_INSET_TOP,
+              width: '100%',
+              height: `calc(100vh - ${OS_INSET_TOP}px - ${OS_INSET_BOTTOM}px)`,
+              zIndex: w.zIndex,
+          }
         : {
-            transform: `translate(${w.x}px, ${w.y}px)`,
-            width: w.width,
-            height: w.height,
-            zIndex: w.zIndex,
-        };
+              transform: `translate(${w.x}px, ${w.y}px)`,
+              width: w.width,
+              height: w.height,
+              zIndex: w.zIndex,
+          };
 
     return (
         <div
@@ -91,13 +136,16 @@ export default function FloatingWindow({ window: w, module, children }: Floating
             aria-label={windowTitle}
             className={`absolute ${w.maximized ? '' : 'top-0 left-0'} bg-background-card border rounded-lg shadow-2xl flex flex-col overflow-hidden select-none ${
                 isActive ? 'border-primary/40' : 'border-border'
-            } ${dragging || resizing ? '' : 'transition-shadow'}`}
+            } ${nearEdge && dragging ? 'ring-2 ring-primary/50 ring-offset-1 ring-offset-transparent' : ''} ${
+                dragging || resizing ? '' : 'transition-shadow'
+            }`}
             style={style}
             onPointerDown={focusOnInteraction}
         >
             <div
                 onPointerDown={onHeaderPointerDown}
                 onDoubleClick={() => wm.maximize(w.id)}
+                title={module.canPopout ? 'Drag outside window to pop out' : undefined}
                 className={`flex items-center gap-2 px-3 h-9 border-b border-border ${
                     w.maximized ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
                 } ${isActive ? 'bg-background-elevated' : 'bg-background-card'}`}

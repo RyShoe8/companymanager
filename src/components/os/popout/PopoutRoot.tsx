@@ -143,36 +143,14 @@ function PopoutContent() {
         return <PopoutError message="Unknown module type." />;
     }
 
-    const useWcoLayout = wcoVisible;
+    const chromeless = standalone && wcoVisible && !fullscreen;
+    const showCustomHeader = !chromeless && !fullscreen;
     const showAppClose = !wcoVisible;
 
     return (
-        <div
-            className="min-h-screen bg-background text-text-primary flex flex-col"
-            style={
-                useWcoLayout && !fullscreen
-                    ? { paddingTop: 'env(titlebar-area-height, 0px)' }
-                    : undefined
-            }
-        >
-            {!fullscreen && (
-                <header
-                    className={`flex-shrink-0 flex items-center bg-background-card border-b border-border select-none ${
-                        useWcoLayout ? 'popout-titlebar-wco' : 'h-8 px-1'
-                    }`}
-                    style={
-                        useWcoLayout
-                            ? {
-                                  position: 'fixed',
-                                  top: 'env(titlebar-area-y, 0)',
-                                  left: 'env(titlebar-area-x, 0)',
-                                  width: 'env(titlebar-area-width, 100%)',
-                                  height: 'env(titlebar-area-height, 32px)',
-                                  zIndex: 50,
-                              }
-                            : undefined
-                    }
-                >
+        <div className="min-h-screen bg-background text-text-primary flex flex-col relative">
+            {showCustomHeader && (
+                <header className="flex-shrink-0 flex items-center bg-background-card border-b border-border select-none h-8 px-1">
                     <div className="popout-drag flex-1 flex items-center gap-2 min-w-0 h-full px-2">
                         <span className="text-xs opacity-80" aria-hidden>
                             {module.icon}
@@ -210,6 +188,13 @@ function PopoutContent() {
                 </header>
             )}
 
+            {chromeless && (
+                <PopoutFloatingControls
+                    onDockBack={dockBack}
+                    onClose={showAppClose ? closeModule : undefined}
+                />
+            )}
+
             <main className="flex-1 min-h-0 overflow-auto">
                 {module.render({
                     windowId: target.id,
@@ -217,6 +202,27 @@ function PopoutContent() {
                     payload: target.payload,
                 })}
             </main>
+        </div>
+    );
+}
+
+function PopoutFloatingControls({
+    onDockBack,
+    onClose,
+}: {
+    onDockBack: () => void;
+    onClose?: () => void;
+}) {
+    return (
+        <div className="popout-floating-controls popout-no-drag" role="toolbar" aria-label="Pop-out window controls">
+            <TitleBarButton label="Dock back to workspace" onClick={onDockBack} className="hover:bg-background-elevated">
+                <DockBackIcon />
+            </TitleBarButton>
+            {onClose && (
+                <TitleBarButton label="Close" onClick={onClose} className="hover:bg-red-600 hover:text-white">
+                    <CloseIcon />
+                </TitleBarButton>
+            )}
         </div>
     );
 }

@@ -8,7 +8,7 @@ export interface DraggableOptions {
     y: number;
     onDragStart?: () => void;
     onDrag?: (x: number, y: number) => void;
-    onDragEnd?: (x: number, y: number) => void;
+    onDragEnd?: (x: number, y: number, event: PointerEvent) => void;
     disabled?: boolean;
 }
 
@@ -65,7 +65,7 @@ export function useDraggable({ x, y, onDragStart, onDrag, onDragEnd, disabled }:
             const dy = e.clientY - drag.startPointerY;
             dragRef.current = null;
             setDragging(false);
-            onDragEnd?.(drag.startX + dx, drag.startY + dy);
+            onDragEnd?.(drag.startX + dx, drag.startY + dy, e);
         };
 
         window.addEventListener('pointermove', onMove);

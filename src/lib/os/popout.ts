@@ -1,5 +1,9 @@
 import type { ModuleDefinition, WindowState } from './types';
-import { computePopoutPlacement } from './popoutPlacement';
+import { computePopoutPlacement, type PopoutPlacementOverride } from './popoutPlacement';
+
+export interface OpenPopoutOptions {
+    placement?: PopoutPlacementOverride;
+}
 
 export function buildPopoutUrl(windowId: string): string {
     const path = `/os/popout?windowId=${encodeURIComponent(windowId)}`;
@@ -9,12 +13,13 @@ export function buildPopoutUrl(windowId: string): string {
 
 export function openPopoutWindow(
     windowState: WindowState,
-    module: ModuleDefinition
+    module: ModuleDefinition,
+    options?: OpenPopoutOptions
 ): globalThis.Window | null {
     const url = buildPopoutUrl(windowState.id);
     const width = windowState.width || module.defaultSize.width;
     const height = windowState.height || module.defaultSize.height;
-    const { left, top } = computePopoutPlacement(windowState, width, height);
+    const { left, top } = computePopoutPlacement(windowState, width, height, options?.placement);
     const features = [
         `width=${width}`,
         `height=${height}`,
@@ -32,7 +37,11 @@ export function openPopoutWindow(
     return globalThis.window.open(url, windowState.id, features);
 }
 
-export function focusPopoutWindow(windowId: string, windowState: WindowState, module: ModuleDefinition): void {
+export function focusPopoutWindow(
+    windowId: string,
+    windowState: WindowState,
+    module: ModuleDefinition
+): void {
     const existing = openPopoutWindow(windowState, module);
     existing?.focus();
 }

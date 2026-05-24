@@ -48,3 +48,19 @@ select {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
+
+.popout-floating-controls {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.125rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background-card) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+}

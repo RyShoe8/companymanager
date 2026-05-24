@@ -25,8 +25,8 @@ export async function generateMetadata(): Promise<Metadata> {
             title: 'Nucleas OS',
         },
         icons: {
-            icon: [{ url: '/images/icon.png', type: 'image/png' }],
-            apple: '/images/icon.png',
+            icon: [{ url: '/icons/pwa-192.png', type: 'image/png' }],
+            apple: '/icons/pwa-192.png',
         },
     };
 }
