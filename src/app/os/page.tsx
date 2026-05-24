@@ -1,8 +1,11 @@
+/**
+ * OS shell home route.
+ *
+ * The actual workspace surface (top bar, module canvas, windows tray) is
+ * rendered by `OsRoot` in the layout. This page intentionally renders
+ * nothing so the canvas fills the viewport.
+ */
+
 export default function OSHomePage() {
-  return (
-    <div>
-      <h1 className="text-4xl font-bold">Nucleas OS</h1>
-      <p className="text-zinc-400 mt-4">Workspace operating system initialized.</p>
-    </div>
-  );
+    return null;
 }

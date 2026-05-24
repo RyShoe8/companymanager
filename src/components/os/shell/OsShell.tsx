@@ -1,0 +1,27 @@
+'use client';
+
+import { type ReactNode } from 'react';
+import TopBar from './TopBar';
+import WindowsTray from './WindowsTray';
+import ModuleCanvas from './ModuleCanvas';
+
+interface OsShellProps {
+    children?: ReactNode;
+}
+
+export default function OsShell({ children }: OsShellProps) {
+    return (
+        <div className="fixed inset-0 flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden">
+            <TopBar />
+            <div className="relative flex-1 min-h-0">
+                <ModuleCanvas />
+                {children ? (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="pointer-events-auto">{children}</div>
+                    </div>
+                ) : null}
+            </div>
+            <WindowsTray />
+        </div>
+    );
+}
