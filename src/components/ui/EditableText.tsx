@@ -18,6 +18,10 @@ interface EditableTextProps {
   onAutoEditMount?: () => void;
 }
 
+function classNameHasTextColor(className: string): boolean {
+  return /\btext-/.test(className);
+}
+
 export default function EditableText({
   value,
   onSave,
@@ -149,16 +153,21 @@ export default function EditableText({
     }
   };
 
+  const defaultTextClass = classNameHasTextColor(className) ? '' : 'text-gray-900';
+  const displayColorClass = !value
+    ? 'text-gray-400 italic'
+    : defaultTextClass;
+
   if (disabled) {
     return (
-      <span className={`${className} text-text-primary${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}>
+      <span className={`${className}${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}>
         {value || placeholder}
       </span>
     );
   }
 
   if (isEditing) {
-    const editClassName = `${className} font-[inherit] text-text-primary bg-background-elevated border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary w-full block`;
+    const editClassName = `${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full block`;
     if (useMultiline) {
       return (
         <textarea
@@ -190,9 +199,7 @@ export default function EditableText({
   return (
     <span
       onClick={startEditing}
-      className={`${className} cursor-pointer hover:bg-background-elevated rounded px-1 py-0.5 transition-colors ${
-        !value ? 'text-text-muted italic' : 'text-text-primary'
-      }${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}
+      className={`${className} ${displayColorClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}
     >
       {value || placeholder}
     </span>

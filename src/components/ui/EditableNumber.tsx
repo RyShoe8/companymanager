@@ -2,6 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+function classNameHasTextColor(className: string): boolean {
+  return /\btext-/.test(className);
+}
+
 interface EditableNumberProps {
   value: number | null | undefined;
   onSave: (value: number) => void | Promise<void>;
@@ -59,6 +63,10 @@ export default function EditableNumber({
 
   const displayValue = value !== null && value !== undefined ? `${prefix}${value}${suffix}` : null;
   const isEmpty = value === null || value === undefined;
+  const defaultTextClass = classNameHasTextColor(className) ? '' : 'text-gray-900';
+  const displayColorClass = !displayValue
+    ? 'text-gray-400 italic'
+    : defaultTextClass;
 
   if (disabled) {
     if (hideWhenEmpty && isEmpty) return null;
@@ -81,7 +89,7 @@ export default function EditableNumber({
 
   return (
     <span onClick={() => setIsEditing(true)}
-      className={`${className} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors ${!displayValue ? 'text-gray-400 italic' : ''}`}>
+      className={`${className} ${displayColorClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors`}>
       {displayValue || placeholder}
     </span>
   );

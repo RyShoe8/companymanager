@@ -20,6 +20,10 @@ interface EditableDateProps {
   onEditEnd?: () => void;
 }
 
+function classNameHasTextColor(className: string): boolean {
+  return /\btext-/.test(className);
+}
+
 export default function EditableDate({
   value, onSave, className = '', placeholder = 'Set date', disabled = false, showTime = false, clearable = false,
   hideWhenEmpty = false, startInEditMode = false, onEditEnd,
@@ -27,6 +31,7 @@ export default function EditableDate({
   const [isEditing, setIsEditing] = useState(startInEditMode);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const defaultTextClass = classNameHasTextColor(className) ? '' : 'text-gray-900';
 
   useEffect(() => {
     if (value) {
@@ -84,23 +89,27 @@ export default function EditableDate({
 
   if (disabled) {
     if (hideWhenEmpty && isEmpty) return null;
-    return <span className={`${className} text-text-primary`}>{getDisplayValue() || placeholder}</span>;
+    return <span className={`${className} ${defaultTextClass}`}>{getDisplayValue() || placeholder}</span>;
   }
 
   if (isEditing) {
     return (
       <input ref={inputRef} type={showTime ? 'datetime-local' : 'date'} value={editValue} onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleSave} onKeyDown={handleKeyDown}
-        className={`${className} border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary bg-background-elevated text-text-primary text-sm`} />
+        className={`${className} border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900`} />
     );
   }
 
   if (hideWhenEmpty && isEmpty) return null;
 
+  const displayColorClass = !value
+    ? 'text-gray-400 italic'
+    : defaultTextClass;
+
   return (
     <span onClick={() => setIsEditing(true)}
-      className={`${className} text-text-primary cursor-pointer hover:bg-background-elevated rounded px-1 py-0.5 transition-colors inline-flex items-center gap-1 ${!value ? 'text-text-muted italic' : ''}`}>
-      <svg className="w-3.5 h-3.5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      className={`${className} ${displayColorClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors inline-flex items-center gap-1`}>
+      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
       {getDisplayValue() || placeholder}

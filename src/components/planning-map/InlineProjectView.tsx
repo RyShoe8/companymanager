@@ -907,7 +907,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
   const hasEndDate = !!localProject.endDate;
   const compactFieldLabelClass =
-    'text-sm text-text-secondary rounded px-1 py-0.5 transition-colors hover:bg-background-elevated';
+    'text-sm text-gray-500 rounded px-1 py-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700';
 
   const dismissedChecklistIds = useMemo(() => {
     const raw = localDismissedChecklistIds ?? localProject.dismissedChecklistIds ?? [];
@@ -920,7 +920,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   return (
     <div className="space-y-4">
       {/* Project Header Card */}
-      <div className="bg-background-card rounded-lg p-4 border border-border">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex items-start gap-3">
           <ProjectLogo
             projectId={localProject._id.toString()}
@@ -930,25 +930,25 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             onLogoUpdate={handleLogoUpdate}
           />
           <div className="flex-1 min-w-0">
-            <EditableText value={localProject.name} onSave={(v) => handleFieldUpdate('name', v)} className="text-xl font-bold text-text-primary block w-full" placeholder="Project name" disabled={!isManagerOrAdmin} />
-            <EditableText value={localProject.description || ''} onSave={(v) => handleFieldUpdate('description', v)} className="text-text-secondary mt-1 block w-full" placeholder="Add description..." multiline disabled={!isManagerOrAdmin} />
+            <EditableText value={localProject.name} onSave={(v) => handleFieldUpdate('name', v)} className="text-xl font-bold text-gray-900 dark:text-white block w-full" placeholder="Project name" disabled={!isManagerOrAdmin} />
+            <EditableText value={localProject.description || ''} onSave={(v) => handleFieldUpdate('description', v)} className="text-gray-600 dark:text-gray-400 mt-1 block w-full" placeholder="Add description..." multiline disabled={!isManagerOrAdmin} />
           </div>
           <EditableSelect value={localProject.status} options={statusOptions} onSave={(v) => handleFieldUpdate('status', v)} showColorDot disabled={!isManagerOrAdmin} />
         </div>
-        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-border">
-          <div className="flex items-center gap-2 text-sm"><span className="text-text-secondary">Type:</span><EditableSelect value={localProject.projectType || 'client'} options={projectTypeOptions} onSave={(v) => handleFieldUpdate('projectType', v)} className="text-text-primary" disabled={!isManagerOrAdmin} /></div>
-          <div className="flex items-center gap-2 text-sm"><span className="text-text-secondary">Category:</span><EditableSelect value={localProject.category || 'generic'} options={categoryOptions} onSave={(v) => handleFieldUpdate('category', v)} className="text-text-primary" disabled={!isManagerOrAdmin} /></div>
+        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Type:</span><EditableSelect value={localProject.projectType || 'client'} options={projectTypeOptions} onSave={(v) => handleFieldUpdate('projectType', v)} className="text-gray-900" disabled={!isManagerOrAdmin} /></div>
+          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Category:</span><EditableSelect value={localProject.category || 'generic'} options={categoryOptions} onSave={(v) => handleFieldUpdate('category', v)} className="text-gray-900" disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-text-secondary">Est. Hours:</span>
-            <span className="font-medium text-text-primary">{computedProjectHours}h</span>
+            <span className="text-gray-500">Est. Hours:</span>
+            <span className="font-medium text-gray-900 dark:text-white">{computedProjectHours}h</span>
           </div>
           {hasEndDate || editingEndDate ? (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-text-secondary">End Date:</span>
+              <span className="text-gray-500">End Date:</span>
               <EditableDate
                 value={localProject.endDate ?? null}
                 onSave={(v) => handleFieldUpdate('endDate', v)}
-                className="text-text-primary"
+                className="text-gray-900"
                 clearable
                 disabled={!isManagerOrAdmin}
                 hideWhenEmpty
@@ -961,7 +961,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               End Date
             </button>
           ) : (
-            <span className="text-sm text-text-secondary">End Date</span>
+            <span className="text-sm text-gray-500">End Date</span>
           )}
           {isManagerOrAdmin && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -1020,7 +1020,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   onSave={async (v) => {
                     await handleFieldUpdate('devUrl', v.trim());
                   }}
-                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem] text-text-primary"
+                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem] text-gray-900"
                   placeholder="Dev URL"
                 />
                 {normalizeProjectUrlHref(localProject.devUrl ?? '') ? (
@@ -1028,7 +1028,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     href={normalizeProjectUrlHref(localProject.devUrl ?? '')!}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center rounded-lg border border-border px-2 py-0.5 text-xs font-medium text-primary hover:bg-background-elevated"
+                    className="inline-flex shrink-0 items-center rounded-lg border border-gray-200 dark:border-gray-600 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                   >
                     Open
                   </a>
@@ -1039,12 +1039,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 href={normalizeProjectUrlHref(localProject.devUrl ?? '')!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem] text-primary"
+                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem] text-blue-600"
               >
                 {truncateProjectUrlDisplay(localProject.devUrl ?? '', 40)}
               </a>
             ) : (
-              <span className="text-text-muted">Not set</span>
+              <span className="text-gray-400">Not set</span>
             )}
           </div>
           <div className="flex items-center gap-2 text-sm min-w-0">
@@ -1055,7 +1055,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   onSave={async (v) => {
                     await handleFieldUpdate('liveUrl', v.trim());
                   }}
-                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem] text-text-primary"
+                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem] text-gray-900"
                   placeholder="Live URL"
                 />
                 {normalizeProjectUrlHref(localProject.liveUrl ?? '') ? (
@@ -1063,7 +1063,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     href={normalizeProjectUrlHref(localProject.liveUrl ?? '')!}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center rounded-lg border border-border px-2 py-0.5 text-xs font-medium text-primary hover:bg-background-elevated"
+                    className="inline-flex shrink-0 items-center rounded-lg border border-gray-200 dark:border-gray-600 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                   >
                     Open
                   </a>
@@ -1074,12 +1074,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 href={normalizeProjectUrlHref(localProject.liveUrl ?? '')!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem] text-primary"
+                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem] text-blue-600"
               >
                 {truncateProjectUrlDisplay(localProject.liveUrl ?? '', 40)}
               </a>
             ) : (
-              <span className="text-text-muted">Not set</span>
+              <span className="text-gray-400">Not set</span>
             )}
           </div>
           <ProjectSocialsBar
@@ -1426,7 +1426,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             options={contentAssigneeOptions(employees, localProject, item.assignedToEmployeeId?.toString())}
                             onSave={(v) => handleContentItemAssigneeUpdate(item, v)}
                             disabled={!isManagerOrAdmin}
-                            className="text-xs min-w-[8rem]"
+                            className="text-xs text-gray-900 min-w-[8rem]"
                           />
                         </div>
                       </div>
@@ -1490,7 +1490,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
                           </div>
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs" />
+                            <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs text-gray-900" />
                             {isManagerOrAdmin && (
                               <button type="button" onClick={() => { if (confirm('Delete this task? This cannot be undone.')) handleDeleteTask(idx); }} className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm px-2 py-1">Delete</button>
                             )}
@@ -1498,12 +1498,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                         </div>
                         <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
-                            <EditableDate value={task.startDate} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} placeholder="Start" disabled={!isManagerOrAdmin} />
+                            <EditableDate value={task.startDate} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} className="text-gray-900" placeholder="Start" disabled={!isManagerOrAdmin} />
                             <span>→</span>
-                            <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} placeholder="End" disabled={!isManagerOrAdmin} />
+                            <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900" placeholder="End" disabled={!isManagerOrAdmin} />
                           </div>
                           {estimatingTaskIndices.has(idx) ? (
-                            <span className="text-text-muted italic">Estimating…</span>
+                            <span className="text-gray-400 italic">Estimating…</span>
                           ) : (
                             <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
                           )}
