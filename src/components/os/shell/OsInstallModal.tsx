@@ -1,12 +1,12 @@
 'use client';
 
-import Modal from '@/components/ui/Modal';
+import { useEffect } from 'react';
 
 interface OsInstallModalProps {
     isOpen: boolean;
     onClose: () => void;
     canPrompt: boolean;
-    onInstall: () => Promise<void>;
+    onInstall: () => Promise<boolean>;
     onDismiss: () => void;
 }
 
@@ -17,9 +17,21 @@ export default function OsInstallModal({
     onInstall,
     onDismiss,
 }: OsInstallModalProps) {
+    useEffect(() => {
+        if (!isOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
     const handleInstall = async () => {
-        await onInstall();
-        onClose();
+        if (!canPrompt) return;
+        const ok = await onInstall();
+        if (ok) onClose();
     };
 
     const handleNotNow = () => {
@@ -28,47 +40,75 @@ export default function OsInstallModal({
     };
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onClose={handleNotNow}
-            title="Install Nucleas OS"
-            maxWidth="md"
-            stackAboveOverlays
+        <div
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-nucleas-ink/80 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="os-install-title"
+            onClick={handleNotNow}
         >
-            <div className="space-y-4 text-sm text-zinc-300">
-                <p>
-                    Install Nucleas OS as a desktop app for chromeless pop-out windows on Windows.
-                    Modules you pop out will open without the browser address bar.
-                </p>
+            <div
+                className="w-full max-w-md rounded-xl border border-border bg-background-card shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="h-1 w-full bg-gradient-to-r from-nucleas-primary via-nucleas-secondary to-nucleas-fourth" />
 
-                {!canPrompt && (
-                    <div className="rounded-md border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-zinc-400">
-                        <p className="font-medium text-zinc-200 mb-1">Manual install</p>
-                        <p>
-                            In Chrome or Edge, open the browser menu and choose{' '}
-                            <span className="text-zinc-200">Install Nucleas OS</span> or{' '}
-                            <span className="text-zinc-200">Install app</span>.
-                        </p>
+                <div className="p-6 space-y-5">
+                    <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary text-xl font-bold">
+                            N
+                        </div>
+                        <div>
+                            <h2 id="os-install-title" className="text-lg font-semibold text-text-primary">
+                                Install Nucleas OS
+                            </h2>
+                            <p className="mt-1 text-sm text-text-secondary leading-relaxed">
+                                Run Nucleas as a desktop app for chromeless pop-out windows on Windows.
+                            </p>
+                        </div>
                     </div>
-                )}
 
-                <div className="flex justify-end gap-2 pt-2">
-                    <button
-                        type="button"
-                        onClick={handleNotNow}
-                        className="px-3 py-1.5 text-sm rounded border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                    >
-                        Not now
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleInstall}
-                        className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500"
-                    >
-                        Install
-                    </button>
+                    <div className="rounded-lg border border-border bg-background-elevated px-4 py-3 text-sm text-text-secondary space-y-2">
+                        <p className="font-medium text-text-primary">How to install</p>
+                        {canPrompt ? (
+                            <p>Click <span className="text-primary">Install Nucleas OS</span> below to use your browser&apos;s install dialog.</p>
+                        ) : (
+                            <ol className="list-decimal list-inside space-y-1">
+                                <li>Open the browser menu (⋮) in Chrome or Edge</li>
+                                <li>Choose <span className="text-text-primary">Install Nucleas OS</span> or <span className="text-text-primary">Install app</span></li>
+                                <li>Confirm the install prompt</li>
+                            </ol>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+                        <button
+                            type="button"
+                            onClick={handleNotNow}
+                            className="px-4 py-2 text-sm rounded-lg border border-border text-text-secondary hover:bg-background-elevated hover:text-text-primary transition-colors"
+                        >
+                            Not now
+                        </button>
+                        {canPrompt ? (
+                            <button
+                                type="button"
+                                onClick={handleInstall}
+                                className="px-4 py-2 text-sm rounded-lg bg-primary text-nucleas-ink font-medium hover:bg-primary-hover transition-colors"
+                            >
+                                Install Nucleas OS
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="px-4 py-2 text-sm rounded-lg bg-primary/15 border border-primary/40 text-primary font-medium hover:bg-primary/25 transition-colors"
+                            >
+                                Got it
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
-        </Modal>
+        </div>
     );
 }

@@ -11,7 +11,7 @@ interface OsShellProps {
 
 export default function OsShell({ children }: OsShellProps) {
     return (
-        <div className="fixed inset-0 flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden">
+        <div className="fixed inset-0 flex flex-col bg-background text-text-primary overflow-hidden">
             <TopBar />
             <div className="relative flex-1 min-h-0">
                 <ModuleCanvas />

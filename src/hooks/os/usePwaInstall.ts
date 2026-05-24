@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { isOsHost, isPwaInstalled, markInstallDismissed } from '@/lib/os/pwaInstall';
+import { isOsHost, isPwaInstalled } from '@/lib/os/pwaInstall';
 
 export interface BeforeInstallPromptEvent extends Event {
     prompt(): Promise<void>;
@@ -17,19 +17,27 @@ export function usePwaInstall() {
         setIsOs(isOsHost());
         setIsInstalled(isPwaInstalled());
 
-        const onDisplayModeChange = () => setIsInstalled(isPwaInstalled());
+        const refreshInstalled = () => setIsInstalled(isPwaInstalled());
+
         const mq = window.matchMedia('(display-mode: standalone)');
-        mq.addEventListener('change', onDisplayModeChange);
+        mq.addEventListener('change', refreshInstalled);
 
         const onBeforeInstallPrompt = (event: Event) => {
             event.preventDefault();
             setDeferred(event as BeforeInstallPromptEvent);
         };
 
+        const onAppInstalled = () => {
+            setIsInstalled(true);
+            setDeferred(null);
+        };
+
         window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+        window.addEventListener('appinstalled', onAppInstalled);
         return () => {
-            mq.removeEventListener('change', onDisplayModeChange);
+            mq.removeEventListener('change', refreshInstalled);
             window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+            window.removeEventListener('appinstalled', onAppInstalled);
         };
     }, []);
 
@@ -47,15 +55,11 @@ export function usePwaInstall() {
         return false;
     }, [deferred]);
 
-    const dismiss = useCallback(() => {
-        markInstallDismissed();
-    }, []);
-
     return {
         isOsHost: isOs,
         isInstalled,
+        setIsInstalled,
         canPrompt,
         promptInstall,
-        dismiss,
     };
 }

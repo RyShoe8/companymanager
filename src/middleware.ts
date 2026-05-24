@@ -34,7 +34,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sharedPrefixes = ['/api', '/_next', '/login', '/register', '/images', '/uploads'];
+  const sharedPrefixes = ['/api', '/_next', '/login', '/register', '/images', '/uploads', '/icons'];
   const isOsSharedRoute =
     isOsHost &&
     (pathname === '/favicon.ico' ||

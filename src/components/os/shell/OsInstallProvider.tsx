@@ -12,19 +12,16 @@ import {
 import { usePwaInstall } from '@/hooks/os/usePwaInstall';
 import {
     hasSeenInstallOnLoad,
-    hasSeenInstallOnModules,
     isInstallDismissed,
+    isPwaInstalled,
+    markInstallDismissed,
+    markInstallEngaged,
     markSeenInstallOnLoad,
-    markSeenInstallOnModules,
-    shouldShowInstallPrompt,
 } from '@/lib/os/pwaInstall';
 import OsInstallModal from './OsInstallModal';
 
 interface OsInstallContextValue {
-    /** Open the install modal manually (top bar button). */
     openInstallModal: (onClose?: () => void) => void;
-    /** Call when + Modules is clicked; runs onProceed after modal closes if shown. */
-    tryModulesClick: (onProceed: () => void) => void;
     isInstalled: boolean;
     showInstallButton: boolean;
 }
@@ -40,7 +37,7 @@ export function useOsInstall(): OsInstallContextValue {
 }
 
 export function OsInstallProvider({ children }: { children: ReactNode }) {
-    const { isOsHost, isInstalled, canPrompt, promptInstall, dismiss } = usePwaInstall();
+    const { isOsHost, isInstalled, setIsInstalled, canPrompt, promptInstall } = usePwaInstall();
     const [modalOpen, setModalOpen] = useState(false);
     const onCloseRef = useRef<(() => void) | null>(null);
 
@@ -53,14 +50,15 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
 
     const openInstallModal = useCallback(
         (onClose?: () => void) => {
-            if (isInstalled) {
+            if (isPwaInstalled()) {
+                setIsInstalled(true);
                 onClose?.();
                 return;
             }
             onCloseRef.current = onClose ?? null;
             setModalOpen(true);
         },
-        [isInstalled]
+        [setIsInstalled]
     );
 
     useEffect(() => {
@@ -71,27 +69,16 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         setModalOpen(true);
     }, [isOsHost, isInstalled]);
 
-    const tryModulesClick = useCallback(
-        (onProceed: () => void) => {
-            if (!shouldShowInstallPrompt() || hasSeenInstallOnModules()) {
-                onProceed();
-                return;
-            }
-            markSeenInstallOnModules();
-            openInstallModal(onProceed);
-        },
-        [openInstallModal]
-    );
-
-    const handleInstall = useCallback(async () => {
-        if (canPrompt) {
-            await promptInstall();
-        }
+    const handleInstall = useCallback(async (): Promise<boolean> => {
+        markInstallEngaged();
+        if (!canPrompt) return false;
+        return promptInstall();
     }, [canPrompt, promptInstall]);
 
     const handleDismiss = useCallback(() => {
-        dismiss();
-    }, [dismiss]);
+        markInstallEngaged();
+        markInstallDismissed();
+    }, []);
 
     const showInstallButton = isOsHost && !isInstalled;
 
@@ -99,7 +86,6 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         <OsInstallContext.Provider
             value={{
                 openInstallModal,
-                tryModulesClick,
                 isInstalled,
                 showInstallButton,
             }}

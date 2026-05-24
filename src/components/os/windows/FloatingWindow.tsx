@@ -89,8 +89,8 @@ export default function FloatingWindow({ window: w, module, children }: Floating
         <div
             role="dialog"
             aria-label={windowTitle}
-            className={`absolute ${w.maximized ? '' : 'top-0 left-0'} bg-zinc-900 border rounded-lg shadow-2xl flex flex-col overflow-hidden select-none ${
-                isActive ? 'border-zinc-600' : 'border-zinc-800'
+            className={`absolute ${w.maximized ? '' : 'top-0 left-0'} bg-background-card border rounded-lg shadow-2xl flex flex-col overflow-hidden select-none ${
+                isActive ? 'border-primary/40' : 'border-border'
             } ${dragging || resizing ? '' : 'transition-shadow'}`}
             style={style}
             onPointerDown={focusOnInteraction}
@@ -98,14 +98,14 @@ export default function FloatingWindow({ window: w, module, children }: Floating
             <div
                 onPointerDown={onHeaderPointerDown}
                 onDoubleClick={() => wm.maximize(w.id)}
-                className={`flex items-center gap-2 px-3 h-9 border-b border-zinc-800 ${
+                className={`flex items-center gap-2 px-3 h-9 border-b border-border ${
                     w.maximized ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
-                } ${isActive ? 'bg-zinc-800/80' : 'bg-zinc-900'}`}
+                } ${isActive ? 'bg-background-elevated' : 'bg-background-card'}`}
             >
                 <span className="text-sm leading-none" aria-hidden>
                     {module.icon}
                 </span>
-                <span className="flex-1 text-sm font-medium text-zinc-100 truncate">{windowTitle}</span>
+                <span className="flex-1 text-sm font-medium text-text-primary truncate">{windowTitle}</span>
                 {module.canPopout && !w.poppedOut && (
                     <WindowButton
                         label="Pop out"
@@ -158,7 +158,7 @@ export default function FloatingWindow({ window: w, module, children }: Floating
                 </WindowButton>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-auto bg-zinc-950 text-zinc-100">
+            <div className="flex-1 min-h-0 overflow-auto bg-background text-text-primary">
                 {popoutError && (
                     <div className="px-3 py-2 text-xs text-amber-300 bg-amber-950/40 border-b border-amber-900/50">
                         {popoutError}
@@ -196,8 +196,8 @@ function WindowButton({ label, onClick, danger, children }: WindowButtonProps) {
             aria-label={label}
             onClick={onClick}
             onPointerDown={(e) => e.stopPropagation()}
-            className={`w-6 h-6 inline-flex items-center justify-center rounded text-zinc-400 hover:text-white ${
-                danger ? 'hover:bg-red-600' : 'hover:bg-zinc-700'
+            className={`w-6 h-6 inline-flex items-center justify-center rounded text-text-secondary hover:text-text-primary ${
+                danger ? 'hover:bg-error' : 'hover:bg-background-elevated'
             }`}
         >
             {children}

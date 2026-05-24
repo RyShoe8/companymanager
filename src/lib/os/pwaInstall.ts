@@ -2,6 +2,7 @@ export const PWA_INSTALL_KEYS = {
     seenOnLoad: 'nucleas-os-install-seen-on-load',
     seenOnModules: 'nucleas-os-install-seen-on-modules',
     dismissed: 'nucleas-os-install-dismissed',
+    engaged: 'nucleas-os-install-engaged',
 } as const;
 
 export function isOsHost(): boolean {
@@ -58,6 +59,14 @@ export function isInstallDismissed(): boolean {
 
 export function markInstallDismissed(): void {
     writeFlag(PWA_INSTALL_KEYS.dismissed);
+}
+
+export function hasInstallEngaged(): boolean {
+    return readFlag(PWA_INSTALL_KEYS.engaged);
+}
+
+export function markInstallEngaged(): void {
+    writeFlag(PWA_INSTALL_KEYS.engaged);
 }
 
 export function shouldShowInstallPrompt(): boolean {

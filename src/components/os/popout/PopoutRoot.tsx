@@ -52,7 +52,7 @@ export default function PopoutRoot() {
 
 function PopoutLoading() {
     return (
-        <div className="min-h-screen bg-zinc-950 text-zinc-400 flex items-center justify-center text-sm">
+        <div className="min-h-screen bg-background text-text-secondary flex items-center justify-center text-sm">
             Loading module…
         </div>
     );
@@ -148,7 +148,7 @@ function PopoutContent() {
 
     return (
         <div
-            className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col"
+            className="min-h-screen bg-background text-text-primary flex flex-col"
             style={
                 useWcoLayout && !fullscreen
                     ? { paddingTop: 'env(titlebar-area-height, 0px)' }
@@ -157,7 +157,7 @@ function PopoutContent() {
         >
             {!fullscreen && (
                 <header
-                    className={`flex-shrink-0 flex items-center bg-zinc-900 border-b border-zinc-800 select-none ${
+                    className={`flex-shrink-0 flex items-center bg-background-card border-b border-border select-none ${
                         useWcoLayout ? 'popout-titlebar-wco' : 'h-8 px-1'
                     }`}
                     style={
@@ -185,7 +185,7 @@ function PopoutContent() {
                             <TitleBarButton
                                 label={fullscreen ? 'Exit borderless' : 'Enter borderless'}
                                 onClick={toggleFullscreen}
-                                className="hover:bg-zinc-800"
+                                className="hover:bg-background-elevated"
                             >
                                 <BorderlessIcon active={fullscreen} />
                             </TitleBarButton>
@@ -193,7 +193,7 @@ function PopoutContent() {
                         <TitleBarButton
                             label="Dock back to workspace"
                             onClick={dockBack}
-                            className="hover:bg-zinc-800"
+                            className="hover:bg-background-elevated"
                         >
                             <DockBackIcon />
                         </TitleBarButton>
@@ -238,7 +238,7 @@ function TitleBarButton({
             aria-label={label}
             title={label}
             onClick={onClick}
-            className={`popout-no-drag w-11 h-8 inline-flex items-center justify-center text-zinc-400 transition-colors ${className ?? ''}`}
+            className={`popout-no-drag w-11 h-8 inline-flex items-center justify-center text-text-secondary transition-colors ${className ?? ''}`}
         >
             {children}
         </button>
@@ -279,7 +279,7 @@ function CloseIcon() {
 
 function PopoutError({ message }: { message: string }) {
     return (
-        <div className="min-h-screen bg-zinc-950 text-red-400 flex items-center justify-center p-6 text-sm text-center">
+        <div className="min-h-screen bg-background text-error flex items-center justify-center p-6 text-sm text-center">
             {message}
         </div>
     );

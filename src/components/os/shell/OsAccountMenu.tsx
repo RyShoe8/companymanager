@@ -114,7 +114,7 @@ export default function OsAccountMenu() {
     ];
 
     const trigger = (
-        <span className="flex items-center gap-2 px-1.5 py-1 rounded-md hover:bg-zinc-900 border border-transparent hover:border-zinc-800">
+        <span className="flex items-center gap-2 px-1.5 py-1 rounded-md hover:bg-background-elevated border border-transparent hover:border-border">
             {auth.profilePicture ? (
                 <Image
                     src={auth.profilePicture}
@@ -125,11 +125,11 @@ export default function OsAccountMenu() {
                     unoptimized
                 />
             ) : (
-                <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-medium">
+                <span className="w-7 h-7 rounded-full bg-primary text-nucleas-ink flex items-center justify-center text-xs font-medium">
                     {initials}
                 </span>
             )}
-            <span className="hidden sm:inline text-xs text-zinc-400 max-w-[120px] truncate">
+            <span className="hidden sm:inline text-xs text-text-secondary max-w-[120px] truncate">
                 {auth.name ?? auth.email ?? 'Account'}
             </span>
         </span>
@@ -137,7 +137,7 @@ export default function OsAccountMenu() {
 
     if (auth.loading) {
         return (
-            <span className="w-7 h-7 rounded-full bg-zinc-800 animate-pulse" aria-hidden />
+            <span className="w-7 h-7 rounded-full bg-background-elevated animate-pulse" aria-hidden />
         );
     }
 

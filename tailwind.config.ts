@@ -10,6 +10,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-poppins)', 'var(--font-geist-sans)', 'Arial', 'sans-serif'],
+        mono: ['var(--font-geist-mono)', 'monospace'],
+      },
       animation: {
         'fade-in': 'fadeIn 0.6s ease-out forwards',
         'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
@@ -17,9 +21,9 @@ const config: Config = {
         'fade-in-delay-2': 'fadeInUp 0.6s ease-out 0.2s forwards',
         'fade-in-delay-3': 'fadeInUp 0.6s ease-out 0.3s forwards',
         'fade-in-delay-4': 'fadeInUp 0.6s ease-out 0.4s forwards',
-        'float': 'float 6s ease-in-out infinite',
-        'glow': 'glow 2s ease-in-out infinite alternate',
-        'shimmer': 'shimmer 2s linear infinite',
+        float: 'float 6s ease-in-out infinite',
+        glow: 'glow 2s ease-in-out infinite alternate',
+        shimmer: 'shimmer 2s linear infinite',
         'gradient-x': 'gradient-x 8s ease infinite',
         'scale-in': 'scale-in 0.5s ease-out forwards',
       },
@@ -54,55 +58,61 @@ const config: Config = {
         },
       },
       colors: {
-        // Nucleas Brand Colors
         primary: {
-          DEFAULT: '#347AF6', // Nucleus Blue
-          hover: '#2D6AE5',
-          light: '#E8F0FE',
-          dark: '#1E4A9C',
+          DEFAULT: 'var(--primary)',
+          hover: 'var(--primary-hover)',
+          light: 'var(--primary-light)',
+          dark: 'var(--primary-dark)',
         },
         secondary: {
-          DEFAULT: '#7A57D6', // Orbital Purple
-          hover: '#6B4BC7',
-          light: '#F0EBFF',
-          dark: '#4A3594',
+          DEFAULT: 'var(--secondary)',
+          hover: 'var(--secondary-hover)',
+          light: 'var(--secondary-light)',
+          dark: 'var(--secondary-dark)',
         },
         accent: {
-          DEFAULT: '#40C9DB', // Teal Cyan
-          hover: '#36B3C4',
-          light: '#E0F7FA',
-          dark: '#2A8A99',
+          DEFAULT: 'var(--accent)',
+          hover: 'var(--accent-hover)',
+          light: 'var(--accent-light)',
+          dark: 'var(--accent-dark)',
         },
-        // Neutrals
+        nucleas: {
+          primary: 'var(--nucleas-primary)',
+          secondary: 'var(--nucleas-secondary)',
+          third: 'var(--nucleas-third)',
+          fourth: 'var(--nucleas-fourth)',
+          ink: 'var(--nucleas-ink)',
+          white: 'var(--nucleas-white)',
+        },
         text: {
-          primary: '#202637', // Charcoal Navy
-          secondary: '#5E677D', // Muted Slate
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted, var(--text-secondary))',
         },
         border: {
-          DEFAULT: '#E1E5EE', // Soft Gray
-          dark: '#C5CCDB',
+          DEFAULT: 'var(--border)',
+          dark: 'var(--border-dark)',
         },
         background: {
-          DEFAULT: '#F7F8FC', // Off-White
-          card: '#FFFFFF',
+          DEFAULT: 'var(--background)',
+          card: 'var(--background-card)',
+          elevated: 'var(--background-elevated, var(--background-card))',
         },
-        // Semantic Colors
         success: {
-          DEFAULT: '#36B37E',
-          light: '#E3F5ED',
-          dark: '#2A8F63',
+          DEFAULT: 'var(--success)',
+          light: 'var(--success-light)',
+          dark: 'var(--success-dark)',
         },
         warning: {
-          DEFAULT: '#FFAB00',
-          light: '#FFF4E0',
-          dark: '#CC8800',
+          DEFAULT: 'var(--warning)',
+          light: 'var(--warning-light)',
+          dark: 'var(--warning-dark)',
         },
         error: {
-          DEFAULT: '#DE350B',
-          light: '#FCE8E4',
-          dark: '#B22A09',
+          DEFAULT: 'var(--error)',
+          light: 'var(--error-light)',
+          dark: 'var(--error-dark)',
         },
-        // Legacy support
         foreground: 'var(--foreground)',
       },
     },

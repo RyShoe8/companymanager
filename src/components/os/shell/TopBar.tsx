@@ -14,10 +14,10 @@ export default function TopBar() {
     const projectLabel = activeProjectWindow?.payload?.projectName;
 
     return (
-        <header className="h-12 flex-shrink-0 flex items-center gap-3 px-4 border-b border-zinc-800 bg-zinc-950">
+        <header className="h-12 flex-shrink-0 flex items-center gap-3 px-4 border-b border-border bg-background">
             <div className="flex items-center gap-2 min-w-[180px]">
-                <span className="text-base font-semibold tracking-tight">Nucleas OS</span>
-                <span className="text-xs text-zinc-500 truncate max-w-[200px]">
+                <span className="text-base font-semibold tracking-tight text-text-primary">Nucleas OS</span>
+                <span className="text-xs text-text-secondary truncate max-w-[200px]">
                     {projectLabel ? projectLabel : 'default workspace'}
                 </span>
             </div>
@@ -27,7 +27,7 @@ export default function TopBar() {
             <div className="flex items-center gap-2">
                 <OsInstallButton />
                 <ModuleLauncher />
-                <kbd className="text-[11px] text-zinc-400 bg-zinc-900 px-2 py-1 rounded border border-zinc-700">
+                <kbd className="text-[11px] text-text-secondary bg-background-elevated px-2 py-1 rounded border border-border">
                     ⌘K
                 </kbd>
                 <OsAccountMenu />
