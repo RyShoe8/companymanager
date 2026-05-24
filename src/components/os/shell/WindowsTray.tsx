@@ -23,6 +23,10 @@ export default function WindowsTray() {
                             key={w.id}
                             type="button"
                             onClick={() => {
+                                if (w.poppedOut) {
+                                    wm.focusPopout(w.id);
+                                    return;
+                                }
                                 if (w.minimized) wm.restore(w.id);
                                 else wm.focus(w.id);
                             }}
@@ -38,6 +42,7 @@ export default function WindowsTray() {
                             <span aria-hidden>{mod?.icon ?? '•'}</span>
                             <span className="truncate max-w-[140px]">{label}</span>
                             {w.minimized && <span className="text-[10px] text-zinc-500">min</span>}
+                            {w.poppedOut && <span className="text-[10px] text-zinc-500">pop</span>}
                         </button>
                     );
                 })

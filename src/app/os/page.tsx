@@ -1,11 +1,8 @@
-/**
- * OS shell home route.
- *
- * The actual workspace surface (top bar, module canvas, windows tray) is
- * rendered by `OsRoot` in the layout. This page intentionally renders
- * nothing so the canvas fills the viewport.
- */
+import OsRoot from '@/components/os/OsRoot';
 
+/**
+ * OS shell home route. The workspace surface lives in OsRoot/OsShell.
+ */
 export default function OSHomePage() {
-    return null;
+    return <OsRoot />;
 }

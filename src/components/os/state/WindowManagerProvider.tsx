@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react';
 import { initialLayout, windowReducer } from '@/lib/os/windowManager';
 import { loadOsState, saveOsState } from '@/lib/os/persistence';
+import { focusPopoutWindow, openPopoutWindow } from '@/lib/os/popout';
+import { subscribePopoutSync } from '@/lib/os/popoutSync';
 import ModuleRegistry from '@/lib/os/moduleRegistry';
 import type { OpenWindowOptions, PersistedOsState } from '@/lib/os/types';
 import {
@@ -24,6 +26,7 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
     const hydratedRef = useRef(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const layoutRef = useRef(layout);
+    const popoutRefs = useRef<Map<string, globalThis.Window>>(new Map());
     layoutRef.current = layout;
 
     useEffect(() => {
@@ -40,6 +43,20 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
         }
         hydratedRef.current = true;
     }, [userId]);
+
+    useEffect(() => {
+        const sync = subscribePopoutSync((message) => {
+            if (message.type === 'POP_IN') {
+                dispatch({ type: 'POP_IN', windowId: message.windowId });
+                popoutRefs.current.delete(message.windowId);
+            } else if (message.type === 'CLOSE') {
+                popoutRefs.current.get(message.windowId)?.close();
+                popoutRefs.current.delete(message.windowId);
+                dispatch({ type: 'CLOSE', windowId: message.windowId });
+            }
+        });
+        return () => sync.close();
+    }, []);
 
     useEffect(() => {
         const onResize = () => {
@@ -109,6 +126,8 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
     }, []);
 
     const close = useCallback((windowId: string) => {
+        popoutRefs.current.get(windowId)?.close();
+        popoutRefs.current.delete(windowId);
         dispatch({ type: 'CLOSE', windowId });
     }, []);
 
@@ -137,7 +156,62 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
     }, []);
 
     const resetLayout = useCallback(() => {
+        popoutRefs.current.forEach((popup) => popup.close());
+        popoutRefs.current.clear();
         dispatch({ type: 'RESET' });
+    }, []);
+
+    const popIn = useCallback((windowId: string) => {
+        dispatch({ type: 'POP_IN', windowId });
+        popoutRefs.current.get(windowId)?.close();
+        popoutRefs.current.delete(windowId);
+    }, []);
+
+    const popOut = useCallback((windowId: string): boolean => {
+        const current = layoutRef.current;
+        const target = current.windows.find((w) => w.id === windowId);
+        if (!target || target.poppedOut) {
+            if (target?.poppedOut) {
+                const mod = ModuleRegistry.get(target.moduleId);
+                if (mod) focusPopoutWindow(windowId, target, mod);
+            }
+            return Boolean(target?.poppedOut);
+        }
+        const mod = ModuleRegistry.get(target.moduleId);
+        if (!mod?.canPopout) return false;
+
+        const nextLayout = windowReducer(current, { type: 'POP_OUT', windowId });
+        saveOsState(userId, {
+            schemaVersion: 1,
+            workspaceId: 'default',
+            layout: nextLayout,
+            ui: {},
+        });
+        dispatch({ type: 'POP_OUT', windowId });
+
+        const popup = openPopoutWindow(target, mod);
+        if (!popup) {
+            const reverted = windowReducer(nextLayout, { type: 'POP_IN', windowId });
+            saveOsState(userId, {
+                schemaVersion: 1,
+                workspaceId: 'default',
+                layout: reverted,
+                ui: {},
+            });
+            dispatch({ type: 'POP_IN', windowId });
+            return false;
+        }
+        popoutRefs.current.set(windowId, popup);
+        return true;
+    }, [userId]);
+
+    const focusPopout = useCallback((windowId: string) => {
+        const current = layoutRef.current;
+        const target = current.windows.find((w) => w.id === windowId);
+        if (!target?.poppedOut) return;
+        const mod = ModuleRegistry.get(target.moduleId);
+        if (!mod) return;
+        focusPopoutWindow(windowId, target, mod);
     }, []);
 
     const value = useMemo<WindowManagerContextValue>(() => {
@@ -158,8 +232,25 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
             maximize,
             restore,
             resetLayout,
+            popOut,
+            popIn,
+            focusPopout,
         };
-    }, [layout, open, close, focus, move, resize, minimize, maximize, restore, resetLayout]);
+    }, [
+        layout,
+        open,
+        close,
+        focus,
+        move,
+        resize,
+        minimize,
+        maximize,
+        restore,
+        resetLayout,
+        popOut,
+        popIn,
+        focusPopout,
+    ]);
 
     return <WindowManagerContext.Provider value={value}>{children}</WindowManagerContext.Provider>;
 }

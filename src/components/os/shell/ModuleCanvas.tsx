@@ -6,9 +6,10 @@ import FloatingWindow from '../windows/FloatingWindow';
 
 export default function ModuleCanvas() {
     const wm = useWindowManager();
-    const visibleWindows = wm.windows.filter((w) => !w.minimized);
+    const canvasWindows = wm.windows.filter((w) => !w.poppedOut);
+    const visibleWindows = canvasWindows.filter((w) => !w.minimized);
 
-    if (visibleWindows.length === 0) {
+    if (wm.windows.length === 0) {
         return (
             <div className="absolute inset-0 flex items-center justify-center text-center px-6">
                 <div className="max-w-md text-zinc-500">

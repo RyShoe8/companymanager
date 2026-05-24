@@ -32,6 +32,8 @@ export type WindowAction =
     | { type: 'RESTORE'; windowId: string }
     | { type: 'HYDRATE'; layout: WorkspaceLayout }
     | { type: 'CLAMP_WINDOWS'; windows: WindowState[] }
+    | { type: 'POP_OUT'; windowId: string }
+    | { type: 'POP_IN'; windowId: string }
     | { type: 'RESET' };
 
 function generateWindowId(moduleId: string): string {
@@ -161,6 +163,39 @@ export function windowReducer(state: WorkspaceLayout, action: WindowAction): Wor
                 windows: state.windows.map((w) =>
                     w.id === action.windowId
                         ? { ...w, minimized: false, zIndex: z }
+                        : w
+                ),
+            };
+        }
+
+        case 'POP_OUT': {
+            const visible = state.windows.filter(
+                (w) => w.id !== action.windowId && !w.minimized && !w.poppedOut
+            );
+            const activeWindowId =
+                state.activeWindowId === action.windowId
+                    ? topMostId(visible)
+                    : state.activeWindowId;
+            return {
+                ...state,
+                activeWindowId,
+                windows: state.windows.map((w) =>
+                    w.id === action.windowId
+                        ? { ...w, poppedOut: true, minimized: false, maximized: false }
+                        : w
+                ),
+            };
+        }
+
+        case 'POP_IN': {
+            const z = state.nextZIndex + 1;
+            return {
+                ...state,
+                activeWindowId: action.windowId,
+                nextZIndex: z,
+                windows: state.windows.map((w) =>
+                    w.id === action.windowId
+                        ? { ...w, poppedOut: false, minimized: false, zIndex: z }
                         : w
                 ),
             };

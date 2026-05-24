@@ -3,6 +3,8 @@ import ModuleRegistry from '@/lib/os/moduleRegistry';
 import type { ModuleDefinition } from '@/lib/os/types';
 import ProjectsModule from './ProjectsModule';
 import ProjectDetailModule from './ProjectDetailModule';
+import AgendaModule from './AgendaModule';
+import ScheduleModule from './ScheduleModule';
 import VoiceModule from './VoiceModule';
 import PlaceholderModule from './PlaceholderModule';
 
@@ -10,9 +12,6 @@ let registered = false;
 
 /**
  * Register all Phase 1 OS modules. Safe to call multiple times.
- *
- * Modules are registered as a centralized batch (rather than side-effect
- * imports) so the registry's bootstrap is deterministic and easy to find.
  */
 export function registerOsModules(): void {
     if (registered) return;
@@ -20,6 +19,8 @@ export function registerOsModules(): void {
 
     const baseSize = { width: 520, height: 400 };
     const baseMin = { width: 320, height: 220 };
+    const scheduleSize = { width: 1000, height: 700 };
+    const agendaSize = { width: 960, height: 640 };
 
     const definitions: ModuleDefinition[] = [
         {
@@ -31,6 +32,26 @@ export function registerOsModules(): void {
             canPopout: true,
             permissions: 'member',
             render: () => createElement(ProjectsModule),
+        },
+        {
+            id: 'agenda',
+            title: 'Agenda',
+            icon: '📋',
+            defaultSize: agendaSize,
+            minSize: { width: 480, height: 360 },
+            canPopout: true,
+            permissions: 'member',
+            render: () => createElement(AgendaModule),
+        },
+        {
+            id: 'schedule',
+            title: 'Schedule',
+            icon: '📅',
+            defaultSize: scheduleSize,
+            minSize: { width: 640, height: 400 },
+            canPopout: true,
+            permissions: 'member',
+            render: () => createElement(ScheduleModule),
         },
         {
             id: 'project-detail',
@@ -79,6 +100,7 @@ export function registerOsModules(): void {
             minSize: baseMin,
             canPopout: true,
             permissions: 'member',
+            launcherHidden: true,
             render: () =>
                 createElement(PlaceholderModule, {
                     title: 'Assets',
@@ -93,6 +115,7 @@ export function registerOsModules(): void {
             minSize: baseMin,
             canPopout: true,
             permissions: 'member',
+            launcherHidden: true,
             render: () =>
                 createElement(PlaceholderModule, {
                     title: 'Search',
@@ -107,6 +130,7 @@ export function registerOsModules(): void {
             minSize: baseMin,
             canPopout: false,
             permissions: 'member',
+            launcherHidden: true,
             render: () => createElement(VoiceModule),
         },
         {

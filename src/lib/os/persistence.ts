@@ -71,7 +71,7 @@ export function clearOsState(userId: string | null): void {
 function sanitizeLayout(layout: WorkspaceLayout): WorkspaceLayout {
     const windows = layout.windows.map((w) => ({
         ...w,
-        poppedOut: false,
+        poppedOut: Boolean(w.poppedOut),
     }));
     const ids = new Set(windows.map((w) => w.id));
     return {

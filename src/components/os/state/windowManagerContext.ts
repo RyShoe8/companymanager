@@ -13,6 +13,9 @@ export interface WindowManagerActions {
     maximize: (windowId: string) => void;
     restore: (windowId: string) => void;
     resetLayout: () => void;
+    popOut: (windowId: string) => boolean;
+    popIn: (windowId: string) => void;
+    focusPopout: (windowId: string) => void;
 }
 
 export interface WindowManagerContextValue extends WindowManagerActions {

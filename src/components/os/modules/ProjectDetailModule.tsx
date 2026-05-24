@@ -12,6 +12,9 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
     const wm = useWindowManager();
     const auth = useOsAuth();
     const projectId = payload?.projectId;
+    const initialOpenTaskIndex = payload?.initialOpenTaskIndex
+        ? Number.parseInt(payload.initialOpenTaskIndex, 10)
+        : null;
 
     const [project, setProject] = useState<IProject | null>(null);
     const [employees, setEmployees] = useState<IEmployee[]>([]);
@@ -99,6 +102,7 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
                 }}
                 onClose={() => wm.close(windowId)}
                 onRefresh={refresh}
+                initialOpenTaskIndex={Number.isFinite(initialOpenTaskIndex) ? initialOpenTaskIndex : null}
             />
         </div>
     );

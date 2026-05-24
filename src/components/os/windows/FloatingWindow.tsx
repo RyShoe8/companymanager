@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useCallback } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import type { ModuleDefinition, WindowState } from '@/lib/os/types';
 import { clampToViewport } from '@/lib/os/clampToViewport';
 import { getOsViewportBounds, OS_INSET_BOTTOM, OS_INSET_TOP } from '@/lib/os/viewportBounds';
@@ -16,6 +16,7 @@ interface FloatingWindowProps {
 
 export default function FloatingWindow({ window: w, module, children }: FloatingWindowProps) {
     const wm = useWindowManager();
+    const [popoutError, setPopoutError] = useState<string | null>(null);
 
     const handleDrag = useCallback(
         (x: number, y: number) => {
@@ -105,6 +106,21 @@ export default function FloatingWindow({ window: w, module, children }: Floating
                     {module.icon}
                 </span>
                 <span className="flex-1 text-sm font-medium text-zinc-100 truncate">{windowTitle}</span>
+                {module.canPopout && !w.poppedOut && (
+                    <WindowButton
+                        label="Pop out"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const ok = wm.popOut(w.id);
+                            setPopoutError(ok ? null : 'Allow pop-ups for this site to pop out modules.');
+                        }}
+                    >
+                        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+                            <rect x="2" y="2" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                            <path d="M5 5 L8 2 M8 2 H6 M8 2 V4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                        </svg>
+                    </WindowButton>
+                )}
                 <WindowButton
                     label="Minimize"
                     onClick={(e) => {
@@ -143,6 +159,11 @@ export default function FloatingWindow({ window: w, module, children }: Floating
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto bg-zinc-950 text-zinc-100">
+                {popoutError && (
+                    <div className="px-3 py-2 text-xs text-amber-300 bg-amber-950/40 border-b border-amber-900/50">
+                        {popoutError}
+                    </div>
+                )}
                 {children}
             </div>
 
