@@ -1,27 +1,38 @@
-/** Shared PWA manifest fields for Nucleas OS (served dynamically with origin-specific related_applications). */
-export const NUCLEAS_OS_MANIFEST_BASE = {
-    id: '/',
+/** Shared PWA manifest fields for Nucleas OS (served dynamically with origin-specific URLs). */
+export const NUCLEAS_OS_MANIFEST_DISPLAY = {
     name: 'Nucleas OS',
     short_name: 'Nucleas OS',
     description: 'Nucleas operating system for planning and running your company workspace.',
-    start_url: '/',
-    scope: '/',
     display: 'standalone' as const,
     display_override: ['window-controls-overlay', 'standalone'],
     background_color: '#202938',
     theme_color: '#202938',
-    icons: [
-        { src: '/icons/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        { src: '/images/icon.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-    ],
 };
 
+const ICON_PATHS = [
+    { path: '/icons/pwa-192.png', sizes: '192x192', purpose: 'any' as const },
+    { path: '/icons/pwa-512.png', sizes: '512x512', purpose: 'any' as const },
+    { path: '/icons/pwa-512.png', sizes: '512x512', purpose: 'maskable' as const },
+    { path: '/images/icon.png', sizes: '192x192', purpose: 'any' as const },
+];
+
 export function buildNucleasOsManifest(origin: string) {
-    const manifestUrl = `${origin.replace(/\/$/, '')}/nucleas-os.webmanifest`;
+    const base = origin.replace(/\/$/, '');
+    const startUrl = `${base}/`;
+    const manifestUrl = `${base}/nucleas-os.webmanifest`;
+
     return {
-        ...NUCLEAS_OS_MANIFEST_BASE,
+        ...NUCLEAS_OS_MANIFEST_DISPLAY,
+        id: startUrl,
+        start_url: startUrl,
+        scope: `${base}/`,
+        prefer_related_applications: false,
+        icons: ICON_PATHS.map(({ path, sizes, purpose }) => ({
+            src: `${base}${path}`,
+            sizes,
+            type: 'image/png',
+            purpose,
+        })),
         related_applications: [
             {
                 platform: 'webapp',

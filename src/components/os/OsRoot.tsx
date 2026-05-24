@@ -17,6 +17,7 @@ import WindowManagerProvider from './state/WindowManagerProvider';
 import OsShell from './shell/OsShell';
 import { OsInstallProvider } from './shell/OsInstallProvider';
 import { warmPopoutScreenCache } from '@/lib/os/popoutPlacement';
+import { registerOsServiceWorker } from '@/lib/os/pwaServiceWorker';
 
 // Register modules once at module load so the registry is ready before any
 // render. `registerOsModules` itself is idempotent.
@@ -31,8 +32,7 @@ export default function OsRoot({ children }: OsRootProps) {
 
     useEffect(() => {
         if (!window.location.host.startsWith('os.')) return;
-        if (!('serviceWorker' in navigator)) return;
-        navigator.serviceWorker.register('/os-sw.js', { scope: '/' }).catch(() => {});
+        void registerOsServiceWorker();
         warmPopoutScreenCache().catch(() => {});
     }, []);
 

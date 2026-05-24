@@ -49,6 +49,10 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         canPrompt,
         promptInstall,
         refreshInstalled,
+        swStatus,
+        swErrorMessage,
+        manifestOk,
+        installabilityHint,
     } = usePwaInstall();
     const [modalOpen, setModalOpen] = useState(false);
     const [modalAlreadyInstalled, setModalAlreadyInstalled] = useState(false);
@@ -117,7 +121,11 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         markInstallDismissed();
     }, []);
 
-    const handleConfirmInstalled = useCallback(() => {
+    const handleConfirmMenuInstall = useCallback(() => {
+        const confirmed = window.confirm(
+            'Only continue if you installed Nucleas OS from your browser menu (⋮ → Install Nucleas OS) and can open it from Start or the taskbar.\n\nThis does not install the app by itself.'
+        );
+        if (!confirmed) return;
         markPwaInstalled();
         markInstallEngaged();
         void refreshInstalled();
@@ -128,6 +136,9 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
         isOsHost && inBrowserTab && !installCheckPending && !installedRelatedApp;
     const showOpenDesktopButton =
         isOsHost && inBrowserTab && !installCheckPending && installedRelatedApp;
+
+    const showMenuInstallConfirm =
+        inBrowserTab && !modalAlreadyInstalled && !installedRelatedApp && !canPrompt;
 
     return (
         <OsInstallContext.Provider
@@ -145,12 +156,15 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
                 onClose={closeModal}
                 canPrompt={canPrompt}
                 isAlreadyInstalled={modalAlreadyInstalled || isRunningAsPwa}
-                showManualInstalledLink={
-                    inBrowserTab && !modalAlreadyInstalled && !installedRelatedApp
-                }
+                showMenuInstallConfirm={showMenuInstallConfirm}
+                swStatus={swStatus}
+                swErrorMessage={swErrorMessage}
+                manifestOk={manifestOk}
+                installDismissed={isInstallDismissed()}
+                installabilityHint={installabilityHint}
                 onInstall={handleInstall}
                 onDismiss={handleDismiss}
-                onConfirmInstalled={handleConfirmInstalled}
+                onConfirmMenuInstall={handleConfirmMenuInstall}
             />
         </OsInstallContext.Provider>
     );
