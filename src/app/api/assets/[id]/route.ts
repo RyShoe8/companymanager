@@ -157,10 +157,21 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const orgUsers = await User.find({ organizationId: user.organizationId });
     const orgUserIds = orgUsers.map(u => u._id);
 
-    const asset = await Asset.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });
+    const asset = await Asset.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!asset) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
+
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const isOwner = asset.userId.toString() === session.userId;
+
+    if (!isManagerOrAdmin && !isOwner) {
+      return NextResponse.json({ error: 'You do not have permission to delete this asset' }, { status: 403 });
+    }
+
+    await Asset.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });
 
     return NextResponse.json({ message: 'Asset deleted successfully' });
   } catch (error) {

@@ -7,6 +7,9 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
+import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
+import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
+import { deleteLinkedAsset, canUserDeleteAsset } from '@/lib/utils/linkedAssets';
 
 interface CommentThreadProps {
   entityType: 'project' | 'projectTask' | 'contentItem';
@@ -18,6 +21,8 @@ interface CommentThreadProps {
   showHeading?: boolean;
   /** When set, refetch comments on this interval (ms). */
   pollIntervalMs?: number;
+  /** Managers/admins can delete any asset in this thread. */
+  isManagerOrAdmin?: boolean;
 }
 
 interface CommentWithReplies extends IComment {
@@ -32,6 +37,7 @@ export default function CommentThread({
   currentUserId: currentUserIdProp,
   showHeading = true,
   pollIntervalMs,
+  isManagerOrAdmin = false,
 }: CommentThreadProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -42,6 +48,8 @@ export default function CommentThread({
   const [loading, setLoading] = useState(true);
   const [screenshots, setScreenshots] = useState<IAsset[]>([]);
   const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
+  const [assetPendingDelete, setAssetPendingDelete] = useState<IAsset | null>(null);
+  const [deletingAsset, setDeletingAsset] = useState(false);
   const [fetchedUserId, setFetchedUserId] = useState<string | undefined>();
   const currentUserId = currentUserIdProp ?? fetchedUserId;
 
@@ -118,6 +126,22 @@ export default function CommentThread({
     } catch (error) {
       // Error loading screenshots
     }
+  };
+
+  const confirmDeleteScreenshot = async () => {
+    if (!assetPendingDelete) return;
+    setDeletingAsset(true);
+    const result = await deleteLinkedAsset(assetPendingDelete._id.toString());
+    if (result.ok) {
+      setAssetPendingDelete(null);
+      if (previewImage && assetPendingDelete.fileUrl === previewImage.src) {
+        setPreviewImage(null);
+      }
+      await loadScreenshots();
+    } else {
+      alert(result.error ?? 'Could not delete asset.');
+    }
+    setDeletingAsset(false);
   };
 
   const handleSubmitComment = async (e: React.FormEvent | React.MouseEvent, parentId?: string) => {
@@ -361,12 +385,24 @@ export default function CommentThread({
           <div className="grid grid-cols-4 gap-2">
             {screenshots.map((screenshot) => (
               <div key={screenshot._id.toString()} className="relative group">
-                <img
-                  src={screenshot.fileUrl}
-                  alt={screenshot.name}
-                  className="w-full h-20 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
+                <button
+                  type="button"
+                  className="w-full aspect-[4/3] rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity overflow-hidden bg-gray-100 dark:bg-gray-800"
                   onClick={() => screenshot.fileUrl && setPreviewImage({ src: screenshot.fileUrl, title: screenshot.name })}
-                />
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={screenshot.fileUrl}
+                    alt={screenshot.name}
+                    className="w-full h-full object-contain"
+                  />
+                </button>
+                {canUserDeleteAsset(screenshot.userId, currentUserId, isManagerOrAdmin) && (
+                  <HoverDeleteButton
+                    label={`Delete ${screenshot.name}`}
+                    onClick={() => setAssetPendingDelete(screenshot)}
+                  />
+                )}
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate" title={screenshot.name}>
                   {screenshot.name}
                 </p>
@@ -412,6 +448,16 @@ export default function CommentThread({
         onClose={() => setPreviewImage(null)}
         src={previewImage?.src ?? null}
         title={previewImage?.title}
+      />
+      <AssetDeleteConfirmModal
+        isOpen={assetPendingDelete !== null}
+        assetName={assetPendingDelete?.name ?? ''}
+        assetTypeLabel="screenshot"
+        deleting={deletingAsset}
+        onCancel={() => {
+          if (!deletingAsset) setAssetPendingDelete(null);
+        }}
+        onConfirm={() => void confirmDeleteScreenshot()}
       />
     </div>
   );

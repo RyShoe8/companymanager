@@ -24,7 +24,26 @@ export type LinkedAssetChip = {
   type: string;
   url?: string;
   fileUrl?: string;
+  userId?: string;
 };
+
+export function normalizeAssetUserId(userId: unknown): string | undefined {
+  if (typeof userId === 'string') return userId;
+  if (userId && typeof (userId as { toString?: () => string }).toString === 'function') {
+    return (userId as { toString: () => string }).toString();
+  }
+  return undefined;
+}
+
+export function canUserDeleteAsset(
+  assetUserId: unknown,
+  currentUserId: string | undefined,
+  isManagerOrAdmin: boolean
+): boolean {
+  if (isManagerOrAdmin) return true;
+  if (!currentUserId) return false;
+  return normalizeAssetUserId(assetUserId) === currentUserId;
+}
 
 export function normalizeLinkedAssetChip(raw: unknown): LinkedAssetChip | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -43,6 +62,7 @@ export function normalizeLinkedAssetChip(raw: unknown): LinkedAssetChip | null {
     type: typeof o.type === 'string' ? o.type : 'other',
     url: typeof o.url === 'string' ? o.url : undefined,
     fileUrl: typeof o.fileUrl === 'string' ? o.fileUrl : undefined,
+    userId: normalizeAssetUserId(o.userId),
   };
 }
 
@@ -50,4 +70,21 @@ export function linkedAssetHref(asset: LinkedAssetChip): string | null {
   if (asset.fileUrl) return asset.fileUrl;
   if (asset.url) return asset.url;
   return null;
+}
+
+export async function deleteLinkedAsset(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/assets/${id}`, { method: 'DELETE' });
+    if (res.ok) return { ok: true };
+    let error = 'Could not delete asset.';
+    try {
+      const data = await res.json();
+      if (data && typeof data.error === 'string') error = data.error;
+    } catch {
+      // ignore
+    }
+    return { ok: false, error };
+  } catch {
+    return { ok: false, error: 'Could not delete asset.' };
+  }
 }

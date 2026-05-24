@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button';
 import CommentThread from '@/components/comments/CommentThread';
 import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
+import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import ProjectLogo from '@/components/projects/ProjectLogo';
 import { formatDate } from '@/lib/utils/dateUtils';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
@@ -32,6 +33,7 @@ import {
 } from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
+import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/lib/utils/linkedAssets';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectSocialLink } from '@/lib/models/Project';
@@ -65,6 +67,7 @@ type LinkedAssetRow = {
   url?: string;
   fileUrl?: string;
   textContent?: string;
+  userId?: string;
 };
 
 function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
@@ -85,6 +88,7 @@ function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
     url: typeof o.url === 'string' ? o.url : undefined,
     fileUrl: typeof o.fileUrl === 'string' ? o.fileUrl : undefined,
     textContent: typeof o.textContent === 'string' ? o.textContent : undefined,
+    userId: normalizeAssetUserId(o.userId),
   };
 }
 
@@ -203,6 +207,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [fontSheetOpen, setFontSheetOpen] = useState(false);
   const [fontDraft, setFontDraft] = useState<string[]>(['']);
   const [fontSaving, setFontSaving] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data?.id && setCurrentUserId(data.id))
+      .catch(() => {});
+  }, []);
 
   const loadLinkedAssets = useCallback(async () => {
     setLinkedAssetsLoading(true);
@@ -301,26 +313,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const confirmDeleteLinkedAsset = async () => {
     if (!assetPendingDelete) return;
     setDeletingLinkedAsset(true);
-    try {
-      const res = await fetch(`/api/assets/${assetPendingDelete._id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setAssetPendingDelete(null);
-        await loadLinkedAssets();
-      } else {
-        let msg = 'Could not delete asset.';
-        try {
-          const data = await res.json();
-          if (data && typeof data.error === 'string') msg = data.error;
-        } catch {
-          // ignore
-        }
-        alert(msg);
+    const result = await deleteLinkedAsset(assetPendingDelete._id);
+    if (result.ok) {
+      if (previewImage && linkedAssetOpenHref(assetPendingDelete) === previewImage.src) {
+        setPreviewImage(null);
       }
-    } catch {
-      alert('Could not delete asset.');
-    } finally {
-      setDeletingLinkedAsset(false);
+      setAssetPendingDelete(null);
+      await loadLinkedAssets();
+    } else {
+      alert(result.error ?? 'Could not delete asset.');
     }
+    setDeletingLinkedAsset(false);
   };
 
   const closePreviewAssetSheet = () => {
@@ -1116,23 +1119,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 <div className="flex flex-wrap items-center gap-2">
                   {visibleLinkedAssets.map((asset) => {
                     const chipClass =
-                      'inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-sm font-medium text-emerald-800 dark:text-emerald-200 max-w-[260px]';
+                      'relative group inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-sm font-medium text-emerald-800 dark:text-emerald-200 max-w-[260px]';
                     const href = linkedAssetOpenHref(asset);
-                    const deleteBtn = isManagerOrAdmin ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setAssetPendingDelete(asset);
-                        }}
-                        className="p-0.5 shrink-0 rounded text-emerald-700 hover:text-red-600 dark:text-emerald-300 dark:hover:text-red-400 touch-manipulation"
-                        aria-label={`Delete asset ${asset.name}`}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                    const deleteBtn = canUserDeleteAsset(asset.userId, currentUserId, isManagerOrAdmin) ? (
+                      <HoverDeleteButton
+                        label={`Delete asset ${asset.name}`}
+                        onClick={() => setAssetPendingDelete(asset)}
+                      />
                     ) : null;
 
                     if (isTextDocumentAssetType(asset.type)) {
@@ -1281,7 +1274,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       </div>
                       {expandedContentComments.has(itemId) && (
                         <div className="mt-2">
-                          <CommentThread entityType="contentItem" entityId={itemId} showHeading={false} />
+                          <CommentThread entityType="contentItem" entityId={itemId} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} />
                         </div>
                       )}
                     </div>
@@ -1369,7 +1362,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           </div>
                           {expandedTaskComments.has(idx) && (
                             <div className="mt-2">
-                              <CommentThread entityType="projectTask" entityId={localProject._id.toString()} taskIndex={idx} taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} />
+                              <CommentThread entityType="projectTask" entityId={localProject._id.toString()} taskIndex={idx} taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} />
                             </div>
                           )}
                         </div>
