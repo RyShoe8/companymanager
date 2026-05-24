@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import Button from '@/components/ui/Button';
 import Dropdown from '@/components/ui/Dropdown';
+import ScreenshotNameDialog from '@/components/shared/ScreenshotNameDialog';
 import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
 import type { ScreenshotUploadTarget } from '@/lib/uploadScreenshotAsset';
@@ -36,8 +37,12 @@ export default function ScreenshotButton({
     statusMessage,
     errorMessage,
     isBusy,
+    isNaming,
+    suggestedName,
     uploadFromFiles,
     captureAndUpload,
+    confirmName,
+    cancelNaming,
   } = useScreenshotUpload(target, onUploaded);
 
   const triggerLabel =
@@ -78,7 +83,7 @@ export default function ScreenshotButton({
           const files = e.target.files ? Array.from(e.target.files) : [];
           e.target.value = '';
           if (files.length > 0) {
-            void uploadFromFiles(files);
+            uploadFromFiles(files);
           }
         }}
       />
@@ -109,6 +114,13 @@ export default function ScreenshotButton({
           items={menuItems}
         />
       )}
+
+      <ScreenshotNameDialog
+        isOpen={isNaming}
+        defaultName={suggestedName}
+        onConfirm={(name) => void confirmName(name)}
+        onCancel={cancelNaming}
+      />
 
       {errorMessage && (
         <p className="text-xs text-red-600 dark:text-red-400 max-w-xs">{errorMessage}</p>

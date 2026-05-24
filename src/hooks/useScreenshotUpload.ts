@@ -8,7 +8,12 @@ import {
   type ScreenshotUploadTarget,
 } from '@/lib/uploadScreenshotAsset';
 
-export type ScreenshotUploadStatus = 'idle' | 'capturing' | 'uploading' | 'success' | 'error';
+export type ScreenshotUploadStatus = 'idle' | 'capturing' | 'naming' | 'uploading' | 'success' | 'error';
+
+export function defaultScreenshotName(): string {
+  const d = new Date();
+  return `Screenshot ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+}
 
 export function useScreenshotUpload(
   target: ScreenshotUploadTarget,
@@ -17,6 +22,8 @@ export function useScreenshotUpload(
   const [status, setStatus] = useState<ScreenshotUploadStatus>('idle');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [suggestedName, setSuggestedName] = useState(defaultScreenshotName);
   const successTimerRef = useRef<number | null>(null);
 
   const clearSuccessTimer = useCallback(() => {
@@ -33,22 +40,26 @@ export function useScreenshotUpload(
     setStatus('idle');
     setStatusMessage(null);
     setErrorMessage(null);
+    setPendingFiles([]);
   }, [clearSuccessTimer]);
 
   const uploadCompressedFiles = useCallback(
-    async (files: File[]) => {
+    async (files: File[], name: string) => {
       setStatus('uploading');
       setStatusMessage('Uploading screenshot...');
       setErrorMessage(null);
 
       try {
-        for (const file of files) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
           const compressed = await compressImageFile(file);
-          await uploadScreenshotAsset(compressed, target);
+          const assetName = files.length > 1 ? `${name} (${i + 1})` : name;
+          await uploadScreenshotAsset(compressed, target, { name: assetName });
         }
 
         setStatus('success');
         setStatusMessage('✓ Screenshot attached');
+        setPendingFiles([]);
         onUploaded?.();
 
         clearSuccessTimer();
@@ -61,17 +72,41 @@ export function useScreenshotUpload(
           error instanceof Error ? error.message : 'Failed to upload screenshot.'
         );
         setStatusMessage(null);
+        setPendingFiles([]);
       }
     },
     [target, onUploaded, reset, clearSuccessTimer]
   );
 
-  const uploadFromFiles = useCallback(
-    async (files: File[]) => {
+  const stageForNaming = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+    setPendingFiles(files);
+    setSuggestedName(defaultScreenshotName());
+    setStatus('naming');
+    setStatusMessage(null);
+    setErrorMessage(null);
+  }, []);
+
+  const confirmName = useCallback(
+    async (name: string) => {
+      const files = pendingFiles;
       if (files.length === 0) return;
-      await uploadCompressedFiles(files);
+      await uploadCompressedFiles(files, name.trim());
     },
-    [uploadCompressedFiles]
+    [pendingFiles, uploadCompressedFiles]
+  );
+
+  const cancelNaming = useCallback(() => {
+    setPendingFiles([]);
+    reset();
+  }, [reset]);
+
+  const uploadFromFiles = useCallback(
+    (files: File[]) => {
+      if (files.length === 0) return;
+      stageForNaming(files);
+    },
+    [stageForNaming]
   );
 
   const captureAndUpload = useCallback(async () => {
@@ -81,7 +116,7 @@ export function useScreenshotUpload(
 
     try {
       const captured = await captureScreenshot();
-      await uploadCompressedFiles([captured]);
+      stageForNaming([captured]);
     } catch (error) {
       if (error instanceof ScreenshotCaptureError && error.code === 'canceled') {
         reset();
@@ -98,7 +133,7 @@ export function useScreenshotUpload(
       );
       setStatusMessage(null);
     }
-  }, [uploadCompressedFiles, reset]);
+  }, [stageForNaming, reset]);
 
   const isBusy = status === 'capturing' || status === 'uploading';
 
@@ -107,8 +142,12 @@ export function useScreenshotUpload(
     statusMessage,
     errorMessage,
     isBusy,
+    isNaming: status === 'naming',
+    suggestedName,
     uploadFromFiles,
     captureAndUpload,
+    confirmName,
+    cancelNaming,
     reset,
   };
 }

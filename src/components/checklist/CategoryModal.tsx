@@ -109,6 +109,11 @@ export default function CategoryModal({
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
   const isEntityContext = !!(linkContext?.linkedContentItemId || linkContext?.linkedProjectTaskId);
   const useAssetFlow = isEntityContext || mode === 'draft';
+  const entitySubmitLabel = linkContext?.linkedProjectTaskId
+    ? 'Add'
+    : isEntityContext
+      ? 'Add asset'
+      : 'Add to project';
 
   const buildAssetPayload = (partial: Omit<PendingAssetPayload, 'linkedProjectId'>): PendingAssetPayload => ({
     linkedProjectId: effectiveProjectId,
@@ -448,7 +453,7 @@ export default function CategoryModal({
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
-              {adding ? 'Adding...' : isEntityContext ? 'Add asset' : 'Add to project'}
+              {adding ? 'Adding...' : entitySubmitLabel}
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setStep('type')}>
               Back

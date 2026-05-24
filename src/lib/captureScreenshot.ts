@@ -32,21 +32,69 @@ function mapCaptureError(error: unknown): ScreenshotCaptureError {
   return new ScreenshotCaptureError('Failed to capture screenshot.', 'capture_failed');
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function waitForNextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
 function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
   return new Promise((resolve, reject) => {
-    const onReady = () => {
-      requestAnimationFrame(() => resolve());
+    let settled = false;
+
+    const finish = async () => {
+      if (settled) return;
+
+      try {
+        if ('requestVideoFrameCallback' in video) {
+          await new Promise<void>((res) => {
+            video.requestVideoFrameCallback(() => res());
+          });
+        } else {
+          await waitForNextFrame();
+        }
+
+        await delay(75);
+
+        if (!video.videoWidth || !video.videoHeight) {
+          settled = true;
+          reject(new ScreenshotCaptureError('Could not read screenshot dimensions.', 'capture_failed'));
+          return;
+        }
+
+        settled = true;
+        resolve();
+      } catch (error) {
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
+      }
     };
 
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
-      onReady();
+      void finish();
       return;
     }
 
-    video.addEventListener('loadedmetadata', onReady, { once: true });
-    video.addEventListener('error', () => reject(new ScreenshotCaptureError('Failed to read screen capture.', 'capture_failed')), {
-      once: true,
-    });
+    video.addEventListener('loadeddata', () => void finish(), { once: true });
+    video.addEventListener('playing', () => void finish(), { once: true });
+    video.addEventListener(
+      'error',
+      () => {
+        if (!settled) {
+          settled = true;
+          reject(new ScreenshotCaptureError('Failed to read screen capture.', 'capture_failed'));
+        }
+      },
+      { once: true }
+    );
   });
 }
 

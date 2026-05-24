@@ -14,6 +14,7 @@ import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import CommentThread from '@/components/comments/CommentThread';
 import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
+import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import ProjectLogo from '@/components/projects/ProjectLogo';
 import { formatDate } from '@/lib/utils/dateUtils';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
@@ -190,6 +191,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [assetPendingDelete, setAssetPendingDelete] = useState<LinkedAssetRow | null>(null);
   const [deletingLinkedAsset, setDeletingLinkedAsset] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<LinkedAssetRow | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [previewSheetMode, setPreviewSheetMode] = useState<'view' | 'edit'>('view');
   const [previewEditName, setPreviewEditName] = useState('');
   const [previewEditContent, setPreviewEditContent] = useState('');
@@ -1148,6 +1150,21 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       );
                     }
 
+                    if (asset.type === 'screenshot' && href) {
+                      return (
+                        <span key={asset._id} className={`${chipClass} max-w-[280px]`}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage({ src: href, title: asset.name })}
+                            className="truncate hover:underline min-w-0 flex-1 text-left touch-manipulation"
+                          >
+                            {asset.name}
+                          </button>
+                          {deleteBtn}
+                        </span>
+                      );
+                    }
+
                     if (href) {
                       return (
                         <span key={asset._id} className={`${chipClass} max-w-[280px]`}>
@@ -1890,6 +1907,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           )}
         </div>
       </BottomSheet>
+
+      <ImagePreviewModal
+        isOpen={previewImage !== null}
+        onClose={() => setPreviewImage(null)}
+        src={previewImage?.src ?? null}
+        title={previewImage?.title}
+      />
     </div>
   );
 }

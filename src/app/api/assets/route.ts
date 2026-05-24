@@ -38,6 +38,12 @@ export async function GET(request: NextRequest) {
     }
     if (linkedProjectId) {
       query.linkedProjectId = linkedProjectId;
+      if (!linkedProjectTaskId && linkedProjectTaskIndex == null) {
+        query.$and = [
+          { $or: [{ linkedProjectTaskId: { $exists: false } }, { linkedProjectTaskId: null }] },
+          { $or: [{ linkedProjectTaskIndex: { $exists: false } }, { linkedProjectTaskIndex: null }] },
+        ];
+      }
     }
     if (linkedProjectTaskId) {
       query.linkedProjectTaskId = linkedProjectTaskId;

@@ -24,11 +24,15 @@ function appendTargetToFormData(formData: FormData, target: ScreenshotUploadTarg
 
 export async function uploadScreenshotAsset(
   file: File,
-  target: ScreenshotUploadTarget
+  target: ScreenshotUploadTarget,
+  options?: { name?: string }
 ): Promise<IAsset> {
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('name', file.name.replace(/\.[^/.]+$/, '') || 'Screenshot');
+  formData.append(
+    'name',
+    options?.name?.trim() || file.name.replace(/\.[^/.]+$/, '') || 'Screenshot'
+  );
   formData.append('type', 'screenshot');
   appendTargetToFormData(formData, target);
 

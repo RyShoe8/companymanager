@@ -6,6 +6,7 @@ import { IAsset } from '@/lib/models/Asset';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
+import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 
 interface CommentThreadProps {
   entityType: 'project' | 'projectTask' | 'contentItem';
@@ -40,6 +41,7 @@ export default function CommentThread({
   const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [screenshots, setScreenshots] = useState<IAsset[]>([]);
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [fetchedUserId, setFetchedUserId] = useState<string | undefined>();
   const currentUserId = currentUserIdProp ?? fetchedUserId;
 
@@ -96,13 +98,14 @@ export default function CommentThread({
   const loadScreenshots = async () => {
     try {
       let url = '/api/assets?type=screenshot';
-      if (entityType === 'project' || entityType === 'projectTask') {
-        url += `&linkedProjectId=${entityId}`;
+      if (entityType === 'projectTask') {
         if (taskId) {
           url += `&linkedProjectTaskId=${taskId}`;
         } else if (taskIndex !== undefined) {
           url += `&linkedProjectTaskIndex=${taskIndex}`;
         }
+      } else if (entityType === 'project') {
+        url += `&linkedProjectId=${entityId}`;
       } else if (entityType === 'contentItem') {
         url += `&linkedContentItemId=${entityId}`;
       }
@@ -195,18 +198,6 @@ export default function CommentThread({
     } catch (error) {
       // Error deleting comment
     }
-  };
-
-  const openImageFullSize = (url: string) => {
-    if (!url) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const escaped = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-    w.document.write(
-      '<!DOCTYPE html><html><head><title>Image</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a1a">' +
-      '<img src="' + escaped + '" style="max-width:100%;max-height:100vh;object-fit:contain" alt="" /></body></html>'
-    );
-    w.document.close();
   };
 
   const formatDate = (date: Date | string) => {
@@ -374,7 +365,7 @@ export default function CommentThread({
                   src={screenshot.fileUrl}
                   alt={screenshot.name}
                   className="w-full h-20 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => openImageFullSize(screenshot.fileUrl!)}
+                  onClick={() => screenshot.fileUrl && setPreviewImage({ src: screenshot.fileUrl, title: screenshot.name })}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate" title={screenshot.name}>
                   {screenshot.name}
@@ -416,6 +407,12 @@ export default function CommentThread({
           />
         </div>
       </div>
+      <ImagePreviewModal
+        isOpen={previewImage !== null}
+        onClose={() => setPreviewImage(null)}
+        src={previewImage?.src ?? null}
+        title={previewImage?.title}
+      />
     </div>
   );
 }
