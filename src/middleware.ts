@@ -87,11 +87,21 @@ export function middleware(request: NextRequest) {
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
 
-    if (!pathname.startsWith('/os')) {
-      url.pathname = `/os${pathname}`;
+    // OS shell home
+    if (pathname === '/') {
+      url.pathname = '/os';
+      return osRewriteResponse(url, request);
     }
 
-    return osRewriteResponse(url, request);
+    // Explicit /os/* routes (Phase 1: /os only)
+    if (pathname.startsWith('/os')) {
+      return osRewriteResponse(url, request);
+    }
+
+    // Classic app paths on os.* → main domain (e.g. os.nucleas.app/planning-map → nucleas.app/planning-map)
+    const classicHost = host.replace(/^os\./, '');
+    const classicUrl = new URL(`${pathname}${url.search}`, `${url.protocol}//${classicHost}`);
+    return NextResponse.redirect(classicUrl);
   }
 
   return NextResponse.next();
