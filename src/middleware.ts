@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+function osRewriteResponse(url: URL, request: NextRequest): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nucleas-shell', 'os');
+  return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+}
+
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  
+  const url = request.nextUrl.clone();
+  const { pathname } = url;
+  const host = request.headers.get('host') || '';
+  const isOsHost = host.startsWith('os.');
+
   // Block common WordPress and other CMS probe paths to reduce log noise
   const blockedPaths = [
     '/wp-admin',
@@ -15,27 +24,33 @@ export function middleware(request: NextRequest) {
     '/.env',
     '/.git',
   ];
-  
-  if (blockedPaths.some(path => pathname.startsWith(path))) {
+
+  if (blockedPaths.some((path) => pathname.startsWith(path))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  
+
   // Allow access to sitemap and robots files (must be first)
   if (pathname === '/sitemap.xml' || pathname === '/robots.txt') {
     return NextResponse.next();
   }
-  
+
+  const sharedPrefixes = ['/api', '/_next', '/login', '/register', '/images', '/uploads'];
+  const isOsSharedRoute =
+    isOsHost &&
+    (pathname === '/favicon.ico' ||
+      sharedPrefixes.some((p) => pathname.startsWith(p)));
+
   // Allow access to auth pages, setup page, admin page, public pages, and API routes
   if (
-    pathname === '/' ||
-    pathname.startsWith('/api/auth') || 
-    pathname.startsWith('/api/invitations/') || 
+    (pathname === '/' && !isOsHost) ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/invitations/') ||
     pathname.startsWith('/api/portal/') ||
     pathname.startsWith('/api/organization') ||
     pathname.startsWith('/api/profile') ||
     pathname.startsWith('/api/admin') ||
     pathname.startsWith('/api/contact') ||
-    pathname.startsWith('/login') || 
+    pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname === '/setup-organization' ||
     pathname === '/admin' ||
@@ -46,18 +61,37 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/features/') ||
     pathname.startsWith('/portal/')
   ) {
+    if (isOsHost) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-nucleas-shell', 'os');
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
     return NextResponse.next();
   }
 
   // Check for session cookie
   const session = request.cookies.get('session');
-  
+
   // If no session and trying to access protected route, redirect to login
   if (!session && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/invitations/') && !pathname.startsWith('/api/portal/')) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  if (isOsHost) {
+    if (isOsSharedRoute) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-nucleas-shell', 'os');
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+
+    if (!pathname.startsWith('/os')) {
+      url.pathname = `/os${pathname}`;
+    }
+
+    return osRewriteResponse(url, request);
   }
 
   return NextResponse.next();

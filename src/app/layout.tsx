@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import { headers } from "next/headers";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -79,11 +80,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isOsShell = (await headers()).get('x-nucleas-shell') === 'os';
   const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
   return (
     <html lang="en">
@@ -131,12 +133,18 @@ export default function RootLayout({
           strategy="afterInteractive"
         />
         <OrganizationSetupCheck>
-          <Navigation />
-          <main className="flex-1 pb-16 md:pb-0">
-            {children}
-          </main>
-          <Footer />
-          <MobileBottomNav />
+          {isOsShell ? (
+            children
+          ) : (
+            <>
+              <Navigation />
+              <main className="flex-1 pb-16 md:pb-0">
+                {children}
+              </main>
+              <Footer />
+              <MobileBottomNav />
+            </>
+          )}
         </OrganizationSetupCheck>
       </body>
     </html>
