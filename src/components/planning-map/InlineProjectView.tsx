@@ -60,6 +60,9 @@ interface InlineProjectViewProps {
   /** Open Tasks tab and focus this row (e.g. deep-link from workspace schedule). Cleared by parent via onInitialOpenTaskConsumed. */
   initialOpenTaskIndex?: number | null;
   onInitialOpenTaskConsumed?: () => void;
+  /** When true, create a new task row on mount (e.g. from schedule Add Task). */
+  autoAddTaskOnOpen?: boolean;
+  onAutoAddTaskConsumed?: () => void;
   /** Workspace timeframe for project hour rollup. */
   timeframe?: TimeframeType;
   /** Reference date for timeframe (defaults to today). */
@@ -176,7 +179,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return false;
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
   const [expandedContentComments, setExpandedContentComments] = useState<Set<string>>(new Set());
@@ -184,6 +187,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [showTaskActions, setShowTaskActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
+  const autoAddTaskAppliedKeyRef = useRef<string | null>(null);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
   const [autoEditTaskIndex, setAutoEditTaskIndex] = useState<number | null>(null);
@@ -470,6 +474,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setLocalDismissedChecklistIds(null);
       setViewTab('tasks');
       initialTaskAppliedKeyRef.current = null;
+      autoAddTaskAppliedKeyRef.current = null;
       return;
     }
     setLocalProject((prev) => {
@@ -832,6 +837,21 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
+
+  useEffect(() => {
+    if (!autoAddTaskOnOpen) {
+      autoAddTaskAppliedKeyRef.current = null;
+      return;
+    }
+    if (!isManagerOrAdmin) {
+      onAutoAddTaskConsumed?.();
+      return;
+    }
+    const key = project._id.toString();
+    if (autoAddTaskAppliedKeyRef.current === key) return;
+    autoAddTaskAppliedKeyRef.current = key;
+    void handleAddTask().finally(() => onAutoAddTaskConsumed?.());
+  }, [autoAddTaskOnOpen, isManagerOrAdmin, project._id, onAutoAddTaskConsumed]);
 
   const handleCopyPalette = async () => {
     const text = formatColorPaletteForCopy(paletteDraft);

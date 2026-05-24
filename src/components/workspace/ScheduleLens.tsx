@@ -26,6 +26,7 @@ interface ScheduleLensProps {
     showOnlyMyAssignments: boolean;
     onRefreshContent: () => void;
     onAddContent: (project: IProject, defaultDate?: Date) => void;
+    onAddTask?: (project: IProject) => void;
     onContentItemClick: (item: IContentItem) => void;
     scheduleMode: ScheduleMode;
     onScheduleModeChange: (mode: ScheduleMode) => void;
@@ -48,6 +49,7 @@ export default function ScheduleLens({
     showOnlyMyAssignments,
     onRefreshContent,
     onAddContent,
+    onAddTask,
     onContentItemClick,
     scheduleMode,
     onScheduleModeChange,
@@ -98,6 +100,7 @@ export default function ScheduleLens({
                     showOnlyMyAssignments={showOnlyMyAssignments}
                     onRefreshContent={onRefreshContent}
                     onAddContent={onAddContent}
+                    onAddTask={onAddTask}
                     onContentItemClick={onContentItemClick}
                     onTaskClick={onTaskClick}
                 />

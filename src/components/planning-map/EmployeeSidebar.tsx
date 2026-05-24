@@ -641,28 +641,30 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     ? Math.round((teamTotals.committed / teamTotals.total) * 100)
     : 0;
 
+  const utilizationCardSurface = 'p-4 bg-background-elevated border-border';
+
   return (
     <div className="space-y-4">
       {/* Team Overview Card */}
-      <Card className="p-4 bg-gray-50 border-gray-200">
-        <h3 className="font-bold text-gray-900 mb-3 flex items-center justify-between text-sm uppercase tracking-wider">
+      <Card className={utilizationCardSurface}>
+        <h3 className="font-bold text-text-primary mb-3 flex items-center justify-between text-sm uppercase tracking-wider">
           <span>Team Workload Overview</span>
-          <span className="text-gray-500 font-normal">({timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})</span>
+          <span className="text-text-muted font-normal">({timeframe.charAt(0).toUpperCase() + timeframe.slice(1)})</span>
         </h3>
         <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-            <p className="text-xs text-gray-500 mb-1">Total Available Capacity</p>
-            <p className="text-lg font-bold text-gray-900">{Math.round(teamTotals.total)}h</p>
+          <div className="bg-background-card p-3 rounded-lg border border-border shadow-sm">
+            <p className="text-xs text-text-secondary mb-1">Total Available Capacity</p>
+            <p className="text-lg font-bold text-text-primary">{Math.round(teamTotals.total)}h</p>
           </div>
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-            <p className="text-xs text-gray-500 mb-1">Overall Utilization</p>
-            <p className={`text-lg font-bold ${teamUtilizationPercent > 100 ? 'text-red-600' : teamUtilizationPercent > 80 ? 'text-orange-600' : 'text-green-600'}`}>
+          <div className="bg-background-card p-3 rounded-lg border border-border shadow-sm">
+            <p className="text-xs text-text-secondary mb-1">Overall Utilization</p>
+            <p className={`text-lg font-bold ${teamUtilizationPercent > 100 ? 'text-red-500' : teamUtilizationPercent > 80 ? 'text-orange-500' : 'text-green-500'}`}>
               {teamUtilizationPercent}%
             </p>
           </div>
         </div>
         <div>
-          <div className="flex justify-between text-xs text-gray-600 mb-1">
+          <div className="flex justify-between text-xs text-text-secondary mb-1">
             <div className="flex gap-3">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-orange-500"></span>
@@ -675,7 +677,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
             </div>
             <span>Remaining: {Math.max(0, Math.round(teamTotals.total - teamTotals.committed))}h</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 flex overflow-hidden">
+          <div className="w-full bg-border rounded-full h-2 flex overflow-hidden">
             <div
               className={`h-2 ${teamUtilizationPercent > 100 ? 'bg-red-500' : teamUtilizationPercent > 80 ? 'bg-orange-500' : 'bg-green-500'}`}
               style={{ width: `${Math.min(teamUtilizationPercent, 100)}%` }}
@@ -701,7 +703,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         const totalHoursRounded = Math.round(totalHours);
 
         return (
-          <Card key={employeeId} className="p-4">
+          <Card key={employeeId} className={utilizationCardSurface}>
             {/* Header - Always visible */}
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1">
@@ -711,14 +713,14 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                     className="flex items-center gap-2 flex-1 text-left hover:opacity-80 transition-opacity"
                   >
                     <svg
-                      className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                      className={`w-4 h-4 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    <h4 className="font-semibold text-gray-900">{employee.name}</h4>
+                    <h4 className="font-semibold text-text-primary">{employee.name}</h4>
                   </button>
                   <span className={`text-xs px-1.5 py-0.5 rounded ${employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
                     employee.role === 'Manager' ? 'bg-blue-100 text-blue-800' :
@@ -731,11 +733,11 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
               {/* Utilization (hours for selected period) - Always visible */}
               <div className="mb-2">
-                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                <div className="flex justify-between text-xs text-text-secondary mb-1">
                   <span>Utilization (this period)</span>
                   <span>{committedHoursRounded}h / {totalHoursRounded}h{totalHours > 0 ? ` (${utilizationPercent}%)` : ''}</span>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div className="w-full bg-border rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${utilizationPercent > 100 ? 'bg-red-500' :
                       utilizationPercent > 80 ? 'bg-orange-500' :

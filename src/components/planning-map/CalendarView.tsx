@@ -27,6 +27,7 @@ interface CalendarViewProps {
   showOnlyMyAssignments?: boolean;
   onContentItemClick?: (item: IContentItem) => void;
   onAddContent?: (project: IProject, defaultDate?: Date) => void;
+  onAddTask?: (project: IProject) => void;
   onRefreshContent?: () => void;
   onTaskClick?: (project: IProject, taskIndex: number) => void;
 }
@@ -51,6 +52,7 @@ export default function CalendarView({
   showOnlyMyAssignments = false,
   onContentItemClick,
   onAddContent,
+  onAddTask,
   onRefreshContent,
   onTaskClick,
 }: CalendarViewProps) {
@@ -531,7 +533,12 @@ export default function CalendarView({
                                   <div className="absolute right-0 top-full mt-1 py-1 bg-background-card border border-border rounded shadow-lg z-10 min-w-[120px]">
                                     <button
                                       type="button"
-                                      onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onProjectClick(project); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAddMenuProjectId(null);
+                                        if (onAddTask) onAddTask(project);
+                                        else onProjectClick(project);
+                                      }}
                                       className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
                                     >
                                       Add Task

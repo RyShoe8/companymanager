@@ -65,6 +65,7 @@ export default function WorkspaceShell({
     const [inspectorReturnFocus, setInspectorReturnFocus] = useState<string | null>(null);
     /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
+    const [inspectorAutoAddTask, setInspectorAutoAddTask] = useState(false);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -115,6 +116,7 @@ export default function WorkspaceShell({
         setInspectorFocus(null);
         setInspectorReturnFocus(null);
         setInspectorOpenTaskIndex(null);
+        setInspectorAutoAddTask(false);
     }, [inspectorFocus, inspectorReturnFocus]);
 
     const handleContentItemClickFromProject = useCallback(
@@ -129,13 +131,21 @@ export default function WorkspaceShell({
     );
 
     const handleViewProject = useCallback((project: IProject) => {
+        setInspectorAutoAddTask(false);
         setInspectorOpenTaskIndex(null);
         setInspectorFocus(`project:${project._id}`);
     }, []);
 
     const handleViewProjectTask = useCallback((project: IProject, taskIndex: number) => {
+        setInspectorAutoAddTask(false);
         setInspectorFocus(`project:${project._id}`);
         setInspectorOpenTaskIndex(taskIndex);
+    }, []);
+
+    const handleAddTaskToProject = useCallback((project: IProject) => {
+        setInspectorOpenTaskIndex(null);
+        setInspectorAutoAddTask(true);
+        setInspectorFocus(`project:${project._id}`);
     }, []);
 
     const handleDeleteProject = async (id: string) => {
@@ -1100,6 +1110,7 @@ export default function WorkspaceShell({
                                                 setAddContentProject(project);
                                                 setAddContentDefaultDate(defaultDate);
                                             }}
+                                            onAddTask={handleAddTaskToProject}
                                             onContentItemClick={handleContentItemClickFromProject}
                                             scheduleMode={ws.scheduleMode}
                                             onScheduleModeChange={ws.setScheduleMode}
@@ -1187,6 +1198,8 @@ export default function WorkspaceShell({
                             onProjectPatched={ws.patchProjectInState}
                             initialOpenTaskIndex={inspectorOpenTaskIndex}
                             onInitialOpenTaskConsumed={() => setInspectorOpenTaskIndex(null)}
+                            autoAddTaskOnOpen={inspectorAutoAddTask}
+                            onAutoAddTaskConsumed={() => setInspectorAutoAddTask(false)}
                             onAddContent={(project) => {
                                 setAddContentVoicePrefill(null);
                                 setAddContentProject(project);

@@ -25,6 +25,8 @@ interface InspectorHostProps {
     /** When opening the inspector from a schedule task row, focus this task index in the project view. */
     initialOpenTaskIndex?: number | null;
     onInitialOpenTaskConsumed?: () => void;
+    autoAddTaskOnOpen?: boolean;
+    onAutoAddTaskConsumed?: () => void;
     onAddContent?: (project: IProject) => void;
     onContentItemClick?: (item: IContentItem) => void;
     contentRefreshTrigger?: number;
@@ -44,6 +46,8 @@ export default function InspectorHost({
     onProjectPatched,
     initialOpenTaskIndex,
     onInitialOpenTaskConsumed,
+    autoAddTaskOnOpen,
+    onAutoAddTaskConsumed,
     onAddContent,
     onContentItemClick,
     contentRefreshTrigger,
@@ -79,6 +83,8 @@ export default function InspectorHost({
                         contentRefreshTrigger={contentRefreshTrigger}
                         initialOpenTaskIndex={initialOpenTaskIndex ?? null}
                         onInitialOpenTaskConsumed={onInitialOpenTaskConsumed}
+                        autoAddTaskOnOpen={autoAddTaskOnOpen}
+                        onAutoAddTaskConsumed={onAutoAddTaskConsumed}
                         timeframe={timeframe}
                         referenceDate={referenceDate}
                         onProjectPatched={onProjectPatched}
