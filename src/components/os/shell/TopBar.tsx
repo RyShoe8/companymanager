@@ -3,6 +3,7 @@
 import { VoiceButton } from '@/components/voice/VoiceOverlay';
 import { useWindowManager } from '@/hooks/os/useWindowManager';
 import ModuleLauncher from './ModuleLauncher';
+import OsInstallPrompt from './OsInstallPrompt';
 
 export default function TopBar() {
     const wm = useWindowManager();
@@ -23,6 +24,7 @@ export default function TopBar() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-2">
+                <OsInstallPrompt />
                 <ModuleLauncher />
                 <kbd className="text-[11px] text-zinc-400 bg-zinc-900 px-2 py-1 rounded border border-zinc-700">
                     ⌘K

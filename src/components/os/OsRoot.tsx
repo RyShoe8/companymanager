@@ -15,6 +15,7 @@ import { registerOsModules } from './modules/registerModules';
 import { registerOsCommands } from './commands/registerOsCommands';
 import WindowManagerProvider from './state/WindowManagerProvider';
 import OsShell from './shell/OsShell';
+import { warmPopoutScreenCache } from '@/lib/os/popoutPlacement';
 
 // Register modules once at module load so the registry is ready before any
 // render. `registerOsModules` itself is idempotent.
@@ -26,6 +27,13 @@ interface OsRootProps {
 
 export default function OsRoot({ children }: OsRootProps) {
     const auth = useOsAuth();
+
+    useEffect(() => {
+        if (!window.location.host.startsWith('os.')) return;
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.register('/os-sw.js', { scope: '/' }).catch(() => {});
+        warmPopoutScreenCache().catch(() => {});
+    }, []);
 
     return (
         <WindowManagerProvider userId={auth.userId}>

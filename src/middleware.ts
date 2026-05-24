@@ -38,6 +38,8 @@ export function middleware(request: NextRequest) {
   const isOsSharedRoute =
     isOsHost &&
     (pathname === '/favicon.ico' ||
+      pathname === '/nucleas-os.webmanifest' ||
+      pathname === '/os-sw.js' ||
       sharedPrefixes.some((p) => pathname.startsWith(p)));
 
   // Allow access to auth pages, setup page, admin page, public pages, and API routes

@@ -1,4 +1,5 @@
 import type { ModuleDefinition, WindowState } from './types';
+import { computePopoutPlacement } from './popoutPlacement';
 
 export function buildPopoutUrl(windowId: string): string {
     const path = `/os/popout?windowId=${encodeURIComponent(windowId)}`;
@@ -13,13 +14,18 @@ export function openPopoutWindow(
     const url = buildPopoutUrl(windowState.id);
     const width = windowState.width || module.defaultSize.width;
     const height = windowState.height || module.defaultSize.height;
+    const { left, top } = computePopoutPlacement(windowState, width, height);
     const features = [
         `width=${width}`,
         `height=${height}`,
+        `left=${left}`,
+        `top=${top}`,
+        'popup=yes',
         'menubar=no',
         'toolbar=no',
         'location=no',
         'status=no',
+        'scrollbars=yes',
         'noopener',
         'noreferrer',
     ].join(',');
