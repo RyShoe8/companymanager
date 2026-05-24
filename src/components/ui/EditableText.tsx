@@ -32,13 +32,19 @@ export default function EditableText({
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
+  const [forceMultiline, setForceMultiline] = useState(false);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const prevUseMultilineRef = useRef(false);
+  const pendingCaretPosRef = useRef<number | null>(null);
   const autoEditAppliedRef = useRef(false);
 
   const useMultiline =
     multiline ||
+    forceMultiline ||
     (autoMultilineAfter != null && editValue.length >= autoMultilineAfter);
+
+  const preserveFormatting =
+    multiline || autoMultilineAfter != null || value.includes('\n');
 
   const valueForEdit = useCallback(
     (raw: string) => (clearValuesOnEdit?.includes(raw) ? '' : raw),
@@ -65,6 +71,8 @@ export default function EditableText({
   useEffect(() => {
     if (!isEditing) {
       prevUseMultilineRef.current = false;
+      setForceMultiline(false);
+      pendingCaretPosRef.current = null;
     }
   }, [isEditing]);
 
@@ -78,33 +86,61 @@ export default function EditableText({
   }, [isEditing, multiline]);
 
   useLayoutEffect(() => {
+    if (!isEditing || !inputRef.current) return;
+
+    const el = inputRef.current;
+
+    if (pendingCaretPosRef.current != null && el instanceof HTMLTextAreaElement) {
+      const pos = pendingCaretPosRef.current;
+      pendingCaretPosRef.current = null;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+      prevUseMultilineRef.current = useMultiline;
+      return;
+    }
+
     if (multiline) return;
+
     if (
-      isEditing &&
       useMultiline &&
       !prevUseMultilineRef.current &&
-      inputRef.current instanceof HTMLTextAreaElement
+      el instanceof HTMLTextAreaElement
     ) {
       const len = editValue.length;
-      inputRef.current.focus();
-      inputRef.current.setSelectionRange(len, len);
+      el.focus();
+      el.setSelectionRange(len, len);
     }
     prevUseMultilineRef.current = useMultiline;
-  }, [isEditing, useMultiline, editValue.length, multiline]);
+  }, [isEditing, useMultiline, editValue, multiline]);
 
   const handleSave = async () => {
     if (editValue !== value) {
       await onSave(editValue);
     }
+    pendingCaretPosRef.current = null;
+    setForceMultiline(false);
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setEditValue(value);
+    pendingCaretPosRef.current = null;
+    setForceMultiline(false);
     setIsEditing(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' && e.shiftKey && (multiline || autoMultilineAfter != null)) {
+      const el = e.currentTarget as HTMLInputElement | HTMLTextAreaElement;
+      const start = el.selectionStart ?? editValue.length;
+      const end = el.selectionEnd ?? start;
+      e.preventDefault();
+      const nextValue = editValue.slice(0, start) + '\n' + editValue.slice(end);
+      pendingCaretPosRef.current = start + 1;
+      setEditValue(nextValue);
+      if (!useMultiline) setForceMultiline(true);
+      return;
+    }
     if (e.key === 'Enter' && !useMultiline && !e.shiftKey) {
       e.preventDefault();
       handleSave();
@@ -114,7 +150,11 @@ export default function EditableText({
   };
 
   if (disabled) {
-    return <span className={className}>{value || placeholder}</span>;
+    return (
+      <span className={`${className}${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}>
+        {value || placeholder}
+      </span>
+    );
   }
 
   if (isEditing) {
@@ -152,7 +192,7 @@ export default function EditableText({
       onClick={startEditing}
       className={`${className} cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5 transition-colors ${
         !value ? 'text-gray-400 italic' : ''
-      }`}
+      }${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}
     >
       {value || placeholder}
     </span>

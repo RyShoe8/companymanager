@@ -14,6 +14,8 @@ interface ModalProps {
   elevated?: boolean;
   /** Above toast / voice overlays (z-[100]). */
   stackAboveOverlays?: boolean;
+  /** Above image preview lightbox (z-[110]). */
+  stackAboveLightbox?: boolean;
 }
 
 export default function Modal({
@@ -26,6 +28,7 @@ export default function Modal({
   hideCloseButton = false,
   elevated = false,
   stackAboveOverlays = false,
+  stackAboveLightbox = false,
 }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -40,7 +43,13 @@ export default function Modal({
 
   if (!isOpen) return null;
 
-  const zClass = stackAboveOverlays ? 'z-[110]' : elevated ? 'z-[70]' : 'z-50';
+  const zClass = stackAboveLightbox
+    ? 'z-[120]'
+    : stackAboveOverlays
+      ? 'z-[110]'
+      : elevated
+        ? 'z-[70]'
+        : 'z-50';
 
   if (maxWidth === 'full') {
     // Full-screen modal that stretches from navbar to bottom

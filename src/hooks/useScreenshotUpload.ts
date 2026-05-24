@@ -24,7 +24,17 @@ export function useScreenshotUpload(
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [suggestedName, setSuggestedName] = useState(defaultScreenshotName);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const successTimerRef = useRef<number | null>(null);
+
+  const revokePreviewUrl = useCallback(() => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPreviewUrl(null);
+  }, []);
 
   const clearSuccessTimer = useCallback(() => {
     if (successTimerRef.current != null) {
@@ -33,15 +43,19 @@ export function useScreenshotUpload(
     }
   }, []);
 
-  useEffect(() => () => clearSuccessTimer(), [clearSuccessTimer]);
+  useEffect(() => () => {
+    clearSuccessTimer();
+    revokePreviewUrl();
+  }, [clearSuccessTimer, revokePreviewUrl]);
 
   const reset = useCallback(() => {
     clearSuccessTimer();
+    revokePreviewUrl();
     setStatus('idle');
     setStatusMessage(null);
     setErrorMessage(null);
     setPendingFiles([]);
-  }, [clearSuccessTimer]);
+  }, [clearSuccessTimer, revokePreviewUrl]);
 
   const uploadCompressedFiles = useCallback(
     async (files: File[], name: string) => {
@@ -73,19 +87,25 @@ export function useScreenshotUpload(
         );
         setStatusMessage(null);
         setPendingFiles([]);
+      } finally {
+        revokePreviewUrl();
       }
     },
-    [target, onUploaded, reset, clearSuccessTimer]
+    [target, onUploaded, reset, clearSuccessTimer, revokePreviewUrl]
   );
 
   const stageForNaming = useCallback((files: File[]) => {
     if (files.length === 0) return;
+    revokePreviewUrl();
+    const url = URL.createObjectURL(files[0]);
+    previewUrlRef.current = url;
+    setPreviewUrl(url);
     setPendingFiles(files);
     setSuggestedName(defaultScreenshotName());
     setStatus('naming');
     setStatusMessage(null);
     setErrorMessage(null);
-  }, []);
+  }, [revokePreviewUrl]);
 
   const confirmName = useCallback(
     async (name: string) => {
@@ -144,6 +164,7 @@ export function useScreenshotUpload(
     isBusy,
     isNaming: status === 'naming',
     suggestedName,
+    previewUrl,
     uploadFromFiles,
     captureAndUpload,
     confirmName,

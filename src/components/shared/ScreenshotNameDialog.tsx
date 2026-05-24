@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -19,12 +20,28 @@ export default function ScreenshotNameDialog({
   onCancel,
 }: ScreenshotNameDialogProps) {
   const [name, setName] = useState(defaultName);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       setName(defaultName);
     }
   }, [isOpen, defaultName]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onCancel]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +51,10 @@ export default function ScreenshotNameDialog({
     }
   };
 
-  return (
-    <Modal isOpen={isOpen} onClose={onCancel} title="Name screenshot" maxWidth="sm" elevated>
+  if (!mounted || !isOpen) return null;
+
+  return createPortal(
+    <Modal isOpen={isOpen} onClose={onCancel} title="Name screenshot" maxWidth="sm" stackAboveLightbox>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Name"
@@ -53,6 +72,7 @@ export default function ScreenshotNameDialog({
           </Button>
         </div>
       </form>
-    </Modal>
+    </Modal>,
+    document.body
   );
 }

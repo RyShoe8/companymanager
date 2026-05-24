@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
 import SocialIcon from '@/components/projects/SocialIcon';
 import ScreenshotNameDialog from '@/components/shared/ScreenshotNameDialog';
+import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import { detectSocialNetwork, parseSocialLinkInput, SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
 import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
@@ -141,6 +142,7 @@ export default function CategoryModal({
     isBusy: screenshotBusy,
     isNaming: screenshotNaming,
     suggestedName: screenshotSuggestedName,
+    previewUrl: screenshotPreviewUrl,
     uploadFromFiles: screenshotUploadFromFiles,
     captureAndUpload: screenshotCaptureAndUpload,
     confirmName: screenshotConfirmName,
@@ -547,12 +549,6 @@ export default function CategoryModal({
               Back
             </Button>
           </div>
-          <ScreenshotNameDialog
-            isOpen={screenshotNaming}
-            defaultName={screenshotSuggestedName}
-            onConfirm={(name) => void screenshotConfirmName(name)}
-            onCancel={screenshotCancelNaming}
-          />
         </div>
       );
     }
@@ -810,5 +806,27 @@ export default function CategoryModal({
   );
 
   if (typeof window === 'undefined') return null;
+
+  if (screenshotNaming && screenshotPreviewUrl) {
+    return createPortal(
+      <>
+        <ImagePreviewModal
+          mode="naming"
+          isOpen
+          onClose={() => {}}
+          src={screenshotPreviewUrl}
+          title="Screenshot preview"
+        />
+        <ScreenshotNameDialog
+          isOpen
+          defaultName={screenshotSuggestedName}
+          onConfirm={(name) => void screenshotConfirmName(name)}
+          onCancel={screenshotCancelNaming}
+        />
+      </>,
+      document.body
+    );
+  }
+
   return createPortal(modal, document.body);
 }
