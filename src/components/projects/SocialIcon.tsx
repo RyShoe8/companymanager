@@ -1,6 +1,8 @@
 import type { SocialNetwork } from '@/lib/models/Project';
 import { SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
 
+const DARK_LOGO_NETWORKS: SocialNetwork[] = ['x', 'github', 'tiktok'];
+
 interface SocialIconProps {
   network: SocialNetwork;
   size?: number;
@@ -15,7 +17,9 @@ export default function SocialIcon({ network, size = 20, className = '' }: Socia
       alt={SOCIAL_NETWORK_LABELS[network]}
       width={size}
       height={size}
-      className={`inline-block shrink-0 dark:invert ${className}`}
+      className={`inline-block shrink-0 ${
+        DARK_LOGO_NETWORKS.includes(network) ? 'dark:invert' : ''
+      } ${className}`}
     />
   );
 }
