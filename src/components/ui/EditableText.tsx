@@ -151,14 +151,14 @@ export default function EditableText({
 
   if (disabled) {
     return (
-      <span className={`${className}${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}>
+      <span className={`${className} text-text-primary${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}>
         {value || placeholder}
       </span>
     );
   }
 
   if (isEditing) {
-    const editClassName = `${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full block`;
+    const editClassName = `${className} font-[inherit] text-text-primary bg-background-elevated border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary w-full block`;
     if (useMultiline) {
       return (
         <textarea
@@ -190,8 +190,8 @@ export default function EditableText({
   return (
     <span
       onClick={startEditing}
-      className={`${className} cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5 transition-colors ${
-        !value ? 'text-gray-400 italic' : ''
+      className={`${className} cursor-pointer hover:bg-background-elevated rounded px-1 py-0.5 transition-colors ${
+        !value ? 'text-text-muted italic' : 'text-text-primary'
       }${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}
     >
       {value || placeholder}

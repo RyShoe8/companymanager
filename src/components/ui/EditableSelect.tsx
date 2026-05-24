@@ -81,7 +81,7 @@ export default function EditableSelect({ value, options, onSave, className = '',
   };
 
   if (disabled) {
-    return (<span className={`${className} flex items-center gap-1.5`}>
+    return (<span className={`${className} text-text-primary flex items-center gap-1.5`}>
       {showColorDot && currentOption?.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: currentOption.color }} />}
       {currentOption?.label || value}
     </span>);
@@ -90,13 +90,13 @@ export default function EditableSelect({ value, options, onSave, className = '',
   const dropdown = isOpen && mounted ? createPortal(
     <div 
       ref={dropdownRef}
-      className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 max-h-48 overflow-auto"
+      className="fixed z-[9999] bg-background-card border border-border text-text-primary rounded-lg shadow-lg py-1 max-h-48 overflow-auto"
       style={{ top: dropdownPosition.top, left: dropdownPosition.left, minWidth: dropdownPosition.width }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {options.map((option, idx) => (
         <button key={option.value} type="button" onClick={() => handleSelect(option.value)} onMouseEnter={() => setHighlightedIndex(idx)}
-          className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${idx === highlightedIndex ? 'bg-blue-50 dark:bg-blue-900/30' : ''} ${option.value === value ? 'bg-blue-100 dark:bg-blue-900/50 font-medium' : ''}`}>
+          className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors text-text-primary ${idx === highlightedIndex ? 'bg-primary-light' : ''} ${option.value === value ? 'bg-primary-light font-medium' : ''}`}>
           {showColorDot && option.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: option.color }} />}
           {option.label}
           {option.value === value && <svg className="w-4 h-4 ml-auto text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
@@ -114,10 +114,10 @@ export default function EditableSelect({ value, options, onSave, className = '',
   return (
     <div className="relative inline-block">
       <button ref={buttonRef} type="button" onClick={handleButtonClick} onKeyDown={handleKeyDown}
-        className={`${className} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors flex items-center gap-1.5 text-left`}>
+        className={`${className} text-text-primary cursor-pointer hover:bg-background-elevated rounded px-2 py-1 transition-colors flex items-center gap-1.5 text-left`}>
         {showColorDot && currentOption?.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: currentOption.color }} />}
         <span>{currentOption?.label || value}</span>
-        <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
