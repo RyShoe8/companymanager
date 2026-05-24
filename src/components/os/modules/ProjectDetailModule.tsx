@@ -102,6 +102,7 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
                 }}
                 onClose={() => wm.close(windowId)}
                 onRefresh={refresh}
+                timeframe="weekly"
                 initialOpenTaskIndex={Number.isFinite(initialOpenTaskIndex) ? initialOpenTaskIndex : null}
             />
         </div>

@@ -24,7 +24,19 @@ html {
 body {
   background: var(--background);
   color: var(--text-primary);
-  font-family: var(--font-poppins), var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+a {
+  color: var(--primary);
+}
+
+input,
+textarea,
+select {
+  background: var(--background-elevated);
+  color: var(--text-primary);
+  border-color: var(--border);
 }
 
 .popout-drag {

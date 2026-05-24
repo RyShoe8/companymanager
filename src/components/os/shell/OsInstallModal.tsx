@@ -45,7 +45,7 @@ export default function OsInstallModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="os-install-title"
-            onClick={handleNotNow}
+            onClick={onClose}
         >
             <div
                 className="w-full max-w-md rounded-xl border border-border bg-background-card shadow-2xl overflow-hidden"
@@ -71,13 +71,24 @@ export default function OsInstallModal({
                     <div className="rounded-lg border border-border bg-background-elevated px-4 py-3 text-sm text-text-secondary space-y-2">
                         <p className="font-medium text-text-primary">How to install</p>
                         {canPrompt ? (
-                            <p>Click <span className="text-primary">Install Nucleas OS</span> below to use your browser&apos;s install dialog.</p>
+                            <p>
+                                Click <span className="text-primary">Install Nucleas OS</span> below to open your
+                                browser&apos;s install dialog.
+                            </p>
                         ) : (
-                            <ol className="list-decimal list-inside space-y-1">
-                                <li>Open the browser menu (⋮) in Chrome or Edge</li>
-                                <li>Choose <span className="text-text-primary">Install Nucleas OS</span> or <span className="text-text-primary">Install app</span></li>
-                                <li>Confirm the install prompt</li>
-                            </ol>
+                            <>
+                                <p className="text-text-muted text-xs">
+                                    One-click install is not available in this browser session yet. Use the browser menu:
+                                </p>
+                                <ol className="list-decimal list-inside space-y-1">
+                                    <li>Open the browser menu (⋮) in Chrome or Edge</li>
+                                    <li>
+                                        Choose <span className="text-text-primary">Install Nucleas OS</span> or{' '}
+                                        <span className="text-text-primary">Install app</span>
+                                    </li>
+                                    <li>Confirm the install prompt</li>
+                                </ol>
+                            </>
                         )}
                     </div>
 
@@ -103,7 +114,7 @@ export default function OsInstallModal({
                                 onClick={onClose}
                                 className="px-4 py-2 text-sm rounded-lg bg-primary/15 border border-primary/40 text-primary font-medium hover:bg-primary/25 transition-colors"
                             >
-                                Got it
+                                Close
                             </button>
                         )}
                     </div>

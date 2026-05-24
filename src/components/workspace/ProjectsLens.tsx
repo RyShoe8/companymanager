@@ -2,10 +2,16 @@
 
 import { useState, useMemo } from 'react';
 import { IProject } from '@/lib/models/Project';
+import { IContentItem } from '@/lib/models/ContentItem';
 import { getProjectStatusDisplayLabel, mapStatusToStage } from '@/lib/utils/statusMapping';
+import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
+import type { TimeframeType } from '@/lib/utils/dateUtils';
 
 interface ProjectsLensProps {
     projects: IProject[];
+    contentItems?: IContentItem[];
+    timeframe?: TimeframeType;
+    referenceDate?: Date;
     onProjectClick: (project: IProject) => void;
 }
 
@@ -28,6 +34,9 @@ const typeBadgeColors: Record<string, string> = {
 
 export default function ProjectsLens({
     projects,
+    contentItems = [],
+    timeframe = 'weekly',
+    referenceDate,
     onProjectClick,
 }: ProjectsLensProps) {
     const [search, setSearch] = useState('');
@@ -134,6 +143,7 @@ export default function ProjectsLens({
                         const colors = statusBadgeColors[project.status] || statusBadgeColors.planning;
                         const taskCount = project.tasks?.length || 0;
                         const completedTasks = project.tasks?.filter((t) => t.status === 'completed').length || 0;
+                        const estHours = computeProjectEstimatedHours(project, contentItems, timeframe, referenceDate);
 
                         return (
                             <div
@@ -183,8 +193,8 @@ export default function ProjectsLens({
                                             ✅ {completedTasks}/{taskCount} tasks
                                         </span>
                                     )}
-                                    {project.estimatedHours ? (
-                                        <span>⏱ {project.estimatedHours}h</span>
+                                    {estHours > 0 ? (
+                                        <span>⏱ {estHours}h</span>
                                     ) : null}
                                     {project.endDate && (
                                         <span>

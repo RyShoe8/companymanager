@@ -7,6 +7,7 @@ import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailM
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
+import type { TimeframeType } from '@/lib/utils/dateUtils';
 
 export type FocusType = 'project' | 'content' | 'task';
 
@@ -28,6 +29,8 @@ interface InspectorHostProps {
     onContentItemClick?: (item: IContentItem) => void;
     contentRefreshTrigger?: number;
     onContentListChanged?: () => void;
+    timeframe?: TimeframeType;
+    referenceDate?: Date;
 }
 
 export default function InspectorHost({
@@ -45,6 +48,8 @@ export default function InspectorHost({
     onContentItemClick,
     contentRefreshTrigger,
     onContentListChanged,
+    timeframe = 'weekly',
+    referenceDate,
 }: InspectorHostProps) {
     const { type, id } = useMemo(() => {
         if (!focusId) return { type: null, id: null };
@@ -74,6 +79,8 @@ export default function InspectorHost({
                         contentRefreshTrigger={contentRefreshTrigger}
                         initialOpenTaskIndex={initialOpenTaskIndex ?? null}
                         onInitialOpenTaskConsumed={onInitialOpenTaskConsumed}
+                        timeframe={timeframe}
+                        referenceDate={referenceDate}
                         onProjectPatched={onProjectPatched}
                         onUpdate={async (updates) => {
                             if (!updates || Object.keys(updates).length === 0) return;

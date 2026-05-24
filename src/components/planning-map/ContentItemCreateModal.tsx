@@ -12,6 +12,7 @@ import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
 import { createPendingAssets } from '@/lib/utils/linkedAssets';
+import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 
 function toInputDate(d: Date): string {
   const y = d.getFullYear();
@@ -69,6 +70,7 @@ export default function ContentItemCreateModal({
   const [estimatedHours, setEstimatedHours] = useState('');
   const [pendingAssets, setPendingAssets] = useState<PendingAssetPayload[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEstimating, setIsEstimating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -117,6 +119,20 @@ export default function ContentItemCreateModal({
     setIsSubmitting(true);
     setError(null);
     try {
+      let hours: number | undefined = estimatedHours.trim() ? Number(estimatedHours) : undefined;
+      if (hours === undefined) {
+        setIsEstimating(true);
+        const aiHours = await fetchEstimatedHours({
+          kind: 'content',
+          title: title.trim(),
+          channel,
+          description: notes.trim() || undefined,
+          projectName: project.name,
+        });
+        setIsEstimating(false);
+        if (aiHours != null) hours = aiHours;
+      }
+
       const filteredLinks = internalLinks.map((s) => s.trim()).filter(Boolean);
       const body: Record<string, unknown> = {
         projectId: project._id.toString(),
@@ -129,7 +145,7 @@ export default function ContentItemCreateModal({
         internalLinks: filteredLinks.length > 0 ? filteredLinks : undefined,
         externalUrl: externalUrl.trim() || undefined,
         distributionMethods: distributionMethods.length > 0 ? distributionMethods : undefined,
-        estimatedHours: estimatedHours.trim() ? Number(estimatedHours) : undefined,
+        estimatedHours: hours,
       };
       if (publishDate) {
         const d = new Date(publishDate);
@@ -155,6 +171,7 @@ export default function ContentItemCreateModal({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create content');
     } finally {
+      setIsEstimating(false);
       setIsSubmitting(false);
     }
   };
@@ -262,7 +279,7 @@ export default function ContentItemCreateModal({
         {error && <ErrorMessage message={error} />}
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button type="submit" disabled={isSubmitting} className="flex-1">{isSubmitting ? 'Creating...' : 'Create'}</Button>
+          <Button type="submit" disabled={isSubmitting || isEstimating} className="flex-1">{isEstimating ? 'Estimating…' : isSubmitting ? 'Creating...' : 'Create'}</Button>
         </div>
       </form>
     </Modal>

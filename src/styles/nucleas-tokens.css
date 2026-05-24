@@ -7,28 +7,39 @@
   /* Brand palette */
   --nucleas-primary: #00c2e0;
   --nucleas-primary-hover: #00a8c4;
-  --nucleas-primary-light: #e0f9fc;
+  --nucleas-primary-light: rgba(0, 194, 224, 0.12);
   --nucleas-primary-dark: #008fa6;
 
   --nucleas-secondary: #007bff;
   --nucleas-secondary-hover: #0069d9;
-  --nucleas-secondary-light: #e6f2ff;
+  --nucleas-secondary-light: rgba(0, 123, 255, 0.12);
   --nucleas-secondary-dark: #0056b3;
 
   --nucleas-third: #7a22e0;
   --nucleas-third-hover: #6b1dc7;
-  --nucleas-third-light: #f0e8fc;
+  --nucleas-third-light: rgba(122, 34, 224, 0.12);
   --nucleas-third-dark: #5c1aa8;
 
   --nucleas-fourth: #bd08d7;
   --nucleas-fourth-hover: #a507be;
-  --nucleas-fourth-light: #fae8fc;
+  --nucleas-fourth-light: rgba(189, 8, 215, 0.12);
   --nucleas-fourth-dark: #8e06a3;
 
   --nucleas-ink: #202938;
   --nucleas-white: #ffffff;
 
-  /* Semantic aliases (classic light app) */
+  /* Dark site defaults */
+  --background: var(--nucleas-ink);
+  --background-card: #2a3348;
+  --background-elevated: #323d52;
+
+  --text-primary: var(--nucleas-white);
+  --text-secondary: #a8b0c4;
+  --text-muted: #6b7589;
+
+  --border: #3d4659;
+  --border-dark: #4a556d;
+
   --primary: var(--nucleas-primary);
   --primary-hover: var(--nucleas-primary-hover);
   --primary-light: var(--nucleas-primary-light);
@@ -44,32 +55,25 @@
   --accent-light: var(--nucleas-third-light);
   --accent-dark: var(--nucleas-third-dark);
 
-  --text-primary: var(--nucleas-ink);
-  --text-secondary: #5e677d;
-
-  --border: #e1e5ee;
-  --border-dark: #c5ccdb;
-
-  --background: #f7f8fc;
-  --background-card: var(--nucleas-white);
-
   --foreground: var(--text-primary);
 
-  /* Semantic (unchanged) */
+  /* Semantic */
   --success: #36b37e;
-  --success-light: #e3f5ed;
+  --success-light: rgba(54, 179, 126, 0.15);
   --success-dark: #2a8f63;
 
   --warning: #ffab00;
-  --warning-light: #fff4e0;
+  --warning-light: rgba(255, 171, 0, 0.15);
   --warning-dark: #cc8800;
 
   --error: #de350b;
-  --error-light: #fce8e4;
+  --error-light: rgba(222, 53, 11, 0.15);
   --error-dark: #b22a09;
+
+  color-scheme: dark;
 }
 
-/* OS shell — dark theme on os.nucleas.app */
+/* OS shell — same dark palette (explicit for clarity) */
 body.nucleas-os {
   --background: var(--nucleas-ink);
   --background-card: #2a3348;
@@ -81,14 +85,6 @@ body.nucleas-os {
 
   --border: #3d4659;
   --border-dark: #4a556d;
-
-  --primary: var(--nucleas-primary);
-  --primary-hover: var(--nucleas-primary-hover);
-  --primary-light: rgba(0, 194, 224, 0.12);
-  --primary-dark: var(--nucleas-primary-dark);
-
-  --secondary: var(--nucleas-secondary);
-  --secondary-hover: var(--nucleas-secondary-hover);
 
   color-scheme: dark;
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType, formatDate, getTimeframeRange } from '@/lib/utils/dateUtils';
+import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import Button from '@/components/ui/Button';
@@ -371,28 +372,8 @@ export default function CalendarView({
 
   const { start: startDate, end: endDate } = getDateRange();
 
-  // Helper function to calculate project hours by summing tasks' estimatedHours
-  // Excludes completed items for consistency
-  const getProjectEstimatedHours = (project: IProject): number => {
-    // Sum tasks' estimatedHours (excluding completed tasks)
-    if (project.tasks && project.tasks.length > 0) {
-      const totalTaskHours = project.tasks.reduce((sum, task) => {
-        if (task.status !== 'completed' && task.estimatedHours !== undefined && task.estimatedHours !== null) {
-          const hours = typeof task.estimatedHours === 'number'
-            ? task.estimatedHours
-            : parseFloat(task.estimatedHours);
-          return sum + (isNaN(hours) ? 0 : hours);
-        }
-        return sum;
-      }, 0);
-
-      // Round to 1 decimal place for consistency
-      return Math.round(totalTaskHours * 100) / 100;
-    }
-
-    // If no tasks, return 0 (or project.estimatedHours if you want to keep that as fallback)
-    return 0;
-  };
+  const getProjectEstimatedHours = (project: IProject): number =>
+    computeProjectEstimatedHours(project, contentItems, timeframe, currentDate);
 
   const navigatePeriod = (direction: 'prev' | 'next') => {
     const newDate = new Date(viewDate);

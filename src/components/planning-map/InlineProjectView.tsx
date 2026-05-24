@@ -16,7 +16,9 @@ import CommentThread from '@/components/comments/CommentThread';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import ProjectLogo from '@/components/projects/ProjectLogo';
-import { formatDate } from '@/lib/utils/dateUtils';
+import { formatDate, type TimeframeType } from '@/lib/utils/dateUtils';
+import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
+import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import ChecklistSection from '@/components/checklist/ChecklistSection';
 import AddButton from '@/components/checklist/AddButton';
@@ -58,6 +60,10 @@ interface InlineProjectViewProps {
   /** Open Tasks tab and focus this row (e.g. deep-link from workspace schedule). Cleared by parent via onInitialOpenTaskConsumed. */
   initialOpenTaskIndex?: number | null;
   onInitialOpenTaskConsumed?: () => void;
+  /** Workspace timeframe for project hour rollup. */
+  timeframe?: TimeframeType;
+  /** Reference date for timeframe (defaults to today). */
+  referenceDate?: Date;
 }
 
 type LinkedAssetRow = {
@@ -170,7 +176,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return false;
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
   const [expandedContentComments, setExpandedContentComments] = useState<Set<string>>(new Set());
@@ -200,9 +206,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [viewTab, setViewTab] = useState<'tasks' | 'content'>('tasks');
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
-  const [editingEstHours, setEditingEstHours] = useState(false);
   const [editingEndDate, setEditingEndDate] = useState(false);
   const [projectContentItems, setProjectContentItems] = useState<IContentItem[]>([]);
+  const [estimatingTaskIndices, setEstimatingTaskIndices] = useState<Set<number>>(() => new Set());
+  const estimateTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const hoursSyncRef = useRef(false);
   const [linkedAssets, setLinkedAssets] = useState<LinkedAssetRow[]>([]);
   const [linkedAssetsLoading, setLinkedAssetsLoading] = useState(true);
   const [linkedAssetTypeFilter, setLinkedAssetTypeFilter] = useState('');
@@ -727,6 +735,75 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  const scheduleTaskHourEstimate = useCallback((taskIndex: number, title: string) => {
+    const timers = estimateTimersRef.current;
+    const existing = timers.get(taskIndex);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(async () => {
+      timers.delete(taskIndex);
+      const trimmed = title.trim();
+      if (!trimmed || trimmed === 'New Task') return;
+
+      const task = (localProject.tasks || [])[taskIndex];
+      if (!task) return;
+      const currentHours =
+        typeof task.estimatedHours === 'number'
+          ? task.estimatedHours
+          : parseFloat(String(task.estimatedHours ?? ''));
+      if (Number.isFinite(currentHours) && currentHours > 0) return;
+
+      setEstimatingTaskIndices((prev) => new Set(prev).add(taskIndex));
+      try {
+        const hours = await fetchEstimatedHours({
+          kind: 'task',
+          title: trimmed,
+          description: task.description,
+          projectName: localProject.name,
+        });
+        if (hours != null) {
+          await handleTaskUpdate(taskIndex, 'estimatedHours', hours);
+        }
+      } finally {
+        setEstimatingTaskIndices((prev) => {
+          const next = new Set(prev);
+          next.delete(taskIndex);
+          return next;
+        });
+      }
+    }, 600);
+    timers.set(taskIndex, timer);
+  }, [localProject.tasks, localProject.name]);
+
+  const handleTaskNameSave = async (taskIndex: number, name: string) => {
+    await handleTaskUpdate(taskIndex, 'name', name);
+    scheduleTaskHourEstimate(taskIndex, name);
+  };
+
+  useEffect(() => () => {
+    estimateTimersRef.current.forEach((t) => clearTimeout(t));
+  }, []);
+
+  const computedProjectHours = useMemo(
+    () => computeProjectEstimatedHours(localProject, projectContentItems, timeframe, referenceDate),
+    [localProject, projectContentItems, timeframe, referenceDate]
+  );
+
+  useEffect(() => {
+    if (hoursSyncRef.current) return;
+    const stored = localProject.estimatedHours ?? 0;
+    if (Math.abs(stored - computedProjectHours) < 0.005) return;
+    hoursSyncRef.current = true;
+    onUpdate({ estimatedHours: computedProjectHours })
+      .then(() => {
+        setLocalProject((prev) => ({ ...prev, estimatedHours: computedProjectHours } as IProject));
+      })
+      .catch(() => {})
+      .finally(() => {
+        hoursSyncRef.current = false;
+      });
+  }, [computedProjectHours, localProject.estimatedHours, onUpdate]);
+
   const handleSubmitForReview = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'in-review'); setShowTaskActions(false); };
   const handleCompleteTask = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'completed'); setShowTaskActions(false); };
   const handleDeclineReview = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'active'); setShowTaskActions(false); };
@@ -775,7 +852,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const projectTypeOptions = [{ value: 'internal', label: 'Internal' }, { value: 'client', label: 'Client' }];
   const categoryOptions = [{ value: 'website', label: 'Website' }, { value: 'store', label: 'Store' }, { value: 'app', label: 'App' }, { value: 'generic', label: 'Generic' }];
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
-  const hasEstHours = localProject.estimatedHours != null;
   const hasEndDate = !!localProject.endDate;
   const compactFieldLabelClass =
     'text-sm text-gray-500 rounded px-1 py-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700';
@@ -809,27 +885,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Type:</span><EditableSelect value={localProject.projectType || 'client'} options={projectTypeOptions} onSave={(v) => handleFieldUpdate('projectType', v)} disabled={!isManagerOrAdmin} /></div>
           <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Category:</span><EditableSelect value={localProject.category || 'generic'} options={categoryOptions} onSave={(v) => handleFieldUpdate('category', v)} disabled={!isManagerOrAdmin} /></div>
-          {hasEstHours || editingEstHours ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500">Est. Hours:</span>
-              <EditableNumber
-                value={localProject.estimatedHours}
-                onSave={(v) => handleFieldUpdate('estimatedHours', v)}
-                suffix="h"
-                min={0}
-                disabled={!isManagerOrAdmin}
-                hideWhenEmpty
-                startInEditMode={editingEstHours}
-                onEditEnd={() => setEditingEstHours(false)}
-              />
-            </div>
-          ) : isManagerOrAdmin ? (
-            <button type="button" onClick={() => setEditingEstHours(true)} className={compactFieldLabelClass}>
-              Est. Hours
-            </button>
-          ) : (
-            <span className="text-sm text-gray-500">Est. Hours</span>
-          )}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500">Est. Hours:</span>
+            <span className="font-medium text-gray-900 dark:text-white">{computedProjectHours}h</span>
+          </div>
           {hasEndDate || editingEndDate ? (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">End Date:</span>
@@ -1363,7 +1422,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                             <EditableText
                               value={task.name}
-                              onSave={(v) => handleTaskUpdate(idx, 'name', v)}
+                              onSave={(v) => handleTaskNameSave(idx, v)}
                               className={`font-medium ${task.status === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}
                               placeholder="Task name"
                               autoMultilineAfter={100}
@@ -1389,7 +1448,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <span>→</span>
                             <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} placeholder="End" disabled={!isManagerOrAdmin} />
                           </div>
-                          <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
+                          {estimatingTaskIndices.has(idx) ? (
+                            <span className="text-text-muted italic">Estimating…</span>
+                          ) : (
+                            <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
+                          )}
                           {employees.length > 0 && (
                             <div className="flex items-center gap-1 min-w-[8rem]">
                               <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>

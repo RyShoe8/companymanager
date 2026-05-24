@@ -11,7 +11,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-poppins)', 'var(--font-geist-sans)', 'Arial', 'sans-serif'],
+        sans: ['var(--font-geist-sans)', 'Arial', 'sans-serif'],
         mono: ['var(--font-geist-mono)', 'monospace'],
       },
       animation: {

@@ -28,6 +28,7 @@ import VoiceProvider from '@/components/voice/VoiceProvider';
 import FeedbackLauncher from '@/components/feedback/FeedbackLauncher';
 import VoiceOverlay, { VoiceButton } from '@/components/voice/VoiceOverlay';
 import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmationContext';
+import { fetchEstimatedHoursBatch } from '@/lib/ai/clientEstimateHours';
 import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
 import { ParsedIntent, splitBatchTaskTitles } from '@/lib/voice/IntentParser';
 import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
@@ -559,7 +560,7 @@ export default function WorkspaceShell({
             });
 
             const weekMs = 7 * 24 * 60 * 60 * 1000;
-            const newTasks = cleanedTitles.map((name) => ({
+            const newTasksBase = cleanedTitles.map((name) => ({
                 name,
                 description: '',
                 status: 'active' as TaskStatus,
@@ -568,6 +569,18 @@ export default function WorkspaceShell({
                 estimatedHours: 0,
                 assignedTo: assignEmp?.name ?? '',
                 ...(assignEmp ? { assignedToEmployeeId: assignEmp._id as never } : {}),
+            }));
+
+            const estimates = await fetchEstimatedHoursBatch(
+                cleanedTitles.map((name) => ({
+                    kind: 'task' as const,
+                    title: name,
+                    projectName: target.name,
+                }))
+            );
+            const newTasks = newTasksBase.map((task, i) => ({
+                ...task,
+                estimatedHours: estimates[i] ?? task.estimatedHours,
             }));
 
             const nextTasks = [...(target.tasks || []), ...newTasks];
@@ -596,7 +609,7 @@ export default function WorkspaceShell({
             if (/\bproject\b/i.test(cleanedTaskName) || /\bto\s+(?:the\s+)?project\b/i.test(cleanedTaskName)) {
                 return { success: false, message: 'Task name looked like command text. Please repeat the task title only.' };
             }
-            const newTask = {
+            const newTaskBase = {
                 name: cleanedTaskName,
                 description: '',
                 status: 'active' as TaskStatus,
@@ -604,6 +617,13 @@ export default function WorkspaceShell({
                 endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                 estimatedHours: 0,
                 assignedTo: '',
+            };
+            const [estimatedHours] = await fetchEstimatedHoursBatch([
+                { kind: 'task', title: cleanedTaskName, projectName: target.name },
+            ]);
+            const newTask = {
+                ...newTaskBase,
+                estimatedHours: estimatedHours ?? newTaskBase.estimatedHours,
             };
             const nextTasks = [...(target.tasks || []), newTask];
             const r = await mergePatchProject(target._id.toString(), { tasks: nextTasks });
@@ -1102,6 +1122,9 @@ export default function WorkspaceShell({
                             {!isSchedulingPhase && ws.lens === 'projects' && (
                                 <ProjectsLens
                                     projects={ws.filteredProjects}
+                                    contentItems={ws.contentItems}
+                                    timeframe={ws.timeframe}
+                                    referenceDate={ws.currentDate}
                                     onProjectClick={handleViewProject}
                                 />
                             )}
@@ -1171,6 +1194,8 @@ export default function WorkspaceShell({
                             onContentItemClick={handleContentItemClickFromProject}
                             contentRefreshTrigger={contentRefreshTrigger}
                             onContentListChanged={() => setContentRefreshTrigger((t) => t + 1)}
+                            timeframe={ws.timeframe}
+                            referenceDate={ws.currentDate}
                         />
                     )}
 
