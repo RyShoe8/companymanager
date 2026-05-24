@@ -13,7 +13,8 @@ export interface IProjectTask {
   endDate: Date;
   estimatedHours?: number;
   assignedTo?: string; // Legacy - kept for backward compatibility
-  assignedToEmployeeId?: Types.ObjectId; // New field using employee ID
+  assignedToEmployeeId?: Types.ObjectId; // Legacy single assignment (synced from first in array)
+  assignedToEmployeeIds?: Types.ObjectId[];
   status?: TaskStatus;
 }
 
@@ -221,6 +222,11 @@ const ProjectSchema: Schema = new Schema(
           type: Schema.Types.ObjectId,
           ref: 'Employee',
         },
+        assignedToEmployeeIds: {
+          type: [Schema.Types.ObjectId],
+          ref: 'Employee',
+          default: [],
+        },
         status: {
           type: String,
           enum: ['active', 'completed', 'in-review'],
@@ -268,6 +274,7 @@ ProjectSchema.index({ projectType: 1 });
 ProjectSchema.index({ assignedToEmployeeId: 1 });
 ProjectSchema.index({ assignedToEmployeeIds: 1 });
 ProjectSchema.index({ 'tasks.assignedToEmployeeId': 1 });
+ProjectSchema.index({ 'tasks.assignedToEmployeeIds': 1 });
 ProjectSchema.index({ createdAt: -1 });
 
 const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);

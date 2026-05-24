@@ -22,8 +22,8 @@ import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
-import { labelForPaletteIndex, parseCssColorInput } from '@/lib/utils/cssColorInput';
-import { taskAssigneeSelectOptions } from '@/lib/utils/projectTeam';
+import { labelForPaletteIndex, parseCssColorInput, formatColorPaletteForCopy } from '@/lib/utils/cssColorInput';
+import { taskAssigneeSelectOptions, getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
 import {
   labelForFontPaletteIndex,
   maxFontPaletteEntries,
@@ -144,7 +144,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   if (pid === currentUserEmployeeId) return true;
   const ids = (project as any).assignedToEmployeeIds;
   if (ids?.some((id: any) => id?.toString() === currentUserEmployeeId)) return true;
-  if (project.tasks?.some((t) => (t as any).assignedToEmployeeId?.toString() === currentUserEmployeeId)) return true;
+  if (project.tasks?.some((t) => getTaskAssigneeEmployeeIds(t).includes(currentUserEmployeeId))) return true;
   return false;
 }
 
@@ -157,6 +157,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
+  const [autoEditTaskIndex, setAutoEditTaskIndex] = useState<number | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
   const [credentialSheet, setCredentialSheet] = useState<{
     index: number;
@@ -192,6 +193,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [paletteSheetOpen, setPaletteSheetOpen] = useState(false);
   const [paletteDraft, setPaletteDraft] = useState<string[]>(['#3b82f6']);
   const [paletteSaving, setPaletteSaving] = useState(false);
+  const [paletteCopyFeedback, setPaletteCopyFeedback] = useState(false);
   const [fontSheetOpen, setFontSheetOpen] = useState(false);
   const [fontDraft, setFontDraft] = useState<string[]>(['']);
   const [fontSaving, setFontSaving] = useState(false);
@@ -645,6 +647,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       const emp = employees.find(e => e._id.toString() === value);
       updatedTask.assignedTo = emp ? emp.name : undefined;
     }
+    if (field === 'assignedToEmployeeIds') {
+      const ids = Array.isArray(value) ? value : [];
+      updatedTask.assignedToEmployeeIds = ids;
+      updatedTask.assignedToEmployeeId = ids[0] ?? undefined;
+      const names = ids
+        .map((id: string) => employees.find((e) => e._id.toString() === id)?.name)
+        .filter(Boolean);
+      updatedTask.assignedTo = names.length > 0 ? names.join(', ') : undefined;
+    }
 
     updatedTasks[taskIndex] = updatedTask;
     setLocalProject(prev => ({ ...prev, tasks: updatedTasks } as IProject));
@@ -666,7 +677,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setSelectedTaskIndex(null);
   };
   const handleAddTask = async () => {
-    const newTask = { name: 'New Task', description: '', status: 'active' as TaskStatus, startDate: new Date(), endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), estimatedHours: 0, assignedTo: '' };
+    const newTask = { name: '', description: '', status: 'active' as TaskStatus, startDate: new Date(), endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), estimatedHours: 0 };
     const prevTasks = localProject.tasks || [];
     const nextTasks = [...prevTasks, newTask];
     const newIdx = nextTasks.length - 1;
@@ -674,12 +685,30 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     try {
       await onUpdate({ tasks: nextTasks });
       setViewTab('tasks');
+      setTaskTab('active');
+      setAutoEditTaskIndex(newIdx);
       setPendingScrollToTaskIndex(newIdx);
     } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);
       setPendingScrollToTaskIndex(null);
+      setAutoEditTaskIndex(null);
       alert(error instanceof Error ? error.message : 'Failed to save');
+    }
+  };
+
+  const handleCopyPalette = async () => {
+    const text = formatColorPaletteForCopy(paletteDraft);
+    if (!text) {
+      alert('Add at least one valid color to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setPaletteCopyFeedback(true);
+      window.setTimeout(() => setPaletteCopyFeedback(false), 2000);
+    } catch {
+      alert('Could not copy to clipboard.');
     }
   };
 
@@ -1205,7 +1234,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                            <EditableText value={task.name} onSave={(v) => handleTaskUpdate(idx, 'name', v)} className={`font-medium ${task.status === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`} placeholder="Task name" autoMultilineAfter={100} disabled={!isManagerOrAdmin} />
+                            <EditableText
+                              value={task.name}
+                              onSave={(v) => handleTaskUpdate(idx, 'name', v)}
+                              className={`font-medium ${task.status === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}
+                              placeholder="Task name"
+                              autoMultilineAfter={100}
+                              disabled={!isManagerOrAdmin}
+                              clearValuesOnEdit={['New Task']}
+                              autoEditOnMount={autoEditTaskIndex === idx}
+                              onAutoEditMount={() => {
+                                if (autoEditTaskIndex === idx) setAutoEditTaskIndex(null);
+                              }}
+                            />
                             {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
                           </div>
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -1223,21 +1264,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           </div>
                           <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
                           {employees.length > 0 && (
-                            <div className="flex items-center gap-1 group">
-                              <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                              <EditableSelect
-                                value={(task as any).assignedToEmployeeId?.toString() || ''}
-                                options={[
-                                  { value: '', label: 'Unassigned' },
-                                  ...taskAssigneeSelectOptions(
-                                    employees,
-                                    localProject,
-                                    (task as { assignedToEmployeeId?: unknown }).assignedToEmployeeId
-                                  ),
-                                ]}
-                                onSave={(v: string) => handleTaskUpdate(idx, 'assignedToEmployeeId', v || undefined)}
+                            <div className="flex items-center gap-1 min-w-[8rem]">
+                              <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                              <MultiSelect
+                                value={getTaskAssigneeEmployeeIds(task)}
+                                options={taskAssigneeSelectOptions(employees, localProject, getTaskAssigneeEmployeeIds(task))}
+                                onChange={(selectedIds) => handleTaskUpdate(idx, 'assignedToEmployeeIds', selectedIds)}
                                 disabled={!isManagerOrAdmin}
-                                className="!px-1 !py-0.5 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                                className="text-xs min-w-[8rem]"
                               />
                             </div>
                           )}
@@ -1520,6 +1554,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
             <Button type="button" size="sm" disabled={paletteSaving} onClick={() => void savePaletteFromDraft()}>
               {paletteSaving ? 'Saving…' : 'Save'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={paletteSaving}
+              onClick={() => void handleCopyPalette()}
+            >
+              {paletteCopyFeedback ? 'Copied' : 'Copy palette'}
             </Button>
             <Button
               type="button"

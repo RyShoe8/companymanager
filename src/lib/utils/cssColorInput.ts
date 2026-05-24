@@ -99,3 +99,16 @@ export function parseCssColorInput(raw: string): { ok: true; normalized: string 
 
   return { ok: false };
 }
+
+/** Format valid palette rows as labeled lines for clipboard copy. */
+export function formatColorPaletteForCopy(colors: string[]): string {
+  const lines: string[] = [];
+  let validIndex = 0;
+  for (const raw of colors) {
+    const parsed = parseCssColorInput(raw);
+    if (!parsed.ok) continue;
+    lines.push(`${labelForPaletteIndex(validIndex)}: ${parsed.normalized}`);
+    validIndex += 1;
+  }
+  return lines.join('\n');
+}

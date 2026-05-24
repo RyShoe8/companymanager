@@ -8,6 +8,7 @@ import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import Button from '@/components/ui/Button';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
+import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
 
 interface CalendarViewProps {
   projects: IProject[];
@@ -272,20 +273,30 @@ export default function CalendarView({
     if (pid === currentUserEmployeeId) return true;
     const ids = (project as any).assignedToEmployeeIds;
     if (ids?.some((id: any) => id?.toString() === currentUserEmployeeId)) return true;
-    if (project.tasks?.some((t) => (t as any).assignedToEmployeeId?.toString() === currentUserEmployeeId)) return true;
+    if (project.tasks?.some((t) => getTaskAssigneeEmployeeIds(t).includes(currentUserEmployeeId))) return true;
     return false;
   }
 
+  function formatTaskAssigneeLabel(task: IProjectTask): string | undefined {
+    const ids = getTaskAssigneeEmployeeIds(task);
+    const names = ids
+      .map((id) => getEmployeeName(id, undefined))
+      .filter((name): name is string => Boolean(name));
+    if (names.length > 0) return names.join(', ');
+    return getEmployeeName((task as { assignedToEmployeeId?: { toString(): string } }).assignedToEmployeeId?.toString(), task.assignedTo);
+  }
+
   function taskPassesAssignmentFilter(task: IProjectTask): boolean {
+    const assigneeIds = getTaskAssigneeEmployeeIds(task);
     if (showOnlyMyAssignments) {
       if (!currentUserEmployeeName && !currentUserEmployeeId) return true;
-      const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-      return taskAssignedToId === currentUserEmployeeId || (task as any).assignedTo === currentUserEmployeeName;
+      if (currentUserEmployeeId && assigneeIds.includes(currentUserEmployeeId)) return true;
+      return task.assignedTo === currentUserEmployeeName;
     }
     if (isManagerOrAdmin) return true;
     if (currentUserEmployeeName || currentUserEmployeeId) {
-      const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-      return taskAssignedToId === currentUserEmployeeId || (task as any).assignedTo === currentUserEmployeeName;
+      if (currentUserEmployeeId && assigneeIds.includes(currentUserEmployeeId)) return true;
+      return task.assignedTo === currentUserEmployeeName;
     }
     return true;
   }
@@ -624,8 +635,8 @@ export default function CalendarView({
                                           {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
                                           <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                             {(task as any).estimatedHours && <span>{(task as any).estimatedHours}h</span>}
-                                            {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo) && (
-                                              <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), (task as any).assignedTo)}</span>
+                                            {formatTaskAssigneeLabel(task) && (
+                                              <span>Assigned: {formatTaskAssigneeLabel(task)}</span>
                                             )}
                                             <span className="capitalize">{(task as any).status}</span>
                                           </div>
@@ -1166,8 +1177,8 @@ export default function CalendarView({
                                           )}
                                           <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                             {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                                            {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo) && (
-                                              <span>Assigned: {getEmployeeName((task as any).assignedToEmployeeId?.toString(), task.assignedTo)}</span>
+                                            {formatTaskAssigneeLabel(task) && (
+                                              <span>Assigned: {formatTaskAssigneeLabel(task)}</span>
                                             )}
                                             <span className="capitalize">{task.status}</span>
                                           </div>

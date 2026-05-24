@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import useIsMobile from '@/lib/hooks/useIsMobile';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
@@ -47,8 +46,6 @@ export default function InspectorHost({
     contentRefreshTrigger,
     onContentListChanged,
 }: InspectorHostProps) {
-    const isMobile = useIsMobile();
-
     const { type, id } = useMemo(() => {
         if (!focusId) return { type: null, id: null };
         const parts = focusId.split(':');
@@ -155,44 +152,19 @@ export default function InspectorHost({
         return 'Details';
     };
 
-    if (isMobile || type === 'project') {
-        if (!focusId) return null;
-        return (
-            <BottomSheet
-                isOpen={!!focusId}
-                onClose={onClose}
-                title={getTitle()}
-                maxHeight="90vh"
-                hideCloseButton
-            >
-                <div className="p-0 overflow-y-auto h-full pb-8">
-                    {renderInnerContent()}
-                </div>
-            </BottomSheet>
-        );
-    }
-
-    // Desktop side panel
     if (!focusId) return null;
 
     return (
-        <div className="w-[400px] flex-shrink-0 bg-gray-900 border-l border-gray-800 shadow-xl flex flex-col h-[calc(100vh-64px)] overflow-hidden animate-in slide-in-from-right-8 duration-200">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm z-10">
-                <h3 className="font-semibold text-white truncate max-w-[280px]">
-                    {getTitle()}
-                </h3>
-                <button
-                    onClick={onClose}
-                    className="p-1.5 text-gray-400 hover:text-white rounded-md hover:bg-gray-800 transition-colors"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <div className="flex-1 overflow-y-auto relative">
+        <BottomSheet
+            isOpen={!!focusId}
+            onClose={onClose}
+            title={getTitle()}
+            maxHeight="90vh"
+            hideCloseButton
+        >
+            <div className="p-0 overflow-y-auto h-full pb-8">
                 {renderInnerContent()}
             </div>
-        </div>
+        </BottomSheet>
     );
 }

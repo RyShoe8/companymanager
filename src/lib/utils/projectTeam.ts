@@ -57,24 +57,47 @@ export function filterEmployeesForTaskAssignment(
 export function taskAssigneeSelectOptions(
   employees: IEmployee[],
   project: ProjectTeamSource,
-  currentAssigneeId?: unknown
+  currentAssigneeIds?: unknown | unknown[]
 ): { value: string; label: string }[] {
-  const includeIds = currentAssigneeId ? [currentAssigneeId] : [];
+  const includeIds = Array.isArray(currentAssigneeIds)
+    ? currentAssigneeIds
+    : currentAssigneeIds
+      ? [currentAssigneeIds]
+      : [];
   return filterEmployeesForTaskAssignment(employees, project, { includeEmployeeIds: includeIds }).map(
     (emp) => ({ value: emp._id.toString(), label: emp.name })
   );
 }
 
+/** Returns all assignee employee IDs on a task (array + legacy single field). */
+export function getTaskAssigneeEmployeeIds(task: {
+  assignedToEmployeeIds?: unknown[];
+  assignedToEmployeeId?: unknown;
+}): string[] {
+  const ids: string[] = [];
+  const fromArray = task.assignedToEmployeeIds ?? [];
+  for (const id of fromArray) {
+    const normalized = normalizeEmployeeId(id);
+    if (normalized) ids.push(normalized);
+  }
+  if (ids.length === 0) {
+    const legacy = normalizeEmployeeId(task.assignedToEmployeeId);
+    if (legacy) ids.push(legacy);
+  }
+  return ids;
+}
+
 /** Returns an error message if any task assignee is not on the project team. */
 export function validateTaskAssigneesOnProjectTeam(
   project: ProjectTeamSource,
-  tasks: { assignedToEmployeeId?: unknown }[]
+  tasks: { assignedToEmployeeId?: unknown; assignedToEmployeeIds?: unknown[] }[]
 ): string | null {
   const teamIds = getProjectTeamEmployeeIds(project);
   for (const task of tasks) {
-    const assigneeId = normalizeEmployeeId(task.assignedToEmployeeId);
-    if (assigneeId && !teamIds.has(assigneeId)) {
-      return 'Assignee must be on the project team';
+    for (const assigneeId of getTaskAssigneeEmployeeIds(task)) {
+      if (!teamIds.has(assigneeId)) {
+        return 'Assignee must be on the project team';
+      }
     }
   }
   return null;

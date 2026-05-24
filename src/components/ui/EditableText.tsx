@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
 interface EditableTextProps {
   value: string;
@@ -11,6 +11,11 @@ interface EditableTextProps {
   /** While editing, switch from input to textarea once length reaches this count. */
   autoMultilineAfter?: number;
   disabled?: boolean;
+  /** When entering edit mode, replace these stored values with an empty field. */
+  clearValuesOnEdit?: string[];
+  /** Start in edit mode once on mount (e.g. new task row). */
+  autoEditOnMount?: boolean;
+  onAutoEditMount?: () => void;
 }
 
 export default function EditableText({
@@ -21,19 +26,41 @@ export default function EditableText({
   multiline = false,
   autoMultilineAfter,
   disabled = false,
+  clearValuesOnEdit,
+  autoEditOnMount = false,
+  onAutoEditMount,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const prevUseMultilineRef = useRef(false);
+  const autoEditAppliedRef = useRef(false);
 
   const useMultiline =
     multiline ||
     (autoMultilineAfter != null && editValue.length >= autoMultilineAfter);
 
+  const valueForEdit = useCallback(
+    (raw: string) => (clearValuesOnEdit?.includes(raw) ? '' : raw),
+    [clearValuesOnEdit]
+  );
+
+  const startEditing = useCallback(() => {
+    setEditValue(valueForEdit(value));
+    setIsEditing(true);
+  }, [value, valueForEdit]);
+
   useEffect(() => {
     setEditValue(value);
   }, [value]);
+
+  useEffect(() => {
+    if (!autoEditOnMount || disabled || autoEditAppliedRef.current) return;
+    autoEditAppliedRef.current = true;
+    setEditValue(valueForEdit(value));
+    setIsEditing(true);
+    onAutoEditMount?.();
+  }, [autoEditOnMount, disabled, value, valueForEdit, onAutoEditMount]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -122,7 +149,7 @@ export default function EditableText({
 
   return (
     <span
-      onClick={() => setIsEditing(true)}
+      onClick={startEditing}
       className={`${className} cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5 transition-colors ${
         !value ? 'text-gray-400 italic' : ''
       }`}

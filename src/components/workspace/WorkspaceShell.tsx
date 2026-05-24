@@ -60,6 +60,8 @@ export default function WorkspaceShell({
     } | null>(null);
 
     const [inspectorFocus, setInspectorFocus] = useState<string | null>(null);
+    /** When opening content from the project inspector, restore this focus on close. */
+    const [inspectorReturnFocus, setInspectorReturnFocus] = useState<string | null>(null);
     /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
 
@@ -104,9 +106,26 @@ export default function WorkspaceShell({
     };
 
     const closeInspector = useCallback(() => {
+        if (inspectorFocus?.startsWith('content:') && inspectorReturnFocus) {
+            setInspectorFocus(inspectorReturnFocus);
+            setInspectorReturnFocus(null);
+            return;
+        }
         setInspectorFocus(null);
+        setInspectorReturnFocus(null);
         setInspectorOpenTaskIndex(null);
-    }, []);
+    }, [inspectorFocus, inspectorReturnFocus]);
+
+    const handleContentItemClickFromProject = useCallback(
+        (item: IContentItem) => {
+            setInspectorReturnFocus((prev) => {
+                if (inspectorFocus?.startsWith('project:')) return inspectorFocus;
+                return prev;
+            });
+            setInspectorFocus(`content:${item._id}`);
+        },
+        [inspectorFocus]
+    );
 
     const handleViewProject = useCallback((project: IProject) => {
         setInspectorOpenTaskIndex(null);
@@ -687,7 +706,23 @@ export default function WorkspaceShell({
                 return { success: false, message: `Add ${emp.name} to the project team first` };
             }
             const tasks = [...(m.project.tasks || [])];
-            tasks[m.taskIdx] = { ...tasks[m.taskIdx], assignedToEmployeeId: emp._id as never, assignedTo: emp.name };
+            const task = tasks[m.taskIdx];
+            const existingIds = ((task as { assignedToEmployeeIds?: unknown[] }).assignedToEmployeeIds || []).map((id) =>
+                typeof id === 'string' ? id : (id as { toString: () => string }).toString()
+            );
+            const legacyId = (task as { assignedToEmployeeId?: { toString(): string } }).assignedToEmployeeId?.toString();
+            const mergedIds = existingIds.length > 0 ? existingIds : legacyId ? [legacyId] : [];
+            const idStr = emp._id.toString();
+            const nextIds = mergedIds.includes(idStr) ? mergedIds : [...mergedIds, idStr];
+            const names = nextIds
+                .map((id) => ws.employees.find((e) => e._id.toString() === id)?.name)
+                .filter(Boolean);
+            tasks[m.taskIdx] = {
+                ...task,
+                assignedToEmployeeIds: nextIds as never,
+                assignedToEmployeeId: nextIds[0] as never,
+                assignedTo: names.join(', '),
+            };
             const r = await mergePatchProject(m.project._id.toString(), { tasks });
             return r.ok ? { success: true, message: `Assigned task to ${emp.name}` } : { success: false, message: r.message };
         }
@@ -1045,7 +1080,7 @@ export default function WorkspaceShell({
                                                 setAddContentProject(project);
                                                 setAddContentDefaultDate(defaultDate);
                                             }}
-                                            onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
+                                            onContentItemClick={handleContentItemClickFromProject}
                                             scheduleMode={ws.scheduleMode}
                                             onScheduleModeChange={ws.setScheduleMode}
                                         />
@@ -1085,31 +1120,6 @@ export default function WorkspaceShell({
                                 </div>
                             )}
                         </div>
-
-                        {/* Desktop Inspector Sidebar */}
-                        {!isMobile && inspectorFocus && (
-                            <div className="hidden lg:block sticky top-[30px]" style={{ height: 'calc(100vh - 60px)' }}>
-                                <InspectorHost
-                                    focusId={inspectorFocus}
-                                    onClose={closeInspector}
-                                    projects={ws.allProjects}
-                                    employees={ws.employees}
-                                    isManagerOrAdmin={ws.isManagerOrAdmin}
-                                    currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
-                                    onRefresh={() => ws.loadData({ silent: true })}
-                                    onProjectPatched={ws.patchProjectInState}
-                                    initialOpenTaskIndex={inspectorOpenTaskIndex}
-                                    onInitialOpenTaskConsumed={() => setInspectorOpenTaskIndex(null)}
-                                    onAddContent={(project) => {
-                                        setAddContentVoicePrefill(null);
-                                        setAddContentProject(project);
-                                    }}
-                                    onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
-                                    contentRefreshTrigger={contentRefreshTrigger}
-                                    onContentListChanged={() => setContentRefreshTrigger((t) => t + 1)}
-                                />
-                            </div>
-                        )}
                     </div>
 
                     {/* ===== Modals & Sheets ===== */}
@@ -1142,8 +1152,7 @@ export default function WorkspaceShell({
                         }}
                     />
 
-                    {/* Mobile Inspector Bottom Sheet */}
-                    {isMobile && inspectorFocus && (
+                    {inspectorFocus && (
                         <InspectorHost
                             focusId={inspectorFocus}
                             onClose={closeInspector}
@@ -1159,7 +1168,7 @@ export default function WorkspaceShell({
                                 setAddContentVoicePrefill(null);
                                 setAddContentProject(project);
                             }}
-                            onContentItemClick={(item) => setInspectorFocus(`content:${item._id}`)}
+                            onContentItemClick={handleContentItemClickFromProject}
                             contentRefreshTrigger={contentRefreshTrigger}
                             onContentListChanged={() => setContentRefreshTrigger((t) => t + 1)}
                         />

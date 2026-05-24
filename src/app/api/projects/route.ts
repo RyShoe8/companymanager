@@ -237,9 +237,21 @@ export async function POST(request: NextRequest) {
           endDate,
         };
 
-        // Handle employee assignment for tasks - prefer employeeId over name
-        if (task.assignedToEmployeeId) {
+        // Handle employee assignment for tasks - prefer employeeIds array, then single id, then legacy name
+        if (task.assignedToEmployeeIds !== undefined) {
+          if (!Array.isArray(task.assignedToEmployeeIds) || task.assignedToEmployeeIds.length === 0) {
+            taskData.assignedToEmployeeIds = [];
+            taskData.assignedToEmployeeId = undefined;
+            taskData.assignedTo = undefined;
+          } else {
+            taskData.assignedToEmployeeIds = task.assignedToEmployeeIds.map((id: string) => new Types.ObjectId(id));
+            const assignedEmployees = await Employee.find({ _id: { $in: taskData.assignedToEmployeeIds } });
+            taskData.assignedTo = assignedEmployees.map((e) => e.name).join(', ');
+            taskData.assignedToEmployeeId = taskData.assignedToEmployeeIds[0];
+          }
+        } else if (task.assignedToEmployeeId) {
           taskData.assignedToEmployeeId = new Types.ObjectId(task.assignedToEmployeeId);
+          taskData.assignedToEmployeeIds = [taskData.assignedToEmployeeId];
           const assignedEmployee = await Employee.findById(task.assignedToEmployeeId);
           if (assignedEmployee) {
             taskData.assignedTo = assignedEmployee.name;
@@ -252,6 +264,7 @@ export async function POST(request: NextRequest) {
           });
           if (assignedEmployee) {
             taskData.assignedToEmployeeId = assignedEmployee._id;
+            taskData.assignedToEmployeeIds = [assignedEmployee._id];
           }
           taskData.assignedTo = task.assignedTo;
         }
