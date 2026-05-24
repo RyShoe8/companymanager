@@ -3,8 +3,18 @@
 import { useState, useEffect, ReactNode, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-// Track how many BottomSheets are open to manage body overflow correctly
+// Track how many BottomSheets are open to manage page overflow correctly
 let openBottomSheetCount = 0;
+
+function lockPageScroll() {
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+}
+
+function unlockPageScroll() {
+  document.documentElement.style.overflow = '';
+  document.body.style.overflow = '';
+}
 
 interface BottomSheetProps { isOpen: boolean; onClose: () => void; title?: string; children: ReactNode; showHandle?: boolean; maxHeight?: string; hideCloseButton?: boolean; /** Use higher z-index so this sheet appears above other overlays. */ elevated?: boolean; }
 
@@ -15,6 +25,7 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
   const [startY, setStartY] = useState(0);
   const [mounted, setMounted] = useState(false);
   const wasOpen = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMounted(true); }, []);
   
@@ -24,7 +35,7 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
       openBottomSheetCount++;
       wasOpen.current = true;
       setShouldRender(true);
-      document.body.style.overflow = 'hidden';
+      lockPageScroll();
     } else if (!isOpen && wasOpen.current) {
       // Closing - use timeout to allow animation to complete, then unmount
       openBottomSheetCount--;
@@ -36,7 +47,7 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
       const timer = setTimeout(() => {
         setShouldRender(false);
         if (openBottomSheetCount <= 0) {
-          document.body.style.overflow = '';
+          unlockPageScroll();
         }
       }, 350); // Slightly longer than 300ms transition
       return () => clearTimeout(timer);
@@ -50,11 +61,23 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
         openBottomSheetCount = Math.max(0, openBottomSheetCount - 1);
         wasOpen.current = false;
         if (openBottomSheetCount <= 0) {
-          document.body.style.overflow = '';
+          unlockPageScroll();
         }
       }
     };
   }, []);
+
+  const handleSheetWheel = (e: React.WheelEvent) => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+    if (scrollEl.contains(e.target as Node)) return;
+    e.preventDefault();
+    scrollEl.scrollTop += e.deltaY;
+  };
+
+  const handleBackdropWheel = (e: React.WheelEvent) => {
+    if (e.target === e.currentTarget) e.preventDefault();
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => { setStartY(e.touches[0].clientY); setIsDragging(true); };
   const handleTouchMove = (e: React.TouchEvent) => { if (!isDragging) return; const diff = e.touches[0].clientY - startY; if (diff > 0) setDragOffset(diff); };
@@ -65,17 +88,23 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
 
   const zClass = elevated ? 'z-[60]' : 'z-50';
   return createPortal(
-    <div 
-      className={`fixed inset-0 ${zClass} flex items-end justify-center transition-colors duration-300 ${isOpen ? 'bg-black/50' : 'bg-transparent pointer-events-none'}`} 
+    <div
+      className={`fixed inset-0 ${zClass} flex items-end justify-center transition-colors duration-300 overscroll-y-contain ${isOpen ? 'bg-black/50' : 'bg-transparent pointer-events-none'}`}
       onClick={isOpen ? handleBackdropClick : undefined}
+      onWheel={isOpen ? handleBackdropWheel : undefined}
     >
-      <div 
-        className={`w-full bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
+      <div
+        className={`w-full bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out flex flex-col ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
         style={{ maxHeight, transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined }}
+        onWheel={handleSheetWheel}
       >
-        {showHandle && <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}><div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" /></div>}
+        {showHandle && (
+          <div className="flex-shrink-0 flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+          </div>
+        )}
         {title && (
-          <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
             {!hideCloseButton && (
               <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 -mr-1" aria-label="Close">
@@ -86,7 +115,9 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
             )}
           </div>
         )}
-        <div className="overflow-y-auto" style={{ maxHeight: `calc(${maxHeight} - 60px)` }}>{children}</div>
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+          {children}
+        </div>
       </div>
     </div>,
     document.body

@@ -162,7 +162,7 @@ export default function InspectorHost({
             maxHeight="90vh"
             hideCloseButton
         >
-            <div className="p-0 overflow-y-auto h-full pb-8">
+            <div className="pb-8">
                 {renderInnerContent()}
             </div>
         </BottomSheet>
