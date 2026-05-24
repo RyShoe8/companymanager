@@ -2,13 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { IComment } from '@/lib/models/Comment';
-import { IAsset } from '@/lib/models/Asset';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
-import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
-import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
-import { deleteLinkedAsset, canUserDeleteAsset } from '@/lib/utils/linkedAssets';
+import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
 
 interface CommentThreadProps {
   entityType: 'project' | 'projectTask' | 'contentItem';
@@ -22,6 +18,8 @@ interface CommentThreadProps {
   pollIntervalMs?: number;
   /** Managers/admins can delete any asset in this thread. */
   isManagerOrAdmin?: boolean;
+  /** When false, screenshot gallery is not shown (parent renders it elsewhere). */
+  showScreenshotGallery?: boolean;
 }
 
 interface CommentWithReplies extends IComment {
@@ -37,6 +35,7 @@ export default function CommentThread({
   showHeading = true,
   pollIntervalMs,
   isManagerOrAdmin = false,
+  showScreenshotGallery = true,
 }: CommentThreadProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -45,10 +44,6 @@ export default function CommentThread({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(true);
-  const [screenshots, setScreenshots] = useState<IAsset[]>([]);
-  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
-  const [assetPendingDelete, setAssetPendingDelete] = useState<IAsset | null>(null);
-  const [deletingAsset, setDeletingAsset] = useState(false);
   const [fetchedUserId, setFetchedUserId] = useState<string | undefined>();
   const currentUserId = currentUserIdProp ?? fetchedUserId;
 
@@ -57,7 +52,7 @@ export default function CommentThread({
       fetch('/api/auth/me')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => data?.id && setFetchedUserId(data.id))
-        .catch(() => { });
+        .catch(() => {});
     }
   }, [currentUserIdProp]);
 
@@ -78,7 +73,7 @@ export default function CommentThread({
         const data = await response.json();
         setComments(data);
       }
-    } catch (error) {
+    } catch {
       // Error loading comments
     } finally {
       setLoading(false);
@@ -90,58 +85,12 @@ export default function CommentThread({
   }, [loadComments]);
 
   useEffect(() => {
-    loadScreenshots();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entityType, entityId, taskIndex, taskId]);
-
-  useEffect(() => {
     if (!pollIntervalMs || pollIntervalMs < 1000) return;
     const id = setInterval(() => {
       loadComments();
     }, pollIntervalMs);
     return () => clearInterval(id);
   }, [pollIntervalMs, loadComments]);
-
-  const loadScreenshots = async () => {
-    try {
-      let url = '/api/assets?type=screenshot';
-      if (entityType === 'projectTask') {
-        if (taskId) {
-          url += `&linkedProjectTaskId=${taskId}`;
-        } else if (taskIndex !== undefined) {
-          url += `&linkedProjectTaskIndex=${taskIndex}`;
-        }
-      } else if (entityType === 'project') {
-        url += `&linkedProjectId=${entityId}`;
-      } else if (entityType === 'contentItem') {
-        url += `&linkedContentItemId=${entityId}`;
-      }
-
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        setScreenshots(data);
-      }
-    } catch (error) {
-      // Error loading screenshots
-    }
-  };
-
-  const confirmDeleteScreenshot = async () => {
-    if (!assetPendingDelete) return;
-    setDeletingAsset(true);
-    const result = await deleteLinkedAsset(assetPendingDelete._id.toString());
-    if (result.ok) {
-      setAssetPendingDelete(null);
-      if (previewImage && assetPendingDelete.fileUrl === previewImage.src) {
-        setPreviewImage(null);
-      }
-      await loadScreenshots();
-    } else {
-      alert(result.error ?? 'Could not delete asset.');
-    }
-    setDeletingAsset(false);
-  };
 
   const handleSubmitComment = async (e: React.FormEvent | React.MouseEvent, parentId?: string) => {
     if (e && 'preventDefault' in e) {
@@ -151,7 +100,7 @@ export default function CommentThread({
     if (!content.trim()) return;
 
     try {
-      const body: any = {
+      const body: Record<string, unknown> = {
         content,
         entityType,
         entityId,
@@ -179,7 +128,7 @@ export default function CommentThread({
         setReplyingTo(null);
         loadComments();
       }
-    } catch (error) {
+    } catch {
       // Error submitting comment
     }
   };
@@ -200,7 +149,7 @@ export default function CommentThread({
         setEditContent('');
         loadComments();
       }
-    } catch (error) {
+    } catch {
       // Error editing comment
     }
   };
@@ -218,7 +167,7 @@ export default function CommentThread({
         setEditContent('');
         loadComments();
       }
-    } catch (error) {
+    } catch {
       // Error deleting comment
     }
   };
@@ -236,7 +185,7 @@ export default function CommentThread({
 
   const renderComment = (comment: CommentWithReplies, depth: number = 0) => {
     const isAuthor = currentUserId && comment.authorId.toString() === currentUserId;
-    const maxDepth = 3; // Limit nesting depth
+    const maxDepth = 3;
 
     return (
       <div key={comment._id.toString()} className={`${depth > 0 ? 'ml-6 mt-3 border-l-2 border-gray-200 dark:border-gray-700 pl-4' : ''}`}>
@@ -334,14 +283,14 @@ export default function CommentThread({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleSubmitComment(e as any, comment._id.toString());
+                    handleSubmitComment(e as React.FormEvent, comment._id.toString());
                   }
                 }}
               />
               <Button
                 type="button"
                 size="sm"
-                onClick={(e) => handleSubmitComment(e as any, comment._id.toString())}
+                onClick={(e) => handleSubmitComment(e, comment._id.toString())}
                 className="h-[38px] min-h-0"
               >
                 Reply
@@ -378,37 +327,15 @@ export default function CommentThread({
         )}
       </div>
 
-      {screenshots.length > 0 && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Screenshots</label>
-          <div className="grid grid-cols-4 gap-2">
-            {screenshots.map((screenshot) => (
-              <div key={screenshot._id.toString()} className="relative group">
-                <button
-                  type="button"
-                  className="w-full aspect-[4/3] rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity overflow-hidden bg-gray-100 dark:bg-gray-800"
-                  onClick={() => screenshot.fileUrl && setPreviewImage({ src: screenshot.fileUrl, title: screenshot.name })}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={screenshot.fileUrl}
-                    alt={screenshot.name}
-                    className="w-full h-full object-contain"
-                  />
-                </button>
-                {canUserDeleteAsset(screenshot.userId, currentUserId, isManagerOrAdmin) && (
-                  <HoverDeleteButton
-                    label={`Delete ${screenshot.name}`}
-                    onClick={() => setAssetPendingDelete(screenshot)}
-                  />
-                )}
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate" title={screenshot.name}>
-                  {screenshot.name}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+      {showScreenshotGallery && (
+        <ScreenshotGallery
+          entityType={entityType}
+          entityId={entityId}
+          taskId={taskId}
+          taskIndex={taskIndex}
+          isManagerOrAdmin={isManagerOrAdmin}
+          currentUserId={currentUserId}
+        />
       )}
 
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -421,36 +348,20 @@ export default function CommentThread({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSubmitComment(e as any);
+                handleSubmitComment(e);
               }
             }}
           />
           <Button
             type="button"
             size="sm"
-            onClick={(e) => handleSubmitComment(e as any)}
+            onClick={(e) => handleSubmitComment(e)}
             className="h-[38px] min-h-0"
           >
             Post
           </Button>
         </div>
       </div>
-      <ImagePreviewModal
-        isOpen={previewImage !== null}
-        onClose={() => setPreviewImage(null)}
-        src={previewImage?.src ?? null}
-        title={previewImage?.title}
-      />
-      <AssetDeleteConfirmModal
-        isOpen={assetPendingDelete !== null}
-        assetName={assetPendingDelete?.name ?? ''}
-        assetTypeLabel="screenshot"
-        deleting={deletingAsset}
-        onCancel={() => {
-          if (!deletingAsset) setAssetPendingDelete(null);
-        }}
-        onConfirm={() => void confirmDeleteScreenshot()}
-      />
     </div>
   );
 }

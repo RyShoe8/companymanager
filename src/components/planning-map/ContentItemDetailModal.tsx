@@ -295,7 +295,7 @@ export default function ContentItemDetailModal({
           </div>
           {expandedComments && (
             <div className="mt-2">
-              <CommentThread entityType="contentItem" entityId={contentItemId} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} />
+              <CommentThread entityType="contentItem" entityId={contentItemId} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} showScreenshotGallery={false} />
             </div>
           )}
         </div>

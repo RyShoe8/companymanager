@@ -32,6 +32,7 @@ import {
 } from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
+import ContentLinkedAssets from '@/components/planning-map/ContentLinkedAssets';
 import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/lib/utils/linkedAssets';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
@@ -1267,10 +1268,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       </div>
                       {expandedContentComments.has(itemId) && (
                         <div className="mt-2">
-                          <CommentThread entityType="contentItem" entityId={itemId} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} />
+                          <CommentThread entityType="contentItem" entityId={itemId} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} showScreenshotGallery={false} />
                         </div>
                       )}
                     </div>
+                    <ContentLinkedAssets
+                      project={localProject}
+                      contentItemId={itemId}
+                      isManagerOrAdmin={isManagerOrAdmin}
+                    />
                   </div>
                   );
                 })}
@@ -1347,7 +1353,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           </div>
                           {expandedTaskComments.has(idx) && (
                             <div className="mt-2">
-                              <CommentThread entityType="projectTask" entityId={localProject._id.toString()} taskIndex={idx} taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} />
+                              <CommentThread entityType="projectTask" entityId={localProject._id.toString()} taskIndex={idx} taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} showScreenshotGallery={false} />
                             </div>
                           )}
                         </div>

@@ -5,6 +5,7 @@ import { IProject } from '@/lib/models/Project';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import Button from '@/components/ui/Button';
 import AddButton from '@/components/checklist/AddButton';
+import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
 import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import { parseDelimitedList } from '@/lib/constants/contentDistribution';
@@ -50,6 +51,7 @@ export default function ContentTargetingSection({
   onRemovePendingAsset,
 }: ContentTargetingSectionProps) {
   const [linkedAssets, setLinkedAssets] = useState<LinkedAssetChip[]>([]);
+  const [screenshotRefreshToken, setScreenshotRefreshToken] = useState(0);
   const projectId = project._id.toString();
   const phase = mapStatusToStage(project.status);
   const projectType = project.projectType || 'generic';
@@ -139,21 +141,35 @@ export default function ContentTargetingSection({
           <div>
             <label className="block text-sm font-medium text-text-primary mb-2">Assets</label>
             {isManagerOrAdmin && (
-              <AddButton
-                projectId={projectId}
-                phase={phase}
-                projectType={projectType}
-                isManagerOrAdmin={isManagerOrAdmin}
-                label="Add asset"
-                mode={mode}
-                linkContext={{
-                  linkedProjectId: projectId,
-                  ...(contentItemId ? { linkedContentItemId: contentItemId } : {}),
-                }}
-                onPendingAsset={onPendingAsset}
-                onDocumentCreated={() => void loadLinkedAssets()}
-                onAddButton={async () => {}}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                {contentItemId && mode === 'live' && (
+                  <ScreenshotGallery
+                    compact
+                    entityType="contentItem"
+                    entityId={contentItemId}
+                    isManagerOrAdmin={isManagerOrAdmin}
+                    refreshToken={screenshotRefreshToken}
+                  />
+                )}
+                <AddButton
+                  projectId={projectId}
+                  phase={phase}
+                  projectType={projectType}
+                  isManagerOrAdmin={isManagerOrAdmin}
+                  label="Add asset"
+                  mode={mode}
+                  linkContext={{
+                    linkedProjectId: projectId,
+                    ...(contentItemId ? { linkedContentItemId: contentItemId } : {}),
+                  }}
+                  onPendingAsset={onPendingAsset}
+                  onDocumentCreated={() => {
+                    void loadLinkedAssets();
+                    setScreenshotRefreshToken((n) => n + 1);
+                  }}
+                  onAddButton={async () => {}}
+                />
+              </div>
             )}
             {mode === 'draft' && pendingAssets.length > 0 && (
               <ul className="mt-2 space-y-1">
@@ -171,9 +187,9 @@ export default function ContentTargetingSection({
                 ))}
               </ul>
             )}
-            {mode === 'live' && linkedAssets.length > 0 && (
+            {mode === 'live' && linkedAssets.filter((a) => a.type !== 'screenshot').length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {linkedAssets.map((asset) => {
+                {linkedAssets.filter((a) => a.type !== 'screenshot').map((asset) => {
                   const href = linkedAssetHref(asset);
                   return href ? (
                     <a
