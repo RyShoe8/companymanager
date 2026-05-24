@@ -154,6 +154,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
 export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
+  const [expandedContentComments, setExpandedContentComments] = useState<Set<string>>(new Set());
   const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null);
   const [showTaskActions, setShowTaskActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -424,6 +425,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setExpandedTaskComments(prev => {
       const newSet = new Set(prev);
       newSet.has(taskIdx) ? newSet.delete(taskIdx) : newSet.add(taskIdx);
+      return newSet;
+    });
+  };
+
+  const toggleContentComments = (contentItemId: string) => {
+    setExpandedContentComments((prev) => {
+      const newSet = new Set(prev);
+      newSet.has(contentItemId) ? newSet.delete(contentItemId) : newSet.add(contentItemId);
       return newSet;
     });
   };
@@ -1223,8 +1232,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <div className="text-center text-gray-500 py-6">No {contentTab} content yet. Add content from the calendar or here.</div>
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-700 space-y-0">
-                {projectContentItems.filter(c => contentTab === 'active' ? c.status !== 'published' : c.status === 'published').map((item) => (
-                  <div key={item._id.toString()} className="flex items-center justify-between gap-2 py-3 first:pt-0">
+                {projectContentItems.filter(c => contentTab === 'active' ? c.status !== 'published' : c.status === 'published').map((item) => {
+                  const itemId = item._id.toString();
+                  return (
+                  <div key={itemId} className="py-3 first:pt-0">
+                    <div className="flex items-center justify-between gap-2">
                     <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
                       <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{item.title}</span>
                       <span className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
@@ -1237,8 +1249,28 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       </span>
                     </button>
                     <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm px-2 py-1 shrink-0">Delete</button>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between gap-2">
+                        <button type="button" onClick={() => toggleContentComments(itemId)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                          <span className="text-xs">{expandedContentComments.has(itemId) ? '▼' : '▶'}</span> Comments
+                        </button>
+                        {!expandedContentComments.has(itemId) && (
+                          <EntityScreenshotButton
+                            entityType="contentItem"
+                            entityId={itemId}
+                          />
+                        )}
+                      </div>
+                      {expandedContentComments.has(itemId) && (
+                        <div className="mt-2">
+                          <CommentThread entityType="contentItem" entityId={itemId} showHeading={false} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

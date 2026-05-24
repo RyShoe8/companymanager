@@ -1,4 +1,4 @@
-export const DISTRIBUTION_METHODS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Reddit', 'Bluesky', 'Email'] as const;
+export const DISTRIBUTION_METHODS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Reddit', 'Bluesky', 'Email', 'Facebook', 'YouTube'] as const;
 
 export type DistributionMethod = (typeof DISTRIBUTION_METHODS)[number];
 

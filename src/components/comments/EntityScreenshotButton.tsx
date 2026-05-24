@@ -3,7 +3,7 @@
 import Button from '@/components/ui/Button';
 
 interface EntityScreenshotButtonProps {
-  entityType: 'project' | 'projectTask';
+  entityType: 'project' | 'projectTask' | 'contentItem';
   entityId: string;
   taskIndex?: number;
   taskId?: string;
@@ -36,6 +36,8 @@ export default function EntityScreenshotButton({
           } else if (taskIndex !== undefined) {
             formData.append('linkedProjectTaskIndex', taskIndex.toString());
           }
+        } else if (entityType === 'contentItem') {
+          formData.append('linkedContentItemId', entityId);
         }
 
         const response = await fetch('/api/assets/upload', {

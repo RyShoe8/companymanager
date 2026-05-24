@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button';
 import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 
 interface CommentThreadProps {
-  entityType: 'project' | 'projectTask';
+  entityType: 'project' | 'projectTask' | 'contentItem';
   entityId: string;
   taskIndex?: number;
   /** Stable task reference (prefer over taskIndex). */
@@ -103,6 +103,8 @@ export default function CommentThread({
         } else if (taskIndex !== undefined) {
           url += `&linkedProjectTaskIndex=${taskIndex}`;
         }
+      } else if (entityType === 'contentItem') {
+        url += `&linkedContentItemId=${entityId}`;
       }
 
       const response = await fetch(url);

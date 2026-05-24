@@ -10,6 +10,8 @@ import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import ContentTargetingSection, { parseKeywordsInput } from '@/components/planning-map/ContentTargetingSection';
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
+import CommentThread from '@/components/comments/CommentThread';
+import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 
 const CHANNELS: ContentChannel[] = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'];
 const STATUSES: ContentStatus[] = ['idea', 'planned', 'in_progress', 'ready', 'published'];
@@ -63,6 +65,7 @@ export default function ContentItemDetailModal({
   const [distributionMethods, setDistributionMethods] = useState<DistributionMethod[]>([]);
   const [estimatedHours, setEstimatedHours] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [expandedComments, setExpandedComments] = useState(false);
 
   useEffect(() => {
     if (projectProp) setProject(projectProp);
@@ -279,6 +282,31 @@ export default function ContentItemDetailModal({
           contentItemId={contentItemId ?? undefined}
           mode="live"
         />
+      )}
+
+      {contentItemId && (
+        <div className="pt-3 border-t border-border">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setExpandedComments((prev) => !prev)}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+            >
+              <span className="text-xs">{expandedComments ? '▼' : '▶'}</span> Comments
+            </button>
+            {!expandedComments && (
+              <EntityScreenshotButton
+                entityType="contentItem"
+                entityId={contentItemId}
+              />
+            )}
+          </div>
+          {expandedComments && (
+            <div className="mt-2">
+              <CommentThread entityType="contentItem" entityId={contentItemId} showHeading={false} />
+            </div>
+          )}
+        </div>
       )}
 
       {error && <div className="text-red-500 text-sm">{error}</div>}

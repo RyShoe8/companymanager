@@ -2,7 +2,7 @@ import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type ContentChannel = 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Email' | 'Article' | 'Video' | 'Reddit' | 'Bluesky' | 'Other';
 export type ContentStatus = 'idea' | 'planned' | 'in_progress' | 'ready' | 'published';
-export type DistributionMethod = 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Reddit' | 'Bluesky' | 'Email';
+export type DistributionMethod = 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Reddit' | 'Bluesky' | 'Email' | 'Facebook' | 'YouTube';
 
 export interface IContentItem extends Document {
   projectId: Types.ObjectId;
@@ -46,7 +46,7 @@ const ContentItemSchema: Schema = new Schema(
     externalUrl: { type: String, trim: true },
     distributionMethods: {
       type: [String],
-      enum: ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Reddit', 'Bluesky', 'Email'],
+      enum: ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Reddit', 'Bluesky', 'Email', 'Facebook', 'YouTube'],
       default: [],
     },
     estimatedHours: { type: Number, min: 0 },
