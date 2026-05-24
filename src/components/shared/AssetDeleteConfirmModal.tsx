@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 
@@ -20,8 +22,16 @@ export default function AssetDeleteConfirmModal({
   onCancel,
   onConfirm,
 }: AssetDeleteConfirmModalProps) {
-  return (
-    <Modal isOpen={isOpen} onClose={onCancel} title="Delete asset?" maxWidth="sm" elevated>
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <Modal isOpen={isOpen} onClose={onCancel} title="Delete asset?" maxWidth="sm" elevated stackAboveOverlays>
       <div className="space-y-4">
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Are you sure you want to delete{' '}
@@ -40,6 +50,7 @@ export default function AssetDeleteConfirmModal({
           </Button>
         </div>
       </div>
-    </Modal>
+    </Modal>,
+    document.body
   );
 }

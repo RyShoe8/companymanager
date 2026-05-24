@@ -11,8 +11,6 @@ import ContentTargetingSection, { parseKeywordsInput } from '@/components/planni
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
 import CommentThread from '@/components/comments/CommentThread';
-import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
-
 const CHANNELS: ContentChannel[] = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'];
 const STATUSES: ContentStatus[] = ['idea', 'planned', 'in_progress', 'ready', 'published'];
 
@@ -294,12 +292,6 @@ export default function ContentItemDetailModal({
             >
               <span className="text-xs">{expandedComments ? '▼' : '▶'}</span> Comments
             </button>
-            {!expandedComments && (
-              <EntityScreenshotButton
-                entityType="contentItem"
-                entityId={contentItemId}
-              />
-            )}
           </div>
           {expandedComments && (
             <div className="mt-2">

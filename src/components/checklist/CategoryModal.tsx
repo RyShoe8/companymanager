@@ -1,10 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
 import SocialIcon from '@/components/projects/SocialIcon';
+import ScreenshotNameDialog from '@/components/shared/ScreenshotNameDialog';
 import { detectSocialNetwork, parseSocialLinkInput, SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
+import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
+import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
+import type { ScreenshotUploadTarget } from '@/lib/uploadScreenshotAsset';
 
 interface CatalogEntry {
   _id: string;
@@ -15,7 +19,7 @@ interface CatalogEntry {
   projectTypes?: string[];
 }
 
-type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more' | 'social';
+type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more' | 'social' | 'screenshot';
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
@@ -105,8 +109,49 @@ export default function CategoryModal({
   const [socialUrl, setSocialUrl] = useState('');
   const [addingSocial, setAddingSocial] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const screenshotFileInputRef = useRef<HTMLInputElement>(null);
 
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
+
+  const screenshotTarget = useMemo<ScreenshotUploadTarget | null>(() => {
+    if (linkContext?.linkedProjectTaskId) {
+      return {
+        entityType: 'projectTask',
+        entityId: linkContext.linkedProjectId ?? projectId,
+        taskId: linkContext.linkedProjectTaskId,
+      };
+    }
+    if (linkContext?.linkedContentItemId) {
+      return {
+        entityType: 'contentItem',
+        entityId: linkContext.linkedContentItemId,
+      };
+    }
+    const pid = linkContext?.linkedProjectId ?? projectId;
+    if (pid) {
+      return { entityType: 'project', entityId: pid };
+    }
+    return null;
+  }, [linkContext, projectId]);
+
+  const screenshotCaptureSupported = isScreenshotCaptureSupported();
+  const {
+    statusMessage: screenshotStatusMessage,
+    errorMessage: screenshotErrorMessage,
+    isBusy: screenshotBusy,
+    isNaming: screenshotNaming,
+    suggestedName: screenshotSuggestedName,
+    uploadFromFiles: screenshotUploadFromFiles,
+    captureAndUpload: screenshotCaptureAndUpload,
+    confirmName: screenshotConfirmName,
+    cancelNaming: screenshotCancelNaming,
+  } = useScreenshotUpload(
+    screenshotTarget ?? { entityType: 'project', entityId: projectId },
+    () => {
+      onDocumentCreated?.();
+      onClose();
+    }
+  );
   const isEntityContext = !!(linkContext?.linkedContentItemId || linkContext?.linkedProjectTaskId);
   const useAssetFlow = isEntityContext || mode === 'draft';
   const entitySubmitLabel = linkContext?.linkedProjectTaskId
@@ -273,6 +318,7 @@ export default function CategoryModal({
     if (step === 'type') {
       const typeOptions: { id: AddStep; label: string; desc: string }[] = [
         { id: 'document', label: 'Document', desc: 'Create and save a document' },
+        { id: 'screenshot', label: 'Screenshot', desc: 'Capture a screen or upload an image' },
         { id: 'link', label: 'Link', desc: 'Any URL with a button label' },
         { id: 'email', label: 'Email', desc: 'Mailbox address; optional stored password' },
         { id: 'figma', label: 'Figma', desc: 'Design link or suggested tools' },
@@ -423,6 +469,90 @@ export default function CategoryModal({
               Back
             </Button>
           </div>
+        </div>
+      );
+    }
+
+    if (step === 'screenshot') {
+      const triggerCapture = () => {
+        if (screenshotBusy) return;
+        void screenshotCaptureAndUpload();
+      };
+      const triggerUpload = () => {
+        if (screenshotBusy) return;
+        screenshotFileInputRef.current?.click();
+      };
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {linkContext?.linkedProjectTaskId
+              ? 'Attach a screenshot to this task.'
+              : linkContext?.linkedContentItemId
+                ? 'Attach a screenshot to this content item.'
+                : 'Attach a screenshot to this project.'}
+          </p>
+          <input
+            ref={screenshotFileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            disabled={screenshotBusy}
+            onChange={(e) => {
+              const files = e.target.files ? Array.from(e.target.files) : [];
+              e.target.value = '';
+              if (files.length > 0) {
+                screenshotUploadFromFiles(files);
+              }
+            }}
+          />
+          <div className="flex flex-col gap-2">
+            {screenshotCaptureSupported && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={triggerCapture}
+                disabled={screenshotBusy}
+              >
+                {screenshotBusy && screenshotStatusMessage?.startsWith('Capturing')
+                  ? screenshotStatusMessage
+                  : 'Take screenshot'}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={triggerUpload}
+              disabled={screenshotBusy}
+            >
+              {screenshotBusy && screenshotStatusMessage?.startsWith('Uploading')
+                ? screenshotStatusMessage
+                : 'Upload file'}
+            </Button>
+          </div>
+          {screenshotStatusMessage && !screenshotBusy && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">{screenshotStatusMessage}</p>
+          )}
+          {screenshotErrorMessage && (
+            <p className="text-xs text-red-600 dark:text-red-400">{screenshotErrorMessage}</p>
+          )}
+          {!screenshotCaptureSupported && !screenshotErrorMessage && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Screenshot capture is unavailable on this device. Please upload an image instead.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')} disabled={screenshotBusy}>
+              Back
+            </Button>
+          </div>
+          <ScreenshotNameDialog
+            isOpen={screenshotNaming}
+            defaultName={screenshotSuggestedName}
+            onConfirm={(name) => void screenshotConfirmName(name)}
+            onCancel={screenshotCancelNaming}
+          />
         </div>
       );
     }
@@ -666,7 +796,7 @@ export default function CategoryModal({
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
+            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

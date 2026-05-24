@@ -5,7 +5,6 @@ import { IComment } from '@/lib/models/Comment';
 import { IAsset } from '@/lib/models/Asset';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
@@ -434,13 +433,6 @@ export default function CommentThread({
           >
             Post
           </Button>
-          <EntityScreenshotButton
-            entityType={entityType}
-            entityId={entityId}
-            taskIndex={taskIndex}
-            taskId={taskId}
-            onUploaded={loadScreenshots}
-          />
         </div>
       </div>
       <ImagePreviewModal

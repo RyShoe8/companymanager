@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
 import { downloadImage } from '@/lib/downloadImage';
 
@@ -12,6 +13,12 @@ interface ImagePreviewModalProps {
 }
 
 export default function ImagePreviewModal({ isOpen, onClose, src, title = 'Screenshot' }: ImagePreviewModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -27,13 +34,13 @@ export default function ImagePreviewModal({ isOpen, onClose, src, title = 'Scree
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen || !src) return null;
+  if (!mounted || !isOpen || !src) return null;
 
   const handleSave = () => {
     downloadImage(src, title);
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[110] flex flex-col bg-black/90"
       role="dialog"
@@ -73,6 +80,7 @@ export default function ImagePreviewModal({ isOpen, onClose, src, title = 'Scree
           Close
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

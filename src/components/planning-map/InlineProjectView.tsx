@@ -13,7 +13,6 @@ import SwipeableCard from '@/components/ui/SwipeableCard';
 import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import CommentThread from '@/components/comments/CommentThread';
-import EntityScreenshotButton from '@/components/comments/EntityScreenshotButton';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import ProjectLogo from '@/components/projects/ProjectLogo';
@@ -1265,12 +1264,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                         <button type="button" onClick={() => toggleContentComments(itemId)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
                           <span className="text-xs">{expandedContentComments.has(itemId) ? '▼' : '▶'}</span> Comments
                         </button>
-                        {!expandedContentComments.has(itemId) && (
-                          <EntityScreenshotButton
-                            entityType="contentItem"
-                            entityId={itemId}
-                          />
-                        )}
                       </div>
                       {expandedContentComments.has(itemId) && (
                         <div className="mt-2">
@@ -1351,14 +1344,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <button onClick={() => toggleTaskComments(idx)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
                               <span className="text-xs">{expandedTaskComments.has(idx) ? '▼' : '▶'}</span> Comments
                             </button>
-                            {!expandedTaskComments.has(idx) && (
-                              <EntityScreenshotButton
-                                entityType="projectTask"
-                                entityId={localProject._id.toString()}
-                                taskIndex={idx}
-                                taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
-                              />
-                            )}
                           </div>
                           {expandedTaskComments.has(idx) && (
                             <div className="mt-2">
