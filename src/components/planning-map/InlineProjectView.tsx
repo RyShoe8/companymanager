@@ -558,7 +558,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setProjectContentItems((prev) =>
       prev.map((c) =>
         c._id.toString() === id
-          ? ({ ...c, assignedToEmployeeId: (employeeId || undefined) as IContentItem['assignedToEmployeeId'] })
+          ? ({ ...c, assignedToEmployeeId: (employeeId || undefined) as IContentItem['assignedToEmployeeId'] } as IContentItem)
           : c
       )
     );
@@ -573,7 +573,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setProjectContentItems((prev) =>
         prev.map((c) =>
           c._id.toString() === id
-            ? ({ ...c, assignedToEmployeeId: previousAssignee })
+            ? ({ ...c, assignedToEmployeeId: previousAssignee } as IContentItem)
             : c
         )
       );
