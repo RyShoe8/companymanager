@@ -25,11 +25,28 @@ function isInstalledDisplayMode(): boolean {
     );
 }
 
+function isWindowControlsOverlayActive(): boolean {
+    if (typeof window === 'undefined') return false;
+    const wco = (navigator as Navigator & { windowControlsOverlay?: { visible: boolean } })
+        .windowControlsOverlay;
+    return wco?.visible === true;
+}
+
+function isNonBrowserDisplayOnOsHost(): boolean {
+    if (typeof window === 'undefined' || !isOsHost()) return false;
+    return !window.matchMedia('(display-mode: browser)').matches;
+}
+
 /** User is inside the installed PWA window (not a normal browser tab). */
 export function isRunningAsInstalledPwa(): boolean {
     if (typeof window === 'undefined') return false;
     const nav = window.navigator as Navigator & { standalone?: boolean };
-    return isInstalledDisplayMode() || nav.standalone === true;
+    return (
+        isInstalledDisplayMode() ||
+        nav.standalone === true ||
+        isWindowControlsOverlayActive() ||
+        isNonBrowserDisplayOnOsHost()
+    );
 }
 
 export function isRunningInBrowserTab(): boolean {

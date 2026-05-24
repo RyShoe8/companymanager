@@ -7,6 +7,8 @@ import {
     isNearPopoutEdge,
     isPointerOutsideOsViewport,
     pointerToScreenPlacement,
+    shouldTriggerTearOffPopout,
+    windowToScreenPlacement,
 } from '@/lib/os/tearOffPopout';
 import { getOsViewportBounds, OS_INSET_BOTTOM, OS_INSET_TOP } from '@/lib/os/viewportBounds';
 import { useWindowManager } from '@/hooks/os/useWindowManager';
@@ -23,6 +25,7 @@ export default function FloatingWindow({ window: w, module, children }: Floating
     const wm = useWindowManager();
     const [popoutError, setPopoutError] = useState<string | null>(null);
     const [nearEdge, setNearEdge] = useState(false);
+    const nearEdgeRef = useRef(false);
     const grabOffsetRef = useRef({ x: 0, y: 0 });
 
     const handleDrag = useCallback(
@@ -33,7 +36,9 @@ export default function FloatingWindow({ window: w, module, children }: Floating
             );
             wm.move(w.id, clamped.x, clamped.y);
             if (module.canPopout && !w.poppedOut) {
-                setNearEdge(isNearPopoutEdge(clamped.x, clamped.y, w.width, w.height));
+                const edge = isNearPopoutEdge(clamped.x, clamped.y, w.width, w.height);
+                nearEdgeRef.current = edge;
+                setNearEdge(edge);
             }
         },
         [wm, w.id, w.width, w.height, w.poppedOut, module.canPopout]
@@ -41,25 +46,48 @@ export default function FloatingWindow({ window: w, module, children }: Floating
 
     const handleDragStart = useCallback(() => {
         wm.focus(w.id);
+        nearEdgeRef.current = false;
         setNearEdge(false);
     }, [wm, w.id]);
 
     const handleDragEnd = useCallback(
         (x: number, y: number, event: PointerEvent) => {
+            const wasNearEdge = nearEdgeRef.current;
+            nearEdgeRef.current = false;
             setNearEdge(false);
             if (!module.canPopout || w.poppedOut || w.maximized) return;
-            if (!isPointerOutsideOsViewport(event.clientX, event.clientY)) return;
 
-            const placement = pointerToScreenPlacement(
-                event.clientX,
-                event.clientY,
-                grabOffsetRef.current.x,
-                grabOffsetRef.current.y
+            const clamped = clampToViewport(
+                { x, y, width: w.width, height: w.height },
+                getOsViewportBounds()
             );
+
+            if (
+                !shouldTriggerTearOffPopout(
+                    event.clientX,
+                    event.clientY,
+                    clamped.x,
+                    clamped.y,
+                    w.width,
+                    w.height,
+                    wasNearEdge
+                )
+            ) {
+                return;
+            }
+
+            const placement = isPointerOutsideOsViewport(event.clientX, event.clientY)
+                ? pointerToScreenPlacement(
+                      event.clientX,
+                      event.clientY,
+                      grabOffsetRef.current.x,
+                      grabOffsetRef.current.y
+                  )
+                : windowToScreenPlacement(clamped.x, clamped.y);
             const ok = wm.popOut(w.id, { placement });
             setPopoutError(ok ? null : 'Allow pop-ups for this site to pop out modules.');
         },
-        [wm, w.id, w.poppedOut, w.maximized, module.canPopout]
+        [wm, w.id, w.poppedOut, w.maximized, w.width, w.height, module.canPopout]
     );
 
     const handleResize = useCallback(

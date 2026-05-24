@@ -3,8 +3,15 @@
 import { useOsInstall } from './OsInstallProvider';
 
 export default function OsInstallButton() {
-    const { showInstallButton, showOpenDesktopButton, openInstallModal, openDesktopAppModal } =
-        useOsInstall();
+    const {
+        isInstalled,
+        showInstallButton,
+        showOpenDesktopButton,
+        openInstallModal,
+        openDesktopAppModal,
+    } = useOsInstall();
+
+    if (isInstalled) return null;
 
     if (showOpenDesktopButton) {
         return (

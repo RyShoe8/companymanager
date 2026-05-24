@@ -5,9 +5,15 @@ import { useWindowManager } from '@/hooks/os/useWindowManager';
 import ModuleLauncher from './ModuleLauncher';
 import OsInstallButton from './OsInstallButton';
 import OsAccountMenu from './OsAccountMenu';
+import {
+    getCommandPaletteShortcutLabel,
+    useOsCommandPalette,
+} from './OsCommandPaletteContext';
 
 export default function TopBar() {
     const wm = useWindowManager();
+    const { openCommandPalette } = useOsCommandPalette();
+    const shortcutLabel = getCommandPaletteShortcutLabel();
     const activeProjectWindow = wm.windows.find(
         (w) => w.moduleId === 'project-detail' && w.id === wm.activeWindowId
     );
@@ -27,9 +33,15 @@ export default function TopBar() {
             <div className="flex items-center gap-2">
                 <OsInstallButton />
                 <ModuleLauncher />
-                <kbd className="text-[11px] text-text-secondary bg-background-elevated px-2 py-1 rounded border border-border">
-                    ⌘K
-                </kbd>
+                <button
+                    type="button"
+                    onClick={openCommandPalette}
+                    title="Open command palette"
+                    aria-label={`Open command palette (${shortcutLabel})`}
+                    className="text-[11px] text-text-secondary bg-background-elevated px-2 py-1 rounded border border-border hover:bg-background-card hover:text-text-primary transition-colors cursor-pointer"
+                >
+                    {shortcutLabel}
+                </button>
                 <OsAccountMenu />
                 <VoiceButton />
             </div>

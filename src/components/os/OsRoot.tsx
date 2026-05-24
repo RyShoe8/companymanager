@@ -16,6 +16,7 @@ import { registerOsCommands } from './commands/registerOsCommands';
 import WindowManagerProvider from './state/WindowManagerProvider';
 import OsShell from './shell/OsShell';
 import { OsInstallProvider } from './shell/OsInstallProvider';
+import { OsCommandPaletteProvider } from './shell/OsCommandPaletteContext';
 import { warmPopoutScreenCache } from '@/lib/os/popoutPlacement';
 import { registerOsServiceWorker } from '@/lib/os/pwaServiceWorker';
 
@@ -170,7 +171,12 @@ function OsIntentLayer({ children }: { children: ReactNode }) {
     return (
         <IntentConfirmationProvider executeIntent={handleOsIntent} onExecuted={onPaletteExecuted}>
             <VoiceProvider getWorkspaceContext={getOsVoiceContext}>
-                {children}
+                <OsCommandPaletteProvider
+                    openCommandPalette={openPalette}
+                    toggleCommandPalette={togglePalette}
+                >
+                    {children}
+                </OsCommandPaletteProvider>
                 <CommandPalette
                     isOpen={paletteOpen}
                     onClose={() => setPaletteOpen(false)}

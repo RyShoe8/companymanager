@@ -141,9 +141,9 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const showInstallButton =
-        isOsHost && inBrowserTab && !installCheckPending && !installedRelatedApp;
+        isOsHost && !isRunningAsPwa && inBrowserTab && !installCheckPending && !installedRelatedApp;
     const showOpenDesktopButton =
-        isOsHost && inBrowserTab && !installCheckPending && installedRelatedApp;
+        isOsHost && !isRunningAsPwa && inBrowserTab && !installCheckPending && installedRelatedApp;
 
     const showMenuInstallConfirm =
         inBrowserTab && !modalAlreadyInstalled && !installedRelatedApp && !canPrompt;
