@@ -9,7 +9,10 @@ import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput } from '@/lib/utils/fontPaletteInput';
-import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
+import {
+  findTaskAssigneeOffProjectTeam,
+  sanitizeTaskAssigneesForProjectTeam,
+} from '@/lib/utils/projectTeam';
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -318,15 +321,31 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Only process tasks if they're being updated (skip if only status/other fields are being updated)
     if (tasks !== undefined) {
       if (Array.isArray(tasks)) {
-        const assigneeError = validateTaskAssigneesOnProjectTeam(project, tasks);
-        if (assigneeError) {
-          return NextResponse.json({ error: assigneeError }, { status: 400 });
+        const { tasks: sanitizedTasks, stripped } = sanitizeTaskAssigneesForProjectTeam(project, tasks);
+        if (stripped.length > 0) {
+          console.warn(
+            'Stripped off-team task assignees:',
+            stripped.map((s) => `${s.taskName} (${s.assigneeId})`).join(', ')
+          );
+        }
+
+        const assigneeIssue = findTaskAssigneeOffProjectTeam(project, sanitizedTasks);
+        if (assigneeIssue) {
+          return NextResponse.json(
+            {
+              error: assigneeIssue.message,
+              taskIndex: assigneeIssue.taskIndex,
+              taskName: assigneeIssue.taskName,
+              assigneeId: assigneeIssue.assigneeId,
+            },
+            { status: 400 }
+          );
         }
 
         // Debug: Log received tasks to verify status is included
-        console.log('Processing tasks update:', tasks.length, 'tasks');
+        console.log('Processing tasks update:', sanitizedTasks.length, 'tasks');
 
-        project.tasks = await Promise.all(tasks.map(async (task: any, index: number) => {
+        project.tasks = await Promise.all(sanitizedTasks.map(async (task: any, index: number) => {
           // Handle dates - provide defaults if not specified or invalid
           const defaultDates = getDefaultTaskDates();
           let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
@@ -422,9 +441,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
           return taskData;
         }));
-        const postAssigneeError = validateTaskAssigneesOnProjectTeam(project, project.tasks ?? []);
-        if (postAssigneeError) {
-          return NextResponse.json({ error: postAssigneeError }, { status: 400 });
+        const postAssigneeIssue = findTaskAssigneeOffProjectTeam(project, project.tasks ?? []);
+        if (postAssigneeIssue) {
+          return NextResponse.json(
+            {
+              error: postAssigneeIssue.message,
+              taskIndex: postAssigneeIssue.taskIndex,
+              taskName: postAssigneeIssue.taskName,
+              assigneeId: postAssigneeIssue.assigneeId,
+            },
+            { status: 400 }
+          );
         }
       } else {
         project.tasks = [];

@@ -26,7 +26,13 @@ import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
 import { labelForPaletteIndex, parseCssColorInput, formatColorPaletteForCopy } from '@/lib/utils/cssColorInput';
-import { taskAssigneeSelectOptions, getTaskAssigneeEmployeeIds, filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
+import {
+  taskAssigneeSelectOptions,
+  getTaskAssigneeEmployeeIds,
+  filterEmployeesForTaskAssignment,
+  isTaskAssigneeOnProjectTeam,
+  sanitizeTaskAssigneesForProjectTeam,
+} from '@/lib/utils/projectTeam';
 import {
   labelForFontPaletteIndex,
   maxFontPaletteEntries,
@@ -591,6 +597,34 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  const handleContentItemPublishDateUpdate = async (item: IContentItem, date: Date | null) => {
+    const id = item._id.toString();
+    const previousPublishDate = item.publishDate;
+    setProjectContentItems((prev) =>
+      prev.map((c) =>
+        c._id.toString() === id
+          ? ({ ...c, publishDate: date ?? undefined } as IContentItem)
+          : c
+      )
+    );
+    try {
+      const res = await fetch(`/api/content-items/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publishDate: date ? date.toISOString() : undefined }),
+      });
+      if (!res.ok) throw new Error('save failed');
+    } catch {
+      setProjectContentItems((prev) =>
+        prev.map((c) =>
+          c._id.toString() === id
+            ? ({ ...c, publishDate: previousPublishDate } as IContentItem)
+            : c
+        )
+      );
+    }
+  };
+
   const handleContentItemAssigneeUpdate = async (item: IContentItem, employeeId: string) => {
     const id = item._id.toString();
     const previousAssignee = item.assignedToEmployeeId;
@@ -756,9 +790,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
 
     updatedTasks[taskIndex] = updatedTask;
-    setLocalProject(prev => ({ ...prev, tasks: updatedTasks } as IProject));
+    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, updatedTasks);
+    setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
     try {
-      await onUpdate({ tasks: updatedTasks });
+      await onUpdate({ tasks: tasksToSave });
     } catch (error) {
       console.error('Error updating task:', error);
       setLocalProject(project);
@@ -778,9 +813,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         estimatedHours: hours,
         name: mergedName,
       };
-      setLocalProject((prev) => ({ ...prev, tasks: updatedTasks } as IProject));
+      const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(proj, updatedTasks);
+      setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
       try {
-        await onUpdate({ tasks: updatedTasks });
+        await onUpdate({ tasks: tasksToSave });
       } catch (error) {
         console.error('Error updating estimated hours:', error);
         setLocalProject((prev) => {
@@ -870,7 +906,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const handleCompleteTask = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'completed'); setShowTaskActions(false); };
   const handleDeclineReview = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'active'); setShowTaskActions(false); };
   const handleDeleteTask = async (taskIndex: number) => {
-    await onUpdate({ tasks: (localProject.tasks || []).filter((_, idx) => idx !== taskIndex) });
+    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
+      localProject,
+      (localProject.tasks || []).filter((_, idx) => idx !== taskIndex)
+    );
+    await onUpdate({ tasks: tasksToSave });
     setShowTaskActions(false);
     setSelectedTaskIndex(null);
   };
@@ -878,10 +918,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const newTask = { name: '', description: '', status: 'active' as TaskStatus, startDate: new Date(), endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), estimatedHours: 0 };
     const prevTasks = localProject.tasks || [];
     const nextTasks = [...prevTasks, newTask];
-    const newIdx = nextTasks.length - 1;
-    setLocalProject((prev) => ({ ...prev, tasks: nextTasks } as IProject));
+    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, nextTasks);
+    const newIdx = tasksToSave.length - 1;
+    setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
     try {
-      await onUpdate({ tasks: nextTasks });
+      await onUpdate({ tasks: tasksToSave });
       setViewTab('tasks');
       setTaskTab('active');
       setAutoEditTaskIndex(newIdx);
@@ -1423,27 +1464,40 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <div className="divide-y divide-gray-100 dark:divide-gray-700 space-y-0">
                 {projectContentItems.filter(c => contentTab === 'active' ? c.status !== 'published' : c.status === 'published').map((item) => {
                   const itemId = item._id.toString();
+                  const distributionMethods = Array.isArray(item.distributionMethods) ? item.distributionMethods : [];
+                  const visibleDistribution = distributionMethods.slice(0, 3);
+                  const extraDistributionCount = Math.max(0, distributionMethods.length - 3);
                   return (
-                  <div key={itemId} className="py-3 first:pt-0">
-                    <div className="flex items-center justify-between gap-2">
-                    <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
-                      <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{item.title}</span>
-                      <span className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                        <span className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700">{item.channel}</span>
-                        {Array.isArray(item.distributionMethods) && item.distributionMethods.length > 0 && item.distributionMethods.map((m) => (
-                          <span key={m} className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">{m}</span>
-                        ))}
-                        {item.publishDate && <span>{formatDate(new Date(item.publishDate))}</span>}
-                        {item.status === 'published' && <span className="opacity-70">Published</span>}
-                      </span>
-                    </button>
-                    <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm px-2 py-1 shrink-0">Delete</button>
+                  <div key={itemId} className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
+                        <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{item.title}</span>
+                      </button>
+                      <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm px-2 py-1 shrink-0">Delete</button>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 shrink-0">{item.channel}</span>
+                      {visibleDistribution.map((m) => (
+                        <span key={m} className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shrink-0">{m}</span>
+                      ))}
+                      {extraDistributionCount > 0 && (
+                        <span className="text-gray-400 italic shrink-0">+{extraDistributionCount}</span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <span className="leading-none">Due:</span>
+                        <EditableDate
+                          value={item.publishDate ?? null}
+                          onSave={(v) => handleContentItemPublishDateUpdate(item, v)}
+                          className="text-gray-900 leading-none py-0"
+                          placeholder="Set date"
+                          disabled={!isManagerOrAdmin}
+                          clearable
+                        />
+                      </div>
                       <EditableNumber
                         value={item.estimatedHours}
                         onSave={(v) => handleContentItemHoursUpdate(item, v)}
-                        className="leading-none py-0 text-text-primary"
+                        className="leading-none py-0"
                         suffix="h"
                         min={0}
                         placeholder="Hours"
@@ -1459,10 +1513,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             options={contentAssigneeOptions(employees, localProject, item.assignedToEmployeeId?.toString())}
                             onSave={(v) => handleContentItemAssigneeUpdate(item, v)}
                             disabled={!isManagerOrAdmin}
-                            className="text-xs text-text-primary min-w-[8rem]"
+                            className="text-xs text-gray-900 min-w-[8rem]"
                           />
                         </div>
                       )}
+                      {item.status === 'published' && <span className="opacity-70 shrink-0">Published</span>}
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-between gap-2">
@@ -1541,15 +1596,22 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} className="leading-none py-0" suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
                           )}
                           {employees.length > 0 && (
-                            <div className="flex items-center gap-1 min-w-[8rem]">
-                              <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                              <MultiSelect
-                                value={getTaskAssigneeEmployeeIds(task)}
-                                options={taskAssigneeSelectOptions(employees, localProject, getTaskAssigneeEmployeeIds(task))}
-                                onChange={(selectedIds) => handleTaskUpdate(idx, 'assignedToEmployeeIds', selectedIds)}
-                                disabled={!isManagerOrAdmin}
-                                className="text-xs min-w-[8rem]"
-                              />
+                            <div className="flex flex-col gap-0.5 min-w-[8rem]">
+                              <div className="flex items-center gap-1">
+                                <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                <MultiSelect
+                                  value={getTaskAssigneeEmployeeIds(task)}
+                                  options={taskAssigneeSelectOptions(employees, localProject, getTaskAssigneeEmployeeIds(task))}
+                                  onChange={(selectedIds) => handleTaskUpdate(idx, 'assignedToEmployeeIds', selectedIds)}
+                                  disabled={!isManagerOrAdmin}
+                                  className="text-xs min-w-[8rem]"
+                                />
+                              </div>
+                              {!isTaskAssigneeOnProjectTeam(localProject, task) && (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400 leading-snug max-w-[14rem]">
+                                  Assignee is not on the project team—reassign or clear to save changes.
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>

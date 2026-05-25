@@ -8,6 +8,7 @@ import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
+import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 
 export type FocusType = 'project' | 'content' | 'task';
 
@@ -72,7 +73,7 @@ export default function InspectorHost({
     const renderInnerContent = () => {
         if (type === 'project' && focusedProject) {
             return (
-                <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+                <div className="w-full max-w-[120rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border border-border rounded-t-2xl bg-background-card">
                     <InlineProjectView
                         project={focusedProject}
                         employees={employees}
@@ -95,7 +96,9 @@ export default function InspectorHost({
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(updates),
                             });
-                            if (!res.ok) throw new Error('Failed to save project');
+                            if (!res.ok) {
+                                throw new Error(await projectSaveErrorMessage(res));
+                            }
                             const data = await res.json().catch(() => null);
                             if (data && typeof data === 'object' && data._id && onProjectPatched) {
                                 onProjectPatched(data as IProject);
@@ -167,15 +170,18 @@ export default function InspectorHost({
 
     if (!focusId) return null;
 
+    const isProjectInspector = type === 'project';
+
     return (
         <BottomSheet
             isOpen={!!focusId}
             onClose={onClose}
-            title={getTitle()}
+            title={isProjectInspector ? undefined : getTitle()}
+            surface={isProjectInspector ? 'chrome' : 'card'}
             maxHeight="90vh"
             hideCloseButton
         >
-            <div className="pb-8">
+            <div className={isProjectInspector ? 'pb-4' : 'pb-8'}>
                 {renderInnerContent()}
             </div>
         </BottomSheet>

@@ -7,6 +7,7 @@ import { useWindowManager } from '@/hooks/os/useWindowManager';
 import type { ModuleRenderContext } from '@/lib/os/types';
 import type { IEmployee } from '@/lib/models/Employee';
 import type { IProject } from '@/lib/models/Project';
+import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 
 export default function ProjectDetailModule({ windowId, payload }: ModuleRenderContext) {
     const wm = useWindowManager();
@@ -87,7 +88,9 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(updates),
                     });
-                    if (!res.ok) throw new Error('Failed to save project');
+                    if (!res.ok) {
+                        throw new Error(await projectSaveErrorMessage(res));
+                    }
                     const data = (await res.json().catch(() => null)) as IProject | null;
                     if (data && typeof data === 'object' && data._id) {
                         setProject(data);

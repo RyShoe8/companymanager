@@ -118,18 +118,105 @@ export function isTaskAssignedToOtherEmployee(
   return !!(task.assignedTo && task.assignedTo !== employee.name);
 }
 
-/** Returns an error message if any task assignee is not on the project team. */
-export function validateTaskAssigneesOnProjectTeam(
+export type TaskAssigneeIssue = {
+  message: string;
+  taskIndex: number;
+  taskName: string;
+  assigneeId: string;
+};
+
+type TaskAssigneeFields = {
+  name?: string;
+  assignedTo?: string;
+  assignedToEmployeeId?: unknown;
+  assignedToEmployeeIds?: unknown[];
+};
+
+/** First task with an assignee not on the project team, if any. */
+export function findTaskAssigneeOffProjectTeam(
   project: ProjectTeamSource,
-  tasks: { assignedToEmployeeId?: unknown; assignedToEmployeeIds?: unknown[] }[]
-): string | null {
+  tasks: TaskAssigneeFields[]
+): TaskAssigneeIssue | null {
+  const message = 'Assignee must be on the project team';
   const teamIds = getProjectTeamEmployeeIds(project);
-  for (const task of tasks) {
+  for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
+    const task = tasks[taskIndex];
     for (const assigneeId of getTaskAssigneeEmployeeIds(task)) {
       if (!teamIds.has(assigneeId)) {
-        return 'Assignee must be on the project team';
+        return {
+          message,
+          taskIndex,
+          taskName: task.name?.trim() || 'Untitled Task',
+          assigneeId,
+        };
       }
     }
   }
   return null;
+}
+
+/** Returns an error message if any task assignee is not on the project team. */
+export function validateTaskAssigneesOnProjectTeam(
+  project: ProjectTeamSource,
+  tasks: TaskAssigneeFields[]
+): string | null {
+  return findTaskAssigneeOffProjectTeam(project, tasks)?.message ?? null;
+}
+
+/** True when every assignee on the task is on the project team (or task is unassigned). */
+export function isTaskAssigneeOnProjectTeam(
+  project: ProjectTeamSource,
+  task: TaskAssigneeFields
+): boolean {
+  const ids = getTaskAssigneeEmployeeIds(task);
+  if (ids.length === 0) return true;
+  const teamIds = getProjectTeamEmployeeIds(project);
+  return ids.every((id) => teamIds.has(id));
+}
+
+/** Drop off-team assignees so PUT can succeed; returns stripped assignees for logging/UI. */
+export function sanitizeTaskAssigneesForProjectTeam<T extends TaskAssigneeFields>(
+  project: ProjectTeamSource,
+  tasks: T[]
+): {
+  tasks: T[];
+  stripped: { taskIndex: number; taskName: string; assigneeId: string }[];
+} {
+  const teamIds = getProjectTeamEmployeeIds(project);
+  const stripped: { taskIndex: number; taskName: string; assigneeId: string }[] = [];
+
+  const sanitized = tasks.map((task, taskIndex) => {
+    const ids = getTaskAssigneeEmployeeIds(task);
+    const validIds = ids.filter((id) => {
+      if (teamIds.has(id)) return true;
+      stripped.push({
+        taskIndex,
+        taskName: task.name?.trim() || 'Untitled Task',
+        assigneeId: id,
+      });
+      return false;
+    });
+
+    if (validIds.length === 0) {
+      return {
+        ...task,
+        assignedToEmployeeIds: [],
+        assignedToEmployeeId: undefined,
+        assignedTo: undefined,
+      };
+    }
+
+    if (validIds.length === ids.length) {
+      return task;
+    }
+
+    return {
+      ...task,
+      assignedToEmployeeIds: validIds,
+      assignedToEmployeeId: validIds[0],
+      assignedTo: undefined,
+    };
+  });
+
+  return { tasks: sanitized, stripped };
 }

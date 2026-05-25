@@ -16,9 +16,33 @@ function unlockPageScroll() {
   document.body.style.overflow = '';
 }
 
-interface BottomSheetProps { isOpen: boolean; onClose: () => void; title?: string; children: ReactNode; showHandle?: boolean; maxHeight?: string; hideCloseButton?: boolean; /** Use higher z-index so this sheet appears above other overlays. */ elevated?: boolean; }
+interface BottomSheetProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;
+  children: ReactNode;
+  showHandle?: boolean;
+  maxHeight?: string;
+  hideCloseButton?: boolean;
+  /** Use higher z-index so this sheet appears above other overlays. */
+  elevated?: boolean;
+  /** `card` = filled panel; `chrome` = transparent shell (content supplies its own surface). */
+  surface?: 'card' | 'chrome';
+  sheetClassName?: string;
+}
 
-export default function BottomSheet({ isOpen, onClose, title, children, showHandle = true, maxHeight = '80vh', hideCloseButton = false, elevated = false }: BottomSheetProps) {
+export default function BottomSheet({
+  isOpen,
+  onClose,
+  title,
+  children,
+  showHandle = true,
+  maxHeight = '80vh',
+  hideCloseButton = false,
+  elevated = false,
+  surface = 'card',
+  sheetClassName = '',
+}: BottomSheetProps) {
   const [shouldRender, setShouldRender] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -87,6 +111,11 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
   if (!mounted || !shouldRender) return null;
 
   const zClass = elevated ? 'z-[60]' : 'z-50';
+  const surfaceClass =
+    surface === 'chrome'
+      ? 'bg-transparent shadow-none'
+      : 'bg-background-card rounded-t-2xl shadow-2xl';
+
   return createPortal(
     <div
       className={`fixed inset-0 ${zClass} flex items-end justify-center transition-colors duration-300 overscroll-y-contain ${isOpen ? 'bg-black/50' : 'bg-transparent pointer-events-none'}`}
@@ -94,7 +123,7 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
       onWheel={isOpen ? handleBackdropWheel : undefined}
     >
       <div
-        className={`w-full bg-background-card rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out flex flex-col ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`w-full transition-transform duration-300 ease-out flex flex-col ${surfaceClass} ${sheetClassName} ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
         style={{ maxHeight, transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined }}
         onWheel={handleSheetWheel}
       >
