@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef, type RefObject } from 'react';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
@@ -26,6 +26,10 @@ interface InspectorHostProps {
     /** When opening the inspector from a schedule task row, focus this task index in the project view. */
     initialOpenTaskIndex?: number | null;
     onInitialOpenTaskConsumed?: () => void;
+    /** When opening from schedule content click, focus this content item in the project Content tab. */
+    initialOpenContentId?: string | null;
+    onInitialOpenContentConsumed?: () => void;
+    scrollContainerRef?: RefObject<HTMLDivElement | null>;
     autoAddTaskOnOpen?: boolean;
     onAutoAddTaskConsumed?: () => void;
     onAddContent?: (project: IProject) => void;
@@ -47,6 +51,9 @@ export default function InspectorHost({
     onProjectPatched,
     initialOpenTaskIndex,
     onInitialOpenTaskConsumed,
+    initialOpenContentId,
+    onInitialOpenContentConsumed,
+    scrollContainerRef: scrollContainerRefProp,
     autoAddTaskOnOpen,
     onAutoAddTaskConsumed,
     onAddContent,
@@ -56,6 +63,9 @@ export default function InspectorHost({
     timeframe = 'weekly',
     referenceDate,
 }: InspectorHostProps) {
+    const internalScrollRef = useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = scrollContainerRefProp ?? internalScrollRef;
+
     const { type, id } = useMemo(() => {
         if (!focusId) return { type: null, id: null };
         const parts = focusId.split(':');
@@ -84,6 +94,9 @@ export default function InspectorHost({
                         contentRefreshTrigger={contentRefreshTrigger}
                         initialOpenTaskIndex={initialOpenTaskIndex ?? null}
                         onInitialOpenTaskConsumed={onInitialOpenTaskConsumed}
+                        initialOpenContentId={initialOpenContentId ?? null}
+                        onInitialOpenContentConsumed={onInitialOpenContentConsumed}
+                        scrollContainerRef={scrollContainerRef}
                         autoAddTaskOnOpen={autoAddTaskOnOpen}
                         onAutoAddTaskConsumed={onAutoAddTaskConsumed}
                         timeframe={timeframe}
@@ -180,6 +193,7 @@ export default function InspectorHost({
             surface={isProjectInspector ? 'chrome' : 'card'}
             maxHeight="90vh"
             hideCloseButton
+            scrollContainerRef={scrollContainerRef}
         >
             <div className={isProjectInspector ? 'pb-4' : 'pb-8'}>
                 {renderInnerContent()}

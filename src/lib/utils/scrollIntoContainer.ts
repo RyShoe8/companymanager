@@ -1,0 +1,69 @@
+export type ScrollIntoContainerOptions = {
+  block?: 'start' | 'center' | 'end' | 'nearest';
+  behavior?: ScrollBehavior;
+};
+
+/** Scroll an element into view within a scrollable container (not the document). */
+export function scrollElementIntoContainer(
+  element: HTMLElement,
+  container: HTMLElement,
+  options: ScrollIntoContainerOptions = {}
+): void {
+  const { block = 'center', behavior = 'smooth' } = options;
+
+  const elementRect = element.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+
+  const elementTop = elementRect.top - containerRect.top + container.scrollTop;
+  const elementHeight = element.offsetHeight;
+  const containerHeight = container.clientHeight;
+
+  let targetScrollTop: number;
+  switch (block) {
+    case 'start':
+      targetScrollTop = elementTop;
+      break;
+    case 'end':
+      targetScrollTop = elementTop + elementHeight - containerHeight;
+      break;
+    case 'nearest': {
+      const visibleTop = container.scrollTop;
+      const visibleBottom = visibleTop + containerHeight;
+      const elementBottom = elementTop + elementHeight;
+      if (elementTop >= visibleTop && elementBottom <= visibleBottom) {
+        return;
+      }
+      if (elementTop < visibleTop) {
+        targetScrollTop = elementTop;
+      } else {
+        targetScrollTop = elementBottom - containerHeight;
+      }
+      break;
+    }
+    case 'center':
+    default:
+      targetScrollTop = elementTop - (containerHeight - elementHeight) / 2;
+      break;
+  }
+
+  const maxScroll = Math.max(0, container.scrollHeight - containerHeight);
+  container.scrollTo({
+    top: Math.max(0, Math.min(targetScrollTop, maxScroll)),
+    behavior,
+  });
+}
+
+/** Run scroll after layout (e.g. tab switch); double rAF helps after React paint. */
+export function scrollElementIntoContainerAfterLayout(
+  getElement: () => HTMLElement | null,
+  container: HTMLElement | null,
+  options?: ScrollIntoContainerOptions
+): void {
+  if (!container) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const el = getElement();
+      if (el) scrollElementIntoContainer(el, container, options);
+    });
+  });
+}

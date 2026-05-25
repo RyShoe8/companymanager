@@ -133,7 +133,7 @@ export default function Navigation() {
             <div className="flex items-center">
               <Link href="/workspace" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
                 <Image
-                  src="/images/icon.png"
+                  src="/images/nucleas-logo.png"
                   alt="Nucleas Logo"
                   width={32}
                   height={32}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ReactNode, useRef } from 'react';
+import { useState, useEffect, ReactNode, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
 // Track how many BottomSheets are open to manage page overflow correctly
@@ -29,6 +29,8 @@ interface BottomSheetProps {
   /** `card` = filled panel; `chrome` = transparent shell (content supplies its own surface). */
   surface?: 'card' | 'chrome';
   sheetClassName?: string;
+  /** Optional ref to the inner scrollable region (for inspector deep-link scrolling). */
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
 export default function BottomSheet({
@@ -42,6 +44,7 @@ export default function BottomSheet({
   elevated = false,
   surface = 'card',
   sheetClassName = '',
+  scrollContainerRef,
 }: BottomSheetProps) {
   const [shouldRender, setShouldRender] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
@@ -144,7 +147,13 @@ export default function BottomSheet({
             )}
           </div>
         )}
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+        <div
+          ref={(node) => {
+            scrollRef.current = node;
+            if (scrollContainerRef) scrollContainerRef.current = node;
+          }}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+        >
           {children}
         </div>
       </div>

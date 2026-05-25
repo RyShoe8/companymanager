@@ -206,7 +206,7 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
   
   // Always use production URL for logo to ensure email clients can access it
   // Email clients proxy images, so we need a stable, publicly accessible URL
-  const logoUrl = 'https://nucleas.app/images/Nucleas.png';
+  const logoUrl = 'https://nucleas.app/images/nucleas-logo.png';
   
   sendSmtpEmail.sender = {
     email: senderEmail,

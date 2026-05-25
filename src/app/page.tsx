@@ -21,7 +21,7 @@ export const metadata = {
     url: baseUrl,
     siteName: 'Nucleas',
     type: 'website',
-    images: [{ url: '/images/Nucleas.png', width: 1200, height: 630, alt: 'Nucleas' }],
+    images: [{ url: '/images/nucleas-logo.png', width: 512, height: 512, alt: 'Nucleas' }],
   },
   twitter: {
     card: 'summary_large_image',

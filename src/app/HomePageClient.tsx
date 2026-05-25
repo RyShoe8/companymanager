@@ -26,7 +26,7 @@ export default function HomePageClient() {
             {/* Logo on a subtle light backdrop so it’s visible on dark hero without filter issues */}
             <div className="rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-sm">
               <img
-                src="/images/icon.png"
+                src="/images/nucleas-logo.png"
                 alt="Nucleas"
                 width={120}
                 height={120}

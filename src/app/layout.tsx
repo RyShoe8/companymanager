@@ -31,10 +31,10 @@ export const metadata: Metadata = {
   publisher: "Nucleas",
   icons: {
     icon: [
-      { url: '/images/icon.png', type: 'image/png' },
+      { url: '/images/nucleas-logo.png', type: 'image/png' },
     ],
-    shortcut: '/images/icon.png',
-    apple: '/images/icon.png',
+    shortcut: '/images/nucleas-logo.png',
+    apple: '/images/nucleas-logo.png',
   },
   formatDetection: {
     email: false,
@@ -54,9 +54,9 @@ export const metadata: Metadata = {
     description: "Plan, build and manage your company. Visual planning map, project management, asset repository, and team management.",
     images: [
       {
-        url: '/images/Nucleas.png',
-        width: 1200,
-        height: 630,
+        url: '/images/nucleas-logo.png',
+        width: 512,
+        height: 512,
         alt: 'Nucleas Logo',
       },
     ],
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: "Nucleas - Plan, Build and Manage Your Company",
     description: "Plan, build and manage your company. Visual planning map, project management, asset repository, and team management.",
-    images: ['/images/Nucleas.png'],
+    images: ['/images/nucleas-logo.png'],
   },
   robots: {
     index: true,
@@ -98,7 +98,7 @@ export default async function RootLayout({
           data={{
             name: 'Nucleas',
             url: baseUrl,
-            logo: `${baseUrl}/images/Nucleas.png`,
+            logo: `${baseUrl}/images/nucleas-logo.png`,
             description: 'The operating system for planning, building, and running every project you own. Plan, build, and run from one command center.',
             contactPoint: {
               '@type': 'ContactPoint',

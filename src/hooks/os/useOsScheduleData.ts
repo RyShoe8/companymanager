@@ -5,7 +5,7 @@ import { useOsAuth } from '@/hooks/os/useOsAuth';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import type { IEmployee } from '@/lib/models/Employee';
 import type { IProject } from '@/lib/models/Project';
-import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
+import type { TimeframeType } from '@/lib/utils/dateUtils';
 
 interface OsScheduleData {
     projects: IProject[];
@@ -37,12 +37,9 @@ export function useOsScheduleData(
         setLoading(true);
         setError(null);
         try {
-            const { start, end } = getTimeframeRange(timeframe, currentDate);
-            const startStr = start.toISOString().slice(0, 10);
-            const endStr = end.toISOString().slice(0, 10);
             const [projectsRes, contentRes, employeesRes] = await Promise.all([
                 fetch('/api/projects'),
-                fetch(`/api/content-items?start=${startStr}&end=${endStr}`),
+                fetch('/api/content-items'),
                 fetch('/api/employees'),
             ]);
 
@@ -63,7 +60,7 @@ export function useOsScheduleData(
         } finally {
             setLoading(false);
         }
-    }, [timeframe, currentDate]);
+    }, []);
 
     useEffect(() => {
         load();

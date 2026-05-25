@@ -65,6 +65,8 @@ export default function WorkspaceShell({
     const [inspectorReturnFocus, setInspectorReturnFocus] = useState<string | null>(null);
     /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
+    /** Content item id when opening inspector from schedule content click. */
+    const [inspectorOpenContentId, setInspectorOpenContentId] = useState<string | null>(null);
     const [inspectorAutoAddTask, setInspectorAutoAddTask] = useState(false);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -116,6 +118,7 @@ export default function WorkspaceShell({
         setInspectorFocus(null);
         setInspectorReturnFocus(null);
         setInspectorOpenTaskIndex(null);
+        setInspectorOpenContentId(null);
         setInspectorAutoAddTask(false);
     }, [inspectorFocus, inspectorReturnFocus]);
 
@@ -133,14 +136,34 @@ export default function WorkspaceShell({
     const handleViewProject = useCallback((project: IProject) => {
         setInspectorAutoAddTask(false);
         setInspectorOpenTaskIndex(null);
+        setInspectorOpenContentId(null);
         setInspectorFocus(`project:${project._id}`);
     }, []);
 
     const handleViewProjectTask = useCallback((project: IProject, taskIndex: number) => {
         setInspectorAutoAddTask(false);
+        setInspectorOpenContentId(null);
         setInspectorFocus(`project:${project._id}`);
         setInspectorOpenTaskIndex(taskIndex);
     }, []);
+
+    const handleViewProjectContent = useCallback((project: IProject, contentItemId: string) => {
+        setInspectorAutoAddTask(false);
+        setInspectorOpenTaskIndex(null);
+        setInspectorOpenContentId(contentItemId);
+        setInspectorFocus(`project:${project._id}`);
+    }, []);
+
+    const handleContentItemClickFromSchedule = useCallback(
+        (item: IContentItem) => {
+            const projectId = item.projectId?.toString();
+            if (!projectId) return;
+            const project = ws.allProjects.find((p) => p._id.toString() === projectId);
+            if (!project) return;
+            handleViewProjectContent(project, item._id.toString());
+        },
+        [ws.allProjects, handleViewProjectContent]
+    );
 
     const handleAddTaskToProject = useCallback((project: IProject) => {
         setInspectorOpenTaskIndex(null);
@@ -1111,7 +1134,7 @@ export default function WorkspaceShell({
                                                 setAddContentDefaultDate(defaultDate);
                                             }}
                                             onAddTask={handleAddTaskToProject}
-                                            onContentItemClick={handleContentItemClickFromProject}
+                                            onContentItemClick={handleContentItemClickFromSchedule}
                                             scheduleMode={ws.scheduleMode}
                                             onScheduleModeChange={ws.setScheduleMode}
                                         />
@@ -1200,6 +1223,8 @@ export default function WorkspaceShell({
                             onProjectPatched={ws.patchProjectInState}
                             initialOpenTaskIndex={inspectorOpenTaskIndex}
                             onInitialOpenTaskConsumed={() => setInspectorOpenTaskIndex(null)}
+                            initialOpenContentId={inspectorOpenContentId}
+                            onInitialOpenContentConsumed={() => setInspectorOpenContentId(null)}
                             autoAddTaskOnOpen={inspectorAutoAddTask}
                             onAutoAddTaskConsumed={() => setInspectorAutoAddTask(false)}
                             onAddContent={(project) => {

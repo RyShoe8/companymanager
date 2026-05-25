@@ -45,6 +45,8 @@ import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/l
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectSocialLink } from '@/lib/models/Project';
+import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoContainer';
+import type { RefObject } from 'react';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -66,6 +68,11 @@ interface InlineProjectViewProps {
   /** Open Tasks tab and focus this row (e.g. deep-link from workspace schedule). Cleared by parent via onInitialOpenTaskConsumed. */
   initialOpenTaskIndex?: number | null;
   onInitialOpenTaskConsumed?: () => void;
+  /** Open Content tab and focus this item (e.g. deep-link from workspace schedule). */
+  initialOpenContentId?: string | null;
+  onInitialOpenContentConsumed?: () => void;
+  /** Scrollable inspector container (BottomSheet inner region). */
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
   /** When true, create a new task row on mount (e.g. from schedule Add Task). */
   autoAddTaskOnOpen?: boolean;
   onAutoAddTaskConsumed?: () => void;
@@ -185,7 +192,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return false;
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const localProjectRef = useRef(localProject);
   localProjectRef.current = localProject;
@@ -195,6 +202,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [showTaskActions, setShowTaskActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
+  const initialContentAppliedKeyRef = useRef<string | null>(null);
   const autoAddTaskAppliedKeyRef = useRef<string | null>(null);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
@@ -510,12 +518,44 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setViewTab('tasks');
     setTaskTab(t.status === 'completed' ? 'completed' : 'active');
     setSelectedTaskIndex(initialOpenTaskIndex);
-    setShowTaskActions(true);
-    requestAnimationFrame(() => {
-      document.getElementById(`inspector-task-row-${initialOpenTaskIndex}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      onInitialOpenTaskConsumed?.();
-    });
-  }, [initialOpenTaskIndex, project._id, project.tasks, onInitialOpenTaskConsumed]);
+    setExpandedTaskComments((prev) => new Set(prev).add(initialOpenTaskIndex));
+    const taskIdx = initialOpenTaskIndex;
+    scrollElementIntoContainerAfterLayout(
+      () => document.getElementById(`inspector-task-row-${taskIdx}`),
+      scrollContainerRef?.current ?? null,
+      { block: 'center', behavior: 'smooth' }
+    );
+    onInitialOpenTaskConsumed?.();
+  }, [initialOpenTaskIndex, project._id, project.tasks, onInitialOpenTaskConsumed, scrollContainerRef]);
+
+  useEffect(() => {
+    if (initialOpenContentId == null) {
+      initialContentAppliedKeyRef.current = null;
+      return;
+    }
+    const key = `${project._id.toString()}-${initialOpenContentId}`;
+    if (initialContentAppliedKeyRef.current === key) return;
+    const item = projectContentItems.find((c) => c._id.toString() === initialOpenContentId);
+    if (!item) return;
+
+    initialContentAppliedKeyRef.current = key;
+    const contentId = initialOpenContentId;
+    setViewTab('content');
+    setContentTab(item.status === 'published' ? 'completed' : 'active');
+    setExpandedContentComments((prev) => new Set(prev).add(contentId));
+    scrollElementIntoContainerAfterLayout(
+      () => document.getElementById(`inspector-content-row-${contentId}`),
+      scrollContainerRef?.current ?? null,
+      { block: 'center', behavior: 'smooth' }
+    );
+    onInitialOpenContentConsumed?.();
+  }, [
+    initialOpenContentId,
+    project._id,
+    projectContentItems,
+    onInitialOpenContentConsumed,
+    scrollContainerRef,
+  ]);
 
   useEffect(() => {
     if (pendingScrollToTaskIndex == null) return;
@@ -523,10 +563,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const tasks = localProject.tasks || [];
     if (idx < 0 || idx >= tasks.length) return;
     setPendingScrollToTaskIndex(null);
-    requestAnimationFrame(() => {
-      document.getElementById(`inspector-task-row-${idx}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    });
-  }, [localProject.tasks, pendingScrollToTaskIndex]);
+    scrollElementIntoContainerAfterLayout(
+      () => document.getElementById(`inspector-task-row-${idx}`),
+      scrollContainerRef?.current ?? null,
+      { block: 'center', behavior: 'smooth' }
+    );
+  }, [localProject.tasks, pendingScrollToTaskIndex, scrollContainerRef]);
 
   // Fetch project action buttons (smart buttons)
   useEffect(() => {
@@ -1468,7 +1510,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   const visibleDistribution = distributionMethods.slice(0, 3);
                   const extraDistributionCount = Math.max(0, distributionMethods.length - 3);
                   return (
-                  <div key={itemId} className="p-4">
+                  <div key={itemId} id={`inspector-content-row-${itemId}`} className="p-4 scroll-mt-4">
                     <div className="flex items-start justify-between gap-2">
                       <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
                         <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>{item.title}</span>

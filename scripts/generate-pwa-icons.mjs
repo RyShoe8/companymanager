@@ -1,5 +1,5 @@
 /**
- * Generates PWA icons from public/images/icon.png
+ * Generates PWA icons from public/images/nucleas-logo.png
  * Run: node scripts/generate-pwa-icons.mjs
  */
 import { mkdir } from 'node:fs/promises';
@@ -9,7 +9,7 @@ import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
-const logoPath = path.join(root, 'public', 'images', 'icon.png');
+const logoPath = path.join(root, 'public', 'images', 'nucleas-logo.png');
 const outDir = path.join(root, 'public', 'icons');
 const BG = '#202938';
 

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
-import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
+import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
 
 export type LensType = 'schedule' | 'projects' | 'capacity';
@@ -88,11 +88,8 @@ export default function useWorkspaceData(
     const [currentUserEmployeeId, setCurrentUserEmployeeId] = useState<string | null>(null);
 
     const fetchContentItems = useCallback(async () => {
-        const { start, end } = getTimeframeRange(timeframe, currentDate);
-        const startStr = start.toISOString().split('T')[0];
-        const endStr = end.toISOString().split('T')[0];
         try {
-            const res = await fetch(`/api/content-items?start=${startStr}&end=${endStr}`);
+            const res = await fetch('/api/content-items');
             if (res.ok) {
                 const data = await res.json();
                 setContentItems(data);
@@ -100,7 +97,7 @@ export default function useWorkspaceData(
         } catch {
             // ignore
         }
-    }, [timeframe, currentDate]);
+    }, []);
 
     const loadData = useCallback(async (options?: { silent?: boolean }) => {
         if (!options?.silent) {
@@ -155,11 +152,7 @@ export default function useWorkspaceData(
             setAllProjects(projectsData);
             setEmployees(employeesData);
 
-            // Fetch content items for current timeframe
-            const { start, end } = getTimeframeRange(timeframe, currentDate);
-            const startStr = start.toISOString().split('T')[0];
-            const endStr = end.toISOString().split('T')[0];
-            const contentRes = await fetch(`/api/content-items?start=${startStr}&end=${endStr}`);
+            const contentRes = await fetch('/api/content-items');
             if (contentRes.ok) {
                 const contentData = await contentRes.json();
                 setContentItems(contentData);
@@ -171,7 +164,7 @@ export default function useWorkspaceData(
                 setLoading(false);
             }
         }
-    }, [router, timeframe, currentDate]);
+    }, [router]);
 
     const patchProjectInState = useCallback((updated: IProject) => {
         const id =
@@ -192,14 +185,6 @@ export default function useWorkspaceData(
         loadData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    // Re-fetch content when timeframe/date changes
-    useEffect(() => {
-        if (!loading) {
-            fetchContentItems();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [timeframe, currentDate]);
 
     // Phase-filtered projects
     const projects = useMemo(() => {

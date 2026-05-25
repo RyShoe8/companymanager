@@ -12,7 +12,7 @@ export default function Footer() {
             <Link href="/" className="flex items-center gap-3 mb-4">
               <span className="rounded-lg bg-white/10 px-3 py-2 inline-block">
                 <img
-                  src="/images/icon.png"
+                  src="/images/nucleas-logo.png"
                   alt="Nucleas Logo"
                   width={120}
                   height={36}
