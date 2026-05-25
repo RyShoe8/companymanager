@@ -1,15 +1,24 @@
 'use client';
 
+import Link from 'next/link';
 import { IAsset } from '@/lib/models/Asset';
 import Card from '@/components/ui/Card';
 
 interface AssetCardProps {
   asset: IAsset;
+  linkedProjectId?: string;
+  linkedProjectName?: string;
   onClick?: () => void;
   onDelete?: () => void;
 }
 
-export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) {
+export default function AssetCard({
+  asset,
+  linkedProjectId,
+  linkedProjectName,
+  onClick,
+  onDelete,
+}: AssetCardProps) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onDelete && confirm('Are you sure you want to delete this asset?')) {
@@ -26,11 +35,14 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
     other: 'bg-background-elevated text-text-secondary',
   };
 
+  const showProject = Boolean(linkedProjectId);
+  const projectLabel = linkedProjectName ?? (linkedProjectId ? '(removed)' : undefined);
+
   return (
     <Card className="p-4 mb-3" onClick={onClick}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <h3 className="font-semibold text-text-primary">{asset.name}</h3>
             <span className={`text-xs px-2 py-1 rounded ${typeColors[asset.type] || typeColors.other}`}>
               {asset.type}
@@ -41,6 +53,19 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
               </span>
             )}
           </div>
+          {showProject && projectLabel && (
+            linkedProjectName && linkedProjectId ? (
+              <Link
+                href={`/assets?projectId=${linkedProjectId}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs text-text-secondary hover:text-primary transition-colors mb-2 inline-block"
+              >
+                Project: {projectLabel}
+              </Link>
+            ) : (
+              <p className="text-xs text-text-muted mb-2">Project: {projectLabel}</p>
+            )
+          )}
           {asset.description && (
             <p className="text-sm text-text-secondary mb-2">{asset.description}</p>
           )}

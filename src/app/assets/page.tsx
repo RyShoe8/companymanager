@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { IAsset } from '@/lib/models/Asset';
 import AssetCard from '@/components/assets/AssetCard';
@@ -167,6 +167,14 @@ function AssetsPageContent() {
 
   const categories = Array.from(new Set(assets.map((a) => a.category).filter(Boolean))) as string[];
 
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const project of projects) {
+      map.set(project._id, project.name);
+    }
+    return map;
+  }, [projects]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -213,14 +221,21 @@ function AssetsPageContent() {
           </div>
         ) : (
           <div>
-            {filteredAssets.map((asset) => (
+            {filteredAssets.map((asset) => {
+              const linkedProjectId = asset.linkedProjectId?.toString();
+              return (
               <AssetCard
                 key={asset._id.toString()}
                 asset={asset}
+                linkedProjectId={linkedProjectId}
+                linkedProjectName={
+                  linkedProjectId ? projectNameById.get(linkedProjectId) : undefined
+                }
                 onClick={() => handleEditAsset(asset)}
                 onDelete={() => handleDeleteAsset(asset._id.toString())}
               />
-            ))}
+            );
+            })}
           </div>
         )}
 
