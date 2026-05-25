@@ -121,9 +121,6 @@ export function applySeriesDefaultsToNewMeeting(
   };
 
   if (defaults) {
-    if (linkedProjectIds.length > 0) {
-      next.agendaToken = defaults.agendaToken;
-    }
     if (!next.attendeeEmployeeIds && defaults.attendeeEmployeeIds.length > 0) {
       next.attendeeEmployeeIds = defaults.attendeeEmployeeIds;
     }

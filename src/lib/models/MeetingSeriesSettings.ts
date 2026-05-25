@@ -33,6 +33,7 @@ MeetingSeriesSettingsSchema.index(
   { organizationId: 1, iCalUID: 1 },
   { unique: true, sparse: true }
 );
+MeetingSeriesSettingsSchema.index({ agendaToken: 1 });
 
 const MeetingSeriesSettings: Model<IMeetingSeriesSettings> =
   mongoose.models.MeetingSeriesSettings ||

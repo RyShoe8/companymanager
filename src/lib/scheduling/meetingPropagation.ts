@@ -69,7 +69,6 @@ export async function propagateMeetingProjectsAndCalendars(params: {
 
   for (const target of targets) {
     target.linkedProjectIds = [...linkedProjectIds];
-    target.agendaToken = canonicalAgendaToken;
     if (anchor.attendeeEmployeeIds?.length) {
       target.attendeeEmployeeIds = [...anchor.attendeeEmployeeIds];
     }
@@ -78,7 +77,9 @@ export async function propagateMeetingProjectsAndCalendars(params: {
     }
 
     if (syncCalendar && target.linkedProjectIds.length > 0 && target.googleEventId) {
-      const fullDescription = buildMeetingFullDescription(target, projects, baseUrl);
+      const fullDescription = buildMeetingFullDescription(target, projects, baseUrl, {
+        agendaTokenOverride: canonicalAgendaToken,
+      });
       try {
         const google = await getGoogleAccessTokenForUser(target.userId);
         if (google) {

@@ -11,9 +11,11 @@ import { Types } from 'mongoose';
 export function buildMeetingFullDescription(
   meeting: Pick<IMeeting, 'title' | 'start' | 'end' | 'description' | 'agendaToken'>,
   projects: IProject[],
-  baseUrl: string
+  baseUrl: string,
+  options?: { agendaTokenOverride?: string }
 ): string {
-  const agendaUrl = `${baseUrl.replace(/\/$/, '')}/scheduling/agenda/${meeting.agendaToken}`;
+  const agendaToken = options?.agendaTokenOverride ?? meeting.agendaToken;
+  const agendaUrl = `${baseUrl.replace(/\/$/, '')}/scheduling/agenda/${agendaToken}`;
   const agendaPayload = buildMeetingAgenda(
     {
       title: meeting.title,

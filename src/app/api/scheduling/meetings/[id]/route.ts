@@ -108,6 +108,17 @@ export async function PATCH(
     });
   } catch (error) {
     console.error('Meeting PATCH error:', error);
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code: number }).code === 11000
+    ) {
+      return NextResponse.json(
+        { error: 'Meeting update conflict. Please refresh and try again.' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
