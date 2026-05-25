@@ -84,7 +84,7 @@ export default function InspectorHost({
     const renderInnerContent = () => {
         if (type === 'project' && focusedProject) {
             return (
-                <div className="inspector-light w-full max-w-[120rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border border-gray-200 rounded-t-2xl bg-white">
+                <div className="inspector-light w-full max-w-[120rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border border-border rounded-t-2xl bg-white">
                     <InspectorLightProvider>
                     <InlineProjectView
                         project={focusedProject}

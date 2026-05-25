@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { connectBillingDb, getBillingContext } from '../../context';
 import { SubscriptionPlanModel, type SubscriptionPlanDoc } from '../../models/SubscriptionPlan';
-import { ensureDefaultSubscriptionPlans } from '../../billing/ensureDefaultPlans';
 import { getPlanSubscriptionCapUsage } from '../../billing/planSubscriptionCap';
 import { uniquePlanSlugForName } from '../../billing/planSlug';
 
@@ -48,7 +47,6 @@ export async function GET(request: Request) {
   const denied = await requireAdmin();
   if (denied) return denied;
   await connectBillingDb();
-  await ensureDefaultSubscriptionPlans();
 
   const url = new URL(request.url);
   const archived = url.searchParams.get('archived') === 'true';

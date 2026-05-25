@@ -5,7 +5,6 @@ import {
   SubscriptionPlanModel,
   type SubscriptionPlanDoc,
 } from 'billing-engine/models';
-import { ensureDefaultSubscriptionPlans } from 'billing-engine';
 import { getPlanSubscriptionCapUsage } from 'billing-engine';
 import { AdminPlansTable, type PlanRow } from 'billing-engine/next/components';
 import Button from '@/components/ui/Button';
@@ -14,7 +13,6 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminPlansPage() {
   await connectDB();
-  await ensureDefaultSubscriptionPlans();
   const raw = await SubscriptionPlanModel.find({ archived: false })
     .sort({ slug: 1, version: -1 })
     .lean<SubscriptionPlanDoc[]>();

@@ -6,7 +6,7 @@ export const NUCLEAS_PLATFORM_FEATURES = [
   'Asset library and file management',
   'Team capacity and assignments',
   'Scheduling and calendar integration',
-  'Client portals',
+  'Tools — Screenshot generator',
   'AI-assisted hour estimates',
 ] as const;
 

@@ -44,6 +44,18 @@ export function AdminPlansTable({
   const router = useRouter();
   const [plans, setPlans] = useState(initialPlans);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgIsError, setMsgIsError] = useState(false);
+
+  const reportSuccess = (text: string) => {
+    setMsg(text);
+    setMsgIsError(false);
+  };
+
+  const reportError = (text: string, alertUser = false) => {
+    setMsg(text);
+    setMsgIsError(true);
+    if (alertUser) window.alert(text);
+  };
 
   const listUrl = mode === 'archived' ? '/api/admin/plans?archived=true' : '/api/admin/plans?archived=false';
 
@@ -58,10 +70,10 @@ export function AdminPlansTable({
     const res = await fetch(`/api/admin/plans/${id}/sync`, { method: 'POST', credentials: 'include' });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(typeof j.error === 'string' ? j.error : 'Sync failed');
+      reportError(typeof j.error === 'string' ? j.error : 'Sync failed');
       return;
     }
-    setMsg('Synced to Stripe.');
+    reportSuccess('Synced to Stripe.');
     await reload();
     router.refresh();
   }
@@ -71,10 +83,10 @@ export function AdminPlansTable({
     const res = await fetch(`/api/admin/plans/${id}/clone`, { method: 'POST', credentials: 'include' });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(typeof j.error === 'string' ? j.error : 'Clone failed');
+      reportError(typeof j.error === 'string' ? j.error : 'Clone failed');
       return;
     }
-    setMsg('Plan cloned. Edit the new version and sync.');
+    reportSuccess('Plan cloned. Edit the new version and sync.');
     await reload();
     router.refresh();
   }
@@ -89,7 +101,7 @@ export function AdminPlansTable({
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setMsg(typeof j.error === 'string' ? j.error : 'Update failed');
+      reportError(typeof j.error === 'string' ? j.error : 'Update failed');
       return;
     }
     await reload();
@@ -106,10 +118,10 @@ export function AdminPlansTable({
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setMsg(typeof j.error === 'string' ? j.error : 'Update failed');
+      reportError(typeof j.error === 'string' ? j.error : 'Update failed');
       return;
     }
-    setMsg(archived ? 'Plan archived.' : 'Plan restored to active catalog.');
+    reportSuccess(archived ? 'Plan archived.' : 'Plan restored to active catalog.');
     await reload();
     router.refresh();
   }
@@ -126,17 +138,18 @@ export function AdminPlansTable({
     const res = await fetch(`/api/admin/plans/${id}`, { method: 'DELETE', credentials: 'include' });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMsg(typeof j.error === 'string' ? j.error : 'Delete failed');
+      reportError(typeof j.error === 'string' ? j.error : 'Delete failed', true);
       return;
     }
-    setMsg('Plan deleted.');
+    reportSuccess('Plan deleted.');
     await reload();
-    router.refresh();
   }
 
   return (
     <div className="space-y-4">
-      {msg ? <p className="text-sm text-muted-foreground">{msg}</p> : null}
+      {msg ? (
+        <p className={`text-sm ${msgIsError ? 'text-red-400' : 'text-text-secondary'}`}>{msg}</p>
+      ) : null}
       <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <div className="overflow-x-auto rounded-md border min-w-0">
         <table className="w-full min-w-[52rem] text-sm">

@@ -5,6 +5,7 @@ import type { IProject, IProjectSocialLink } from '@/lib/models/Project';
 import Button from '@/components/ui/Button';
 import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
 import SocialIcon from '@/components/projects/SocialIcon';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import {
   detectSocialNetwork,
   parseSocialLinkInput,
@@ -24,6 +25,7 @@ export default function ProjectSocialsBar({
   isManagerOrAdmin,
   onUpdate,
 }: ProjectSocialsBarProps) {
+  const light = useInspectorLight();
   const [expanded, setExpanded] = useState(false);
   const [draftUrl, setDraftUrl] = useState('');
   const [saving, setSaving] = useState(false);
@@ -121,7 +123,11 @@ export default function ProjectSocialsBar({
           type="button"
           title={SOCIAL_NETWORK_LABELS[link.network]}
           onClick={() => setSelectedIndex(index)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${lightSurface(
+            'border border-gray-200 bg-white hover:bg-gray-50',
+            'dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600',
+            light
+          )}`}
         >
           <SocialIcon network={link.network} size={18} />
         </button>
@@ -129,21 +135,29 @@ export default function ProjectSocialsBar({
     </div>
 
     {expanded && showToolbarButton && (
-      <div className="w-full basis-full space-y-2 rounded-lg border border-gray-200 dark:border-gray-600 p-3 bg-gray-50 dark:bg-gray-800/50">
-        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Social profile URL</label>
+      <div className={`w-full basis-full space-y-2 rounded-lg border p-3 ${lightSurface(
+        'border-gray-200 bg-gray-50',
+        'dark:border-gray-600 dark:bg-gray-800/50',
+        light
+      )}`}>
+        <label className={`block text-xs font-medium ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>Social profile URL</label>
         <input
           type="url"
           value={draftUrl}
           onChange={(e) => setDraftUrl(e.target.value)}
           placeholder="https://linkedin.com/company/..."
           disabled={saving}
-          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+          className={`w-full px-3 py-2 border rounded-lg text-sm ${lightSurface(
+            'border-gray-200 bg-white text-gray-900',
+            'dark:border-gray-600 dark:bg-gray-700 dark:text-white',
+            light
+          )}`}
           onKeyDown={(e) => {
             if (e.key === 'Enter') void appendSocialLink(draftUrl);
           }}
         />
         {detected && draftUrl.trim() && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+          <p className={`text-xs flex items-center gap-1.5 ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
             Detected: <SocialIcon network={detected} size={14} /> {SOCIAL_NETWORK_LABELS[detected]}
           </p>
         )}
