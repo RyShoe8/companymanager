@@ -23,16 +23,13 @@ export default function HomePageClient() {
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-32 text-center">
           <div className="flex justify-center mb-10">
-            {/* Logo on a subtle light backdrop so it’s visible on dark hero without filter issues */}
-            <div className="rounded-2xl bg-white/10 px-6 py-4 backdrop-blur-sm">
-              <img
-                src="/images/nucleas-logo.png"
-                alt="Nucleas"
-                width={120}
-                height={120}
-                className="h-14 md:h-16 w-auto object-contain"
-              />
-            </div>
+            <img
+              src="/images/nucleas-logo.png?v=2"
+              alt="Nucleas"
+              width={160}
+              height={160}
+              className="h-16 md:h-20 w-auto object-contain"
+            />
           </div>
           <AnimateIn delay={100}>
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] mb-8 tracking-tight">

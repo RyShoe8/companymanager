@@ -133,11 +133,11 @@ export default function Navigation() {
             <div className="flex items-center">
               <Link href="/workspace" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
                 <Image
-                  src="/images/nucleas-logo.png"
+                  src="/images/nucleas-logo.png?v=2"
                   alt="Nucleas Logo"
-                  width={32}
-                  height={32}
-                  className="h-8 w-auto"
+                  width={40}
+                  height={40}
+                  className="h-10 w-auto object-contain"
                   priority
                   unoptimized
                 />

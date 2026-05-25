@@ -63,6 +63,7 @@ export default function MultiSelect({
       <div
         className={`
           w-full px-3 py-2 border rounded-lg cursor-pointer
+          bg-white text-gray-900
           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
           dark:bg-gray-800 dark:border-gray-700 dark:text-white
           ${error ? 'border-red-500' : 'border-gray-300'}
@@ -71,11 +72,17 @@ export default function MultiSelect({
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
         <div className="flex items-center justify-between">
-          <span className={value.length === 0 ? 'text-gray-400' : ''}>
+          <span
+            className={
+              value.length === 0
+                ? 'text-gray-400 dark:text-gray-500'
+                : 'text-gray-900 dark:text-white'
+            }
+          >
             {value.length === 0 ? 'None selected' : selectedLabels || 'None selected'}
           </span>
           <svg
-            className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -85,7 +92,7 @@ export default function MultiSelect({
         </div>
       </div>
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-50 w-full mt-1 bg-white text-gray-900 dark:bg-gray-800 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-auto">
           {options.map((option) => (
             <label
               key={option.value}

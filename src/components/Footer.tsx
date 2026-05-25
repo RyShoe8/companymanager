@@ -10,15 +10,13 @@ export default function Footer() {
           {/* Brand */}
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <span className="rounded-lg bg-white/10 px-3 py-2 inline-block">
-                <img
-                  src="/images/nucleas-logo.png"
-                  alt="Nucleas Logo"
-                  width={120}
-                  height={36}
-                  className="h-9 w-auto object-contain"
-                />
-              </span>
+              <img
+                src="/images/nucleas-logo.png?v=2"
+                alt="Nucleas Logo"
+                width={140}
+                height={48}
+                className="h-10 w-auto object-contain"
+              />
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-6">
               The operating system for planning, building, and running every project you own. One command center for your entire internet business.

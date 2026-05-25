@@ -14,7 +14,7 @@ import {
 import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
-import Button from '@/components/ui/Button';
+import PeriodNavButton from '@/components/ui/PeriodNavButton';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
 
@@ -1520,16 +1520,12 @@ export default function CalendarView({
     <div className="bg-background-card rounded-lg border border-border overflow-x-auto overflow-y-visible">
       {/* Calendar Header with Navigation */}
       <div className="flex items-center justify-between p-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => navigatePeriod('prev')}>
-            ←
-          </Button>
-          <h3 className="text-lg font-semibold text-text-primary min-w-[200px] text-center">
+        <div className="flex items-center gap-3">
+          <PeriodNavButton direction="prev" onClick={() => navigatePeriod('prev')} />
+          <h3 className="text-lg font-semibold text-text-primary min-w-[220px] text-center">
             {getViewTitle()}
           </h3>
-          <Button variant="secondary" size="sm" onClick={() => navigatePeriod('next')}>
-            →
-          </Button>
+          <PeriodNavButton direction="next" onClick={() => navigatePeriod('next')} />
         </div>
       </div>
 
