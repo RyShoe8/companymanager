@@ -3,7 +3,14 @@
 import { useMemo } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
-import { TimeframeType, getTimeframeRange, formatDate } from '@/lib/utils/dateUtils';
+import {
+    TimeframeType,
+    getTimeframeRange,
+    formatDate,
+    parseDateSafe,
+    taskOverlapsViewDay,
+    publishDateOnViewDay,
+} from '@/lib/utils/dateUtils';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 
 interface AgendaViewProps {
@@ -97,11 +104,10 @@ export default function AgendaView({
                 const tasksOnDay: IProjectTask[] = [];
                 if (showTasks && project.tasks) {
                     project.tasks.forEach((task) => {
-                        const taskStart = new Date(task.startDate);
-                        taskStart.setHours(0, 0, 0, 0);
-                        const taskEnd = new Date(task.endDate);
-                        taskEnd.setHours(23, 59, 59, 999);
-                        if (taskStart <= dayEnd && taskEnd >= dayStart) {
+                        const taskStart = parseDateSafe(task.startDate);
+                        const taskEnd = parseDateSafe(task.endDate);
+                        if (!taskStart || !taskEnd) return;
+                        if (taskOverlapsViewDay(dayStart, taskStart, taskEnd)) {
                             tasksOnDay.push(task);
                         }
                     });
@@ -116,9 +122,9 @@ export default function AgendaView({
                             if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                                 return false;
                             if (!item.publishDate) return false;
-                            const d = new Date(item.publishDate);
-                            d.setHours(0, 0, 0, 0);
-                            return d.getTime() === dayStart.getTime();
+                            const d = parseDateSafe(item.publishDate);
+                            if (!d) return false;
+                            return publishDateOnViewDay(dayStart, d);
                         })
                         .forEach((item) => contentOnDay.push(item));
                 }
@@ -139,9 +145,8 @@ export default function AgendaView({
                     if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                         return false;
                     if (!item.publishDate) return false;
-                    const d = new Date(item.publishDate);
-                    d.setHours(0, 0, 0, 0);
-                    if (d.getTime() !== dayStart.getTime()) return false;
+                    const d = parseDateSafe(item.publishDate);
+                    if (!d || !publishDateOnViewDay(dayStart, d)) return false;
                     // Check it's not already under a project
                     return !dayProjects.some((dp) =>
                         dp.content.some((c) => c._id.toString() === item._id.toString())

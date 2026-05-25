@@ -9,7 +9,8 @@ import {
   getTimeframeRange,
   formatDate,
   parseDateSafe,
-  datesOverlapUtcCalendarDays,
+  taskOverlapsViewRange,
+  taskOverlapsViewDay,
 } from '@/lib/utils/dateUtils';
 import {
   isTaskAssignedToEmployee,
@@ -48,6 +49,21 @@ function getOpenTasksAssignedToEmployee(project: IProject, employee: IEmployee):
   return project.tasks.filter(
     (task) => isTaskAssignedToEmployee(task, employee) && task.status !== 'completed'
   );
+}
+
+/** Open assigned tasks whose date range overlaps the active view period. */
+function getAssignedTasksInViewPeriod(
+  project: IProject,
+  employee: IEmployee,
+  viewStart: Date,
+  viewEnd: Date
+): IProjectTask[] {
+  return getOpenTasksAssignedToEmployee(project, employee).filter((task) => {
+    const taskStart = parseDateSafe(task.startDate);
+    const taskEnd = parseDateSafe(task.endDate);
+    if (!taskStart || !taskEnd) return false;
+    return taskOverlapsViewRange(viewStart, viewEnd, taskStart, taskEnd);
+  });
 }
 
 export default function EmployeeSidebar({ employees, projects, allProjects, contentItems, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
@@ -186,7 +202,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       const taskStart = parseDateSafe(projectStart);
       const taskEnd = parseDateSafe(projectEnd);
       if (!taskStart || !taskEnd) return 0;
-      if (datesOverlapUtcCalendarDays(rangeStart, rangeEnd, taskStart, taskEnd)) {
+      if (taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd)) {
         return totalHours;
       }
       return 0;
@@ -315,7 +331,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
           if (!publishDate) return;
 
           if (timeframe === 'today') {
-            if (datesOverlapUtcCalendarDays(startDate, endDate, publishDate, publishDate)) {
+            if (taskOverlapsViewRange(startDate, endDate, publishDate, publishDate)) {
               totalHours += hours;
             }
           } else {
@@ -410,7 +426,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
           if (!publishDate) return;
 
           if (timeframe === 'today') {
-            if (datesOverlapUtcCalendarDays(startDate, endDate, publishDate, publishDate)) {
+            if (taskOverlapsViewRange(startDate, endDate, publishDate, publishDate)) {
               breakdown[stage] += hours;
             }
           } else {
@@ -601,7 +617,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
           if (!publishDate) return;
 
           if (timeframe === 'today') {
-            if (datesOverlapUtcCalendarDays(startDate, endDate, publishDate, publishDate)) {
+            if (taskOverlapsViewRange(startDate, endDate, publishDate, publishDate)) {
               totalHours += hours;
             }
           } else {
@@ -627,7 +643,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
   if (employees.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+      <div className="text-center py-8 text-text-muted">
         <p className="mb-2">No employees added yet</p>
         <p className="text-sm">Add employees to track their workload</p>
       </div>
@@ -755,7 +771,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         const totalHours = totalAvailableHours(employee);
         const employeeProjects = getProjectsForEmployee(employee);
         const utilizationProjects = employeeProjects.filter(
-          (p) => getOpenTasksAssignedToEmployee(p, employee).length > 0
+          (p) => getAssignedTasksInViewPeriod(p, employee, startDate, endDate).length > 0
         );
 
         const utilizationPercent = totalHours > 0 ? Math.round((committedHours / totalHours) * 100) : 0;
@@ -784,9 +800,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                     </svg>
                     <h4 className="font-semibold text-text-primary">{employee.name}</h4>
                   </button>
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
-                    employee.role === 'Manager' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
+                  <span className={`text-xs px-1.5 py-0.5 rounded border border-border ${employee.role === 'Administrator' ? 'bg-warning-light text-warning-dark' :
+                    employee.role === 'Manager' ? 'bg-secondary-light text-secondary-dark' :
+                      'bg-background-card text-text-secondary'
                     }`}>
                     {employee.role}
                   </span>
@@ -823,12 +839,12 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
             {isExpanded && (
               <>
                 {employee.jobTitle && (
-                  <p className="text-sm text-gray-600 mb-2">{employee.jobTitle}</p>
+                  <p className="text-sm text-text-secondary mb-2">{employee.jobTitle}</p>
                 )}
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded ${employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800' :
-                    employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800' :
-                      'bg-purple-100 text-purple-800'
+                  <span className={`text-xs px-2 py-0.5 rounded border border-border ${employee.employeeType === 'full-time' ? 'bg-secondary-light text-secondary-dark' :
+                    employee.employeeType === 'part-time' ? 'bg-success-light text-success-dark' :
+                      'bg-accent-light text-accent-dark'
                     }`}>
                     {employee.employeeType === 'full-time' ? 'Full-Time' :
                       employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
@@ -844,17 +860,17 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                     return (
                       <div className="flex items-center gap-1.5 text-xs">
                         {hasPlan && (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200" title={`Plan: ${committedBreakdown.Plan}h`}>
+                          <span className="px-1.5 py-0.5 rounded bg-primary-light text-primary border border-border" title={`Plan: ${committedBreakdown.Plan}h`}>
                             📋 {committedBreakdown.Plan}h
                           </span>
                         )}
                         {hasBuild && (
-                          <span className="px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200" title={`Build: ${committedBreakdown.Build}h`}>
+                          <span className="px-1.5 py-0.5 rounded bg-warning-light text-warning border border-border" title={`Build: ${committedBreakdown.Build}h`}>
                             🔨 {committedBreakdown.Build}h
                           </span>
                         )}
                         {hasRun && (
-                          <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200" title={`Run: ${committedBreakdown.Run}h`}>
+                          <span className="px-1.5 py-0.5 rounded bg-success-light text-success border border-border" title={`Run: ${committedBreakdown.Run}h`}>
                             🚀 {committedBreakdown.Run}h
                           </span>
                         )}
@@ -865,8 +881,8 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Available:</span>
-                    <span className="font-medium text-gray-900">{totalHours}h</span>
+                    <span className="text-text-secondary">Available:</span>
+                    <span className="font-medium text-text-primary">{totalHours}h</span>
                   </div>
                   <div className="text-sm">
                     <button
@@ -885,18 +901,18 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       className="flex justify-between items-center w-full text-left hover:opacity-80 transition-opacity group"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="text-gray-500 text-sm">{expandedBreakdowns.has(`${employeeId}-committed`) ? '▼' : '▶'}</span>
-                        <span className="text-gray-600">Committed:</span>
-                        <span className="text-xs text-gray-400 group-hover:text-gray-600 transition-colors">(click to expand)</span>
+                        <span className="text-text-muted text-sm">{expandedBreakdowns.has(`${employeeId}-committed`) ? '▼' : '▶'}</span>
+                        <span className="text-text-secondary">Committed:</span>
+                        <span className="text-xs text-text-muted group-hover:text-text-secondary transition-colors">(click to expand)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-orange-600">{committedHoursDisplay}h</span>
+                        <span className="font-medium text-warning">{committedHoursDisplay}h</span>
                       </div>
                     </button>
                     {expandedBreakdowns.has(`${employeeId}-committed`) && (() => {
                       const breakdown = getCommittedHoursBreakdown(employee);
                       return (
-                        <div className="ml-4 mt-1 space-y-1 text-xs text-gray-500">
+                        <div className="ml-4 mt-1 space-y-1 text-xs text-text-muted">
                           <div className="flex justify-between">
                             <span>Plan:</span>
                             <span>{breakdown.Plan}h</span>
@@ -930,18 +946,18 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       className="flex justify-between items-center w-full text-left hover:opacity-80 transition-opacity group"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="text-gray-500 text-sm">{expandedBreakdowns.has(`${employeeId}-completed`) ? '▼' : '▶'}</span>
-                        <span className="text-gray-600">Completed:</span>
-                        <span className="text-xs text-gray-400 group-hover:text-gray-600 transition-colors">(click to expand)</span>
+                        <span className="text-text-muted text-sm">{expandedBreakdowns.has(`${employeeId}-completed`) ? '▼' : '▶'}</span>
+                        <span className="text-text-secondary">Completed:</span>
+                        <span className="text-xs text-text-muted group-hover:text-text-secondary transition-colors">(click to expand)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-green-600">{Math.round(completedHours)}h</span>
+                        <span className="font-medium text-success">{Math.round(completedHours)}h</span>
                       </div>
                     </button>
                     {expandedBreakdowns.has(`${employeeId}-completed`) && (() => {
                       const breakdown = getCompletedHoursBreakdown(employee);
                       return (
-                        <div className="ml-4 mt-1 space-y-1 text-xs text-gray-500">
+                        <div className="ml-4 mt-1 space-y-1 text-xs text-text-muted">
                           <div className="flex justify-between">
                             <span>Plan:</span>
                             <span>{breakdown.Plan}h</span>
@@ -959,8 +975,8 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                     })()}
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Remaining:</span>
-                    <span className={`font-medium ${totalHours - committedHours > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className="text-text-secondary">Remaining:</span>
+                    <span className={`font-medium ${totalHours - committedHours > 0 ? 'text-success' : 'text-error'}`}>
                       {Math.round((totalHours - committedHours) * 100) / 100}h
                     </span>
                   </div>
@@ -968,11 +984,16 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
                 {/* Projects where this employee has assigned tasks */}
                 {utilizationProjects.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-xs font-medium text-gray-700 mb-2">Tasks assigned to you:</p>
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <p className="text-xs font-medium text-text-secondary mb-2">Tasks assigned to you:</p>
                     <div className="space-y-1 max-h-[300px] overflow-y-auto">
                       {utilizationProjects.map((project) => {
-                        const assignedTasks = getOpenTasksAssignedToEmployee(project, employee);
+                        const assignedTasks = getAssignedTasksInViewPeriod(
+                          project,
+                          employee,
+                          startDate,
+                          endDate
+                        );
 
                         const taskHoursList = assignedTasks.map(task => {
                           if (!task.estimatedHours || !task.startDate || !task.endDate) return null;
@@ -1005,22 +1026,22 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                               className="text-xs p-1.5 rounded"
                               style={{ backgroundColor: project.color + '20' }}
                             >
-                              <div className="font-medium text-gray-900 truncate">
+                              <div className="font-medium text-text-primary truncate">
                                 {project.name}
                               </div>
                               {totalProjectHours > 0 && (
-                                <div className="text-gray-600">
+                                <div className="text-text-secondary">
                                   {totalProjectHours.toFixed(1)}h
                                 </div>
                               )}
                             </div>
 
                             {taskHoursList.map((taskInfo, idx) => {
-                              const today = new Date();
-                              today.setHours(0, 0, 0, 0);
-                              const dueDateNormalized = new Date(taskInfo.dueDate);
-                              dueDateNormalized.setHours(0, 0, 0, 0);
-                              const isTaskDueToday = dueDateNormalized.getTime() === today.getTime();
+                              const isTaskDueOnViewDay = taskOverlapsViewDay(
+                                currentDate,
+                                taskInfo.dueDate,
+                                taskInfo.dueDate
+                              );
 
                               return (
                                 <div
@@ -1028,14 +1049,14 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                                   className="text-xs p-1.5 rounded ml-3"
                                   style={{ backgroundColor: project.color + '15' }}
                                 >
-                                  <div className="text-gray-700 truncate">
+                                  <div className="text-text-primary truncate">
                                     • {taskInfo.name}
                                   </div>
-                                  <div className="text-gray-600">
+                                  <div className="text-text-secondary">
                                     {taskInfo.hours}h
                                   </div>
-                                  <div className="text-gray-500 text-[10px] mt-0.5">
-                                    Due: {isTaskDueToday ? 'Today' : formatDate(taskInfo.dueDate)}
+                                  <div className="text-text-muted text-[10px] mt-0.5">
+                                    Due: {isTaskDueOnViewDay ? 'Today' : formatDate(taskInfo.dueDate)}
                                   </div>
                                 </div>
                               );

@@ -3,13 +3,31 @@
 import { useState, useEffect, useMemo } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
-import { TimeframeType, formatDate, getTimeframeRange } from '@/lib/utils/dateUtils';
+import {
+  TimeframeType,
+  formatDate,
+  getTimeframeRange,
+  parseDateSafe,
+  taskOverlapsViewRange,
+  publishDateOnViewDay,
+} from '@/lib/utils/dateUtils';
 import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import Button from '@/components/ui/Button';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
+
+function taskOverlapsWeek(
+  task: { startDate?: Date | string; endDate?: Date | string },
+  weekStartDay: Date,
+  weekEndDay: Date
+): boolean {
+  const taskStart = parseDateSafe(task.startDate);
+  const taskEnd = parseDateSafe(task.endDate);
+  if (!taskStart || !taskEnd) return false;
+  return taskOverlapsViewRange(weekStartDay, weekEndDay, taskStart, taskEnd);
+}
 
 interface CalendarViewProps {
   projects: IProject[];
@@ -310,20 +328,15 @@ export default function CalendarView({
     rangeEnd: Date,
     options: { forTodayView?: boolean }
   ): { merged: MergedCalendarItem[]; taskItems: TimeframeTaskItem[]; contentInRange: IContentItem[] } {
-    const start = new Date(rangeStart);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(rangeEnd);
-    end.setHours(23, 59, 59, 999);
     const projectIdStr = project._id.toString();
 
     const taskItems: TimeframeTaskItem[] = [];
     if (showTasks && project.tasks) {
       project.tasks.forEach((task) => {
-        const taskStart = new Date((task as any).startDate);
-        taskStart.setHours(0, 0, 0, 0);
-        const taskEnd = new Date((task as any).endDate);
-        taskEnd.setHours(23, 59, 59, 999);
-        if (taskStart <= end && taskEnd >= start) {
+        const taskStart = parseDateSafe((task as { startDate?: Date | string }).startDate);
+        const taskEnd = parseDateSafe((task as { endDate?: Date | string }).endDate);
+        if (!taskStart || !taskEnd) return;
+        if (taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd)) {
           taskItems.push({ task, startDate: taskStart, endDate: taskEnd });
         }
       });
@@ -335,9 +348,9 @@ export default function CalendarView({
         if (item.projectId?.toString() !== projectIdStr) return false;
         if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
         if (!item.publishDate) return false;
-        const d = new Date(item.publishDate);
-        d.setHours(0, 0, 0, 0);
-        return d >= start && d <= end;
+        const d = parseDateSafe(item.publishDate);
+        if (!d) return false;
+        return taskOverlapsViewRange(rangeStart, rangeEnd, d, d);
       });
     }
 
@@ -426,14 +439,11 @@ export default function CalendarView({
 
       // Check if project has tasks (including completed ones) that fall within the view range
       if (project.tasks && project.tasks.length > 0) {
-        const hasTaskInViewRange = project.tasks.some(task => {
-          if (!task.startDate || !task.endDate) return false;
-          const taskStart = new Date(task.startDate);
-          taskStart.setHours(0, 0, 0, 0);
-          const taskEnd = new Date(task.endDate);
-          taskEnd.setHours(23, 59, 59, 999);
-          // Include tasks that overlap with the view range (including completed ones)
-          return taskStart <= viewEnd && taskEnd >= viewStart;
+        const hasTaskInViewRange = project.tasks.some((task) => {
+          const taskStart = parseDateSafe(task.startDate);
+          const taskEnd = parseDateSafe(task.endDate);
+          if (!taskStart || !taskEnd) return false;
+          return taskOverlapsViewRange(viewStart, viewEnd, taskStart, taskEnd);
         });
         if (hasTaskInViewRange) return true;
       }
@@ -840,17 +850,9 @@ export default function CalendarView({
 
                   let taskCount = 0;
                   if (hasTasks) {
-                    taskCount = project.tasks!.filter((task) => {
-                      const taskStart = new Date(task.startDate);
-                      taskStart.setHours(0, 0, 0, 0);
-                      const taskEnd = new Date(task.endDate);
-                      taskEnd.setHours(23, 59, 59, 999);
-                      const weekStart = new Date(days[0]);
-                      weekStart.setHours(0, 0, 0, 0);
-                      const weekEnd = new Date(days[6]);
-                      weekEnd.setHours(23, 59, 59, 999);
-                      return taskStart <= weekEnd && taskEnd >= weekStart;
-                    }).length;
+                    taskCount = project.tasks!.filter((task) =>
+                      taskOverlapsWeek(task, days[0], days[6])
+                    ).length;
                   }
 
                   // Height calculation: header (project name + status badge) + padding + tasks
@@ -871,13 +873,9 @@ export default function CalendarView({
 
                     let collapsedItemsHeight = 0;
                     if (hasTasks) {
-                      const visibleTasks = project.tasks!.filter((task) => {
-                        const taskStart = new Date(task.startDate);
-                        taskStart.setHours(0, 0, 0, 0);
-                        const taskEnd = new Date(task.endDate);
-                        taskEnd.setHours(23, 59, 59, 999);
-                        return taskStart <= weekEnd && taskEnd >= weekStart;
-                      });
+                      const visibleTasks = project.tasks!.filter((task) =>
+                        taskOverlapsWeek(task, days[0], days[6])
+                      );
                       const collapsedTaskCount = Math.min(visibleTasks.length, 5);
                       const collapsedTaskHeight = 20; // Each collapsed task line ~20px
                       collapsedItemsHeight = collapsedTaskCount > 0 ? (collapsedTaskCount * collapsedTaskHeight) + 8 : 0; // +8 for spacing
@@ -892,13 +890,7 @@ export default function CalendarView({
                   const weekEnd = new Date(days[6]);
                   weekEnd.setHours(23, 59, 59, 999);
                   const visibleTasks = hasTasks
-                    ? project.tasks!.filter((task) => {
-                        const taskStart = new Date(task.startDate);
-                        taskStart.setHours(0, 0, 0, 0);
-                        const taskEnd = new Date(task.endDate);
-                        taskEnd.setHours(23, 59, 59, 999);
-                        return taskStart <= weekEnd && taskEnd >= weekStart;
-                      })
+                    ? project.tasks!.filter((task) => taskOverlapsWeek(task, days[0], days[6]))
                     : [];
                   const displayedTasksCount = Math.min(visibleTasks.length, 3);
                   const hasMoreTasks = visibleTasks.length > 3;
@@ -1114,13 +1106,9 @@ export default function CalendarView({
                               const weekEnd = new Date(days[6]);
                               weekEnd.setHours(23, 59, 59, 999);
 
-                              const visibleTasks = project.tasks!.filter((task) => {
-                                const taskStart = new Date(task.startDate);
-                                taskStart.setHours(0, 0, 0, 0);
-                                const taskEnd = new Date(task.endDate);
-                                taskEnd.setHours(23, 59, 59, 999);
-                                return taskStart <= weekEnd && taskEnd >= weekStart;
-                              });
+                              const visibleTasks = project.tasks!.filter((task) =>
+                                taskOverlapsWeek(task, days[0], days[6])
+                              );
 
                               if (visibleTasks.length === 0 && project.tasks!.length > 0) {
                                 return (

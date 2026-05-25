@@ -203,6 +203,40 @@ export function utcCalendarDayIndex(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
+/** Calendar day index for view/navigation dates (local Y-M-D). */
+export function localCalendarDayIndex(date: Date): number {
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Calendar day index for stored task/content dates (UTC Y-M-D from date picker). */
+export function taskCalendarDayIndex(date: Date): number {
+  return utcCalendarDayIndex(date);
+}
+
+/** True when a stored task range overlaps a local view range (inclusive calendar days). */
+export function taskOverlapsViewRange(
+  viewStart: Date,
+  viewEnd: Date,
+  taskStart: Date,
+  taskEnd: Date
+): boolean {
+  const v0 = localCalendarDayIndex(viewStart);
+  const v1 = localCalendarDayIndex(viewEnd);
+  const t0 = taskCalendarDayIndex(taskStart);
+  const t1 = taskCalendarDayIndex(taskEnd);
+  return t0 <= v1 && t1 >= v0;
+}
+
+/** True when publish date falls on the same calendar day as the view day (local vs stored UTC). */
+export function publishDateOnViewDay(viewDay: Date, publishDate: Date): boolean {
+  return localCalendarDayIndex(viewDay) === taskCalendarDayIndex(publishDate);
+}
+
+/** True when a stored task range overlaps a single local view day. */
+export function taskOverlapsViewDay(viewDay: Date, taskStart: Date, taskEnd: Date): boolean {
+  return taskOverlapsViewRange(viewDay, viewDay, taskStart, taskEnd);
+}
+
 /** True when two inclusive date ranges share at least one UTC calendar day. */
 export function datesOverlapUtcCalendarDays(
   rangeStart: Date,
@@ -210,11 +244,7 @@ export function datesOverlapUtcCalendarDays(
   periodStart: Date,
   periodEnd: Date
 ): boolean {
-  const r0 = utcCalendarDayIndex(rangeStart);
-  const r1 = utcCalendarDayIndex(rangeEnd);
-  const p0 = utcCalendarDayIndex(periodStart);
-  const p1 = utcCalendarDayIndex(periodEnd);
-  return p0 <= r1 && p1 >= r0;
+  return taskOverlapsViewRange(rangeStart, rangeEnd, periodStart, periodEnd);
 }
 
 /**

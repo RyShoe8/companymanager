@@ -4,8 +4,8 @@ import {
   type TimeframeType,
   type DateRange,
   getTimeframeRange,
-  doRangesOverlap,
   parseDateSafe,
+  taskOverlapsViewRange,
 } from '@/lib/utils/dateUtils';
 
 function parseHours(value: unknown): number {
@@ -31,7 +31,7 @@ function taskOverlapsTimeframe(task: IProjectTask, range: DateRange): boolean {
   const start = parseDateSafe(task.startDate);
   const end = parseDateSafe(task.endDate);
   if (!start || !end) return true;
-  return doRangesOverlap({ start, end }, range);
+  return taskOverlapsViewRange(range.start, range.end, start, end);
 }
 
 function contentCountsInTimeframe(
@@ -42,14 +42,9 @@ function contentCountsInTimeframe(
   if (item.status === 'published') return false;
 
   if (item.publishDate) {
-    const publishDate = new Date(item.publishDate);
-    if (isNaN(publishDate.getTime())) return false;
-    publishDate.setHours(0, 0, 0, 0);
-    const rangeStart = new Date(range.start);
-    rangeStart.setHours(0, 0, 0, 0);
-    const rangeEnd = new Date(range.end);
-    rangeEnd.setHours(23, 59, 59, 999);
-    return publishDate >= rangeStart && publishDate <= rangeEnd;
+    const publishDate = parseDateSafe(item.publishDate);
+    if (!publishDate) return false;
+    return taskOverlapsViewRange(range.start, range.end, publishDate, publishDate);
   }
 
   return timeframe !== 'today';
