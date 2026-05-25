@@ -16,7 +16,7 @@ export default function AgendaModule() {
     const [timeframe, setTimeframe] = useState<TimeframeType>('weekly');
     const [currentDate, setCurrentDate] = useState(() => new Date());
 
-    const { projects, contentItems, loading, error, currentUserEmployeeName, refresh } =
+    const { projects, contentItems, employees, loading, error, currentUserEmployeeName, refresh } =
         useOsScheduleData(timeframe, currentDate);
 
     const openProject = useCallback(
@@ -97,6 +97,7 @@ export default function AgendaModule() {
             <AgendaView
                 projects={filteredProjects}
                 contentItems={filteredContent}
+                employees={employees}
                 showTasks
                 showContent
                 contentChannelFilter="All"
@@ -106,6 +107,7 @@ export default function AgendaModule() {
                 onTaskClick={openTask}
                 currentUserEmployeeName={currentUserEmployeeName}
                 currentUserEmployeeId={auth.employeeId}
+                currentUserRole={auth.role ?? undefined}
                 isManagerOrAdmin={auth.isManagerOrAdmin}
                 showOnlyMyAssignments
                 onAddContent={() => {}}

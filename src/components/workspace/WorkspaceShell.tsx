@@ -1154,7 +1154,6 @@ export default function WorkspaceShell({
                                                 currentUserEmployeeId={ws.currentUserEmployeeId}
                                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                                 showOnlyMyAssignments={ws.showOnlyMyAssignments}
-                                                currentUserRole={ws.currentUserRole}
                                                 onRefreshContent={ws.fetchContentItems}
                                                 onAddContent={(project, defaultDate) => {
                                                     setAddContentVoicePrefill(null);
