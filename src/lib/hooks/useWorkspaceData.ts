@@ -45,6 +45,7 @@ export interface WorkspaceState {
 
     // Filtered data
     filteredProjects: IProject[];
+    filteredContentItems: IContentItem[];
 
     // Actions
     loadData: (options?: { silent?: boolean }) => Promise<void>;
@@ -191,11 +192,17 @@ export default function useWorkspaceData(
 
 
 
-    // User-role + "my assignments" filter
-    const filteredProjects = useMemo(() => {
-        if (!currentUserRole) return projects;
+    const shouldRestrictToMyAssignments = useMemo(() => {
+        if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
+            return true;
+        }
+        return Boolean(
+            showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId)
+        );
+    }, [currentUserRole, showOnlyMyAssignments, currentUserEmployeeName, currentUserEmployeeId]);
 
-        const filterToMyAssignments = (list: IProject[]) =>
+    const filterProjectsToMyAssignments = useCallback(
+        (list: IProject[]) =>
             list.filter((project) => {
                 const projectAssignedToIds = (project as any).assignedToEmployeeIds;
                 if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
@@ -219,32 +226,39 @@ export default function useWorkspaceData(
                 )
                     return true;
                 return false;
-            });
+            }),
+        [currentUserEmployeeId, currentUserEmployeeName]
+    );
 
-        // Regular users always see only their assignments
-        if (currentUserRole === 'User' && (currentUserEmployeeName || currentUserEmployeeId)) {
-            return filterToMyAssignments(projects);
-        }
+    // User-role + "my assignments" filter
+    const filteredProjects = useMemo(() => {
+        if (!currentUserRole) return projects;
 
-        // Managers / Admins with toggle
-        const list = (showOnlyMyAssignments && (currentUserEmployeeName || currentUserEmployeeId))
-            ? filterToMyAssignments(projects)
+        const list = shouldRestrictToMyAssignments
+            ? filterProjectsToMyAssignments(projects)
             : projects;
 
-        // NEW: Filter out completed projects in Schedule lens per user request
         if (lens === 'schedule') {
-            return list.filter(p => p.status !== 'completed');
+            return list.filter((p) => p.status !== 'completed');
         }
 
         return list;
     }, [
         projects,
         currentUserRole,
-        currentUserEmployeeName,
-        currentUserEmployeeId,
-        showOnlyMyAssignments,
+        shouldRestrictToMyAssignments,
+        filterProjectsToMyAssignments,
         lens,
     ]);
+
+    const filteredContentItems = useMemo(() => {
+        if (!shouldRestrictToMyAssignments || !currentUserEmployeeId) {
+            return contentItems;
+        }
+        return contentItems.filter(
+            (item) => item.assignedToEmployeeId?.toString() === currentUserEmployeeId
+        );
+    }, [contentItems, shouldRestrictToMyAssignments, currentUserEmployeeId]);
 
     return {
         projects,
@@ -273,6 +287,7 @@ export default function useWorkspaceData(
         contentChannelFilter,
         setContentChannelFilter,
         filteredProjects,
+        filteredContentItems,
         loadData,
         fetchContentItems,
         patchProjectInState,

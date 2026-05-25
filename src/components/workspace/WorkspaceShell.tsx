@@ -24,6 +24,8 @@ import Modal from '@/components/ui/Modal';
 import BottomSheet from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import Toggle from '@/components/ui/Toggle';
+import WorkspaceLensToolbar from '@/components/workspace/WorkspaceLensToolbar';
+import ContentChannelFilter from '@/components/workspace/ContentChannelFilter';
 import CommandRegistry from '@/lib/commands/CommandRegistry';
 import CommandPalette from '@/components/workspace/CommandPalette';
 import VoiceProvider from '@/components/voice/VoiceProvider';
@@ -1091,40 +1093,32 @@ export default function WorkspaceShell({
                         {/* Row 2: Lens bar + view toggles (hidden in Scheduling phase) */}
                         {!isSchedulingPhase && (
                         <div className="flex flex-wrap items-center gap-4 justify-between">
-                            <LensBar selected={ws.lens} onSelect={handleLensSelect} />
+                            <LensBar
+                                selected={ws.lens}
+                                onSelect={handleLensSelect}
+                                trailing={
+                                    ws.isManagerOrAdmin ? (
+                                        <Toggle
+                                            label="Show only my assignments"
+                                            checked={ws.showOnlyMyAssignments}
+                                            onChange={ws.setShowOnlyMyAssignments}
+                                        />
+                                    ) : undefined
+                                }
+                            />
                             {(ws.lens === 'schedule' || ws.lens === 'agenda') && (
-                                <div className="flex flex-wrap items-center gap-4">
+                                <WorkspaceLensToolbar>
                                     <Toggle label="Show Tasks" checked={ws.showTasks} onChange={ws.setShowTasks} />
                                     <Toggle
                                         label="Show Content"
                                         checked={ws.showContent}
                                         onChange={ws.setShowContent}
                                     />
-                                    <select
+                                    <ContentChannelFilter
                                         value={ws.contentChannelFilter}
-                                        onChange={(e) => ws.setContentChannelFilter(e.target.value)}
-                                        className="rounded border border-border bg-background-card text-text-primary px-2 py-1 text-sm"
-                                    >
-                                        <option value="All">All channels</option>
-                                        <option value="X">X</option>
-                                        <option value="LinkedIn">LinkedIn</option>
-                                        <option value="Instagram">Instagram</option>
-                                        <option value="TikTok">TikTok</option>
-                                        <option value="Email">Email</option>
-                                        <option value="Article">Article</option>
-                                        <option value="Video">Video</option>
-                                        <option value="Reddit">Reddit</option>
-                                        <option value="Bluesky">Bluesky</option>
-                                        <option value="Other">Other</option>
-                                    </select>
-                                    {ws.isManagerOrAdmin && (
-                                        <Toggle
-                                            label="Show only my assignments"
-                                            checked={ws.showOnlyMyAssignments}
-                                            onChange={ws.setShowOnlyMyAssignments}
-                                        />
-                                    )}
-                                </div>
+                                        onChange={ws.setContentChannelFilter}
+                                    />
+                                </WorkspaceLensToolbar>
                             )}
                         </div>
                         )}
@@ -1147,7 +1141,7 @@ export default function WorkspaceShell({
                                         {ws.lens === 'schedule' ? (
                                             <ScheduleLens
                                                 projects={ws.filteredProjects}
-                                                contentItems={ws.contentItems}
+                                                contentItems={ws.filteredContentItems}
                                                 showTasks={ws.showTasks}
                                                 showContent={ws.showContent}
                                                 contentChannelFilter={ws.contentChannelFilter}
@@ -1160,6 +1154,7 @@ export default function WorkspaceShell({
                                                 currentUserEmployeeId={ws.currentUserEmployeeId}
                                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                                 showOnlyMyAssignments={ws.showOnlyMyAssignments}
+                                                currentUserRole={ws.currentUserRole}
                                                 onRefreshContent={ws.fetchContentItems}
                                                 onAddContent={(project, defaultDate) => {
                                                     setAddContentVoicePrefill(null);
@@ -1172,7 +1167,8 @@ export default function WorkspaceShell({
                                         ) : (
                                             <AgendaView
                                                 projects={ws.filteredProjects}
-                                                contentItems={ws.contentItems}
+                                                contentItems={ws.filteredContentItems}
+                                                employees={ws.employees}
                                                 showTasks={ws.showTasks}
                                                 showContent={ws.showContent}
                                                 contentChannelFilter={ws.contentChannelFilter}
@@ -1182,6 +1178,7 @@ export default function WorkspaceShell({
                                                 onTaskClick={handleViewProjectTask}
                                                 currentUserEmployeeName={ws.currentUserEmployeeName}
                                                 currentUserEmployeeId={ws.currentUserEmployeeId}
+                                                currentUserRole={ws.currentUserRole}
                                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                                 showOnlyMyAssignments={ws.showOnlyMyAssignments}
                                                 onAddContent={(project, defaultDate) => {
@@ -1198,7 +1195,7 @@ export default function WorkspaceShell({
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
                                             allProjects={ws.allProjects}
-                                            contentItems={ws.contentItems}
+                                            contentItems={ws.filteredContentItems}
                                             timeframe={ws.timeframe}
                                             currentDate={ws.currentDate}
                                             currentUserRole={ws.currentUserRole}
@@ -1211,7 +1208,7 @@ export default function WorkspaceShell({
                             {!isSchedulingPhase && ws.lens === 'projects' && (
                                 <ProjectsLens
                                     projects={ws.filteredProjects}
-                                    contentItems={ws.contentItems}
+                                    contentItems={ws.filteredContentItems}
                                     timeframe={ws.timeframe}
                                     referenceDate={ws.currentDate}
                                     onProjectClick={handleViewProject}
@@ -1224,7 +1221,7 @@ export default function WorkspaceShell({
                                         employees={ws.employees}
                                         projects={ws.filteredProjects}
                                         allProjects={ws.allProjects}
-                                        contentItems={ws.contentItems}
+                                        contentItems={ws.filteredContentItems}
                                         timeframe={ws.timeframe}
                                         currentDate={ws.currentDate}
                                         currentUserRole={ws.currentUserRole}

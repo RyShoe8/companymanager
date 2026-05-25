@@ -17,6 +17,7 @@ import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import PeriodNavButton from '@/components/ui/PeriodNavButton';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
+import { contentPassesAssignmentFilter } from '@/lib/utils/assigneeDisplay';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -352,6 +353,16 @@ export default function CalendarView({
       contentInRange = contentItems.filter((item) => {
         if (item.projectId?.toString() !== projectIdStr) return false;
         if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
+        if (
+          !contentPassesAssignmentFilter(item, {
+            showOnlyMyAssignments,
+            isManagerOrAdmin,
+            currentUserEmployeeId: currentUserEmployeeId ?? null,
+            currentUserEmployeeName: currentUserEmployeeName ?? null,
+          })
+        ) {
+          return false;
+        }
         if (!item.publishDate) return false;
         const d = parseDateSafe(item.publishDate);
         if (!d) return false;

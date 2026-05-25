@@ -191,6 +191,7 @@ export default function InspectorHost({
             onClose={onClose}
             title={isProjectInspector ? undefined : getTitle()}
             surface={isProjectInspector ? 'chrome' : 'card'}
+            layout={isProjectInspector ? 'centeredInspector' : 'bottomSheet'}
             maxHeight="90vh"
             hideCloseButton
             scrollContainerRef={scrollContainerRef}
