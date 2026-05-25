@@ -103,6 +103,7 @@ export default function AgendaModule() {
                 contentChannelFilter="All"
                 timeframe={timeframe}
                 currentDate={currentDate}
+                onDateChange={setCurrentDate}
                 onProjectClick={openProject}
                 onTaskClick={openTask}
                 currentUserEmployeeName={currentUserEmployeeName}
@@ -113,37 +114,6 @@ export default function AgendaModule() {
                 onAddContent={() => {}}
                 onContentItemClick={() => {}}
             />
-            <div className="flex justify-center gap-2 pt-1">
-                <button
-                    type="button"
-                    onClick={() => {
-                        const d = new Date(currentDate);
-                        d.setDate(d.getDate() - 7);
-                        setCurrentDate(d);
-                    }}
-                    className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200"
-                >
-                    Previous
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setCurrentDate(new Date())}
-                    className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200"
-                >
-                    Today
-                </button>
-                <button
-                    type="button"
-                    onClick={() => {
-                        const d = new Date(currentDate);
-                        d.setDate(d.getDate() + 7);
-                        setCurrentDate(d);
-                    }}
-                    className="text-xs px-2 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200"
-                >
-                    Next
-                </button>
-            </div>
         </div>
     );
 }

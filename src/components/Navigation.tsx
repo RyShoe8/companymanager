@@ -131,13 +131,15 @@ export default function Navigation() {
             {/* Logo */}
             <div className="flex items-center">
               <Link href="/workspace" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
-                <img
-                  src="/images/nucleas-logo.png?v=3"
-                  alt="Nucleas Logo"
-                  width={40}
-                  height={40}
-                  className="h-10 w-auto object-contain bg-transparent"
-                />
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-background-card">
+                  <img
+                    src="/images/nucleas-logo.png?v=3"
+                    alt="Nucleas Logo"
+                    width={40}
+                    height={40}
+                    className="h-10 w-auto object-contain bg-background-card"
+                  />
+                </span>
                 <span className="text-xl font-bold text-text-primary">
                   Nucleas
                 </span>

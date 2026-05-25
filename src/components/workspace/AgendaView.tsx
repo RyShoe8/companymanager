@@ -13,12 +13,13 @@ import {
 } from '@/lib/utils/dateUtils';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import {
-    formatTaskAssigneeLabel,
-    formatContentAssigneeLabel,
+    formatAgendaAssigneeDisplay,
     taskPassesAssignmentFilter,
     contentPassesAssignmentFilter,
 } from '@/lib/utils/assigneeDisplay';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
+import PeriodNavButton from '@/components/ui/PeriodNavButton';
+import { getPeriodViewTitle, shiftPeriodDate } from '@/lib/utils/periodNavigation';
 
 interface AgendaViewProps {
     projects: IProject[];
@@ -29,6 +30,7 @@ interface AgendaViewProps {
     contentChannelFilter: string;
     timeframe: TimeframeType;
     currentDate: Date;
+    onDateChange: (date: Date) => void;
     onProjectClick: (project: IProject) => void;
     onTaskClick?: (project: IProject, taskIndex: number) => void;
     currentUserEmployeeName: string | null;
@@ -75,6 +77,13 @@ const channelIcons: Record<string, string> = {
     Other: '📎',
 };
 
+const agendaTypeBadgeClass =
+    'px-1.5 py-0.5 rounded text-xs font-medium bg-background-elevated text-text-secondary flex-shrink-0';
+
+function AgendaItemTypeBadge({ type }: { type: 'Task' | 'Content' }) {
+    return <span className={agendaTypeBadgeClass}>{type}</span>;
+}
+
 export default function AgendaView({
     projects,
     contentItems,
@@ -84,6 +93,7 @@ export default function AgendaView({
     contentChannelFilter,
     timeframe,
     currentDate,
+    onDateChange,
     onProjectClick,
     onTaskClick,
     currentUserEmployeeName,
@@ -208,19 +218,42 @@ export default function AgendaView({
         assignmentFilterOpts,
     ]);
 
+    const periodHeader = (
+        <div className="bg-background-card rounded-lg border border-border">
+            <div className="flex items-center gap-3 p-4 border-b border-border">
+                <PeriodNavButton
+                    direction="prev"
+                    onClick={() => onDateChange(shiftPeriodDate(timeframe, currentDate, 'prev'))}
+                />
+                <h3 className="text-lg font-semibold text-text-primary min-w-[220px] text-center flex-1">
+                    {getPeriodViewTitle(timeframe, currentDate)}
+                </h3>
+                <PeriodNavButton
+                    direction="next"
+                    onClick={() => onDateChange(shiftPeriodDate(timeframe, currentDate, 'next'))}
+                />
+            </div>
+        </div>
+    );
+
     if (agendaDays.length === 0) {
         return (
-            <div className="text-center py-16 text-text-secondary">
-                <p className="text-lg mb-2 text-text-primary">No items scheduled for this period</p>
-                <p className="text-sm">
-                    Try the Schedule lens, turn on Show Content, or adjust your timeframe.
-                </p>
+            <div className="space-y-4">
+                {periodHeader}
+                <div className="text-center py-16 text-text-secondary">
+                    <p className="text-lg mb-2 text-text-primary">No items scheduled for this period</p>
+                    <p className="text-sm">
+                        Try the Schedule lens, turn on Show Content, or adjust your timeframe.
+                    </p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
+            {periodHeader}
+            <div className="space-y-6">
             {agendaDays.map((day) => (
                 <div key={day.date.toISOString()} className="border border-border rounded-lg overflow-hidden bg-background-card">
                     <div
@@ -263,7 +296,12 @@ export default function AgendaView({
 
                                 {tasks.map((task) => {
                                     const tIdx = resolveTaskIndexInProject(project, task);
-                                    const assignee = formatTaskAssigneeLabel(task, employees);
+                                    const assignee = formatAgendaAssigneeDisplay(
+                                        employees,
+                                        currentUserEmployeeId,
+                                        currentUserEmployeeName,
+                                        task
+                                    );
                                     return (
                                         <button
                                             key={task._id?.toString() || task.name}
@@ -274,6 +312,7 @@ export default function AgendaView({
                                             }}
                                             className="ml-6 py-1.5 flex items-center gap-2 text-sm text-left w-[calc(100%-1.5rem)] rounded px-1 -mx-1 hover:bg-background-elevated transition-colors cursor-pointer flex-wrap"
                                         >
+                                            <AgendaItemTypeBadge type="Task" />
                                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'completed' ? 'bg-green-500' : task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'
                                                 }`} />
                                             <span className={`text-text-primary ${task.status === 'completed' ? 'line-through text-text-muted' : ''}`}>
@@ -288,7 +327,12 @@ export default function AgendaView({
                                 })}
 
                                 {content.map((item) => {
-                                    const assignee = formatContentAssigneeLabel(item, employees);
+                                    const assignee = formatAgendaAssigneeDisplay(
+                                        employees,
+                                        currentUserEmployeeId,
+                                        currentUserEmployeeName,
+                                        item
+                                    );
                                     return (
                                         <div
                                             key={item._id.toString()}
@@ -298,6 +342,7 @@ export default function AgendaView({
                                                 onContentItemClick(item);
                                             }}
                                         >
+                                            <AgendaItemTypeBadge type="Content" />
                                             <span className="flex-shrink-0" aria-hidden>
                                                 {channelIcons[item.channel] || '📎'}
                                             </span>
@@ -333,13 +378,19 @@ export default function AgendaView({
                         ))}
 
                         {day.contentItems.map((item) => {
-                            const assignee = formatContentAssigneeLabel(item, employees);
+                            const assignee = formatAgendaAssigneeDisplay(
+                                employees,
+                                currentUserEmployeeId,
+                                currentUserEmployeeName,
+                                item
+                            );
                             return (
                                 <div
                                     key={item._id.toString()}
                                     className="px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap"
                                     onClick={() => onContentItemClick(item)}
                                 >
+                                    <AgendaItemTypeBadge type="Content" />
                                     <span className="flex-shrink-0" aria-hidden>
                                         {channelIcons[item.channel] || '📎'}
                                     </span>
@@ -361,6 +412,7 @@ export default function AgendaView({
                     </div>
                 </div>
             ))}
+            </div>
         </div>
     );
 }

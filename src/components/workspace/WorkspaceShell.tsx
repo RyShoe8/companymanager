@@ -1107,7 +1107,7 @@ export default function WorkspaceShell({
                                 }
                             />
                             {(ws.lens === 'schedule' || ws.lens === 'agenda') && (
-                                <WorkspaceLensToolbar>
+                                <WorkspaceLensToolbar className="ml-auto">
                                     <Toggle label="Show Tasks" checked={ws.showTasks} onChange={ws.setShowTasks} />
                                     <Toggle
                                         label="Show Content"
@@ -1173,6 +1173,7 @@ export default function WorkspaceShell({
                                                 contentChannelFilter={ws.contentChannelFilter}
                                                 timeframe={ws.timeframe}
                                                 currentDate={ws.currentDate}
+                                                onDateChange={ws.setCurrentDate}
                                                 onProjectClick={handleViewProject}
                                                 onTaskClick={handleViewProjectTask}
                                                 currentUserEmployeeName={ws.currentUserEmployeeName}

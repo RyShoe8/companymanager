@@ -33,6 +33,68 @@ export function formatContentAssigneeLabel(item: IContentItem, employees: IEmplo
   return resolveEmployeeName(employees, item.assignedToEmployeeId?.toString(), undefined);
 }
 
+function agendaDisplayName(
+  name: string,
+  employeeId: string | undefined,
+  currentUserEmployeeId: string | null,
+  currentUserEmployeeName: string | null
+): string {
+  if (currentUserEmployeeId && employeeId === currentUserEmployeeId) return 'You';
+  if (currentUserEmployeeName && name === currentUserEmployeeName) return 'You';
+  return name;
+}
+
+export function formatAgendaAssigneeDisplay(
+  employees: IEmployee[],
+  currentUserEmployeeId: string | null,
+  currentUserEmployeeName: string | null,
+  task: IProjectTask
+): string | undefined;
+export function formatAgendaAssigneeDisplay(
+  employees: IEmployee[],
+  currentUserEmployeeId: string | null,
+  currentUserEmployeeName: string | null,
+  item: IContentItem
+): string | undefined;
+export function formatAgendaAssigneeDisplay(
+  employees: IEmployee[],
+  currentUserEmployeeId: string | null,
+  currentUserEmployeeName: string | null,
+  taskOrItem: IProjectTask | IContentItem
+): string | undefined {
+  if ('title' in taskOrItem) {
+    const item = taskOrItem as IContentItem;
+    if (currentUserEmployeeId && item.assignedToEmployeeId?.toString() === currentUserEmployeeId) {
+      return 'You';
+    }
+    return formatContentAssigneeLabel(item, employees);
+  }
+
+  const task = taskOrItem as IProjectTask;
+  const ids = getTaskAssigneeEmployeeIds(task);
+  if (ids.length > 0) {
+    const parts = ids
+      .map((id) => {
+        const name = resolveEmployeeName(employees, id, undefined);
+        if (!name) return undefined;
+        return agendaDisplayName(name, id, currentUserEmployeeId, currentUserEmployeeName);
+      })
+      .filter((part): part is string => Boolean(part));
+    if (parts.length > 0) return parts.join(', ');
+  }
+
+  const legacyName = task.assignedTo;
+  if (legacyName) {
+    return agendaDisplayName(legacyName, undefined, currentUserEmployeeId, currentUserEmployeeName);
+  }
+
+  return resolveEmployeeName(
+    employees,
+    (task as { assignedToEmployeeId?: { toString(): string } }).assignedToEmployeeId?.toString(),
+    undefined
+  );
+}
+
 export function contentPassesAssignmentFilter(
   item: IContentItem,
   options: {

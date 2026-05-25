@@ -23,7 +23,7 @@ export default function LensBar({ selected, onSelect, trailing }: LensBarProps) 
     );
 
     return (
-        <div className="flex flex-wrap items-center gap-4 flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
             <div className="flex items-center gap-1" role="tablist" aria-label="View lens">
                 {lenses.map((l) => (
                     <button
@@ -41,7 +41,7 @@ export default function LensBar({ selected, onSelect, trailing }: LensBarProps) 
                     </button>
                 ))}
             </div>
-            {trailing ? <div className="ml-auto flex-shrink-0">{trailing}</div> : null}
+            {trailing ? <div className="ml-1 flex-shrink-0">{trailing}</div> : null}
         </div>
     );
 }
