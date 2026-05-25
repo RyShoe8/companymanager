@@ -8,9 +8,8 @@ import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
 
-export type LensType = 'schedule' | 'projects' | 'capacity';
+export type LensType = 'schedule' | 'agenda' | 'projects' | 'capacity';
 export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule';
-export type ScheduleMode = 'calendar' | 'agenda';
 
 export interface WorkspaceState {
     // Data
@@ -31,8 +30,6 @@ export interface WorkspaceState {
     setPhase: (phase: PhaseType) => void;
     lens: LensType;
     setLens: (lens: LensType) => void;
-    scheduleMode: ScheduleMode;
-    setScheduleMode: (mode: ScheduleMode) => void;
     timeframe: TimeframeType;
     setTimeframe: (tf: TimeframeType) => void;
     currentDate: Date;
@@ -65,7 +62,6 @@ export default function useWorkspaceData(
     // View state
     const [phase, setPhase] = useState<PhaseType>(initialPhase);
     const [lens, setLens] = useState<LensType>(initialLens);
-    const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('calendar');
     const [timeframe, setTimeframe] = useState<TimeframeType>('today');
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -264,8 +260,6 @@ export default function useWorkspaceData(
         setPhase,
         lens,
         setLens,
-        scheduleMode,
-        setScheduleMode,
         timeframe,
         setTimeframe,
         currentDate,

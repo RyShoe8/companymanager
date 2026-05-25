@@ -452,7 +452,6 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
             if (!taskStart || !taskEnd) return sum;
             return sum + calculateHoursForDateRange(startDate, endDate, taskStart, taskEnd, task.estimatedHours);
           }, 0);
-        breakdown[stage] += taskHoursInRange;
       }
 
       const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
@@ -474,17 +473,6 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
         breakdown[stage] += remainingProjectHours;
       }
-    });
-
-    getAssignedContentInViewPeriod(employee, contentItems, timeframe, startDate, endDate).forEach((content) => {
-      const hours = content.estimatedHours || 0;
-      if (hours <= 0) return;
-      const stage = content.projectId
-        ? getProjectStage(
-            calcProjects.find((p) => p._id.toString() === contentProjectIdStr(content))?.status || 'planning'
-          )
-        : 'Plan';
-      breakdown[stage] += hours;
     });
 
     return {

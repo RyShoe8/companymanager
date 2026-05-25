@@ -6,6 +6,7 @@ export interface IOrganization extends Document {
   /** Unique slug (legacy DB index); derived from userId on create. */
   slug: string;
   domain?: string;
+  logo?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,10 @@ const OrganizationSchema: Schema = new Schema(
       type: String,
       trim: true,
       lowercase: true,
+    },
+    logo: {
+      type: String,
+      trim: true,
     },
   },
   {

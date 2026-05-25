@@ -24,7 +24,6 @@ function formatContextSummary(ctx: PendingIntentConfirmation['contextSnapshot'])
   else if (ctx.projectId) parts.push(`Project id: ${ctx.projectId}`);
   if (ctx.phase) parts.push(`Phase: ${ctx.phase}`);
   parts.push(`Lens: ${ctx.view.lens}`);
-  if (ctx.view.scheduleMode) parts.push(`Schedule: ${ctx.view.scheduleMode}`);
   parts.push(`Page: ${ctx.view.pathname}`);
   parts.push(`Today (local): ${ctx.referenceDate}`);
   return parts.join(' · ');

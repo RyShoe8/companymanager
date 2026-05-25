@@ -6,7 +6,6 @@ import type { IProject } from '@/lib/models/Project';
  */
 export type WorkspaceIntentViewContext = {
   lens: string;
-  scheduleMode?: string;
   pathname: string;
 };
 
@@ -41,7 +40,6 @@ export function buildWorkspaceIntentContext(opts: {
   pathname: string;
   phase: string | null;
   lens: string;
-  scheduleMode?: string;
   inspectorFocus: string | null;
   allProjects: IProject[];
 }): WorkspaceIntentContextPayload {
@@ -69,7 +67,6 @@ export function buildWorkspaceIntentContext(opts: {
     phase: opts.phase,
     view: {
       lens: opts.lens,
-      ...(opts.scheduleMode ? { scheduleMode: opts.scheduleMode } : {}),
       pathname: opts.pathname,
     },
     referenceDate: localTodayIso(),

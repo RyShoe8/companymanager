@@ -24,7 +24,7 @@ Schema keys:
 - "status": string | null — for set_task_status / set_project_status
 - "context": string | null — disambiguation context such as project name for task operations
 - "mode": string | null — for switch_view, values like calendar|agenda
-- "lens": string | null — for switch_lens, values like schedule|projects|capacity
+- "lens": string | null — for switch_lens, values like schedule|agenda|projects|capacity
 - "phase": string | null — for filter_phase, values like All|Plan|Build|Run
 - "timeframe": string | null — for set_timeframe, values like today|weekly|monthly|quarterly|yearly
 - "filter": string | null — for toggle_filter, values like tasks|content|myAssignments
@@ -72,7 +72,6 @@ function sanitizeContext(raw: unknown): Record<string, unknown> | null {
       const view = v as Record<string, unknown>;
       const slim: Record<string, unknown> = {};
       if (typeof view.lens === 'string') slim.lens = view.lens.slice(0, 64);
-      if (typeof view.scheduleMode === 'string') slim.scheduleMode = view.scheduleMode.slice(0, 64);
       if (typeof view.pathname === 'string') slim.pathname = view.pathname.slice(0, 512);
       out.view = slim;
     } else if (k === 'phase' && typeof v === 'string') {

@@ -24,7 +24,6 @@ export function buildOsVoiceContext(snapshot: OsContextSnapshot): WorkspaceInten
         view: {
             lens: 'os',
             pathname: '/os',
-            scheduleMode: undefined,
         },
         referenceDate: localTodayIso(),
         projects: [],

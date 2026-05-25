@@ -8,13 +8,18 @@ interface LensBarProps {
     onSelect: (lens: LensType) => void;
 }
 
-const lenses: { value: LensType; label: string; icon: string }[] = [
+const allLenses: { value: LensType; label: string; icon: string }[] = [
     { value: 'schedule', label: 'Schedule', icon: '📅' },
-    { value: 'projects', label: 'Projects', icon: '📋' },
+    { value: 'agenda', label: 'Agenda', icon: '📋' },
+    { value: 'projects', label: 'Projects', icon: '📁' },
     { value: 'capacity', label: 'Capacity', icon: '👥' },
 ];
 
 export default function LensBar({ selected, onSelect }: LensBarProps) {
+    const lenses = allLenses.filter(
+        (l) => l.value !== 'agenda' || isFeatureEnabled('agendaViewEnabled')
+    );
+
     return (
         <div className="flex items-center gap-1" role="tablist" aria-label="View lens">
             {lenses.map((l) => (

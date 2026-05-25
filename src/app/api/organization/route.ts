@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       name: organization.name,
       domain: organization.domain,
+      logo: organization.logo,
       isAdmin, // Include admin status so frontend can show/hide edit controls
     });
   } catch (error) {
@@ -139,6 +140,7 @@ export async function PUT(request: NextRequest) {
       organization: {
         name: organization.name,
         domain: organization.domain,
+        logo: organization.logo,
       },
     });
   } catch (error) {

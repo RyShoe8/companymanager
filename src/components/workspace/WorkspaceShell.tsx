@@ -10,6 +10,8 @@ import PhaseFilter from '@/components/workspace/PhaseFilter';
 import LensBar from '@/components/workspace/LensBar';
 import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
+import AgendaView from '@/components/workspace/AgendaView';
+import OrganizationBrand from '@/components/organization/OrganizationBrand';
 import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
 import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
 import ProjectsLens from '@/components/workspace/ProjectsLens';
@@ -34,6 +36,7 @@ import { ParsedIntent, splitBatchTaskTitles } from '@/lib/voice/IntentParser';
 import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
 import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
+import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 
 interface WorkspaceShellProps {
     initialPhase?: PhaseType;
@@ -82,25 +85,48 @@ export default function WorkspaceShell({
                 pathname: pathname || '/workspace',
                 phase: ws.phase,
                 lens: ws.lens,
-                scheduleMode: ws.scheduleMode,
                 inspectorFocus,
                 allProjects: ws.allProjects,
             }),
-        [pathname, ws.phase, ws.lens, ws.scheduleMode, inspectorFocus, ws.allProjects]
+        [pathname, ws.phase, ws.lens, inspectorFocus, ws.allProjects]
+    );
+
+    useEffect(() => {
+        if (ws.lens === 'agenda' && !isFeatureEnabled('agendaViewEnabled')) {
+            ws.setLens('schedule');
+        }
+    }, [ws.lens, ws]);
+
+    const syncWorkspaceUrl = useCallback(
+        (opts: { phase?: PhaseType; lens?: LensType }) => {
+            if (pathname !== '/workspace') return;
+            const phase = opts.phase ?? ws.phase;
+            const lens = opts.lens ?? ws.lens;
+            const params = new URLSearchParams();
+            if (phase !== 'All') params.set('phase', phase);
+            if (lens !== 'schedule') params.set('lens', lens);
+            const q = params.toString();
+            router.replace(q ? `/workspace?${q}` : '/workspace', { scroll: false });
+        },
+        [pathname, ws.phase, ws.lens, router]
     );
 
     const handlePhaseSelect = useCallback(
         (p: PhaseType) => {
             ws.setPhase(p);
-            if (pathname === '/workspace') {
-                const params = new URLSearchParams();
-                if (p !== 'All') params.set('phase', p);
-                if (ws.lens !== 'schedule') params.set('lens', ws.lens);
-                const q = params.toString();
-                router.replace(q ? `/workspace?${q}` : '/workspace', { scroll: false });
-            }
+            syncWorkspaceUrl({ phase: p });
         },
-        [ws, pathname, router]
+        [ws, syncWorkspaceUrl]
+    );
+
+    const handleLensSelect = useCallback(
+        (lens: LensType) => {
+            const resolved =
+                lens === 'agenda' && !isFeatureEnabled('agendaViewEnabled') ? 'schedule' : lens;
+            ws.setLens(resolved);
+            syncWorkspaceUrl({ lens: resolved });
+        },
+        [ws, syncWorkspaceUrl]
     );
 
     // Handlers
@@ -342,15 +368,19 @@ export default function WorkspaceShell({
         if (intent.type === 'SWITCH_LENS') {
             const lens = intent.slots.lens;
             if (lens === 'schedule') {
-                ws.setLens('schedule');
+                handleLensSelect('schedule');
                 return { success: true, message: 'Switched to schedule lens' };
             }
             if (lens === 'projects') {
-                ws.setLens('projects');
+                handleLensSelect('projects');
                 return { success: true, message: 'Switched to projects lens' };
             }
+            if (lens === 'agenda') {
+                handleLensSelect('agenda');
+                return { success: true, message: 'Switched to agenda lens' };
+            }
             if (lens === 'capacity') {
-                ws.setLens('capacity');
+                handleLensSelect('capacity');
                 return { success: true, message: 'Switched to capacity lens' };
             }
         }
@@ -366,11 +396,13 @@ export default function WorkspaceShell({
             return { success: true, message: `Timeframe set to ${intent.slots.timeframe}` };
         }
         if (intent.type === 'SWITCH_VIEW') {
-            if (ws.lens === 'schedule') {
-                if (intent.slots.mode === 'calendar' || intent.slots.mode === 'agenda') {
-                    ws.setScheduleMode(intent.slots.mode as 'calendar' | 'agenda');
-                    return { success: true, message: `Switched to ${intent.slots.mode} view` };
-                }
+            if (intent.slots.mode === 'calendar') {
+                handleLensSelect('schedule');
+                return { success: true, message: 'Switched to schedule view' };
+            }
+            if (intent.slots.mode === 'agenda') {
+                handleLensSelect('agenda');
+                return { success: true, message: 'Switched to agenda view' };
             }
         }
         if (intent.type === 'CREATE_CONTENT') {
@@ -790,7 +822,7 @@ export default function WorkspaceShell({
         }
 
         return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };
-    }, [ws, handleDeleteProject, router, handleViewProjectTask, handlePhaseSelect]);
+    }, [ws, handleDeleteProject, router, handleViewProjectTask, handlePhaseSelect, handleLensSelect]);
 
     // Command Palette Registration (voice can trigger via RUN_COMMAND)
     useEffect(() => {
@@ -801,7 +833,15 @@ export default function WorkspaceShell({
                 category: 'navigate' as const,
                 keywords: ['calendar', 'agenda', 'schedule', 'time'],
                 voicePatterns: ['go to schedule', 'show schedule', 'open schedule', 'view schedule'],
-                execute: () => ws.setLens('schedule'),
+                execute: () => handleLensSelect('schedule'),
+            },
+            {
+                id: 'nav-agenda',
+                label: 'Go to Agenda',
+                category: 'navigate' as const,
+                keywords: ['agenda', 'list', 'day'],
+                voicePatterns: ['go to agenda', 'show agenda', 'open agenda', 'view agenda'],
+                execute: () => handleLensSelect('agenda'),
             },
             {
                 id: 'nav-projects',
@@ -809,7 +849,7 @@ export default function WorkspaceShell({
                 category: 'navigate' as const,
                 keywords: ['list', 'board', 'all', 'projects'],
                 voicePatterns: ['go to projects', 'show projects', 'open projects', 'view project'],
-                execute: () => ws.setLens('projects'),
+                execute: () => handleLensSelect('projects'),
             },
             {
                 id: 'nav-capacity',
@@ -817,7 +857,7 @@ export default function WorkspaceShell({
                 category: 'navigate' as const,
                 keywords: ['team', 'people', 'workload', 'capacity'],
                 voicePatterns: ['go to capacity', 'show capacity', 'team', 'employees', 'open team'],
-                execute: () => ws.setLens('capacity'),
+                execute: () => handleLensSelect('capacity'),
             },
             {
                 id: 'create-project',
@@ -834,10 +874,7 @@ export default function WorkspaceShell({
                 category: 'view' as const,
                 keywords: ['calendar', 'week', 'month'],
                 voicePatterns: ['show calendar', 'open calendar', 'view calendar', 'go to calendar'],
-                execute: () => {
-                    ws.setLens('schedule');
-                    ws.setScheduleMode('calendar');
-                },
+                execute: () => handleLensSelect('schedule'),
             },
             {
                 id: 'view-agenda',
@@ -845,10 +882,7 @@ export default function WorkspaceShell({
                 category: 'view' as const,
                 keywords: ['agenda', 'list'],
                 voicePatterns: ['show agenda', 'open agenda', 'view agenda', 'go to agenda'],
-                execute: () => {
-                    ws.setLens('schedule');
-                    ws.setScheduleMode('agenda');
-                },
+                execute: () => handleLensSelect('agenda'),
             },
             {
                 id: 'show-tasks',
@@ -964,7 +998,7 @@ export default function WorkspaceShell({
 
         commands.forEach(c => CommandRegistry.register(c));
         return () => commands.forEach(c => CommandRegistry.unregister(c.id));
-    }, [ws, ws.isManagerOrAdmin, router, handleCreateProject]);
+    }, [ws, ws.isManagerOrAdmin, router, handleCreateProject, handleLensSelect]);
 
     // Close inspector command (only when inspector is open, so voice "close" / "cancel" works)
     useEffect(() => {
@@ -1026,9 +1060,7 @@ export default function WorkspaceShell({
                     <div className="mb-4">
                         {/* Row 1: Title + Phase + Timeframe + Actions */}
                         <div className="flex flex-row items-center gap-4 flex-wrap mb-3">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-white whitespace-nowrap">
-                                Workspace
-                            </h1>
+                            <OrganizationBrand />
                             <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
                             {!isSchedulingPhase && (
                                 <TimeHorizonSelector
@@ -1059,8 +1091,8 @@ export default function WorkspaceShell({
                         {/* Row 2: Lens bar + view toggles (hidden in Scheduling phase) */}
                         {!isSchedulingPhase && (
                         <div className="flex flex-wrap items-center gap-4 justify-between">
-                            <LensBar selected={ws.lens} onSelect={ws.setLens} />
-                            {ws.lens === 'schedule' && (
+                            <LensBar selected={ws.lens} onSelect={handleLensSelect} />
+                            {(ws.lens === 'schedule' || ws.lens === 'agenda') && (
                                 <div className="flex flex-wrap items-center gap-4">
                                     <Toggle label="Show Tasks" checked={ws.showTasks} onChange={ws.setShowTasks} />
                                     <Toggle
@@ -1109,35 +1141,57 @@ export default function WorkspaceShell({
                                     currentUserEmployeeId={ws.currentUserEmployeeId}
                                     meetingRefreshKey={meetingRefreshKey}
                                 />
-                            ) : ws.lens === 'schedule' ? (
+                            ) : ws.lens === 'schedule' || ws.lens === 'agenda' ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
-                                        <ScheduleLens
-                                            projects={ws.filteredProjects}
-                                            contentItems={ws.contentItems}
-                                            showTasks={ws.showTasks}
-                                            showContent={ws.showContent}
-                                            contentChannelFilter={ws.contentChannelFilter}
-                                            timeframe={ws.timeframe}
-                                            currentDate={ws.currentDate}
-                                            onProjectClick={handleViewProject}
-                                            onTaskClick={handleViewProjectTask}
-                                            onDateChange={ws.setCurrentDate}
-                                            currentUserEmployeeName={ws.currentUserEmployeeName}
-                                            currentUserEmployeeId={ws.currentUserEmployeeId}
-                                            isManagerOrAdmin={ws.isManagerOrAdmin}
-                                            showOnlyMyAssignments={ws.showOnlyMyAssignments}
-                                            onRefreshContent={ws.fetchContentItems}
-                                            onAddContent={(project, defaultDate) => {
-                                                setAddContentVoicePrefill(null);
-                                                setAddContentProject(project);
-                                                setAddContentDefaultDate(defaultDate);
-                                            }}
-                                            onAddTask={handleAddTaskToProject}
-                                            onContentItemClick={handleContentItemClickFromSchedule}
-                                            scheduleMode={ws.scheduleMode}
-                                            onScheduleModeChange={ws.setScheduleMode}
-                                        />
+                                        {ws.lens === 'schedule' ? (
+                                            <ScheduleLens
+                                                projects={ws.filteredProjects}
+                                                contentItems={ws.contentItems}
+                                                showTasks={ws.showTasks}
+                                                showContent={ws.showContent}
+                                                contentChannelFilter={ws.contentChannelFilter}
+                                                timeframe={ws.timeframe}
+                                                currentDate={ws.currentDate}
+                                                onProjectClick={handleViewProject}
+                                                onTaskClick={handleViewProjectTask}
+                                                onDateChange={ws.setCurrentDate}
+                                                currentUserEmployeeName={ws.currentUserEmployeeName}
+                                                currentUserEmployeeId={ws.currentUserEmployeeId}
+                                                isManagerOrAdmin={ws.isManagerOrAdmin}
+                                                showOnlyMyAssignments={ws.showOnlyMyAssignments}
+                                                onRefreshContent={ws.fetchContentItems}
+                                                onAddContent={(project, defaultDate) => {
+                                                    setAddContentVoicePrefill(null);
+                                                    setAddContentProject(project);
+                                                    setAddContentDefaultDate(defaultDate);
+                                                }}
+                                                onAddTask={handleAddTaskToProject}
+                                                onContentItemClick={handleContentItemClickFromSchedule}
+                                            />
+                                        ) : (
+                                            <AgendaView
+                                                projects={ws.filteredProjects}
+                                                contentItems={ws.contentItems}
+                                                showTasks={ws.showTasks}
+                                                showContent={ws.showContent}
+                                                contentChannelFilter={ws.contentChannelFilter}
+                                                timeframe={ws.timeframe}
+                                                currentDate={ws.currentDate}
+                                                onProjectClick={handleViewProject}
+                                                onTaskClick={handleViewProjectTask}
+                                                currentUserEmployeeName={ws.currentUserEmployeeName}
+                                                currentUserEmployeeId={ws.currentUserEmployeeId}
+                                                isManagerOrAdmin={ws.isManagerOrAdmin}
+                                                showOnlyMyAssignments={ws.showOnlyMyAssignments}
+                                                onAddContent={(project, defaultDate) => {
+                                                    setAddContentVoicePrefill(null);
+                                                    setAddContentProject(project);
+                                                    setAddContentDefaultDate(defaultDate);
+                                                }}
+                                                onContentItemClick={handleContentItemClickFromSchedule}
+                                            />
+                                        )}
                                     </div>
                                     <div className="xl:col-span-1">
                                         <EmployeeSidebar
