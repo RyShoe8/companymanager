@@ -86,7 +86,7 @@ export default async function RootLayout({
   const isOsShell = (await headers()).get('x-nucleas-shell') === 'os';
   const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen${isOsShell ? ' nucleas-os' : ''}`}
         suppressHydrationWarning

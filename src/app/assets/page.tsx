@@ -170,16 +170,16 @@ function AssetsPageContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-300">Loading...</div>
+        <div className="text-text-secondary">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="w-full mx-auto px-4 sm:px-6 lg:px-[100px]">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-white mb-4">Assets</h1>
+          <h1 className="text-3xl font-bold text-text-primary mb-4">Assets</h1>
           <div className="flex gap-4 mb-4">
             <div className="flex-1">
               <AssetSearch value={searchQuery} onChange={setSearchQuery} />
@@ -204,8 +204,8 @@ function AssetsPageContent() {
         </div>
 
         {filteredAssets.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <p className="text-gray-300">
+          <div className="text-center py-12 bg-background-card rounded-lg border border-border">
+            <p className="text-text-secondary">
               {searchQuery || typeFilter || categoryFilter
                 ? 'No assets match your filters'
                 : 'No assets yet. Create your first asset!'}
@@ -250,8 +250,8 @@ function AssetsPageContent() {
 export default function AssetsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-center text-gray-300">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center text-text-secondary">Loading...</div>
       </div>
     }>
       <AssetsPageContent />

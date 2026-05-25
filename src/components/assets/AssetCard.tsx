@@ -18,12 +18,12 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
   };
 
   const typeColors: Record<string, string> = {
-    spreadsheet: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    document: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    tool: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-    folder: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    link: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
-    other: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+    spreadsheet: 'bg-success/15 text-success',
+    document: 'bg-secondary/15 text-secondary',
+    tool: 'bg-accent/15 text-accent',
+    folder: 'bg-warning/15 text-warning',
+    link: 'bg-primary/15 text-primary',
+    other: 'bg-background-elevated text-text-secondary',
   };
 
   return (
@@ -31,18 +31,18 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-semibold text-gray-900 dark:text-white">{asset.name}</h3>
+            <h3 className="font-semibold text-text-primary">{asset.name}</h3>
             <span className={`text-xs px-2 py-1 rounded ${typeColors[asset.type] || typeColors.other}`}>
               {asset.type}
             </span>
             {asset.category && (
-              <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+              <span className="text-xs px-2 py-1 rounded bg-background-elevated text-text-secondary">
                 {asset.category}
               </span>
             )}
           </div>
           {asset.description && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{asset.description}</p>
+            <p className="text-sm text-text-secondary mb-2">{asset.description}</p>
           )}
           {asset.url && (
             <a
@@ -50,7 +50,7 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              className="text-sm text-primary hover:text-primary-hover"
             >
               {asset.url}
             </a>
@@ -60,7 +60,7 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
               {asset.tags.map((tag, index) => (
                 <span
                   key={index}
-                  className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                  className="text-xs px-2 py-1 rounded bg-background-elevated text-text-secondary"
                 >
                   #{tag}
                 </span>
@@ -71,7 +71,8 @@ export default function AssetCard({ asset, onClick, onDelete }: AssetCardProps) 
         {onDelete && (
           <button
             onClick={handleDelete}
-            className="ml-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+            className="ml-2 text-error hover:opacity-80 transition-opacity"
+            aria-label="Delete asset"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
