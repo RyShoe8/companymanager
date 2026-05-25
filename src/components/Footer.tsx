@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-4">
               <img
-                src="/images/nucleas-logo.png?v=2"
+                src="/images/nucleas-logo.png?v=3"
                 alt="Nucleas Logo"
                 width={140}
                 height={48}

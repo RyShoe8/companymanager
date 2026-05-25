@@ -33,6 +33,35 @@ function isWeekendUtc(date: Date): boolean {
   return day === 0 || day === 6;
 }
 
+function employeeTypeLabel(employeeType?: string): string {
+  if (employeeType === 'full-time') return 'Full-Time';
+  if (employeeType === 'part-time') return 'Part-Time';
+  return 'Contractor';
+}
+
+const utilizationBadgeBase =
+  'text-xs font-medium px-2 py-0.5 rounded-md border shrink-0';
+
+function roleBadgeClass(role?: string): string {
+  if (role === 'Administrator') {
+    return `${utilizationBadgeBase} bg-amber-500/25 text-amber-300 border-amber-400/40`;
+  }
+  if (role === 'Manager') {
+    return `${utilizationBadgeBase} bg-blue-500/25 text-blue-300 border-blue-400/40`;
+  }
+  return `${utilizationBadgeBase} bg-white/10 text-text-primary border-white/20`;
+}
+
+function employeeTypeBadgeClass(employeeType?: string): string {
+  if (employeeType === 'full-time') {
+    return `${utilizationBadgeBase} bg-sky-500/25 text-sky-300 border-sky-400/40`;
+  }
+  if (employeeType === 'part-time') {
+    return `${utilizationBadgeBase} bg-emerald-500/25 text-emerald-300 border-emerald-400/40`;
+  }
+  return `${utilizationBadgeBase} bg-violet-500/25 text-violet-300 border-violet-400/40`;
+}
+
 interface EmployeeSidebarProps {
   employees: IEmployee[];
   projects: IProject[]; // Filtered projects for display (by page stage)
@@ -275,6 +304,43 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
     return hoursForOverlap;
   };
+
+  const sumAssignedTaskHoursInPeriod = useCallback(
+    (employee: IEmployee) => {
+      let total = 0;
+      getProjectsForEmployeeCalc(employee).forEach((project) => {
+        getAssignedTasksInViewPeriod(project, employee, startDate, endDate).forEach((task) => {
+          if (!task.estimatedHours || !task.startDate || !task.endDate) return;
+          const taskStart = parseDateSafe(task.startDate);
+          const taskEnd = parseDateSafe(task.endDate);
+          if (!taskStart || !taskEnd) return;
+          total += calculateHoursForDateRange(
+            startDate,
+            endDate,
+            taskStart,
+            taskEnd,
+            task.estimatedHours
+          );
+        });
+      });
+      return Math.round(total * 100) / 100;
+    },
+    [getProjectsForEmployeeCalc, startDate, endDate, timeframe]
+  );
+
+  const sumAssignedContentHoursInPeriod = useCallback(
+    (employee: IEmployee) => {
+      const hours = getAssignedContentInViewPeriod(
+        employee,
+        contentItems,
+        timeframe,
+        startDate,
+        endDate
+      ).reduce((sum, c) => sum + (c.estimatedHours || 0), 0);
+      return Math.round(hours * 100) / 100;
+    },
+    [contentItems, timeframe, startDate, endDate]
+  );
 
   const getCommittedHours = (employee: IEmployee) => {
     const employeeProjects = getProjectsForEmployeeCalc(employee);
@@ -763,11 +829,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                     </svg>
                     <h4 className="font-semibold text-text-primary">{employee.name}</h4>
                   </button>
-                  <span className={`text-xs px-1.5 py-0.5 rounded border border-border ${employee.role === 'Administrator' ? 'bg-warning-light text-warning-dark' :
-                    employee.role === 'Manager' ? 'bg-secondary-light text-secondary-dark' :
-                      'bg-background-card text-text-secondary'
-                    }`}>
-                    {employee.role}
+                  <span className={roleBadgeClass(employee.role)}>{employee.role}</span>
+                  <span className={employeeTypeBadgeClass(employee.employeeType)}>
+                    {employeeTypeLabel(employee.employeeType)}
                   </span>
                 </div>
               </div>
@@ -805,38 +869,66 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                   <p className="text-sm text-text-secondary mb-2">{employee.jobTitle}</p>
                 )}
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded border border-border ${employee.employeeType === 'full-time' ? 'bg-secondary-light text-secondary-dark' :
-                    employee.employeeType === 'part-time' ? 'bg-success-light text-success-dark' :
-                      'bg-accent-light text-accent-dark'
-                    }`}>
-                    {employee.employeeType === 'full-time' ? 'Full-Time' :
-                      employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
-                  </span>
                   {(() => {
                     const committedBreakdown = getCommittedHoursBreakdown(employee);
-                    const hasPlan = committedBreakdown.Plan > 0;
-                    const hasBuild = committedBreakdown.Build > 0;
-                    const hasRun = committedBreakdown.Run > 0;
+                    const taskHours = sumAssignedTaskHoursInPeriod(employee);
+                    const contentHours = sumAssignedContentHoursInPeriod(employee);
+                    const pills: { key: string; title: string; label: string; className: string }[] = [];
+                    if (committedBreakdown.Plan > 0) {
+                      pills.push({
+                        key: 'plan',
+                        title: `Plan: ${committedBreakdown.Plan}h`,
+                        label: `📋 ${committedBreakdown.Plan}h`,
+                        className:
+                          'px-2 py-0.5 rounded-md font-medium bg-cyan-500/25 text-cyan-300 border border-cyan-400/40',
+                      });
+                    }
+                    if (committedBreakdown.Build > 0) {
+                      pills.push({
+                        key: 'build',
+                        title: `Build: ${committedBreakdown.Build}h`,
+                        label: `🔨 ${committedBreakdown.Build}h`,
+                        className:
+                          'px-2 py-0.5 rounded-md font-medium bg-amber-500/25 text-amber-300 border border-amber-400/40',
+                      });
+                    }
+                    if (committedBreakdown.Run > 0) {
+                      pills.push({
+                        key: 'run',
+                        title: `Run: ${committedBreakdown.Run}h`,
+                        label: `🚀 ${committedBreakdown.Run}h`,
+                        className:
+                          'px-2 py-0.5 rounded-md font-medium bg-emerald-500/25 text-emerald-300 border border-emerald-400/40',
+                      });
+                    }
+                    if (taskHours > 0) {
+                      pills.push({
+                        key: 'tasks',
+                        title: `Tasks: ${taskHours}h`,
+                        label: `✅ ${taskHours}h`,
+                        className:
+                          'px-2 py-0.5 rounded-md font-medium bg-sky-500/20 text-sky-300 border border-sky-400/30',
+                      });
+                    }
+                    if (contentHours > 0) {
+                      pills.push({
+                        key: 'content',
+                        title: `Content: ${contentHours}h`,
+                        label: `📝 ${contentHours}h`,
+                        className:
+                          'px-2 py-0.5 rounded-md font-medium bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30',
+                      });
+                    }
 
-                    if (!hasPlan && !hasBuild && !hasRun) return null;
+                    if (pills.length === 0) return null;
 
                     return (
-                      <div className="flex items-center gap-1.5 text-xs">
-                        {hasPlan && (
-                          <span className="px-1.5 py-0.5 rounded bg-primary-light text-primary border border-border" title={`Plan: ${committedBreakdown.Plan}h`}>
-                            📋 {committedBreakdown.Plan}h
+                      <div className="flex items-center gap-1.5 text-xs flex-wrap">
+                        {pills.map((pill) => (
+                          <span key={pill.key} className={pill.className} title={pill.title}>
+                            {pill.label}
                           </span>
-                        )}
-                        {hasBuild && (
-                          <span className="px-1.5 py-0.5 rounded bg-warning-light text-warning border border-border" title={`Build: ${committedBreakdown.Build}h`}>
-                            🔨 {committedBreakdown.Build}h
-                          </span>
-                        )}
-                        {hasRun && (
-                          <span className="px-1.5 py-0.5 rounded bg-success-light text-success border border-border" title={`Run: ${committedBreakdown.Run}h`}>
-                            🚀 {committedBreakdown.Run}h
-                          </span>
-                        )}
+                        ))}
                       </div>
                     );
                   })()}
@@ -1035,7 +1127,8 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                                   style={{ backgroundColor: project.color + '15' }}
                                 >
                                   <div className="text-text-primary truncate">
-                                    • {taskInfo.name}
+                                    <span className="mr-1" aria-hidden>✅</span>
+                                    {taskInfo.name}
                                   </div>
                                   <div className="text-text-secondary">
                                     {taskInfo.hours}h
@@ -1063,8 +1156,8 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                                   style={{ backgroundColor: project.color + '15' }}
                                 >
                                   <div className="text-text-primary truncate">
-                                    • {contentInfo.name}
-                                    <span className="text-text-muted ml-1">(content)</span>
+                                    <span className="mr-1" aria-hidden>📝</span>
+                                    {contentInfo.name}
                                   </div>
                                   <div className="text-text-secondary">
                                     {contentInfo.hours}h

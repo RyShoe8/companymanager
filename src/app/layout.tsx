@@ -31,10 +31,10 @@ export const metadata: Metadata = {
   publisher: "Nucleas",
   icons: {
     icon: [
-      { url: '/images/nucleas-logo.png?v=2', type: 'image/png' },
+      { url: '/images/nucleas-logo.png?v=3', type: 'image/png' },
     ],
-    shortcut: '/images/nucleas-logo.png?v=2',
-    apple: '/images/nucleas-logo.png?v=2',
+    shortcut: '/images/nucleas-logo.png?v=3',
+    apple: '/images/nucleas-logo.png?v=3',
   },
   formatDetection: {
     email: false,
