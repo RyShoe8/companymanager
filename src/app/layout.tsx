@@ -30,11 +30,9 @@ export const metadata: Metadata = {
   creator: "Nucleas",
   publisher: "Nucleas",
   icons: {
-    icon: [
-      { url: '/images/nucleas-logo.png?v=3', type: 'image/png' },
-    ],
-    shortcut: '/images/nucleas-logo.png?v=3',
-    apple: '/images/nucleas-logo.png?v=3',
+    icon: [{ url: '/images/nucleas-logo.png?v=4', type: 'image/png' }],
+    shortcut: '/images/nucleas-logo.png?v=4',
+    apple: '/images/nucleas-logo.png?v=4',
   },
   formatDetection: {
     email: false,
