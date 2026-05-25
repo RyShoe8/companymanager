@@ -198,6 +198,25 @@ export function parseDateSafe(dateValue: string | Date | undefined | null): Date
   return isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
+/** UTC calendar day index for inclusive range comparisons (matches stored task dates). */
+export function utcCalendarDayIndex(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+/** True when two inclusive date ranges share at least one UTC calendar day. */
+export function datesOverlapUtcCalendarDays(
+  rangeStart: Date,
+  rangeEnd: Date,
+  periodStart: Date,
+  periodEnd: Date
+): boolean {
+  const r0 = utcCalendarDayIndex(rangeStart);
+  const r1 = utcCalendarDayIndex(rangeEnd);
+  const p0 = utcCalendarDayIndex(periodStart);
+  const p1 = utcCalendarDayIndex(periodEnd);
+  return p0 <= r1 && p1 >= r0;
+}
+
 /**
  * Get default task dates (start: now, end: one week from now)
  */

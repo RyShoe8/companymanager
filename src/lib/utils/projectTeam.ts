@@ -87,6 +87,37 @@ export function getTaskAssigneeEmployeeIds(task: {
   return ids;
 }
 
+/** True when a task is assigned to the employee (IDs array, legacy ID, or legacy name). */
+export function isTaskAssignedToEmployee(
+  task: {
+    assignedTo?: string;
+    assignedToEmployeeIds?: unknown[];
+    assignedToEmployeeId?: unknown;
+  },
+  employee: { _id: { toString(): string } | string; name: string }
+): boolean {
+  const employeeId =
+    typeof employee._id === 'string' ? employee._id : employee._id.toString();
+  if (getTaskAssigneeEmployeeIds(task).includes(employeeId)) return true;
+  return !!(task.assignedTo && task.assignedTo === employee.name);
+}
+
+/** True when a task is assigned to a different employee (not this one). */
+export function isTaskAssignedToOtherEmployee(
+  task: {
+    assignedTo?: string;
+    assignedToEmployeeIds?: unknown[];
+    assignedToEmployeeId?: unknown;
+  },
+  employee: { _id: { toString(): string } | string; name: string }
+): boolean {
+  const employeeId =
+    typeof employee._id === 'string' ? employee._id : employee._id.toString();
+  const ids = getTaskAssigneeEmployeeIds(task);
+  if (ids.length > 0) return !ids.includes(employeeId);
+  return !!(task.assignedTo && task.assignedTo !== employee.name);
+}
+
 /** Returns an error message if any task assignee is not on the project team. */
 export function validateTaskAssigneesOnProjectTeam(
   project: ProjectTeamSource,

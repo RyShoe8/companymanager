@@ -4,8 +4,32 @@ import { useMemo, useState, useCallback } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
-import { TimeframeType, getTimeframeRange, formatDate } from '@/lib/utils/dateUtils';
+import {
+  TimeframeType,
+  getTimeframeRange,
+  formatDate,
+  parseDateSafe,
+  datesOverlapUtcCalendarDays,
+} from '@/lib/utils/dateUtils';
+import {
+  isTaskAssignedToEmployee,
+  isTaskAssignedToOtherEmployee,
+} from '@/lib/utils/projectTeam';
 import Card from '@/components/ui/Card';
+
+/** Format hours for utilization cards (one decimal on Today). */
+function formatUtilizationHours(hours: number, timeframe: TimeframeType): string {
+  if (timeframe === 'today') {
+    const rounded = Math.round(hours * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  }
+  return String(Math.round(hours));
+}
+
+function isWeekendUtc(date: Date): boolean {
+  const day = date.getUTCDay();
+  return day === 0 || day === 6;
+}
 
 interface EmployeeSidebarProps {
   employees: IEmployee[];
@@ -20,15 +44,10 @@ interface EmployeeSidebarProps {
 
 /** Non-completed tasks on `project` assigned to `employee` (by id or legacy name). */
 function getOpenTasksAssignedToEmployee(project: IProject, employee: IEmployee): IProjectTask[] {
-  const employeeId = employee._id.toString();
   if (!project.tasks) return [];
-  return project.tasks.filter((task) => {
-    const taskAssignedToId = (task as { assignedToEmployeeId?: unknown }).assignedToEmployeeId?.toString();
-    const taskAssignedToName = task.assignedTo;
-    const isAssignedById = taskAssignedToId === employeeId;
-    const isAssignedByName = !!(taskAssignedToName && taskAssignedToName === employee.name);
-    return (isAssignedById || isAssignedByName) && task.status !== 'completed';
-  });
+  return project.tasks.filter(
+    (task) => isTaskAssignedToEmployee(task, employee) && task.status !== 'completed'
+  );
 }
 
 export default function EmployeeSidebar({ employees, projects, allProjects, contentItems, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
@@ -81,16 +100,8 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
   // Calculate total available hours based on timeframe (weekdays only)
   const totalAvailableHours = (employee: IEmployee) => {
     if (timeframe === 'today') {
-      // Check if today is a weekday
-      const today = new Date(startDate);
-      const dayOfWeek = today.getDay();
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        // Today is a weekday = weeklyHours / 5
-        return Math.round((employee.weeklyHours / 5) * 100) / 100;
-      } else {
-        // Today is a weekend = 0 hours
-        return 0;
-      }
+      // Same daily capacity on weekends so scheduled work can show utilization
+      return Math.round((employee.weeklyHours / 5) * 100) / 100;
     }
     if (timeframe === 'weekly') {
       // Weekly is exactly 1 week = 5 weekdays
@@ -136,18 +147,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         return true;
       }
 
-      // Check if any task is assigned to this employee by ID
-      if (project.tasks && project.tasks.some(task => {
-        const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-        if (taskAssignedToId === employeeIdStr) {
-          return true;
-        }
-        // Check legacy name field
-        if (task.assignedTo && task.assignedTo === employee.name) {
-          return true;
-        }
-        return false;
-      })) {
+      if (project.tasks?.some((task) => isTaskAssignedToEmployee(task, employee))) {
         return true;
       }
 
@@ -174,7 +174,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     return normalized;
   };
 
-  // Helper function to calculate hours for a date range (weekdays only)
+  // Helper function to calculate hours for a date range (weekdays only; full hours on Today overlap)
   const calculateHoursForDateRange = (
     rangeStart: Date,
     rangeEnd: Date,
@@ -182,6 +182,16 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     projectEnd: Date,
     totalHours: number
   ): number => {
+    if (timeframe === 'today') {
+      const taskStart = parseDateSafe(projectStart);
+      const taskEnd = parseDateSafe(projectEnd);
+      if (!taskStart || !taskEnd) return 0;
+      if (datesOverlapUtcCalendarDays(rangeStart, rangeEnd, taskStart, taskEnd)) {
+        return totalHours;
+      }
+      return 0;
+    }
+
     // Normalize project dates: start to beginning of day, end to end of day (inclusive)
     // Note: HTML date inputs store dates as YYYY-MM-DD 00:00:00, so endDate at Day 10 means Day 10 00:00:00
     // We need to treat this as inclusive of Day 10, so normalize to end of Day 10
@@ -240,15 +250,18 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       let taskHoursInRange = 0;
       if (project.tasks && project.tasks.length > 0) {
         taskHoursInRange = project.tasks
-          .filter(task => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'completed';
-          })
+          .filter(
+            (task) =>
+              isTaskAssignedToEmployee(task, employee) &&
+              task.estimatedHours &&
+              task.status !== 'completed'
+          )
           .reduce((sum, task) => {
             hasEmployeeTasks = true;
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = new Date(task.startDate);
-            const taskEnd = new Date(task.endDate);
+            const taskStart = parseDateSafe(task.startDate);
+            const taskEnd = parseDateSafe(task.endDate);
+            if (!taskStart || !taskEnd) return sum;
             const hours = calculateHoursForDateRange(
               startDate,
               endDate,
@@ -270,8 +283,11 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
+            if (
+              task.estimatedHours &&
+              task.status !== 'completed' &&
+              isTaskAssignedToOtherEmployee(task, employee)
+            ) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -295,15 +311,23 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         if (hours <= 0) return;
 
         if (content.publishDate) {
-          const publishDate = new Date(content.publishDate);
-          const normDate = normalizeToStartOfDay(publishDate);
-          const rangeStart = normalizeToStartOfDay(startDate);
-          const rangeEnd = normalizeToEndOfDay(endDate);
+          const publishDate = parseDateSafe(content.publishDate);
+          if (!publishDate) return;
 
-          if (normDate >= rangeStart && normDate <= rangeEnd) {
-            const day = normDate.getDay();
-            if (day >= 1 && day <= 5) {
+          if (timeframe === 'today') {
+            if (datesOverlapUtcCalendarDays(startDate, endDate, publishDate, publishDate)) {
               totalHours += hours;
+            }
+          } else {
+            const normDate = normalizeToStartOfDay(publishDate);
+            const rangeStart = normalizeToStartOfDay(startDate);
+            const rangeEnd = normalizeToEndOfDay(endDate);
+
+            if (normDate >= rangeStart && normDate <= rangeEnd) {
+              const day = normDate.getDay();
+              if (day >= 1 && day <= 5) {
+                totalHours += hours;
+              }
             }
           }
         } else if (timeframe !== 'today') {
@@ -335,14 +359,17 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       let taskHoursInRange = 0;
       if (project.tasks && project.tasks.length > 0) {
         taskHoursInRange = project.tasks
-          .filter(task => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status !== 'completed';
-          })
+          .filter(
+            (task) =>
+              isTaskAssignedToEmployee(task, employee) &&
+              task.estimatedHours &&
+              task.status !== 'completed'
+          )
           .reduce((sum, task) => {
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = new Date(task.startDate);
-            const taskEnd = new Date(task.endDate);
+            const taskStart = parseDateSafe(task.startDate);
+            const taskEnd = parseDateSafe(task.endDate);
+            if (!taskStart || !taskEnd) return sum;
             return sum + calculateHoursForDateRange(startDate, endDate, taskStart, taskEnd, task.estimatedHours);
           }, 0);
         breakdown[stage] += taskHoursInRange;
@@ -355,8 +382,11 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && task.status !== 'completed' && taskAssignedToId !== employee._id.toString()) {
+            if (
+              task.estimatedHours &&
+              task.status !== 'completed' &&
+              isTaskAssignedToOtherEmployee(task, employee)
+            ) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -376,15 +406,23 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         const stage = content.projectId ? getProjectStage(calcProjects.find(p => p._id.toString() === content.projectId?.toString())?.status || 'planning') : 'Plan';
 
         if (content.publishDate) {
-          const publishDate = new Date(content.publishDate);
-          const normDate = normalizeToStartOfDay(publishDate);
-          const rangeStart = normalizeToStartOfDay(startDate);
-          const rangeEnd = normalizeToEndOfDay(endDate);
+          const publishDate = parseDateSafe(content.publishDate);
+          if (!publishDate) return;
 
-          if (normDate >= rangeStart && normDate <= rangeEnd) {
-            const day = normDate.getDay();
-            if (day >= 1 && day <= 5) {
+          if (timeframe === 'today') {
+            if (datesOverlapUtcCalendarDays(startDate, endDate, publishDate, publishDate)) {
               breakdown[stage] += hours;
+            }
+          } else {
+            const normDate = normalizeToStartOfDay(publishDate);
+            const rangeStart = normalizeToStartOfDay(startDate);
+            const rangeEnd = normalizeToEndOfDay(endDate);
+
+            if (normDate >= rangeStart && normDate <= rangeEnd) {
+              const day = normDate.getDay();
+              if (day >= 1 && day <= 5) {
+                breakdown[stage] += hours;
+              }
             }
           }
         } else if (timeframe !== 'today') {
@@ -411,14 +449,17 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
       if (project.tasks && project.tasks.length > 0) {
         const taskHoursInRange = project.tasks
-          .filter(task => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && (task.status === 'completed');
-          })
+          .filter(
+            (task) =>
+              isTaskAssignedToEmployee(task, employee) &&
+              task.estimatedHours &&
+              task.status === 'completed'
+          )
           .reduce((sum, task) => {
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = new Date(task.startDate);
-            const taskEnd = new Date(task.endDate);
+            const taskStart = parseDateSafe(task.startDate);
+            const taskEnd = parseDateSafe(task.endDate);
+            if (!taskStart || !taskEnd) return sum;
             return sum + calculateHoursForDateRange(startDate, endDate, taskStart, taskEnd, task.estimatedHours);
           }, 0);
         breakdown[stage] += taskHoursInRange;
@@ -429,8 +470,11 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && (task.status === 'completed') && taskAssignedToId !== employee._id.toString()) {
+            if (
+              task.estimatedHours &&
+              task.status === 'completed' &&
+              isTaskAssignedToOtherEmployee(task, employee)
+            ) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -484,8 +528,11 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       let employeeTaskHours = 0;
       if (project.tasks && project.tasks.length > 0) {
         project.tasks.forEach((task) => {
-          const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-          if (taskAssignedToId === employee._id.toString() && task.estimatedHours && task.status === 'completed') {
+          if (
+            isTaskAssignedToEmployee(task, employee) &&
+            task.estimatedHours &&
+            task.status === 'completed'
+          ) {
             employeeTaskHours += task.estimatedHours;
           }
         });
@@ -494,14 +541,17 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       // If employee has completed tasks assigned, count those task hours
       if (employeeTaskHours > 0 && project.tasks) {
         const taskHoursInRange = project.tasks
-          .filter(task => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            return taskAssignedToId === employee._id.toString() && task.estimatedHours && (task.status === 'completed');
-          })
+          .filter(
+            (task) =>
+              isTaskAssignedToEmployee(task, employee) &&
+              task.estimatedHours &&
+              task.status === 'completed'
+          )
           .reduce((sum, task) => {
             if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = new Date(task.startDate);
-            const taskEnd = new Date(task.endDate);
+            const taskStart = parseDateSafe(task.startDate);
+            const taskEnd = parseDateSafe(task.endDate);
+            if (!taskStart || !taskEnd) return sum;
             return sum + calculateHoursForDateRange(
               startDate,
               endDate,
@@ -520,8 +570,11 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         let otherEmployeeTaskHours = 0;
         if (project.tasks && project.tasks.length > 0) {
           project.tasks.forEach((task) => {
-            const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
-            if (task.estimatedHours && (task.status === 'completed') && taskAssignedToId !== employee._id.toString()) {
+            if (
+              task.estimatedHours &&
+              task.status === 'completed' &&
+              isTaskAssignedToOtherEmployee(task, employee)
+            ) {
               otherEmployeeTaskHours += task.estimatedHours;
             }
           });
@@ -544,15 +597,23 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         if (hours <= 0) return;
 
         if (content.publishDate) {
-          const publishDate = new Date(content.publishDate);
-          const normDate = normalizeToStartOfDay(publishDate);
-          const rangeStart = normalizeToStartOfDay(startDate);
-          const rangeEnd = normalizeToEndOfDay(endDate);
+          const publishDate = parseDateSafe(content.publishDate);
+          if (!publishDate) return;
 
-          if (normDate >= rangeStart && normDate <= rangeEnd) {
-            const day = normDate.getDay();
-            if (day >= 1 && day <= 5) {
+          if (timeframe === 'today') {
+            if (datesOverlapUtcCalendarDays(startDate, endDate, publishDate, publishDate)) {
               totalHours += hours;
+            }
+          } else {
+            const normDate = normalizeToStartOfDay(publishDate);
+            const rangeStart = normalizeToStartOfDay(startDate);
+            const rangeEnd = normalizeToEndOfDay(endDate);
+
+            if (normDate >= rangeStart && normDate <= rangeEnd) {
+              const day = normDate.getDay();
+              if (day >= 1 && day <= 5) {
+                totalHours += hours;
+              }
             }
           }
         } else if (timeframe !== 'today') {
@@ -654,7 +715,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="bg-background-card p-3 rounded-lg border border-border shadow-sm">
             <p className="text-xs text-text-secondary mb-1">Total Available Capacity</p>
-            <p className="text-lg font-bold text-text-primary">{Math.round(teamTotals.total)}h</p>
+            <p className="text-lg font-bold text-text-primary">{formatUtilizationHours(teamTotals.total, timeframe)}h</p>
           </div>
           <div className="bg-background-card p-3 rounded-lg border border-border shadow-sm">
             <p className="text-xs text-text-secondary mb-1">Overall Utilization</p>
@@ -668,7 +729,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
             <div className="flex gap-3">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                Committed: {Math.round(teamTotals.committed)}h
+                Committed: {formatUtilizationHours(teamTotals.committed, timeframe)}h
               </span>
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span>
@@ -699,8 +760,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
         const utilizationPercent = totalHours > 0 ? Math.round((committedHours / totalHours) * 100) : 0;
 
-        const committedHoursRounded = Math.round(committedHours);
-        const totalHoursRounded = Math.round(totalHours);
+        const committedHoursDisplay = formatUtilizationHours(committedHours, timeframe);
+        const totalHoursDisplay = formatUtilizationHours(totalHours, timeframe);
+        const showWeekendLabel = timeframe === 'today' && isWeekendUtc(currentDate);
 
         return (
           <Card key={employeeId} className={utilizationCardSurface}>
@@ -734,8 +796,16 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
               {/* Utilization (hours for selected period) - Always visible */}
               <div className="mb-2">
                 <div className="flex justify-between text-xs text-text-secondary mb-1">
-                  <span>Utilization (this period)</span>
-                  <span>{committedHoursRounded}h / {totalHoursRounded}h{totalHours > 0 ? ` (${utilizationPercent}%)` : ''}</span>
+                  <span>
+                    Utilization (this period)
+                    {showWeekendLabel ? (
+                      <span className="text-text-muted ml-1">(Weekend)</span>
+                    ) : null}
+                  </span>
+                  <span>
+                    {committedHoursDisplay}h / {totalHoursDisplay}h
+                    {totalHours > 0 ? ` (${utilizationPercent}%)` : ''}
+                  </span>
                 </div>
                 <div className="w-full bg-border rounded-full h-2">
                   <div
@@ -906,8 +976,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
                         const taskHoursList = assignedTasks.map(task => {
                           if (!task.estimatedHours || !task.startDate || !task.endDate) return null;
-                          const taskStart = new Date(task.startDate);
-                          const taskEnd = new Date(task.endDate);
+                          const taskStart = parseDateSafe(task.startDate);
+                          const taskEnd = parseDateSafe(task.endDate);
+                          if (!taskStart || !taskEnd) return null;
 
                           const hours = calculateHoursForDateRange(
                             startDate,
