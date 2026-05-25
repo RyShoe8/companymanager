@@ -221,11 +221,11 @@ export default function ContentTargetingSection({
 
 function TargetingToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   return (
-    <div className="pt-2 border-t border-gray-700">
+    <div className="pt-2 border-t border-border">
       <button
         type="button"
         onClick={onToggle}
-        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full focus:outline-none"
+        className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors w-full focus:outline-none"
       >
         <svg
           className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}

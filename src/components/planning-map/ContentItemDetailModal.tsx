@@ -206,7 +206,7 @@ export default function ContentItemDetailModal({
                 className={`inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
                   checked
                     ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-600 text-indigo-900 dark:text-indigo-100'
-                    : 'border-border text-text-secondary hover:bg-gray-50 dark:hover:bg-gray-800'
+                    : 'border-border text-text-secondary hover:bg-background-elevated'
                 }`}
               >
                 <input type="checkbox" checked={checked} onChange={() => toggleDistribution(method)} className="sr-only" />

@@ -39,6 +39,38 @@ select {
   border-color: var(--border);
 }
 
+input[type='date'],
+input[type='datetime-local'] {
+  color-scheme: dark;
+  background-color: var(--background-elevated);
+  color: var(--text-primary);
+}
+
+input[type='date']:focus,
+input[type='date']:focus-visible,
+input[type='datetime-local']:focus,
+input[type='datetime-local']:focus-visible {
+  background-color: var(--background-elevated);
+  color: var(--text-primary);
+}
+
+input[type='date']::-webkit-datetime-edit,
+input[type='date']::-webkit-datetime-edit-fields-wrapper,
+input[type='date']::-webkit-datetime-edit-text,
+input[type='date']::-webkit-datetime-edit-month-field,
+input[type='date']::-webkit-datetime-edit-day-field,
+input[type='date']::-webkit-datetime-edit-year-field,
+input[type='datetime-local']::-webkit-datetime-edit,
+input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
+  color: var(--text-primary);
+}
+
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  cursor: pointer;
+}
+
 .popout-drag {
   -webkit-app-region: drag;
   app-region: drag;

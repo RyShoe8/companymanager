@@ -16,6 +16,7 @@ import {
   isTaskAssignedToEmployee,
   isTaskAssignedToOtherEmployee,
 } from '@/lib/utils/projectTeam';
+import { contentCountsInViewPeriod } from '@/lib/utils/projectHours';
 import Card from '@/components/ui/Card';
 
 /** Format hours for utilization cards (one decimal on Today). */
@@ -64,6 +65,32 @@ function getAssignedTasksInViewPeriod(
     if (!taskStart || !taskEnd) return false;
     return taskOverlapsViewRange(viewStart, viewEnd, taskStart, taskEnd);
   });
+}
+
+function contentProjectIdStr(item: IContentItem): string {
+  const pid = item.projectId as unknown;
+  if (typeof pid === 'string') return pid;
+  if (pid && typeof (pid as { toString?: () => string }).toString === 'function') {
+    return (pid as { toString: () => string }).toString();
+  }
+  return '';
+}
+
+function getAssignedContentInViewPeriod(
+  employee: IEmployee,
+  items: IContentItem[] | undefined,
+  timeframe: TimeframeType,
+  viewStart: Date,
+  viewEnd: Date,
+  options?: { forCompleted?: boolean }
+): IContentItem[] {
+  if (!items) return [];
+  const employeeId = employee._id.toString();
+  return items.filter(
+    (c) =>
+      c.assignedToEmployeeId?.toString() === employeeId &&
+      contentCountsInViewPeriod(c, timeframe, viewStart, viewEnd, options)
+  );
 }
 
 export default function EmployeeSidebar({ employees, projects, allProjects, contentItems, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
@@ -318,39 +345,10 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
 
 
-    // Add hours from content items
-    if (contentItems) {
-      const employeeContentItems = contentItems.filter(c => c.assignedToEmployeeId?.toString() === employee._id.toString());
-      employeeContentItems.forEach(content => {
-        if (content.status === 'published') return;
-        const hours = content.estimatedHours || 0;
-        if (hours <= 0) return;
-
-        if (content.publishDate) {
-          const publishDate = parseDateSafe(content.publishDate);
-          if (!publishDate) return;
-
-          if (timeframe === 'today') {
-            if (taskOverlapsViewRange(startDate, endDate, publishDate, publishDate)) {
-              totalHours += hours;
-            }
-          } else {
-            const normDate = normalizeToStartOfDay(publishDate);
-            const rangeStart = normalizeToStartOfDay(startDate);
-            const rangeEnd = normalizeToEndOfDay(endDate);
-
-            if (normDate >= rangeStart && normDate <= rangeEnd) {
-              const day = normDate.getDay();
-              if (day >= 1 && day <= 5) {
-                totalHours += hours;
-              }
-            }
-          }
-        } else if (timeframe !== 'today') {
-          totalHours += hours;
-        }
-      });
-    }
+    getAssignedContentInViewPeriod(employee, contentItems, timeframe, startDate, endDate).forEach((content) => {
+      const hours = content.estimatedHours || 0;
+      if (hours > 0) totalHours += hours;
+    });
 
     // Round to 2 decimal places for display
     return Math.round(totalHours * 100) / 100;
@@ -412,40 +410,16 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       }
     });
 
-    if (contentItems) {
-      const employeeContentItems = contentItems.filter(c => c.assignedToEmployeeId?.toString() === employee._id.toString());
-      employeeContentItems.forEach(content => {
-        if (content.status === 'published') return;
-        const hours = content.estimatedHours || 0;
-        if (hours <= 0) return;
-
-        const stage = content.projectId ? getProjectStage(calcProjects.find(p => p._id.toString() === content.projectId?.toString())?.status || 'planning') : 'Plan';
-
-        if (content.publishDate) {
-          const publishDate = parseDateSafe(content.publishDate);
-          if (!publishDate) return;
-
-          if (timeframe === 'today') {
-            if (taskOverlapsViewRange(startDate, endDate, publishDate, publishDate)) {
-              breakdown[stage] += hours;
-            }
-          } else {
-            const normDate = normalizeToStartOfDay(publishDate);
-            const rangeStart = normalizeToStartOfDay(startDate);
-            const rangeEnd = normalizeToEndOfDay(endDate);
-
-            if (normDate >= rangeStart && normDate <= rangeEnd) {
-              const day = normDate.getDay();
-              if (day >= 1 && day <= 5) {
-                breakdown[stage] += hours;
-              }
-            }
-          }
-        } else if (timeframe !== 'today') {
-          breakdown[stage] += hours;
-        }
-      });
-    }
+    getAssignedContentInViewPeriod(employee, contentItems, timeframe, startDate, endDate).forEach((content) => {
+      const hours = content.estimatedHours || 0;
+      if (hours <= 0) return;
+      const stage = content.projectId
+        ? getProjectStage(
+            calcProjects.find((p) => p._id.toString() === contentProjectIdStr(content))?.status || 'planning'
+          )
+        : 'Plan';
+      breakdown[stage] += hours;
+    });
 
     return {
       Plan: Math.round(breakdown.Plan * 100) / 100,
@@ -605,38 +579,12 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
 
 
-    if (contentItems) {
-      const employeeContentItems = contentItems.filter(c => c.assignedToEmployeeId?.toString() === employee._id.toString());
-      employeeContentItems.forEach(content => {
-        if (content.status !== 'published') return;
-        const hours = content.estimatedHours || 0;
-        if (hours <= 0) return;
-
-        if (content.publishDate) {
-          const publishDate = parseDateSafe(content.publishDate);
-          if (!publishDate) return;
-
-          if (timeframe === 'today') {
-            if (taskOverlapsViewRange(startDate, endDate, publishDate, publishDate)) {
-              totalHours += hours;
-            }
-          } else {
-            const normDate = normalizeToStartOfDay(publishDate);
-            const rangeStart = normalizeToStartOfDay(startDate);
-            const rangeEnd = normalizeToEndOfDay(endDate);
-
-            if (normDate >= rangeStart && normDate <= rangeEnd) {
-              const day = normDate.getDay();
-              if (day >= 1 && day <= 5) {
-                totalHours += hours;
-              }
-            }
-          }
-        } else if (timeframe !== 'today') {
-          totalHours += hours;
-        }
-      });
-    }
+    getAssignedContentInViewPeriod(employee, contentItems, timeframe, startDate, endDate, {
+      forCompleted: true,
+    }).forEach((content) => {
+      const hours = content.estimatedHours || 0;
+      if (hours > 0) totalHours += hours;
+    });
 
     return Math.round(totalHours * 100) / 100;
   };
@@ -770,9 +718,24 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
         const completedHours = getCompletedHours(employee);
         const totalHours = totalAvailableHours(employee);
         const employeeProjects = getProjectsForEmployee(employee);
-        const utilizationProjects = employeeProjects.filter(
-          (p) => getAssignedTasksInViewPeriod(p, employee, startDate, endDate).length > 0
+        const assignedContentInPeriod = getAssignedContentInViewPeriod(
+          employee,
+          contentItems,
+          timeframe,
+          startDate,
+          endDate
         );
+        const contentProjectIds = new Set(assignedContentInPeriod.map((c) => contentProjectIdStr(c)));
+        const utilizationProjects = [
+          ...new Map(
+            [
+              ...employeeProjects.filter(
+                (p) => getAssignedTasksInViewPeriod(p, employee, startDate, endDate).length > 0
+              ),
+              ...calcProjects.filter((p) => contentProjectIds.has(p._id.toString())),
+            ].map((p) => [p._id.toString(), p])
+          ).values(),
+        ];
 
         const utilizationPercent = totalHours > 0 ? Math.round((committedHours / totalHours) * 100) : 0;
 
@@ -982,12 +945,13 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                   </div>
                 </div>
 
-                {/* Projects where this employee has assigned tasks */}
+                {/* Projects where this employee has assigned work in the period */}
                 {utilizationProjects.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs font-medium text-text-secondary mb-2">Tasks assigned to you:</p>
+                    <p className="text-xs font-medium text-text-secondary mb-2">Work assigned to you:</p>
                     <div className="space-y-1 max-h-[300px] overflow-y-auto">
                       {utilizationProjects.map((project) => {
+                        const projectId = project._id.toString();
                         const assignedTasks = getAssignedTasksInViewPeriod(
                           project,
                           employee,
@@ -1018,10 +982,31 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                           };
                         }).filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date }>;
 
-                        const totalProjectHours = taskHoursList.reduce((sum, t) => sum + t.hours, 0);
+                        const projectContent = assignedContentInPeriod.filter(
+                          (c) => contentProjectIdStr(c) === projectId
+                        );
+
+                        const contentHoursList = projectContent
+                          .map((content) => {
+                            const hours = content.estimatedHours || 0;
+                            if (hours <= 0) return null;
+                            const publishDate = content.publishDate
+                              ? parseDateSafe(content.publishDate)
+                              : null;
+                            return {
+                              name: content.title,
+                              hours: Math.round(hours * 100) / 100,
+                              dueDate: publishDate,
+                            };
+                          })
+                          .filter(Boolean) as Array<{ name: string; hours: number; dueDate: Date | null }>;
+
+                        const totalProjectHours =
+                          taskHoursList.reduce((sum, t) => sum + t.hours, 0) +
+                          contentHoursList.reduce((sum, c) => sum + c.hours, 0);
 
                         return (
-                          <div key={project._id.toString()} className="space-y-1">
+                          <div key={projectId} className="space-y-1">
                             <div
                               className="text-xs p-1.5 rounded"
                               style={{ backgroundColor: project.color + '20' }}
@@ -1045,7 +1030,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
                               return (
                                 <div
-                                  key={`task-${project._id.toString()}-${idx}`}
+                                  key={`task-${projectId}-${idx}`}
                                   className="text-xs p-1.5 rounded ml-3"
                                   style={{ backgroundColor: project.color + '15' }}
                                 >
@@ -1057,6 +1042,35 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                                   </div>
                                   <div className="text-text-muted text-[10px] mt-0.5">
                                     Due: {isTaskDueOnViewDay ? 'Today' : formatDate(taskInfo.dueDate)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {contentHoursList.map((contentInfo, idx) => {
+                              const dueLabel =
+                                contentInfo.dueDate &&
+                                taskOverlapsViewDay(currentDate, contentInfo.dueDate, contentInfo.dueDate)
+                                  ? 'Today'
+                                  : contentInfo.dueDate
+                                    ? formatDate(contentInfo.dueDate)
+                                    : '—';
+
+                              return (
+                                <div
+                                  key={`content-${projectId}-${idx}`}
+                                  className="text-xs p-1.5 rounded ml-3"
+                                  style={{ backgroundColor: project.color + '15' }}
+                                >
+                                  <div className="text-text-primary truncate">
+                                    • {contentInfo.name}
+                                    <span className="text-text-muted ml-1">(content)</span>
+                                  </div>
+                                  <div className="text-text-secondary">
+                                    {contentInfo.hours}h
+                                  </div>
+                                  <div className="text-text-muted text-[10px] mt-0.5">
+                                    Publish: {dueLabel}
                                   </div>
                                 </div>
                               );

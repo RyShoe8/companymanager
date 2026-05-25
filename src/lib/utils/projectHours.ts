@@ -34,20 +34,34 @@ function taskOverlapsTimeframe(task: IProjectTask, range: DateRange): boolean {
   return taskOverlapsViewRange(range.start, range.end, start, end);
 }
 
+export function contentCountsInViewPeriod(
+  item: IContentItem,
+  timeframe: TimeframeType,
+  viewStart: Date,
+  viewEnd: Date,
+  options?: { forCompleted?: boolean }
+): boolean {
+  if (options?.forCompleted) {
+    if (item.status !== 'published') return false;
+  } else if (item.status === 'published') {
+    return false;
+  }
+
+  if (item.publishDate) {
+    const publishDate = parseDateSafe(item.publishDate);
+    if (!publishDate) return false;
+    return taskOverlapsViewRange(viewStart, viewEnd, publishDate, publishDate);
+  }
+
+  return timeframe !== 'today';
+}
+
 function contentCountsInTimeframe(
   item: IContentItem,
   timeframe: TimeframeType,
   range: DateRange
 ): boolean {
-  if (item.status === 'published') return false;
-
-  if (item.publishDate) {
-    const publishDate = parseDateSafe(item.publishDate);
-    if (!publishDate) return false;
-    return taskOverlapsViewRange(range.start, range.end, publishDate, publishDate);
-  }
-
-  return timeframe !== 'today';
+  return contentCountsInViewPeriod(item, timeframe, range.start, range.end);
 }
 
 export function sumTaskHoursInTimeframe(project: IProject, range: DateRange): number {

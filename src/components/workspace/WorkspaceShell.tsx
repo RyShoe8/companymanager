@@ -1121,6 +1121,7 @@ export default function WorkspaceShell({
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
                                             allProjects={ws.allProjects}
+                                            contentItems={ws.contentItems}
                                             timeframe={ws.timeframe}
                                             currentDate={ws.currentDate}
                                             currentUserRole={ws.currentUserRole}
@@ -1146,6 +1147,7 @@ export default function WorkspaceShell({
                                         employees={ws.employees}
                                         projects={ws.filteredProjects}
                                         allProjects={ws.allProjects}
+                                        contentItems={ws.contentItems}
                                         timeframe={ws.timeframe}
                                         currentDate={ws.currentDate}
                                         currentUserRole={ws.currentUserRole}

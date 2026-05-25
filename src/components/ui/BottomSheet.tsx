@@ -94,20 +94,20 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
       onWheel={isOpen ? handleBackdropWheel : undefined}
     >
       <div
-        className={`w-full bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out flex flex-col ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`w-full bg-background-card rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out flex flex-col ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
         style={{ maxHeight, transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined }}
         onWheel={handleSheetWheel}
       >
         {showHandle && (
           <div className="flex-shrink-0 flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            <div className="w-10 h-1 bg-border rounded-full" />
           </div>
         )}
         {title && (
-          <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <div className="flex-shrink-0 px-4 py-2 border-b border-border flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
             {!hideCloseButton && (
-              <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 -mr-1" aria-label="Close">
+              <button onClick={onClose} className="text-text-secondary hover:text-text-primary p-1 -mr-1 transition-colors" aria-label="Close">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -126,7 +126,7 @@ export default function BottomSheet({ isOpen, onClose, title, children, showHand
 
 interface QuickActionProps { icon: ReactNode; label: string; onClick: () => void; variant?: 'default' | 'danger' | 'success' | 'warning'; disabled?: boolean; }
 export function QuickAction({ icon, label, onClick, variant = 'default', disabled = false }: QuickActionProps) {
-  const variantClasses = { default: 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700', danger: 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20', success: 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20', warning: 'text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20' };
+  const variantClasses = { default: 'text-text-primary hover:bg-background-elevated', danger: 'text-error hover:bg-error-light', success: 'text-success hover:bg-success-light', warning: 'text-warning hover:bg-warning-light' };
   return (<button onClick={onClick} disabled={disabled} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${variantClasses[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
     <span className="w-5 h-5 flex items-center justify-center">{icon}</span><span className="font-medium">{label}</span>
   </button>);

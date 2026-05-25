@@ -29,6 +29,11 @@ function taskOverlapsWeek(
   return taskOverlapsViewRange(weekStartDay, weekEndDay, taskStart, taskEnd);
 }
 
+/** Collapsed weekly card body when project has tasks but none in the visible week. */
+const WEEKLY_EMPTY_STATE_BODY_HEIGHT = 48;
+const WEEKLY_COLLAPSED_LINE_HEIGHT = 20;
+const WEEKLY_COLLAPSED_LINE_GAP = 8;
+
 interface CalendarViewProps {
   projects: IProject[];
   contentItems?: IContentItem[];
@@ -871,14 +876,18 @@ export default function CalendarView({
                     const weekEnd = new Date(days[6]);
                     weekEnd.setHours(23, 59, 59, 999);
 
-                    let collapsedItemsHeight = 0;
-                    if (hasTasks) {
-                      const visibleTasks = project.tasks!.filter((task) =>
-                        taskOverlapsWeek(task, days[0], days[6])
-                      );
-                      const collapsedTaskCount = Math.min(visibleTasks.length, 5);
-                      const collapsedTaskHeight = 20; // Each collapsed task line ~20px
-                      collapsedItemsHeight = collapsedTaskCount > 0 ? (collapsedTaskCount * collapsedTaskHeight) + 8 : 0; // +8 for spacing
+                    const { merged } = getMergedItemsForProject(project, weekStart, weekEnd, {});
+                    const displayList = merged.filter(
+                      (item): item is MergedCalendarItem =>
+                        item.type === 'content' || taskPassesAssignmentFilter(item.task)
+                    );
+                    const collapsedLineCount = Math.min(displayList.length, 5);
+                    let collapsedItemsHeight =
+                      collapsedLineCount > 0
+                        ? collapsedLineCount * WEEKLY_COLLAPSED_LINE_HEIGHT + WEEKLY_COLLAPSED_LINE_GAP
+                        : 0;
+                    if (displayList.length === 0 && (project.tasks?.length ?? 0) > 0) {
+                      collapsedItemsHeight = WEEKLY_EMPTY_STATE_BODY_HEIGHT;
                     }
 
                     return topPadding + headerHeight + collapsedItemsHeight + bottomPadding;
@@ -961,7 +970,7 @@ export default function CalendarView({
                   return (
                     <div
                       key={`${pos.project!._id.toString()}-weekly`}
-                      className={`absolute rounded-lg border-2 border-border ${status === 'completed' ? 'line-through opacity-60' : ''}`}
+                      className={`absolute rounded-lg border-2 border-border flex flex-col overflow-hidden ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                       style={{
                         backgroundColor: displayColor + 'F0',
                         borderColor: displayColor,

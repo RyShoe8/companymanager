@@ -567,6 +567,30 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  const handleContentItemHoursUpdate = async (item: IContentItem, hours: number | null) => {
+    const id = item._id.toString();
+    const previousHours = item.estimatedHours;
+    setProjectContentItems((prev) =>
+      prev.map((c) =>
+        c._id.toString() === id ? ({ ...c, estimatedHours: hours ?? undefined } as IContentItem) : c
+      )
+    );
+    try {
+      const res = await fetch(`/api/content-items/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimatedHours: hours ?? undefined }),
+      });
+      if (!res.ok) throw new Error('save failed');
+    } catch {
+      setProjectContentItems((prev) =>
+        prev.map((c) =>
+          c._id.toString() === id ? ({ ...c, estimatedHours: previousHours } as IContentItem) : c
+        )
+      );
+    }
+  };
+
   const handleContentItemAssigneeUpdate = async (item: IContentItem, employeeId: string) => {
     const id = item._id.toString();
     const previousAssignee = item.assignedToEmployeeId;
@@ -1415,8 +1439,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     </button>
                     <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm px-2 py-1 shrink-0">Delete</button>
                     </div>
-                    {employees.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                      <EditableNumber
+                        value={item.estimatedHours}
+                        onSave={(v) => handleContentItemHoursUpdate(item, v)}
+                        className="leading-none py-0 text-text-primary"
+                        suffix="h"
+                        min={0}
+                        placeholder="Hours"
+                        disabled={!isManagerOrAdmin}
+                      />
+                      {employees.length > 0 && (
                         <div className="flex items-center gap-1 min-w-[8rem]">
                           <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1426,11 +1459,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             options={contentAssigneeOptions(employees, localProject, item.assignedToEmployeeId?.toString())}
                             onSave={(v) => handleContentItemAssigneeUpdate(item, v)}
                             disabled={!isManagerOrAdmin}
-                            className="text-xs text-gray-900 min-w-[8rem]"
+                            className="text-xs text-text-primary min-w-[8rem]"
                           />
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-between gap-2">
                         <button type="button" onClick={() => toggleContentComments(itemId)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
