@@ -24,6 +24,7 @@ export default function OrganizationSetupCheck({ children }: { children: React.R
         pathname === '/contact' ||
         pathname === '/terms' ||
         pathname === '/privacy' ||
+        pathname === '/pricing' ||
         pathname?.startsWith('/features/')
       ) {
         setChecking(false);

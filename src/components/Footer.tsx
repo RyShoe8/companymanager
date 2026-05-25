@@ -10,13 +10,15 @@ export default function Footer() {
           {/* Brand */}
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <img
-                src="/images/nucleas-logo-legacy.png?v=1"
-                alt="Nucleas Logo"
-                width={140}
-                height={48}
-                className="h-10 w-auto object-contain"
-              />
+              <span className="inline-flex rounded-md bg-white px-2 py-1.5">
+                <img
+                  src="/images/nucleas-logo-legacy.png?v=1"
+                  alt="Nucleas Logo"
+                  width={140}
+                  height={48}
+                  className="h-10 w-auto object-contain"
+                />
+              </span>
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-6">
               The operating system for planning, building, and running every project you own. One command center for your entire internet business.
@@ -46,6 +48,11 @@ export default function Footer() {
               <li>
                 <Link href="/run" className="text-sm text-slate-400 hover:text-white transition-colors">
                   Run
+                </Link>
+              </li>
+              <li>
+                <Link href="/pricing" className="text-sm text-slate-400 hover:text-white transition-colors">
+                  Pricing
                 </Link>
               </li>
               <li>

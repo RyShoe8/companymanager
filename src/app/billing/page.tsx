@@ -1,14 +1,15 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Modal from '@/components/ui/Modal';
 import { PricingPlanCard } from 'billing-engine/next/components';
 import type { PublicPricingPlan, EmployeeLimitInfo } from 'billing-engine';
-import { formatUsd, intervalSuffix } from 'billing-engine/pricing-display';
+import { seatUsageLine } from '@/lib/billing/seatDisplay';
+import { consumeSelectedPlanId } from '@/lib/billing/selectedPlanStorage';
 
 type BillingSummary = {
   renewsAt?: string | null;
@@ -42,26 +43,11 @@ function formatBillingDate(iso: string | null | undefined): string {
   });
 }
 
-function seatUsageLine(
-  limits: EmployeeLimitInfo | null | undefined,
-  plan: PublicPricingPlan | null | undefined
-): string | null {
-  if (!limits) return null;
-  const count = limits.currentCount;
-  if (limits.maxEmployees !== null) {
-    return `${count} of ${limits.maxEmployees} seats in use`;
-  }
-  if (limits.canAddBeyondIncluded && plan && plan.additionalUserPriceCents > 0) {
-    return `${count} seats in use · add more at ${formatUsd(plan.additionalUserPriceCents)} per user${intervalSuffix(plan.interval)}`;
-  }
-  if (limits.includedUsers !== null) {
-    return `${count} of ${limits.includedUsers} included users`;
-  }
-  return `${count} seat${count === 1 ? '' : 's'} in use`;
-}
-
 function BillingPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const planFromQuery = searchParams.get('plan');
+  const autoPlanHandledRef = useRef(false);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [currentPlan, setCurrentPlan] = useState<PublicPricingPlan | null>(null);
   const [availablePlans, setAvailablePlans] = useState<PublicPricingPlan[]>([]);
@@ -74,6 +60,7 @@ function BillingPageInner() {
   const [changePlanOpen, setChangePlanOpen] = useState(false);
   const [changePlanPendingId, setChangePlanPendingId] = useState<string | null>(null);
   const [accessChecked, setAccessChecked] = useState(false);
+  const [billingLoaded, setBillingLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,6 +94,7 @@ function BillingPageInner() {
     setAvailablePlans(data.availablePlans ?? []);
     setSeatLimits(data.seatLimits ?? null);
     setViewerRole(data.viewer?.role ?? 'member');
+    setBillingLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -117,6 +105,7 @@ function BillingPageInner() {
         setBilling(null);
         setCurrentPlan(null);
         setLoadError(e instanceof Error ? e.message : 'Could not load billing status');
+        setBillingLoaded(true);
       }
     });
     return () => {
@@ -205,6 +194,34 @@ function BillingPageInner() {
       setChangePlanPendingId(null);
     }
   }
+
+  useEffect(() => {
+    if (!accessChecked || !billingLoaded || loadError || autoPlanHandledRef.current) return;
+
+    const storedPlanId = planFromQuery ? null : consumeSelectedPlanId();
+    const planId = (planFromQuery ?? storedPlanId)?.trim();
+    if (!planId || viewerRole !== 'owner') {
+      autoPlanHandledRef.current = true;
+      return;
+    }
+
+    autoPlanHandledRef.current = true;
+
+    if (currentPlan?.id === planId) return;
+
+    const target = availablePlans.find((plan) => plan.id === planId);
+    if (!target || target.soldOut) return;
+
+    void selectPlan(planId);
+  }, [
+    accessChecked,
+    billingLoaded,
+    loadError,
+    planFromQuery,
+    viewerRole,
+    availablePlans,
+    currentPlan?.id,
+  ]);
 
   const usageLine = seatUsageLine(seatLimits, currentPlan);
 

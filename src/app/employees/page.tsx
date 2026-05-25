@@ -2,11 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { IEmployee } from '@/lib/models/Employee';
 import EmployeeForm from '@/components/employees/EmployeeForm';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import type { EmployeeLimitInfo, PublicPricingPlan } from 'billing-engine';
+import { seatUsageLine } from '@/lib/billing/seatDisplay';
+
+type BillingSeatPayload = {
+  seatLimits?: EmployeeLimitInfo | null;
+  currentPlan?: PublicPricingPlan | null;
+  viewer?: { role?: string };
+  error?: string;
+};
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -17,6 +27,8 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<IEmployee | undefined>();
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [isOrgOwner, setIsOrgOwner] = useState(false);
+  const [seatLimits, setSeatLimits] = useState<EmployeeLimitInfo | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<PublicPricingPlan | null>(null);
 
   useEffect(() => {
     loadData();
@@ -25,7 +37,10 @@ export default function EmployeesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/employees');
+      const [response, billingRes] = await Promise.all([
+        fetch('/api/employees'),
+        fetch('/api/dashboard/billing'),
+      ]);
 
       if (response.status === 401) {
         router.push('/login');
@@ -34,8 +49,16 @@ export default function EmployeesPage() {
 
       const data = await response.json();
       setEmployees(data);
-      
-      // Find current user's employee record to check permissions
+
+      if (billingRes.ok) {
+        const billingData = (await billingRes.json()) as BillingSeatPayload;
+        setSeatLimits(billingData.seatLimits ?? null);
+        setCurrentPlan(billingData.currentPlan ?? null);
+      } else {
+        setSeatLimits(null);
+        setCurrentPlan(null);
+      }
+
       try {
         const userResponse = await fetch('/api/auth/me');
         if (userResponse.ok) {
@@ -46,10 +69,10 @@ export default function EmployeesPage() {
             setCurrentUserEmployee(currentEmployee || null);
           }
         }
-      } catch (error) {
+      } catch {
         // Error loading current user
       }
-    } catch (error) {
+    } catch {
       // Error loading employees
     } finally {
       setLoading(false);
@@ -147,6 +170,9 @@ export default function EmployeesPage() {
     );
   }
 
+  const usageLine = seatUsageLine(seatLimits, currentPlan);
+  const atSeatLimit = seatLimits !== null && !seatLimits.canAddMore;
+
   return (
     <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="w-full mx-auto">
@@ -163,6 +189,27 @@ export default function EmployeesPage() {
             )}
           </div>
         </div>
+
+        {usageLine ? (
+          <Card className="mb-6 p-4 border border-gray-700 bg-gray-800/80">
+            <p className="text-sm text-gray-200">{usageLine}</p>
+            {atSeatLimit ? (
+              <p className="text-sm text-amber-200 mt-2">
+                {isOrgOwner ? (
+                  <>
+                    You&apos;ve reached your seat limit.{' '}
+                    <Link href="/billing" className="underline hover:text-white">
+                      Upgrade on billing
+                    </Link>{' '}
+                    to add more team members.
+                  </>
+                ) : (
+                  "You've reached your seat limit. Contact your organization owner to upgrade billing."
+                )}
+              </p>
+            ) : null}
+          </Card>
+        ) : null}
 
         {employees.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">

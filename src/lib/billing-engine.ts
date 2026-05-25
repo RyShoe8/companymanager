@@ -5,15 +5,12 @@ import connectDB from '@/lib/db/mongodb';
 import Organization from '@/lib/models/Organization';
 import Employee from '@/lib/models/Employee';
 import User from '@/lib/models/User';
+import { NUCLEAS_PLATFORM_FEATURES } from '@/lib/marketing/nucleasPlatformFeatures';
 import { sendEmail } from '@/lib/services/email';
 import { buildBillingNotificationEmail } from '@/lib/billing/billingEmailTemplates';
 import { getBillingSession, requirePlatformAdminApi } from '@/lib/billing/sessionAdapter';
 
-const NUCLEAS_PLAN_FEATURE_BULLETS = [
-  'Workspace planning and scheduling',
-  'Project and asset management',
-  'Team capacity and assignments',
-] as const;
+const NUCLEAS_PLAN_FEATURE_BULLETS = NUCLEAS_PLATFORM_FEATURES;
 
 function getAppBaseUrl(): string {
   const fromEnv = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? '').trim();

@@ -1,10 +1,13 @@
+import '@/lib/billing-engine';
 import { NextRequest, NextResponse } from 'next/server';
+import { syncStripeSubscriptionSeatsForOrganization } from 'billing-engine';
 import connectDB from '@/lib/db/mongodb';
 import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
 import { deleteBrevoContact } from '@/lib/services/email';
 import { inviteEmployeeByEmail } from '@/lib/services/employeeInvitation';
 import { isValidObjectId, sanitizeString, isValidEmail } from '@/lib/utils/security';
+import { getOrganizationForBillingUser } from '@/lib/billing/organizationResolve';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -334,6 +337,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       { arrayFilters: [{ 'task.assignedTo': employeeName }] }
     );
 
+    const billingOrg = await getOrganizationForBillingUser(session.userId);
+    if (billingOrg?.org) {
+      try {
+        await syncStripeSubscriptionSeatsForOrganization(billingOrg.org._id);
+      } catch (syncError) {
+        console.error('[employees delete] seat sync failed', syncError);
+      }
+    }
 
     return NextResponse.json({ message: 'Employee deleted successfully' });
   } catch (error) {

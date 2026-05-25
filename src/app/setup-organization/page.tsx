@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OrganizationModal from '@/components/OrganizationModal';
 import Modal from '@/components/ui/Modal';
+import { peekSelectedPlanId } from '@/lib/billing/selectedPlanStorage';
 
 export default function SetupOrganizationPage() {
   const router = useRouter();
@@ -38,6 +39,11 @@ export default function SetupOrganizationPage() {
 
   const handleComplete = () => {
     setIsSetup(true);
+    const planId = peekSelectedPlanId();
+    if (planId) {
+      router.push(`/billing?plan=${encodeURIComponent(planId)}`);
+      return;
+    }
     router.push('/planning-map');
   };
 

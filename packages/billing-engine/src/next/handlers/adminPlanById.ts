@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { connectBillingDb, getBillingContext } from '../../context';
 import { SubscriptionPlanModel } from '../../models/SubscriptionPlan';
+import { OrganizationSubscriptionModel } from '../../models/OrganizationSubscription';
+import { getStripe } from '../../stripe/client';
 import { validObjectId } from '../../utils/validObjectId';
 
 export const dynamic = 'force-dynamic';
@@ -81,11 +83,32 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
   await connectBillingDb();
-  const plan = await SubscriptionPlanModel.findByIdAndUpdate(
-    id,
-    { $set: { active: false, paused: true } },
-    { new: true }
-  );
+
+  const plan = await SubscriptionPlanModel.findById(id);
   if (!plan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json({ plan, deactivated: true });
+
+  const activeSubCount = await OrganizationSubscriptionModel.countDocuments({
+    subscriptionPlanId: plan._id,
+    status: { $in: ['active', 'trialing', 'past_due'] },
+  });
+  if (activeSubCount > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete: ${activeSubCount} organization(s) have an active subscription on this plan. Archive the plan instead.`,
+      },
+      { status: 409 }
+    );
+  }
+
+  const stripeProductId = plan.stripeProductId?.trim();
+  if (stripeProductId && process.env.STRIPE_SECRET_KEY) {
+    try {
+      await getStripe().products.update(stripeProductId, { active: false });
+    } catch (e) {
+      console.error('[admin plan delete] Stripe product deactivate failed', stripeProductId, e);
+    }
+  }
+
+  await SubscriptionPlanModel.findByIdAndDelete(id);
+  return NextResponse.json({ deleted: true, id });
 }

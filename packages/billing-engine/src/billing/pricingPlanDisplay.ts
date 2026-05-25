@@ -57,9 +57,8 @@ function baseFeatureBullets(): readonly string[] {
   return DEFAULT_PLAN_FEATURE_BULLETS;
 }
 
-export function planFeatureBullets(plan: PublicPricingPlan): string[] {
-  const seats = seatPolicyLine(plan);
-  return [...baseFeatureBullets(), ...(seats ? [seats] : [])];
+export function planFeatureBullets(_plan: PublicPricingPlan): string[] {
+  return [...baseFeatureBullets()];
 }
 
 export function isRecommendedPlan(plan: PublicPricingPlan): boolean {

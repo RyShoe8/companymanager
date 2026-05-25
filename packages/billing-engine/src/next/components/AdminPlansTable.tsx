@@ -114,6 +114,26 @@ export function AdminPlansTable({
     router.refresh();
   }
 
+  async function removePlan(id: string, name: string) {
+    if (
+      !window.confirm(
+        `Permanently delete "${name}"? This cannot be undone. Plans with active subscribers cannot be deleted.`
+      )
+    ) {
+      return;
+    }
+    setMsg(null);
+    const res = await fetch(`/api/admin/plans/${id}`, { method: 'DELETE', credentials: 'include' });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(typeof j.error === 'string' ? j.error : 'Delete failed');
+      return;
+    }
+    setMsg('Plan deleted.');
+    await reload();
+    router.refresh();
+  }
+
   return (
     <div className="space-y-4">
       {msg ? <p className="text-sm text-muted-foreground">{msg}</p> : null}
@@ -181,6 +201,15 @@ export function AdminPlansTable({
                           >
                             Edit
                           </Link>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/40"
+                            onClick={() => void removePlan(p._id, p.name)}
+                          >
+                            Delete
+                          </Button>
                         </>
                       ) : (
                         <>
@@ -193,6 +222,15 @@ export function AdminPlansTable({
                           >
                             Edit
                           </Link>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/40"
+                            onClick={() => void removePlan(p._id, p.name)}
+                          >
+                            Delete
+                          </Button>
                         </>
                       )}
                     </div>

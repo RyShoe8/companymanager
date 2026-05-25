@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
+import { persistSelectedPlanId } from '@/lib/billing/selectedPlanStorage';
 
 interface InvitationData {
   email: string;
@@ -20,6 +21,7 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const invitationToken = searchParams.get('token');
+  const planId = searchParams.get('plan');
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,6 +33,12 @@ function RegisterForm() {
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
 
   // Load invitation details if token is present
+  useEffect(() => {
+    if (planId) {
+      persistSelectedPlanId(planId);
+    }
+  }, [planId]);
+
   useEffect(() => {
     if (invitationToken) {
       setLoadingInvitation(true);
