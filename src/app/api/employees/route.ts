@@ -1,4 +1,10 @@
+import '@/lib/billing-engine';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  assertCanAddEmployee,
+  EmployeeLimitReachedError,
+  syncStripeSubscriptionSeatsForOrganization,
+} from 'billing-engine';
 import connectDB from '@/lib/db/mongodb';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
@@ -6,6 +12,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { generateInvitationToken } from '@/lib/utils/invitation';
 import { createBrevoContact } from '@/lib/services/email';
 import { sendEmployeeInvitationEmail } from '@/lib/services/employeeInvitation';
+import { getOrganizationForBillingUser } from '@/lib/billing/organizationResolve';
 
 export async function GET(request: NextRequest) {
   try {
@@ -64,6 +71,18 @@ export async function POST(request: NextRequest) {
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
     if (!currentUserEmployee || currentUserEmployee.role !== 'Administrator') {
       return NextResponse.json({ error: 'Only Administrators can create employees' }, { status: 403 });
+    }
+
+    const billingOrg = await getOrganizationForBillingUser(session.userId);
+    if (billingOrg?.org) {
+      try {
+        await assertCanAddEmployee(billingOrg.org._id);
+      } catch (error) {
+        if (error instanceof EmployeeLimitReachedError) {
+          return NextResponse.json({ error: error.message, code: error.code }, { status: 402 });
+        }
+        throw error;
+      }
     }
 
     // If email is provided, create an invitation instead of just an employee
@@ -205,6 +224,14 @@ export async function POST(request: NextRequest) {
         // Don't fail the request if Brevo fails
       }
 
+      if (billingOrg?.org) {
+        try {
+          await syncStripeSubscriptionSeatsForOrganization(billingOrg.org._id);
+        } catch (syncError) {
+          console.error('[employees] seat sync failed', syncError);
+        }
+      }
+
       return NextResponse.json({ employee, invitation, emailSent, emailError }, { status: 201 });
     }
 
@@ -218,6 +245,14 @@ export async function POST(request: NextRequest) {
       employeeType: employeeType || 'full-time',
       organizationId: user.organizationId,
     });
+
+    if (billingOrg?.org) {
+      try {
+        await syncStripeSubscriptionSeatsForOrganization(billingOrg.org._id);
+      } catch (syncError) {
+        console.error('[employees] seat sync failed', syncError);
+      }
+    }
 
     return NextResponse.json(employee, { status: 201 });
   } catch (error) {

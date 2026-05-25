@@ -74,7 +74,7 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
     }
 
     return (
-        <div className="px-3 py-3 sm:px-4 sm:py-4">
+        <div className="inspector-light bg-white px-3 py-3 sm:px-4 sm:py-4">
             <InlineProjectView
                 project={project}
                 employees={employees}

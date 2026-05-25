@@ -19,7 +19,13 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "billing-engine": ["./packages/billing-engine/src/index.ts"],
+      "billing-engine/next/handlers": ["./packages/billing-engine/src/next/handlers/index.ts"],
+      "billing-engine/next/components": ["./packages/billing-engine/src/next/components/index.ts"],
+      "billing-engine/models": ["./packages/billing-engine/src/models/index.ts"],
+      "billing-engine/subscriptionAccess": ["./packages/billing-engine/src/billing/subscriptionAccess.ts"],
+      "billing-engine/pricing-display": ["./packages/billing-engine/src/billing/pricingPlanDisplay.ts"]
     }
   },
   "include": [

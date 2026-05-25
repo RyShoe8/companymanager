@@ -11,7 +11,13 @@ import OrganizationModal from '@/components/OrganizationModal';
 export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string; email: string; profilePicture: string | null; isAdmin: boolean } | null>(null);
+  const [user, setUser] = useState<{
+    name: string;
+    email: string;
+    profilePicture: string | null;
+    isAdmin: boolean;
+    isOrgOwner?: boolean;
+  } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showOrganizationModal, setShowOrganizationModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -92,6 +98,19 @@ export default function Navigation() {
         </svg>
       ),
     },
+    ...(user?.isOrgOwner
+      ? [
+          {
+            label: 'Billing',
+            onClick: () => router.push('/billing'),
+            icon: (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
     ...(user?.isAdmin
       ? [
         {

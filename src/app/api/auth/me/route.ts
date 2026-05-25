@@ -36,6 +36,8 @@ export async function GET(request: NextRequest) {
     // Treat user as admin if flag is set OR email is in admin list (covers OAuth users who never had isAdmin set on save)
     const isAdmin = !!(user.isAdmin || (user.email && isAdminEmail(user.email)));
 
+    const isOrgOwner = user._id.toString() === user.organizationId;
+
     return NextResponse.json({
       id: user._id.toString(),
       email: user.email,
@@ -43,6 +45,7 @@ export async function GET(request: NextRequest) {
       profilePicture: user.profilePicture,
       organizationSetupComplete: user.organizationSetupComplete,
       isAdmin,
+      isOrgOwner,
     });
   } catch (error) {
     // Get user error

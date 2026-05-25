@@ -43,29 +43,36 @@ export default function AssetCard({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <h3 className="font-semibold text-text-primary">{asset.name}</h3>
-            <span className={`text-xs px-2 py-1 rounded ${typeColors[asset.type] || typeColors.other}`}>
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="font-semibold text-text-primary truncate">{asset.name}</h3>
+              {showProject && projectLabel && (
+                <>
+                  <span className="text-text-muted shrink-0" aria-hidden>
+                    ·
+                  </span>
+                  {linkedProjectName && linkedProjectId ? (
+                    <Link
+                      href={`/assets?projectId=${linkedProjectId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-sm text-text-secondary hover:text-primary transition-colors truncate min-w-0 max-w-[200px]"
+                    >
+                      {projectLabel}
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-text-muted truncate">{projectLabel}</span>
+                  )}
+                </>
+              )}
+            </div>
+            <span className={`text-xs px-2 py-1 rounded shrink-0 ${typeColors[asset.type] || typeColors.other}`}>
               {asset.type}
             </span>
             {asset.category && (
-              <span className="text-xs px-2 py-1 rounded bg-background-elevated text-text-secondary">
+              <span className="text-xs px-2 py-1 rounded shrink-0 bg-background-elevated text-text-secondary">
                 {asset.category}
               </span>
             )}
           </div>
-          {showProject && projectLabel && (
-            linkedProjectName && linkedProjectId ? (
-              <Link
-                href={`/assets?projectId=${linkedProjectId}`}
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs text-text-secondary hover:text-primary transition-colors mb-2 inline-block"
-              >
-                Project: {projectLabel}
-              </Link>
-            ) : (
-              <p className="text-xs text-text-muted mb-2">Project: {projectLabel}</p>
-            )
-          )}
           {asset.description && (
             <p className="text-sm text-text-secondary mb-2">{asset.description}</p>
           )}

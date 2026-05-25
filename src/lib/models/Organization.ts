@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export type OrganizationSubscriptionStatus =
+  | 'none'
+  | 'active'
+  | 'trialing'
+  | 'past_due'
+  | 'canceled'
+  | 'incomplete';
+
 export interface IOrganization extends Document {
   userId: mongoose.Types.ObjectId; // The admin user who owns this organization
   name: string;
@@ -7,6 +15,11 @@ export interface IOrganization extends Document {
   slug: string;
   domain?: string;
   logo?: string;
+  /** Legacy plan slug mirrored from Stripe subscription. */
+  plan?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  subscriptionStatus?: OrganizationSubscriptionStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +54,25 @@ const OrganizationSchema: Schema = new Schema(
     logo: {
       type: String,
       trim: true,
+    },
+    plan: {
+      type: String,
+      default: 'none',
+      trim: true,
+      lowercase: true,
+    },
+    stripeCustomerId: {
+      type: String,
+      default: '',
+    },
+    stripeSubscriptionId: {
+      type: String,
+      default: '',
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['none', 'active', 'trialing', 'past_due', 'canceled', 'incomplete'],
+      default: 'none',
     },
   },
   {

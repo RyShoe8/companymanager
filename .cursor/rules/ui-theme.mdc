@@ -6,7 +6,9 @@ alwaysApply: false
 
 # UI theme and role gates
 
-- **Tailwind dark mode:** The project uses `darkMode: 'class'` in `tailwind.config.ts`. The root `<html>` element must keep `className="dark"` so `dark:` utilities are consistent for every user. Do not rely on `prefers-color-scheme` for product chrome.
+- **Tailwind dark mode:** The project uses `darkMode: 'class'` in `tailwind.config.ts`. The root `<html>` element must keep `className="dark"` so `dark:` utilities are consistent for app chrome. Do not rely on `prefers-color-scheme` for product chrome.
+- **Project inspector (light surface):** [`InspectorHost`](src/components/workspace/InspectorHost.tsx) and [`InlineProjectView`](src/components/planning-map/InlineProjectView.tsx) use fixed **light** panels (`bg-white`, gray borders/text). Do **not** add `dark:` pairs on those surfaces — they must stay white even when `<html class="dark">`.
+- **Global styles:** Do not change [`src/styles/nucleas-tokens.css`](src/styles/nucleas-tokens.css) or [`src/app/globals.css`](src/app/globals.css) unless explicitly requested.
 - **Do not branch layout or colors** on `Administrator` vs `Manager`. Use **`isManagerOrAdmin`** (or a specific capability flag) for showing/hiding features. Administrator-only actions may still check `currentUserRole === 'Administrator'` where intentional (e.g. CreateMenu org settings).
 - **Stale session:** When resolving the current employee from `/api/auth/me` + employees list, if no row matches, reset manager/admin flags and role to avoid showing the wrong tier of UI.
 

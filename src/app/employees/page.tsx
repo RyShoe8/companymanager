@@ -16,6 +16,7 @@ export default function EmployeesPage() {
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<IEmployee | undefined>();
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [isOrgOwner, setIsOrgOwner] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -40,8 +41,9 @@ export default function EmployeesPage() {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           if (userData && userData.id) {
-          const currentEmployee = data.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
-          setCurrentUserEmployee(currentEmployee || null);
+            setIsOrgOwner(!!userData.isOrgOwner);
+            const currentEmployee = data.find((emp: IEmployee) => emp.userId?.toString() === userData.id);
+            setCurrentUserEmployee(currentEmployee || null);
           }
         }
       } catch (error) {
@@ -148,11 +150,18 @@ export default function EmployeesPage() {
   return (
     <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
       <div className="w-full mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <h1 className="text-3xl font-bold text-white">Team</h1>
-          {currentUserEmployee?.role === 'Administrator' && (
-            <Button onClick={handleCreateEmployee}>+ New Team Member</Button>
-          )}
+          <div className="flex items-center gap-2">
+            {isOrgOwner && (
+              <Button variant="secondary" onClick={() => router.push('/billing')}>
+                Billing
+              </Button>
+            )}
+            {currentUserEmployee?.role === 'Administrator' && (
+              <Button onClick={handleCreateEmployee}>+ New Team Member</Button>
+            )}
+          </div>
         </div>
 
         {employees.length === 0 ? (
