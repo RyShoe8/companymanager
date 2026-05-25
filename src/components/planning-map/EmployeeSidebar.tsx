@@ -890,7 +890,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                         <span className="text-xs text-gray-400 group-hover:text-gray-600 transition-colors">(click to expand)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-orange-600">{committedHoursRounded}h</span>
+                        <span className="font-medium text-orange-600">{committedHoursDisplay}h</span>
                       </div>
                     </button>
                     {expandedBreakdowns.has(`${employeeId}-committed`) && (() => {
