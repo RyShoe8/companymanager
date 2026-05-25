@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IEmployee } from '@/lib/models/Employee';
+import { IMeeting } from '@/lib/models/Meeting';
 import {
     TimeframeType,
     getTimeframeRange,
@@ -17,6 +19,7 @@ import {
     taskPassesAssignmentFilter,
     contentPassesAssignmentFilter,
 } from '@/lib/utils/assigneeDisplay';
+import { meetingsForAgendaDay } from '@/lib/scheduling/meetingHours';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
 import PeriodNavButton from '@/components/ui/PeriodNavButton';
 import { getPeriodViewTitle, shiftPeriodDate } from '@/lib/utils/periodNavigation';
@@ -25,8 +28,10 @@ interface AgendaViewProps {
     projects: IProject[];
     contentItems: IContentItem[];
     employees: IEmployee[];
+    meetings?: IMeeting[];
     showTasks: boolean;
     showContent: boolean;
+    showMeetings?: boolean;
     contentChannelFilter: string;
     timeframe: TimeframeType;
     currentDate: Date;
@@ -35,6 +40,7 @@ interface AgendaViewProps {
     onTaskClick?: (project: IProject, taskIndex: number) => void;
     currentUserEmployeeName: string | null;
     currentUserEmployeeId: string | null;
+    currentUserId?: string | null;
     currentUserRole?: 'Administrator' | 'Manager' | 'User';
     isManagerOrAdmin: boolean;
     showOnlyMyAssignments: boolean;
@@ -48,6 +54,7 @@ interface AgendaDay {
     isToday: boolean;
     projects: AgendaDayProject[];
     contentItems: IContentItem[];
+    meetings: IMeeting[];
 }
 
 interface AgendaDayProject {
@@ -80,16 +87,23 @@ const channelIcons: Record<string, string> = {
 const agendaTypeBadgeClass =
     'px-1.5 py-0.5 rounded text-xs font-medium bg-background-elevated text-text-secondary flex-shrink-0';
 
-function AgendaItemTypeBadge({ type }: { type: 'Task' | 'Content' }) {
+function AgendaItemTypeBadge({ type }: { type: 'Task' | 'Content' | 'Meeting' }) {
     return <span className={agendaTypeBadgeClass}>{type}</span>;
+}
+
+function formatMeetingTimeRange(start: Date, end: Date): string {
+    const opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+    return `${start.toLocaleTimeString(undefined, opts)} – ${end.toLocaleTimeString(undefined, opts)}`;
 }
 
 export default function AgendaView({
     projects,
     contentItems,
     employees,
+    meetings = [],
     showTasks,
     showContent,
+    showMeetings = true,
     contentChannelFilter,
     timeframe,
     currentDate,
@@ -98,6 +112,7 @@ export default function AgendaView({
     onTaskClick,
     currentUserEmployeeName,
     currentUserEmployeeId,
+    currentUserId = null,
     currentUserRole,
     isManagerOrAdmin,
     showOnlyMyAssignments,
@@ -189,7 +204,16 @@ export default function AgendaView({
                 })
                 : [];
 
-            if (dayProjects.length > 0 || orphanContent.length > 0) {
+            if (dayProjects.length > 0 || orphanContent.length > 0 || (showMeetings && meetings.length > 0)) {
+                const dayMeetings = showMeetings
+                    ? meetingsForAgendaDay(meetings, dayStart, {
+                          showOnlyMyAssignments,
+                          currentUserEmployeeId,
+                          currentUserId,
+                      })
+                    : [];
+
+                if (dayProjects.length > 0 || orphanContent.length > 0 || dayMeetings.length > 0) {
                 days.push({
                     date: new Date(dayStart),
                     dateStr: dayStart.toLocaleDateString('en-US', {
@@ -200,7 +224,9 @@ export default function AgendaView({
                     isToday: dayStart.getTime() === today.getTime(),
                     projects: dayProjects,
                     contentItems: orphanContent,
+                    meetings: dayMeetings,
                 });
+                }
             }
 
             current.setDate(current.getDate() + 1);
@@ -210,12 +236,17 @@ export default function AgendaView({
     }, [
         projects,
         contentItems,
+        meetings,
         showTasks,
         showContent,
+        showMeetings,
         contentChannelFilter,
         timeframe,
         currentDate,
         assignmentFilterOpts,
+        showOnlyMyAssignments,
+        currentUserEmployeeId,
+        currentUserId,
     ]);
 
     const periodHeader = (
@@ -243,7 +274,7 @@ export default function AgendaView({
                 <div className="text-center py-16 text-text-secondary">
                     <p className="text-lg mb-2 text-text-primary">No items scheduled for this period</p>
                     <p className="text-sm">
-                        Try the Schedule lens, turn on Show Content, or adjust your timeframe.
+                        Try the Schedule lens, turn on Show Content or Show Meetings, or adjust your timeframe.
                     </p>
                 </div>
             </div>
@@ -271,11 +302,55 @@ export default function AgendaView({
                             )}
                         </div>
                         <span className="text-sm text-text-secondary">
-                            {day.projects.length > 0 && `${day.projects.length} project${day.projects.length > 1 ? 's' : ''}`}
+                            {[
+                                day.meetings.length > 0
+                                    ? `${day.meetings.length} meeting${day.meetings.length > 1 ? 's' : ''}`
+                                    : null,
+                                day.projects.length > 0
+                                    ? `${day.projects.length} project${day.projects.length > 1 ? 's' : ''}`
+                                    : null,
+                            ]
+                                .filter(Boolean)
+                                .join(' · ')}
                         </span>
                     </div>
 
                     <div className="divide-y divide-border">
+                        {day.meetings.map((meeting) => {
+                            const start = new Date(meeting.start);
+                            const end = new Date(meeting.end);
+                            const linkedCount = meeting.linkedProjectIds?.length || 0;
+                            return (
+                                <div
+                                    key={meeting._id.toString()}
+                                    className="px-4 py-3 flex items-start gap-3 text-sm hover:bg-background-elevated transition-colors"
+                                >
+                                    <AgendaItemTypeBadge type="Meeting" />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium text-text-primary">{meeting.title}</span>
+                                            <span className="text-xs text-text-muted">
+                                                {formatMeetingTimeRange(start, end)}
+                                            </span>
+                                        </div>
+                                        {linkedCount > 0 ? (
+                                            <p className="text-xs text-text-secondary mt-1">
+                                                {linkedCount} linked project{linkedCount === 1 ? '' : 's'}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    {meeting.agendaToken ? (
+                                        <Link
+                                            href={`/scheduling/agenda/${meeting.agendaToken}`}
+                                            className="text-xs text-primary hover:text-primary-hover shrink-0"
+                                        >
+                                            Open agenda
+                                        </Link>
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+
                         {day.projects.map(({ project, tasks, content }) => (
                             <div key={project._id.toString()} className="px-4 py-3">
                                 <div

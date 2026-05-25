@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 function classNameHasTextColor(className: string): boolean {
   return /\btext-/.test(className);
@@ -30,6 +31,7 @@ export default function EditableNumber({
   min, max, step = 1, suffix = '', prefix = '',
   hideWhenEmpty = false, startInEditMode = false, onEditEnd,
 }: EditableNumberProps) {
+  const light = useInspectorLight();
   const [isEditing, setIsEditing] = useState(startInEditMode);
   const [editValue, setEditValue] = useState(value?.toString() || '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,7 +91,7 @@ export default function EditableNumber({
 
   return (
     <span onClick={() => setIsEditing(true)}
-      className={`${className} ${displayColorClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors leading-none inline-flex items-center`}>
+      className={`${className} ${displayColorClass} cursor-pointer ${lightSurface('hover:bg-gray-100', 'dark:hover:bg-gray-700', light)} rounded px-1 py-0.5 transition-colors leading-none inline-flex items-center`}>
       {displayValue || placeholder}
     </span>
   );

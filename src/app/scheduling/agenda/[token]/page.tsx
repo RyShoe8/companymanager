@@ -96,10 +96,16 @@ function AgendaContent() {
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <Link
-            href="/workspace?phase=Schedule"
-            className="text-sm text-gray-400 hover:text-white mb-4 inline-block"
+            href="/workspace?lens=agenda"
+            className="text-sm text-gray-400 hover:text-white mb-2 inline-block"
           >
-            ← Scheduling
+            ← Workspace agenda
+          </Link>
+          <Link
+            href="/workspace?phase=Schedule"
+            className="text-sm text-gray-400 hover:text-white mb-4 inline-block ml-4"
+          >
+            Scheduling
           </Link>
           <h1 className="text-2xl font-bold">{meeting.title}</h1>
           <p className="text-gray-400 mt-1">
@@ -108,7 +114,16 @@ function AgendaContent() {
         </div>
 
         {agenda.projects.length === 0 ? (
-          <p className="text-gray-500 text-sm">No linked projects. Link projects from the scheduling panel.</p>
+          <div className="rounded-lg border border-gray-700 bg-gray-800/60 p-4 text-sm text-gray-400 space-y-2">
+            <p>No linked projects for this meeting yet.</p>
+            <p>
+              Link projects from the{' '}
+              <Link href="/workspace?phase=Schedule" className="text-primary hover:underline">
+                Schedule phase
+              </Link>{' '}
+              so they appear here and on your workspace agenda.
+            </p>
+          </div>
         ) : (
           <div className="space-y-4">
             {agenda.projects.map((block) => (

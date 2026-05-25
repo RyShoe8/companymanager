@@ -5,6 +5,7 @@ import { IComment } from '@/lib/models/Comment';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 interface CommentThreadProps {
   entityType: 'project' | 'projectTask' | 'contentItem';
@@ -37,6 +38,7 @@ export default function CommentThread({
   isManagerOrAdmin = false,
   showScreenshotGallery = true,
 }: CommentThreadProps) {
+  const light = useInspectorLight();
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -188,15 +190,15 @@ export default function CommentThread({
     const maxDepth = 3;
 
     return (
-      <div key={comment._id.toString()} className={`${depth > 0 ? 'ml-6 mt-3 border-l-2 border-gray-200 dark:border-gray-700 pl-4' : ''}`}>
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+      <div key={comment._id.toString()} className={`${depth > 0 ? lightSurface('ml-6 mt-3 border-l-2 border-gray-200 pl-4', 'dark:border-gray-700', light) : ''}`}>
+        <div className={lightSurface('bg-gray-50 rounded-lg p-3', 'dark:bg-gray-800', light)}>
           <div className="flex items-start justify-between mb-2">
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-gray-900 dark:text-white">
+                <span className={lightSurface('font-semibold text-sm text-gray-900', 'dark:text-white', light)}>
                   {comment.authorName}
                 </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className={lightSurface('text-xs text-gray-500', 'dark:text-gray-400', light)}>
                   {formatDate(comment.createdAt)}
                 </span>
               </div>
@@ -258,14 +260,14 @@ export default function CommentThread({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            <p className={lightSurface('text-sm text-gray-700 whitespace-pre-wrap', 'dark:text-gray-300', light)}>
               {comment.content}
             </p>
           )}
           {depth < maxDepth && (
             <button
               onClick={() => setReplyingTo(replyingTo === comment._id.toString() ? null : comment._id.toString())}
-              className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              className={lightSurface('mt-2 text-xs text-blue-600 hover:underline', 'dark:text-blue-400', light)}
             >
               {replyingTo === comment._id.toString() ? 'Cancel' : 'Reply'}
             </button>
@@ -309,17 +311,17 @@ export default function CommentThread({
   };
 
   if (loading) {
-    return <div className="text-sm text-gray-500 dark:text-gray-400">Loading comments...</div>;
+    return <div className={lightSurface('text-sm text-gray-500', 'dark:text-gray-400', light)}>Loading comments...</div>;
   }
 
   return (
     <div className="space-y-4">
       <div>
         {showHeading && (
-          <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Comments</h4>
+          <h4 className={lightSurface('text-sm font-semibold text-gray-900 mb-3', 'dark:text-white', light)}>Comments</h4>
         )}
         {comments.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">No comments yet. Be the first to comment!</p>
+          <p className={lightSurface('text-sm text-gray-500', 'dark:text-gray-400', light)}>No comments yet. Be the first to comment!</p>
         ) : (
           <div className="space-y-4">
             {comments.map((comment) => renderComment(comment))}
@@ -338,7 +340,7 @@ export default function CommentThread({
         />
       )}
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+      <div className={`border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)} pt-4`}>
         <div className="flex gap-2 mb-2">
           <Input
             value={newComment}

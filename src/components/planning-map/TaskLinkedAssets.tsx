@@ -5,6 +5,7 @@ import { IProject } from '@/lib/models/Project';
 import AddButton from '@/components/checklist/AddButton';
 import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 interface TaskLinkedAssetsProps {
   project: IProject;
@@ -13,6 +14,7 @@ interface TaskLinkedAssetsProps {
 }
 
 export default function TaskLinkedAssets({ project, taskId, isManagerOrAdmin }: TaskLinkedAssetsProps) {
+  const light = useInspectorLight();
   const [refreshToken, setRefreshToken] = useState(0);
 
   if (!isManagerOrAdmin) return null;
@@ -22,7 +24,7 @@ export default function TaskLinkedAssets({ project, taskId, isManagerOrAdmin }: 
   const projectType = project.projectType || 'generic';
 
   return (
-    <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+    <div className={lightSurface('mt-2 pt-2 border-t border-gray-100', 'dark:border-gray-700', light)}>
       {taskId ? (
         <div className="flex flex-wrap items-center gap-2">
           <ScreenshotGallery

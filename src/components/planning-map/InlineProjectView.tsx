@@ -1689,7 +1689,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         <button
           type="button"
           onClick={onClose}
-          className="text-sm px-3 py-1.5 rounded text-text-secondary hover:text-text-primary hover:bg-gray-100 transition-colors"
+          className="text-sm px-3 py-1.5 rounded text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
         >
           Close
         </button>

@@ -5,6 +5,7 @@ import CalendarView from '@/components/planning-map/CalendarView';
 import AgendaView from '@/components/workspace/AgendaView';
 import { useOsAuth } from '@/hooks/os/useOsAuth';
 import { useOsScheduleData } from '@/hooks/os/useOsScheduleData';
+import useWorkspaceMeetings from '@/lib/hooks/useWorkspaceMeetings';
 import { useWindowManager } from '@/hooks/os/useWindowManager';
 import type { IProject } from '@/lib/models/Project';
 import { TimeframeType } from '@/lib/utils/dateUtils';
@@ -18,6 +19,7 @@ export default function AgendaModule() {
 
     const { projects, contentItems, employees, loading, error, currentUserEmployeeName, refresh } =
         useOsScheduleData(timeframe, currentDate);
+    const { meetings } = useWorkspaceMeetings(timeframe, currentDate, true, 0);
 
     const openProject = useCallback(
         (project: IProject) => {
@@ -98,8 +100,10 @@ export default function AgendaModule() {
                 projects={filteredProjects}
                 contentItems={filteredContent}
                 employees={employees}
+                meetings={meetings}
                 showTasks
                 showContent
+                showMeetings
                 contentChannelFilter="All"
                 timeframe={timeframe}
                 currentDate={currentDate}
@@ -108,6 +112,7 @@ export default function AgendaModule() {
                 onTaskClick={openTask}
                 currentUserEmployeeName={currentUserEmployeeName}
                 currentUserEmployeeId={auth.employeeId}
+                currentUserId={auth.userId}
                 currentUserRole={auth.role ?? undefined}
                 isManagerOrAdmin={auth.isManagerOrAdmin}
                 showOnlyMyAssignments

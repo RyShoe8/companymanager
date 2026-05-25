@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 interface EditableTextProps {
   value: string;
@@ -34,6 +35,7 @@ export default function EditableText({
   autoEditOnMount = false,
   onAutoEditMount,
 }: EditableTextProps) {
+  const light = useInspectorLight();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const [forceMultiline, setForceMultiline] = useState(false);
@@ -199,7 +201,7 @@ export default function EditableText({
   return (
     <span
       onClick={startEditing}
-      className={`${className} ${displayColorClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-1 py-0.5 transition-colors${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}
+      className={`${className} ${displayColorClass} cursor-pointer ${lightSurface('hover:bg-gray-100', 'dark:hover:bg-gray-700', light)} rounded px-1 py-0.5 transition-colors${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}
     >
       {value || placeholder}
     </span>

@@ -24,6 +24,7 @@ export interface WorkspaceState {
     currentUserRole: 'Administrator' | 'Manager' | 'User' | undefined;
     currentUserEmployeeName: string | null;
     currentUserEmployeeId: string | null;
+    currentUserId: string | null;
 
     // View state
     phase: PhaseType;
@@ -40,6 +41,8 @@ export interface WorkspaceState {
     setShowTasks: (v: boolean) => void;
     showContent: boolean;
     setShowContent: (v: boolean) => void;
+    showMeetings: boolean;
+    setShowMeetings: (v: boolean) => void;
     contentChannelFilter: string;
     setContentChannelFilter: (v: string) => void;
 
@@ -70,6 +73,7 @@ export default function useWorkspaceData(
     const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
     const [showTasks, setShowTasks] = useState(true);
     const [showContent, setShowContent] = useState(true);
+    const [showMeetings, setShowMeetings] = useState(true);
     const [contentChannelFilter, setContentChannelFilter] = useState<string>('All');
 
     // Data
@@ -83,6 +87,7 @@ export default function useWorkspaceData(
     const [currentUserRole, setCurrentUserRole] = useState<'Administrator' | 'Manager' | 'User' | undefined>();
     const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
     const [currentUserEmployeeId, setCurrentUserEmployeeId] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     const fetchContentItems = useCallback(async () => {
         try {
@@ -120,6 +125,7 @@ export default function useWorkspaceData(
                 if (userResponse.ok) {
                     const userData = await userResponse.json();
                     if (userData && userData.id) {
+                        setCurrentUserId(userData.id);
                         let currentEmployee = employeesData.find(
                             (emp: IEmployee) => emp.userId?.toString() === userData.id
                         );
@@ -140,6 +146,8 @@ export default function useWorkspaceData(
                             setCurrentUserEmployeeName(null);
                             setCurrentUserEmployeeId(null);
                         }
+                    } else {
+                        setCurrentUserId(null);
                     }
                 }
             } catch {
@@ -270,6 +278,7 @@ export default function useWorkspaceData(
         currentUserRole,
         currentUserEmployeeName,
         currentUserEmployeeId,
+        currentUserId,
         phase,
         setPhase,
         lens,
@@ -284,6 +293,8 @@ export default function useWorkspaceData(
         setShowTasks,
         showContent,
         setShowContent,
+        showMeetings,
+        setShowMeetings,
         contentChannelFilter,
         setContentChannelFilter,
         filteredProjects,

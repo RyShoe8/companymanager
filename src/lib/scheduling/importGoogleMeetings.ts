@@ -3,6 +3,12 @@ import { GoogleCalendarEvent, listCalendarEvents, parseEventTimes } from '@/lib/
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
 import { generateAgendaToken } from '@/lib/scheduling/tokenCrypto';
 import type { SchedulingContext } from '@/lib/scheduling/schedulingContext';
+import {
+  applySeriesDefaultsToNewMeeting,
+  extractGoogleAttendeeEmails,
+  findSeriesProjectDefaults,
+  resolveAttendeesFromGoogleEmails,
+} from '@/lib/scheduling/seriesProjectLinks';
 import { Types } from 'mongoose';
 
 export type UpsertGoogleMeetingsOptions = {
@@ -57,13 +63,13 @@ export async function upsertMeetingsFromGoogleEvents(
   let imported = 0;
   let updated = 0;
 
-  const attendeeFields =
+  const explicitAttendeeFields =
     attendeeEmployeeIds.length > 0 || externalAttendeeEmails.length > 0
       ? {
           attendeeEmployeeIds,
           externalAttendeeEmails,
         }
-      : {};
+      : null;
 
   for (const ev of events) {
     if (!ev.id) continue;
@@ -75,12 +81,27 @@ export async function upsertMeetingsFromGoogleEvents(
       iCalUID: ev.iCalUID || undefined,
     };
 
+    let resolvedAttendees = explicitAttendeeFields;
+    if (!resolvedAttendees) {
+      const googleEmails = extractGoogleAttendeeEmails(ev);
+      if (googleEmails.length > 0) {
+        const resolved = await resolveAttendeesFromGoogleEmails(
+          ctx.organizationId,
+          googleEmails,
+          ctx.userId.toString()
+        );
+        if (resolved.attendeeEmployeeIds.length > 0 || resolved.externalAttendeeEmails.length > 0) {
+          resolvedAttendees = resolved;
+        }
+      }
+    }
+
     const payload: Record<string, unknown> = {
       title: ev.summary?.trim() || 'Untitled meeting',
       start: times.start,
       end: times.end,
       ...seriesFields,
-      ...attendeeFields,
+      ...(resolvedAttendees || {}),
     };
 
     const found = existingByGoogleId.get(ev.id);
@@ -92,16 +113,22 @@ export async function upsertMeetingsFromGoogleEvents(
       await Meeting.updateOne({ _id: found._id }, { $set: payload });
       updated++;
     } else {
-      await Meeting.create({
-        userId: ctx.userId,
-        organizationId: ctx.organizationId,
-        ...payload,
-        description: ev.description ?? defaultDescription,
-        googleEventId: ev.id,
-        agendaToken: generateAgendaToken(),
-        linkedProjectIds,
-        createdInNucleas,
-      });
+      const seriesDefaults = await findSeriesProjectDefaults(ctx.organizationId, seriesFields);
+      const createPayload = applySeriesDefaultsToNewMeeting(
+        {
+          userId: ctx.userId,
+          organizationId: ctx.organizationId,
+          ...payload,
+          description: ev.description ?? defaultDescription,
+          googleEventId: ev.id,
+          agendaToken: generateAgendaToken(),
+          createdInNucleas,
+        },
+        seriesDefaults,
+        linkedProjectIds
+      );
+
+      await Meeting.create(createPayload);
       imported++;
     }
   }

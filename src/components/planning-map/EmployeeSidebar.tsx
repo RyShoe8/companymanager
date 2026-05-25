@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
+import { IMeeting } from '@/lib/models/Meeting';
 import {
   TimeframeType,
   getTimeframeRange,
@@ -17,6 +18,7 @@ import {
   isTaskAssignedToOtherEmployee,
 } from '@/lib/utils/projectTeam';
 import { contentCountsInViewPeriod } from '@/lib/utils/projectHours';
+import { sumMeetingHoursForEmployee } from '@/lib/scheduling/meetingHours';
 import Card from '@/components/ui/Card';
 
 /** Format hours for utilization cards (one decimal on Today). */
@@ -67,6 +69,7 @@ interface EmployeeSidebarProps {
   projects: IProject[]; // Filtered projects for display (by page stage)
   allProjects?: IProject[]; // All projects for calculations (across all stages)
   contentItems?: IContentItem[]; // Content items for calculations
+  meetings?: IMeeting[];
   timeframe: TimeframeType;
   currentDate: Date;
   currentUserRole?: 'Administrator' | 'Manager' | 'User';
@@ -122,7 +125,7 @@ function getAssignedContentInViewPeriod(
   );
 }
 
-export default function EmployeeSidebar({ employees, projects, allProjects, contentItems, timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
+export default function EmployeeSidebar({ employees, projects, allProjects, contentItems, meetings = [], timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   const [expandedBreakdowns, setExpandedBreakdowns] = useState<Set<string>>(new Set()); // Track which breakdowns are expanded (e.g., "employeeId-committed")
 
@@ -416,8 +419,17 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       if (hours > 0) totalHours += hours;
     });
 
+    if (meetings.length > 0) {
+      totalHours += sumMeetingHoursForEmployee(meetings, employee, startDate, endDate);
+    }
+
     // Round to 2 decimal places for display
     return Math.round(totalHours * 100) / 100;
+  };
+
+  const getMeetingHours = (employee: IEmployee) => {
+    if (meetings.length === 0) return 0;
+    return sumMeetingHoursForEmployee(meetings, employee, startDate, endDate);
   };
 
   // Helper function to get project stage from status
@@ -704,17 +716,19 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
   // Calculate team totals - only include visible employees (based on role)
   const teamTotals = sortedVisibleEmployees.reduce((totals, employee) => {
     const committedHours = getCommittedHours(employee);
+    const meetingHours = getMeetingHours(employee);
     const completedHours = getCompletedHours(employee);
     const availableHoursForDisplay = totalAvailableHours(employee);
     const totalCap = totalAvailableHours(employee);
 
     return {
       committed: totals.committed + committedHours,
+      meetings: totals.meetings + meetingHours,
       completed: totals.completed + completedHours,
       available: totals.available + (totalCap - committedHours),
       total: totals.total + totalCap
     };
-  }, { committed: 0, completed: 0, available: 0, total: 0 });
+  }, { committed: 0, meetings: 0, completed: 0, available: 0, total: 0 });
 
   const teamUtilizationPercent = teamTotals.total > 0
     ? Math.round((teamTotals.committed / teamTotals.total) * 100)
@@ -748,6 +762,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-orange-500"></span>
                 Committed: {formatUtilizationHours(teamTotals.committed, timeframe)}h
+                {teamTotals.meetings > 0 ? (
+                  <span className="text-text-muted"> (incl. {formatUtilizationHours(teamTotals.meetings, timeframe)}h meetings)</span>
+                ) : null}
               </span>
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span>
@@ -861,6 +878,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                     const committedBreakdown = getCommittedHoursBreakdown(employee);
                     const taskHours = sumAssignedTaskHoursInPeriod(employee);
                     const contentHours = sumAssignedContentHoursInPeriod(employee);
+                    const meetingHours = getMeetingHours(employee);
                     const pills: { key: string; title: string; label: string; className: string }[] = [];
                     if (committedBreakdown.Plan > 0) {
                       pills.push({
@@ -905,6 +923,15 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                         label: `📝 ${contentHours}h`,
                         className:
                           'px-2 py-0.5 rounded-md font-medium bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30',
+                      });
+                    }
+                    if (meetingHours > 0) {
+                      pills.push({
+                        key: 'meetings',
+                        title: `Meetings: ${meetingHours}h`,
+                        label: `📅 ${meetingHours}h`,
+                        className:
+                          'px-2 py-0.5 rounded-md font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-400/30',
                       });
                     }
 
@@ -954,6 +981,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                     </button>
                     {expandedBreakdowns.has(`${employeeId}-committed`) && (() => {
                       const breakdown = getCommittedHoursBreakdown(employee);
+                      const meetingHours = getMeetingHours(employee);
                       return (
                         <div className="ml-4 mt-1 space-y-1 text-xs text-text-muted">
                           <div className="flex justify-between">
@@ -968,6 +996,12 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                             <span>Run:</span>
                             <span>{breakdown.Run}h</span>
                           </div>
+                          {meetingHours > 0 ? (
+                            <div className="flex justify-between">
+                              <span>Meetings:</span>
+                              <span>{meetingHours}h</span>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })()}

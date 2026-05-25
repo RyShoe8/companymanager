@@ -10,6 +10,7 @@ import {
   migrateStagesToTasks,
 } from '@/lib/utils/apiHelpers';
 import { propagateMeetingProjectsAndCalendars } from '@/lib/scheduling/meetingPropagation';
+import { upsertMeetingSeriesSettings } from '@/lib/scheduling/seriesProjectLinks';
 import { getAppBaseUrl } from '@/lib/utils/invitation';
 import { Types } from 'mongoose';
 
@@ -83,6 +84,16 @@ export async function PATCH(
       seriesUpdatedCount = meeting.googleRecurringEventId
         ? result.participantsUpdatedCount
         : undefined;
+
+      await upsertMeetingSeriesSettings({
+        organizationId: ctx.organizationId,
+        googleRecurringEventId: meeting.googleRecurringEventId,
+        iCalUID: meeting.iCalUID,
+        linkedProjectIds: projectIds,
+        agendaToken: meeting.agendaToken,
+        attendeeEmployeeIds: meeting.attendeeEmployeeIds,
+        externalAttendeeEmails: meeting.externalAttendeeEmails,
+      });
     } else {
       await meeting.save();
     }

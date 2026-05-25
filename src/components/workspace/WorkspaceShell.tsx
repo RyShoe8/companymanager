@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import useWorkspaceData, { PhaseType, LensType } from '@/lib/hooks/useWorkspaceData';
+import useWorkspaceMeetings from '@/lib/hooks/useWorkspaceMeetings';
 import useIsMobile from '@/lib/hooks/useIsMobile';
 import PhaseFilter from '@/components/workspace/PhaseFilter';
 import LensBar from '@/components/workspace/LensBar';
@@ -78,6 +79,15 @@ export default function WorkspaceShell({
     const [showMeetingModal, setShowMeetingModal] = useState(false);
     const [meetingRefreshKey, setMeetingRefreshKey] = useState(0);
     const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
+
+    const meetingsFetchEnabled =
+        ws.lens === 'agenda' || ws.lens === 'schedule' || ws.lens === 'capacity';
+    const { meetings: workspaceMeetings } = useWorkspaceMeetings(
+        ws.timeframe,
+        ws.currentDate,
+        meetingsFetchEnabled,
+        meetingRefreshKey
+    );
 
     const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
 
@@ -1114,6 +1124,13 @@ export default function WorkspaceShell({
                                         checked={ws.showContent}
                                         onChange={ws.setShowContent}
                                     />
+                                    {ws.lens === 'agenda' ? (
+                                        <Toggle
+                                            label="Show Meetings"
+                                            checked={ws.showMeetings}
+                                            onChange={ws.setShowMeetings}
+                                        />
+                                    ) : null}
                                     <ContentChannelFilter
                                         value={ws.contentChannelFilter}
                                         onChange={ws.setContentChannelFilter}
@@ -1168,8 +1185,10 @@ export default function WorkspaceShell({
                                                 projects={ws.filteredProjects}
                                                 contentItems={ws.filteredContentItems}
                                                 employees={ws.employees}
+                                                meetings={workspaceMeetings}
                                                 showTasks={ws.showTasks}
                                                 showContent={ws.showContent}
+                                                showMeetings={ws.showMeetings}
                                                 contentChannelFilter={ws.contentChannelFilter}
                                                 timeframe={ws.timeframe}
                                                 currentDate={ws.currentDate}
@@ -1178,6 +1197,7 @@ export default function WorkspaceShell({
                                                 onTaskClick={handleViewProjectTask}
                                                 currentUserEmployeeName={ws.currentUserEmployeeName}
                                                 currentUserEmployeeId={ws.currentUserEmployeeId}
+                                                currentUserId={ws.currentUserId}
                                                 currentUserRole={ws.currentUserRole}
                                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                                 showOnlyMyAssignments={ws.showOnlyMyAssignments}
@@ -1196,6 +1216,7 @@ export default function WorkspaceShell({
                                             projects={ws.filteredProjects}
                                             allProjects={ws.allProjects}
                                             contentItems={ws.filteredContentItems}
+                                            meetings={workspaceMeetings}
                                             timeframe={ws.timeframe}
                                             currentDate={ws.currentDate}
                                             currentUserRole={ws.currentUserRole}
@@ -1222,6 +1243,7 @@ export default function WorkspaceShell({
                                         projects={ws.filteredProjects}
                                         allProjects={ws.allProjects}
                                         contentItems={ws.filteredContentItems}
+                                        meetings={workspaceMeetings}
                                         timeframe={ws.timeframe}
                                         currentDate={ws.currentDate}
                                         currentUserRole={ws.currentUserRole}

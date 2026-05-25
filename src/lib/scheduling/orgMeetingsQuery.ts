@@ -1,0 +1,125 @@
+import Employee from '@/lib/models/Employee';
+import Meeting from '@/lib/models/Meeting';
+import User from '@/lib/models/User';
+import { meetingPassesAssignmentFilter as meetingPassesAssignmentFilterShared } from '@/lib/scheduling/meetingHours';
+import { Types } from 'mongoose';
+
+export type OrgMeetingRecord = {
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
+  organizationId: string;
+  title: string;
+  start: Date;
+  end: Date;
+  googleEventId?: string;
+  googleRecurringEventId?: string;
+  iCalUID?: string;
+  agendaToken: string;
+  linkedProjectIds?: Types.ObjectId[];
+  attendeeEmployeeIds?: Types.ObjectId[];
+  externalAttendeeEmails?: string[];
+};
+
+export type OrgMeetingsViewer = {
+  userId: string;
+  role: 'Administrator' | 'Manager' | 'User';
+  employeeId: string | null;
+};
+
+function meetingDedupeKey(meeting: Pick<OrgMeetingRecord, 'iCalUID' | 'googleEventId' | 'start'>): string {
+  const seriesKey = meeting.iCalUID || meeting.googleEventId || '';
+  return `${seriesKey}:${new Date(meeting.start).getTime()}`;
+}
+
+export async function getOrgMeetingsViewer(userId: string): Promise<OrgMeetingsViewer | null> {
+  const user = await User.findById(userId).lean();
+  if (!user?.organizationId) return null;
+
+  const employee = await Employee.findOne({
+    userId: user._id,
+    organizationId: user.organizationId,
+  })
+    .select('_id role')
+    .lean();
+
+  return {
+    userId: user._id.toString(),
+    role: (employee?.role as OrgMeetingsViewer['role']) || 'User',
+    employeeId: employee?._id?.toString() ?? null,
+  };
+}
+
+async function getVisibleEmployeeIds(viewer: OrgMeetingsViewer): Promise<string[] | null> {
+  const user = await User.findById(viewer.userId).lean();
+  if (!user?.organizationId) return [];
+
+  if (viewer.role === 'Administrator' || viewer.role === 'Manager') {
+    const employees = await Employee.find({
+      organizationId: user.organizationId,
+      userId: { $exists: true, $ne: null },
+    })
+      .select('_id')
+      .lean();
+    return employees.map((e) => e._id.toString());
+  }
+
+  return viewer.employeeId ? [viewer.employeeId] : [];
+}
+
+export async function listOrgMeetingsInRange(
+  viewer: OrgMeetingsViewer,
+  organizationId: string,
+  rangeStart: Date,
+  rangeEnd: Date
+): Promise<OrgMeetingRecord[]> {
+  const visibleEmployeeIds = await getVisibleEmployeeIds(viewer);
+  if (visibleEmployeeIds === null) return [];
+
+  const visibleObjectIds = visibleEmployeeIds.map((id) => new Types.ObjectId(id));
+  const viewerUserId = new Types.ObjectId(viewer.userId);
+
+  const orClauses: Record<string, unknown>[] = [{ userId: viewerUserId }];
+  if (visibleObjectIds.length > 0) {
+    orClauses.push({ attendeeEmployeeIds: { $in: visibleObjectIds } });
+  }
+
+  const meetings = await Meeting.find({
+    organizationId,
+    start: { $lt: rangeEnd },
+    end: { $gt: rangeStart },
+    $or: orClauses,
+  })
+    .sort({ start: 1 })
+    .lean();
+
+  const deduped = new Map<string, OrgMeetingRecord>();
+  for (const meeting of meetings as OrgMeetingRecord[]) {
+    const key = meetingDedupeKey(meeting);
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, meeting);
+      continue;
+    }
+    const preferCurrent =
+      meeting.userId?.toString() === viewer.userId ||
+      (meeting.linkedProjectIds?.length || 0) > (existing.linkedProjectIds?.length || 0);
+    if (preferCurrent) {
+      deduped.set(key, meeting);
+    }
+  }
+
+  return [...deduped.values()].sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+  );
+}
+
+export function meetingPassesAssignmentFilter(
+  meeting: Pick<OrgMeetingRecord, 'userId' | 'attendeeEmployeeIds'>,
+  options: {
+    showOnlyMyAssignments: boolean;
+    currentUserEmployeeId: string | null;
+    currentUserId: string | null;
+  }
+): boolean {
+  return meetingPassesAssignmentFilterShared(meeting, options);
+}

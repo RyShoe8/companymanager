@@ -32,6 +32,8 @@ import {
   upsertMeetingsFromGoogleEvents,
 } from '@/lib/scheduling/importGoogleMeetings';
 import { resolveMeetingInvitees } from '@/lib/scheduling/meetingAttendees';
+import { getOrgMeetingsViewer, listOrgMeetingsInRange } from '@/lib/scheduling/orgMeetingsQuery';
+import { upsertMeetingSeriesSettings } from '@/lib/scheduling/seriesProjectLinks';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -47,8 +49,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const start = searchParams.get('start');
     const end = searchParams.get('end');
+    const scope = searchParams.get('scope') || 'user';
 
     await connectDB();
+
+    if (scope === 'org') {
+      if (!start || !end) {
+        return NextResponse.json({ error: 'start and end are required for org scope' }, { status: 400 });
+      }
+      const viewer = await getOrgMeetingsViewer(session.userId);
+      if (!viewer) {
+        return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+      }
+      const meetings = await listOrgMeetingsInRange(
+        viewer,
+        ctx.organizationId,
+        new Date(start),
+        new Date(end)
+      );
+      return NextResponse.json(meetings);
+    }
+
     const query: Record<string, unknown> = { userId: ctx.userId };
     if (start && end) {
       const rangeStart = new Date(start);
@@ -240,6 +261,18 @@ export async function POST(request: NextRequest) {
         googleRecurringEventId: created.id,
         upsertOptions: upsertInviteOptions,
       });
+
+      if (projectIds.length > 0) {
+        await upsertMeetingSeriesSettings({
+          organizationId: ctx.organizationId,
+          googleRecurringEventId: created.id,
+          iCalUID: created.iCalUID,
+          linkedProjectIds: projectIds,
+          agendaToken,
+          attendeeEmployeeIds: invitees.attendeeEmployeeIds,
+          externalAttendeeEmails: invitees.externalAttendeeEmails,
+        });
+      }
 
       const meetings = await Meeting.find({
         userId: ctx.userId,

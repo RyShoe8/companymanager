@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 interface CatalogEntry {
   _id: string;
@@ -52,6 +53,7 @@ export default function ChecklistSection({
   onUpdate,
   onRefreshButtons,
 }: ChecklistSectionProps) {
+  const light = useInspectorLight();
   const [catalogAll, setCatalogAll] = useState<CatalogEntry[]>([]);
   const [checklistItems, setChecklistItems] = useState<CatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,11 +163,11 @@ export default function ChecklistSection({
             onClick={(e) => e.target === e.currentTarget && closeCategoryModal()}
           >
             <div
-              className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl mx-4 max-h-[80vh] flex flex-col"
+              className={`w-full max-w-md ${lightSurface('bg-white', 'dark:bg-gray-800', light)} rounded-lg shadow-xl mx-4 max-h-[80vh] flex flex-col`}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{categoryForItem.sentence}</h3>
+              <div className={`p-4 border-b ${lightSurface('border-gray-200', 'dark:border-gray-700', light)} flex items-center justify-between`}>
+                <h3 className={`text-lg font-semibold ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>{categoryForItem.sentence}</h3>
                 <button type="button" onClick={closeCategoryModal} className="text-gray-500 hover:text-gray-700 p-1" aria-label="Close">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -175,27 +177,27 @@ export default function ChecklistSection({
               <div className="p-4 max-h-64 overflow-y-auto">
                 {addUrlForEntry ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className={`text-sm ${lightSurface('text-gray-600', 'dark:text-gray-400', light)}`}>
                       Add a button (custom name and URL)
                     </p>
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Button name</label>
+                      <label className={`block text-xs ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-1`}>Button name</label>
                       <input
                         type="text"
                         placeholder="e.g. Vercel"
                         value={addUrlForEntry.label}
                         onChange={(e) => setAddUrlForEntry({ ...addUrlForEntry, label: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        className={`w-full px-3 py-2 border ${lightSurface('border-gray-200', 'dark:border-gray-600', light)} rounded-lg ${lightSurface('bg-white', 'dark:bg-gray-700', light)} ${lightSurface('text-gray-900', 'dark:text-white', light)} text-sm`}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">URL</label>
+                      <label className={`block text-xs ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-1`}>URL</label>
                       <input
                         type="url"
                         placeholder="https://..."
                         value={addUrlForEntry.url}
                         onChange={(e) => setAddUrlForEntry({ ...addUrlForEntry, url: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        className={`w-full px-3 py-2 border ${lightSurface('border-gray-200', 'dark:border-gray-600', light)} rounded-lg ${lightSurface('bg-white', 'dark:bg-gray-700', light)} ${lightSurface('text-gray-900', 'dark:text-white', light)} text-sm`}
                       />
                     </div>
                     <div className="flex gap-2">
@@ -211,15 +213,15 @@ export default function ChecklistSection({
                   categoryForItem.entries.map((entry) => (
                     <div
                       key={entry._id}
-                      className="flex items-center justify-between gap-2 py-2 border-b border-gray-100 dark:border-gray-700 last:border-0"
+                      className={`flex items-center justify-between gap-2 py-2 border-b ${lightSurface('border-gray-100', 'dark:border-gray-700', light)} last:border-0`}
                     >
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{entry.companyName}</span>
+                      <span className={`text-sm font-medium ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>{entry.companyName}</span>
                       <div className="flex gap-1">
                         {entry.url && (
                           <button
                             type="button"
                             onClick={() => handleCreate(entry)}
-                            className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            className={`text-xs px-2 py-1 rounded ${lightSurface('bg-blue-100 text-blue-700', 'dark:bg-blue-900/30 dark:text-blue-300', light)}`}
                           >
                             Create
                           </button>
@@ -228,7 +230,7 @@ export default function ChecklistSection({
                           <button
                             type="button"
                             onClick={() => setAddUrlForEntry({ entry, label: entry.companyName, url: entry.url || '' })}
-                            className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200"
+                            className={`text-xs px-2 py-1 rounded ${lightSurface('bg-gray-200 text-gray-700', 'dark:bg-gray-600 dark:text-gray-200', light)}`}
                           >
                             Add
                           </button>
@@ -245,11 +247,11 @@ export default function ChecklistSection({
       : null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+    <div className={`${lightSurface('bg-white', 'dark:bg-gray-800', light)} rounded-lg border ${lightSurface('border-gray-200', 'dark:border-gray-700', light)} p-4`}>
       <div className="mb-3">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Checklist</h3>
+        <h3 className={`text-lg font-semibold ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>Checklist</h3>
       </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-4`}>
         Things to do at this stage. Create (open referral link), Add (save your URL to project), or Dismiss.
       </p>
 
@@ -263,12 +265,12 @@ export default function ChecklistSection({
         <ol className="list-decimal list-inside space-y-2 mb-4">
           {checklistItems.map((item) => (
             <li key={item._id} className="flex items-center justify-between gap-2 py-1">
-              <span className="text-gray-900 dark:text-white">{item.checklistSentence}</span>
+              <span className={lightSurface('text-gray-900', 'dark:text-white', light)}>{item.checklistSentence}</span>
               <div className="flex gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => openCategoryForItem(item.checklistSentence!)}
-                  className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50"
+                  className={`text-xs px-2 py-1 rounded ${lightSurface('bg-blue-100 text-blue-700', 'dark:bg-blue-900/30 dark:text-blue-300', light)} ${lightSurface('hover:bg-blue-200', 'dark:hover:bg-blue-900/50', light)}`}
                 >
                   Create
                 </button>
@@ -279,14 +281,14 @@ export default function ChecklistSection({
                       onClick={() => {
                         setCategoryForItem({ sentence: item.checklistSentence!, entries: [item] });
                       }}
-                      className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500"
+                      className={`text-xs px-2 py-1 rounded ${lightSurface('bg-gray-200 text-gray-700', 'dark:bg-gray-600 dark:text-gray-200', light)} ${lightSurface('hover:bg-gray-300', 'dark:hover:bg-gray-500', light)}`}
                     >
                       Add
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDismiss(item._id)}
-                      className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      className={`text-xs px-2 py-1 rounded text-red-600 ${lightSurface('hover:bg-red-50', 'dark:hover:bg-red-900/20', light)}`}
                     >
                       Dismiss
                     </button>

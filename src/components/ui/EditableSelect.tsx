@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 interface Option { value: string; label: string; color?: string; }
 
@@ -19,6 +20,7 @@ function classNameHasTextColor(className: string): boolean {
 }
 
 export default function EditableSelect({ value, options, onSave, className = '', disabled = false, showColorDot = false }: EditableSelectProps) {
+  const light = useInspectorLight();
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
@@ -95,13 +97,13 @@ export default function EditableSelect({ value, options, onSave, className = '',
   const dropdown = isOpen && mounted ? createPortal(
     <div 
       ref={dropdownRef}
-      className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 rounded-lg shadow-lg py-1 max-h-48 overflow-auto"
+      className={`fixed z-[9999] ${lightSurface('bg-white border border-gray-200 text-gray-900', 'dark:bg-gray-800 dark:border-gray-700', light)} rounded-lg shadow-lg py-1 max-h-48 overflow-auto`}
       style={{ top: dropdownPosition.top, left: dropdownPosition.left, minWidth: dropdownPosition.width }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {options.map((option, idx) => (
         <button key={option.value} type="button" onClick={() => handleSelect(option.value)} onMouseEnter={() => setHighlightedIndex(idx)}
-          className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors text-gray-900 ${idx === highlightedIndex ? 'bg-blue-50 dark:bg-blue-900/30' : ''} ${option.value === value ? 'bg-blue-100 dark:bg-blue-900/50 font-medium' : ''}`}>
+          className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors text-gray-900 ${idx === highlightedIndex ? lightSurface('bg-blue-50', 'dark:bg-blue-900/30', light) : ''} ${option.value === value ? lightSurface('bg-blue-100 font-medium', 'dark:bg-blue-900/50 font-medium', light) : ''}`}>
           {showColorDot && option.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: option.color }} />}
           {option.label}
           {option.value === value && <svg className="w-4 h-4 ml-auto text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
@@ -119,7 +121,7 @@ export default function EditableSelect({ value, options, onSave, className = '',
   return (
     <div className="relative inline-block">
       <button ref={buttonRef} type="button" onClick={handleButtonClick} onKeyDown={handleKeyDown}
-        className={`${className} ${defaultTextClass} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors flex items-center gap-1.5 text-left`}>
+        className={`${className} ${defaultTextClass} cursor-pointer ${lightSurface('hover:bg-gray-100', 'dark:hover:bg-gray-700', light)} rounded px-2 py-1 transition-colors flex items-center gap-1.5 text-left`}>
         {showColorDot && currentOption?.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: currentOption.color }} />}
         <span>{currentOption?.label || value}</span>
         <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

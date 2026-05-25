@@ -8,6 +8,7 @@ import type { ModuleRenderContext } from '@/lib/os/types';
 import type { IEmployee } from '@/lib/models/Employee';
 import type { IProject } from '@/lib/models/Project';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
+import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 
 export default function ProjectDetailModule({ windowId, payload }: ModuleRenderContext) {
     const wm = useWindowManager();
@@ -75,6 +76,7 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
 
     return (
         <div className="inspector-light bg-white px-3 py-3 sm:px-4 sm:py-4">
+            <InspectorLightProvider>
             <InlineProjectView
                 project={project}
                 employees={employees}
@@ -108,6 +110,7 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
                 timeframe="weekly"
                 initialOpenTaskIndex={Number.isFinite(initialOpenTaskIndex) ? initialOpenTaskIndex : null}
             />
+            </InspectorLightProvider>
         </div>
     );
 }

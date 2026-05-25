@@ -9,6 +9,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
+import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 
 export type FocusType = 'project' | 'content' | 'task';
 
@@ -84,6 +85,7 @@ export default function InspectorHost({
         if (type === 'project' && focusedProject) {
             return (
                 <div className="inspector-light w-full max-w-[120rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border border-gray-200 rounded-t-2xl bg-white">
+                    <InspectorLightProvider>
                     <InlineProjectView
                         project={focusedProject}
                         employees={employees}
@@ -128,6 +130,7 @@ export default function InspectorHost({
                         onClose={onClose}
                         onRefresh={onRefresh}
                     />
+                    </InspectorLightProvider>
                 </div>
             );
         }

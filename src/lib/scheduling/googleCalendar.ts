@@ -77,6 +77,7 @@ export type GoogleCalendarEvent = {
   htmlLink?: string;
   recurringEventId?: string;
   iCalUID?: string;
+  attendees?: { email?: string; responseStatus?: string }[];
 };
 
 export async function listCalendarEvents(
