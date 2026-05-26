@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
 
 export type CalendarStatus = {
   connected: boolean;
@@ -9,31 +10,18 @@ export type CalendarStatus = {
   syncedAt: string | null;
 };
 
-function startOfWeek(d: Date): Date {
-  const x = new Date(d);
-  x.setDate(x.getDate() - x.getDay());
-  x.setHours(0, 0, 0, 0);
-  return x;
+export function buildMeetingsRangeQuery(timeframe: TimeframeType, currentDate: Date): string {
+  const { start, end } = getTimeframeRange(timeframe, currentDate);
+  return `start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
 }
 
-function addDays(d: Date, n: number): Date {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-
-export function buildMeetingsRangeQuery(weekStart: Date): string {
-  const weekEnd = addDays(weekStart, 7);
-  return `start=${encodeURIComponent(weekStart.toISOString())}&end=${encodeURIComponent(weekEnd.toISOString())}`;
-}
-
-export function useSchedulingCalendar(weekStart: Date) {
+export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Date) {
   const searchParams = useSearchParams();
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const rangeQuery = buildMeetingsRangeQuery(weekStart);
+  const rangeQuery = buildMeetingsRangeQuery(timeframe, currentDate);
 
   const loadCalendar = useCallback(async () => {
     const res = await fetch('/api/scheduling/calendar');
@@ -85,5 +73,3 @@ export function useSchedulingCalendar(weekStart: Date) {
     handleDisconnect,
   };
 }
-
-export { startOfWeek, addDays };

@@ -7,14 +7,12 @@ interface SchedulingCalendarBarProps {
   calendar: CalendarStatus | null;
   syncing: boolean;
   onSync: () => void;
-  onDisconnect: () => void;
 }
 
 export default function SchedulingCalendarBar({
   calendar,
   syncing,
   onSync,
-  onDisconnect,
 }: SchedulingCalendarBarProps) {
   if (calendar?.connected) {
     return (
@@ -27,9 +25,6 @@ export default function SchedulingCalendarBar({
         )}
         <Button type="button" size="sm" onClick={onSync} disabled={syncing}>
           {syncing ? 'Syncing…' : 'Sync meetings'}
-        </Button>
-        <Button type="button" size="sm" variant="secondary" onClick={onDisconnect}>
-          Disconnect
         </Button>
       </div>
     );

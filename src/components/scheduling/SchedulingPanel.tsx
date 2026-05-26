@@ -1,21 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { IMeeting } from '@/lib/models/Meeting';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
-import Button from '@/components/ui/Button';
-import Card from '@/components/ui/Card';
 import CreateMeetingModal, { type MeetingCreateSuccessInfo } from '@/components/scheduling/CreateMeetingModal';
-import MeetingAgendaRow, { type MeetingRow } from '@/components/scheduling/MeetingAgendaRow';
-import { addDays, buildMeetingsRangeQuery, startOfWeek } from '@/hooks/scheduling/useSchedulingCalendar';
+import MeetingsCalendarView from '@/components/scheduling/MeetingsCalendarView';
+import type { TimeframeType } from '@/lib/utils/dateUtils';
 
 interface SchedulingPanelProps {
   projects: IProject[];
   employees?: IEmployee[];
   currentUserEmployeeId?: string | null;
+  meetings: IMeeting[];
+  loadingMeetings?: boolean;
   meetingRefreshKey?: number;
-  weekStart: Date;
-  onWeekStartChange: (weekStart: Date) => void;
+  timeframe: TimeframeType;
+  currentDate: Date;
+  onDateChange: (date: Date) => void;
+  onRefreshMeetings: () => void;
   schedulingTimeZone: string;
   externalMessage?: string | null;
   onClearExternalMessage?: () => void;
@@ -26,53 +29,35 @@ export default function SchedulingPanel({
   projects,
   employees = [],
   currentUserEmployeeId,
+  meetings,
+  loadingMeetings = false,
   meetingRefreshKey = 0,
-  weekStart,
-  onWeekStartChange,
+  timeframe,
+  currentDate,
+  onDateChange,
+  onRefreshMeetings,
   schedulingTimeZone,
   externalMessage,
   onClearExternalMessage,
   onSetMessage,
 }: SchedulingPanelProps) {
-  const [meetings, setMeetings] = useState<MeetingRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editProjectIds, setEditProjectIds] = useState<string[]>([]);
 
-  const rangeQuery = useMemo(() => buildMeetingsRangeQuery(weekStart), [weekStart]);
-
   const displayMessage = externalMessage ?? message;
-
-  const loadMeetings = useCallback(async () => {
-    const res = await fetch(`/api/scheduling/meetings?${rangeQuery}`);
-    if (res.ok) setMeetings(await res.json());
-  }, [rangeQuery]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      await loadMeetings();
-      if (!cancelled) setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadMeetings]);
 
   useEffect(() => {
     if (meetingRefreshKey > 0) {
-      loadMeetings();
       const msg = 'Meeting created.';
       setMessage(msg);
       onSetMessage?.(msg);
     }
-  }, [meetingRefreshKey, loadMeetings, onSetMessage]);
+  }, [meetingRefreshKey, onSetMessage]);
 
   const handleSaveMeetingProjects = async (meetingId: string) => {
-    const editingMeeting = meetings.find((m) => m._id === meetingId);
+    const editingMeeting = meetings.find((m) => m._id.toString() === meetingId);
     const res = await fetch(`/api/scheduling/meetings/${meetingId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -81,7 +66,7 @@ export default function SchedulingPanel({
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setEditingId(null);
-      await loadMeetings();
+      onRefreshMeetings();
       const participants =
         typeof data.participantsUpdatedCount === 'number' ? data.participantsUpdatedCount : 1;
       const calendars =
@@ -110,7 +95,7 @@ export default function SchedulingPanel({
   };
 
   const handleMeetingCreated = async (info?: MeetingCreateSuccessInfo) => {
-    await loadMeetings();
+    onRefreshMeetings();
     let msg = 'Meeting created.';
     if (info?.invitesSent && info.invitesSent > 0) {
       msg += ` ${info.invitesSent} calendar invite${info.invitesSent === 1 ? '' : 's'} sent.`;
@@ -122,7 +107,7 @@ export default function SchedulingPanel({
     onSetMessage?.(msg);
   };
 
-  if (loading) {
+  if (loadingMeetings) {
     return <div className="text-text-secondary py-12 text-center">Loading meetings…</div>;
   }
 
@@ -155,62 +140,23 @@ export default function SchedulingPanel({
         onSuccess={handleMeetingCreated}
       />
 
-      <Card className="overflow-hidden p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
-          <h2 className="text-lg font-semibold text-text-primary">Meetings</h2>
-          <div className="flex items-center gap-2 text-sm flex-wrap">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => onWeekStartChange(addDays(weekStart, -7))}
-            >
-              Prev week
-            </Button>
-            <span className="text-text-secondary">
-              {weekStart.toLocaleDateString()} – {addDays(weekStart, 6).toLocaleDateString()}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => onWeekStartChange(addDays(weekStart, 7))}
-            >
-              Next week
-            </Button>
-            <Button type="button" size="sm" onClick={() => setShowMeetingModal(true)}>
-              New meeting
-            </Button>
-          </div>
-        </div>
-
-        {meetings.length === 0 ? (
-          <p className="text-sm text-text-secondary px-4 py-8 text-center">
-            No meetings this week. Sync your calendar or create one.
-          </p>
-        ) : (
-          <div className="divide-y divide-border">
-            {meetings.map((m) => (
-              <MeetingAgendaRow
-                key={m._id}
-                meeting={m}
-                employees={employees}
-                projects={projects}
-                isEditing={editingId === m._id}
-                editProjectIds={editProjectIds}
-                onToggleProject={toggleEditProject}
-                onStartEdit={() => {
-                  setEditingId(m._id);
-                  setEditProjectIds(m.linkedProjectIds || []);
-                }}
-                onSaveLinks={() => void handleSaveMeetingProjects(m._id)}
-              />
-            ))}
-          </div>
-        )}
-      </Card>
+      <MeetingsCalendarView
+        meetings={meetings}
+        timeframe={timeframe}
+        currentDate={currentDate}
+        onDateChange={onDateChange}
+        projects={projects}
+        employees={employees}
+        editingId={editingId}
+        editProjectIds={editProjectIds}
+        onToggleProject={toggleEditProject}
+        onStartEdit={(meetingId, linkedIds) => {
+          setEditingId(meetingId);
+          setEditProjectIds(linkedIds);
+        }}
+        onSaveLinks={(meetingId) => void handleSaveMeetingProjects(meetingId)}
+        onNewMeeting={() => setShowMeetingModal(true)}
+      />
     </div>
   );
 }
-
-export { startOfWeek };

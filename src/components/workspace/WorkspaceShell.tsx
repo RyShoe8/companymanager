@@ -13,7 +13,7 @@ import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import AgendaView from '@/components/workspace/AgendaView';
 import OrganizationBrand from '@/components/organization/OrganizationBrand';
-import SchedulingPanel, { startOfWeek } from '@/components/scheduling/SchedulingPanel';
+import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
 import SchedulingCalendarBar from '@/components/scheduling/SchedulingCalendarBar';
 import AvailabilityModal from '@/components/scheduling/AvailabilityModal';
 import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
@@ -85,7 +85,6 @@ export default function WorkspaceShell({
     const [showMeetingModal, setShowMeetingModal] = useState(false);
     const [meetingRefreshKey, setMeetingRefreshKey] = useState(0);
     const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
-    const [scheduleWeekStart, setScheduleWeekStart] = useState(() => startOfWeek(new Date()));
     const [scheduleSyncRefreshKey, setScheduleSyncRefreshKey] = useState(0);
     const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
     const [showImageModal, setShowImageModal] = useState(false);
@@ -100,7 +99,7 @@ export default function WorkspaceShell({
         loadCalendar: loadScheduleCalendar,
         handleSync: handleScheduleCalendarSync,
         handleDisconnect: handleScheduleCalendarDisconnect,
-    } = useSchedulingCalendar(scheduleWeekStart);
+    } = useSchedulingCalendar(ws.timeframe, ws.currentDate);
     const schedulingAvailability = useSchedulingAvailability();
 
     const meetingsFetchEnabled =
@@ -108,11 +107,11 @@ export default function WorkspaceShell({
         ws.lens === 'agenda' ||
         ws.lens === 'schedule' ||
         ws.lens === 'capacity';
-    const { meetings: workspaceMeetings } = useWorkspaceMeetings(
+    const { meetings: workspaceMeetings, loadingMeetings, refetchMeetings } = useWorkspaceMeetings(
         ws.timeframe,
         ws.currentDate,
         meetingsFetchEnabled,
-        meetingRefreshKey
+        meetingRefreshKey + scheduleSyncRefreshKey
     );
 
     const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
@@ -1112,39 +1111,46 @@ export default function WorkspaceShell({
                     {/* ===== Workspace Header ===== */}
                     <div className="mb-4">
                         {/* Row 1: Title + Phase + Timeframe + Actions */}
-                        <div className="flex flex-row items-center gap-4 flex-wrap mb-3">
+                        <div className="flex flex-row items-center gap-4 flex-wrap lg:flex-nowrap mb-3">
                             <OrganizationBrand />
                             <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
-                            {isSchedulingPhase && (
-                                <>
-                                    <SchedulingCalendarBar
-                                        calendar={scheduleCalendar}
-                                        syncing={scheduleSyncing}
-                                        onSync={() => void handleScheduleSync()}
-                                        onDisconnect={() => void handleScheduleCalendarDisconnect()}
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={() => setShowAvailabilityModal(true)}
-                                    >
-                                        Set Availability
-                                    </Button>
-                                </>
-                            )}
-                            {!isSchedulingPhase && (
-                                <TimeHorizonSelector
-                                    selected={ws.timeframe}
-                                    onSelect={(newTimeframe) => {
-                                        ws.setTimeframe(newTimeframe);
-                                        if (newTimeframe === 'today' && ws.timeframe === 'today') {
-                                            ws.setCurrentDate(new Date());
-                                        }
-                                    }}
-                                />
-                            )}
-                            <div className="flex gap-2 flex-shrink-0 ml-auto items-center">
+                            <TimeHorizonSelector
+                                selected={ws.timeframe}
+                                onSelect={(newTimeframe) => {
+                                    ws.setTimeframe(newTimeframe);
+                                    if (newTimeframe === 'today' && ws.timeframe === 'today') {
+                                        ws.setCurrentDate(new Date());
+                                    }
+                                }}
+                            />
+                            <div className="flex gap-2 flex-shrink-0 ml-auto items-center flex-wrap justify-end">
+                                {isSchedulingPhase && (
+                                    <>
+                                        <SchedulingCalendarBar
+                                            calendar={scheduleCalendar}
+                                            syncing={scheduleSyncing}
+                                            onSync={() => void handleScheduleSync()}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => setShowAvailabilityModal(true)}
+                                        >
+                                            Set Availability
+                                        </Button>
+                                        {scheduleCalendar?.connected ? (
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => void handleScheduleCalendarDisconnect()}
+                                            >
+                                                Disconnect
+                                            </Button>
+                                        ) : null}
+                                    </>
+                                )}
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}
@@ -1212,9 +1218,13 @@ export default function WorkspaceShell({
                                             projects={ws.allProjects}
                                             employees={ws.employees}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
-                                            meetingRefreshKey={meetingRefreshKey + scheduleSyncRefreshKey}
-                                            weekStart={scheduleWeekStart}
-                                            onWeekStartChange={setScheduleWeekStart}
+                                            meetings={workspaceMeetings}
+                                            loadingMeetings={loadingMeetings}
+                                            meetingRefreshKey={meetingRefreshKey}
+                                            timeframe={ws.timeframe}
+                                            currentDate={ws.currentDate}
+                                            onDateChange={ws.setCurrentDate}
+                                            onRefreshMeetings={() => void refetchMeetings()}
                                             schedulingTimeZone={schedulingAvailability.timezone}
                                             externalMessage={scheduleHeaderMessage}
                                             onClearExternalMessage={() => {

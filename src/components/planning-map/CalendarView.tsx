@@ -5,7 +5,6 @@ import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import {
   TimeframeType,
-  formatDate,
   getTimeframeRange,
   parseDateSafe,
   taskOverlapsViewRange,
@@ -18,7 +17,11 @@ import {
 } from '@/lib/utils/projectHours';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
-import PeriodNavButton from '@/components/ui/PeriodNavButton';
+import {
+  getCalendarPeriodTitle,
+  navigateCalendarPeriod,
+} from '@/lib/utils/calendarPeriodNav';
+import CalendarPeriodHeader from '@/components/planning-map/CalendarPeriodHeader';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
 import { contentPassesAssignmentFilter } from '@/lib/utils/assigneeDisplay';
@@ -36,8 +39,8 @@ function taskOverlapsWeek(
 
 /** Collapsed weekly card body when project has tasks but none in the visible week. */
 const WEEKLY_EMPTY_STATE_BODY_HEIGHT = 48;
-/** Single summary row under collapsed weekly header. */
-const WEEKLY_COLLAPSED_SUMMARY_HEIGHT = 28;
+/** Extra body when collapsed weekly card shows "No tasks this week". */
+const WEEKLY_COLLAPSED_EMPTY_EXTRA_HEIGHT = 28;
 const WEEKLY_MORE_ITEMS_BUTTON_HEIGHT = 36;
 
 function projectOverlapsDateRange(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
@@ -454,25 +457,7 @@ export default function CalendarView({
     computeProjectEstimatedHours(project, contentItems, timeframe, currentDate);
 
   const navigatePeriod = (direction: 'prev' | 'next') => {
-    const newDate = new Date(viewDate);
-    switch (timeframe) {
-      case 'today':
-        newDate.setDate(newDate.getDate() + (direction === 'prev' ? -1 : 1));
-        break;
-      case 'weekly':
-        newDate.setDate(newDate.getDate() + (direction === 'prev' ? -7 : 7));
-        break;
-      case 'monthly':
-        newDate.setMonth(newDate.getMonth() + (direction === 'prev' ? -1 : 1));
-        break;
-      case 'quarterly':
-        newDate.setMonth(newDate.getMonth() + (direction === 'prev' ? -3 : 3));
-        break;
-      case 'yearly':
-        newDate.setFullYear(newDate.getFullYear() + (direction === 'prev' ? -1 : 1));
-        break;
-    }
-    handleDateChange(newDate);
+    handleDateChange(navigateCalendarPeriod(timeframe, viewDate, direction));
   };
 
   const goToToday = () => {
@@ -527,26 +512,7 @@ export default function CalendarView({
     return day >= startDate && day <= endDate;
   };
 
-  const getViewTitle = () => {
-    switch (timeframe) {
-      case 'today':
-        const today = new Date(startDate);
-        const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
-        const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-        return `${dayName}, ${dateStr}`;
-      case 'weekly':
-        return `${formatDate(startDate)} - ${formatDate(endDate)}`;
-      case 'monthly':
-        return viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      case 'quarterly':
-        const quarter = Math.floor(viewDate.getMonth() / 3) + 1;
-        return `Q${quarter} ${viewDate.getFullYear()}`;
-      case 'yearly':
-        return viewDate.getFullYear().toString();
-      default:
-        return viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    }
-  };
+  const viewTitle = getCalendarPeriodTitle(timeframe, viewDate);
 
   // Today View - One huge box showing everything for today
   const renderTodayView = () => {
@@ -924,7 +890,7 @@ export default function CalendarView({
                   const isExpanded = expandedProjects.has(projectId);
 
                   const topPadding = 24; // p-6 top padding
-                  const headerHeight = 60; // Project name + status badge + spacing
+                  const headerHeight = 52; // Single-row title + status + inline summary
                   const bottomPadding = 24; // p-6 bottom padding
 
                   if (!isExpanded) {
@@ -934,9 +900,10 @@ export default function CalendarView({
                     weekEnd.setHours(23, 59, 59, 999);
 
                     const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
-                    let collapsedItemsHeight = WEEKLY_COLLAPSED_SUMMARY_HEIGHT;
+                    let collapsedItemsHeight = 0;
                     if (!summary.hasItemsInWeek && (project.tasks?.length ?? 0) > 0) {
-                      collapsedItemsHeight = WEEKLY_EMPTY_STATE_BODY_HEIGHT;
+                      collapsedItemsHeight =
+                        WEEKLY_EMPTY_STATE_BODY_HEIGHT + WEEKLY_COLLAPSED_EMPTY_EXTRA_HEIGHT;
                     }
 
                     return topPadding + headerHeight + collapsedItemsHeight + bottomPadding;
@@ -1036,87 +1003,93 @@ export default function CalendarView({
                       }}
                       title={`${name} ${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
                     >
-                      <div
-                        className="flex items-start justify-between cursor-pointer p-6 min-w-0 gap-2"
-                        onClick={() => onProjectClick(pos.project!)}
-                      >
-                        <h4 className={`text-xl font-bold text-white min-w-0 flex-1 break-words ${status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                          {name}
-                        </h4>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {(() => {
-                            const project = pos.project;
-                            const hasTasks = project.tasks && project.tasks.length > 0;
-                            return hasTasks ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleProjectExpanded(projectId!);
-                                }}
-                                className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
-                                aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                      {(() => {
+                        const project = pos.project!;
+                        const hasTasks = project.tasks && project.tasks.length > 0;
+                        const weekStart = new Date(days[0]);
+                        weekStart.setHours(0, 0, 0, 0);
+                        const weekEnd = new Date(days[6]);
+                        weekEnd.setHours(23, 59, 59, 999);
+                        const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
+                        const showInlineSummary =
+                          !isExpanded &&
+                          (summary.hasItemsInWeek ||
+                            (project.tasks?.length ?? 0) > 0 ||
+                            summary.contentCount > 0) &&
+                          summary.hasItemsInWeek;
+
+                        return (
+                          <>
+                            <div
+                              className="flex items-center gap-2 min-w-0 flex-nowrap overflow-hidden cursor-pointer px-6 py-6"
+                              onClick={() => onProjectClick(pos.project!)}
+                            >
+                              <h4
+                                className={`text-xl font-bold text-white truncate min-w-0 max-w-[35%] shrink ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                               >
-                                {isExpanded ? '▼' : '▶'}
-                              </button>
-                            ) : null;
-                          })()}
-                          <span
-                            className="px-3 py-1 rounded-full text-sm font-medium text-white"
-                            style={{ backgroundColor: displayColor }}
-                          >
-                            {getProjectStatusDisplayLabel(status)}
-                          </span>
-                        </div>
-                      </div>
+                                {name}
+                              </h4>
+                              {hasTasks ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleProjectExpanded(projectId!);
+                                  }}
+                                  className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity shrink-0"
+                                  aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                                >
+                                  {isExpanded ? '▼' : '▶'}
+                                </button>
+                              ) : null}
+                              <span
+                                className="px-3 py-1 rounded-full text-sm font-medium text-white shrink-0"
+                                style={{ backgroundColor: displayColor }}
+                              >
+                                {getProjectStatusDisplayLabel(status)}
+                              </span>
+                              {showInlineSummary ? (
+                                <p className="text-sm text-white/90 whitespace-nowrap truncate min-w-0 flex-1">
+                                  <span>
+                                    Tasks {summary.openTasks}/{summary.totalTasks}
+                                  </span>
+                                  <span className="mx-1.5 opacity-60" aria-hidden>
+                                    ·
+                                  </span>
+                                  <span>Content ({summary.contentCount})</span>
+                                  <span className="mx-1.5 opacity-60" aria-hidden>
+                                    ·
+                                  </span>
+                                  <span>Hours Scheduled: {summary.hours}h</span>
+                                </p>
+                              ) : null}
+                            </div>
+                            {!isExpanded &&
+                            !summary.hasItemsInWeek &&
+                            (project.tasks?.length ?? 0) > 0 ? (
+                              <div className="px-6 pb-6">
+                                <p className="text-xs text-white/90">No tasks this week.</p>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                  }}
+                                  className="text-xs text-white underline mt-1 hover:opacity-100 opacity-90"
+                                >
+                                  View all
+                                </button>
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                       {(() => {
                         const project = pos.project!;
                         const hasTasks = project.tasks && project.tasks.length > 0;
 
-                        // Show collapsed summary when not expanded
-                        if (!isExpanded) {
-                          const weekStart = new Date(days[0]);
-                          weekStart.setHours(0, 0, 0, 0);
-                          const weekEnd = new Date(days[6]);
-                          weekEnd.setHours(23, 59, 59, 999);
-
-                          const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
-
-                          if (summary.hasItemsInWeek || (project.tasks?.length ?? 0) > 0 || summary.contentCount > 0) {
-                            if (!summary.hasItemsInWeek && (project.tasks?.length ?? 0) > 0) {
-                              return (
-                                <div className="px-6 pb-6">
-                                  <p className="text-xs text-white/90">No tasks this week.</p>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                    }}
-                                    className="text-xs text-white underline mt-1 hover:opacity-100 opacity-90"
-                                  >
-                                    View all
-                                  </button>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div className="px-6 pb-6 min-w-0">
-                                <p className="text-sm text-white/90 leading-snug break-words">
-                                  <span>Tasks {summary.openTasks}/{summary.totalTasks}</span>
-                                  <span className="mx-1.5 opacity-60" aria-hidden>·</span>
-                                  <span>Content ({summary.contentCount})</span>
-                                  <span className="mx-1.5 opacity-60" aria-hidden>·</span>
-                                  <span>Hours Scheduled: {summary.hours}h</span>
-                                </p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }
+                        if (!isExpanded) return null;
 
                         // Show expanded view
-                        if (!isExpanded) return null;
 
                         return (
                           <>
@@ -1439,14 +1412,12 @@ export default function CalendarView({
   return (
     <div className="bg-background-card rounded-lg border border-border overflow-x-auto overflow-y-visible">
       {/* Calendar Header with Navigation */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <PeriodNavButton direction="prev" onClick={() => navigatePeriod('prev')} />
-          <h3 className="text-lg font-semibold text-text-primary min-w-[220px] text-center">
-            {getViewTitle()}
-          </h3>
-          <PeriodNavButton direction="next" onClick={() => navigatePeriod('next')} />
-        </div>
+      <div className="p-4 border-b border-border">
+        <CalendarPeriodHeader
+          title={viewTitle}
+          onPrev={() => navigatePeriod('prev')}
+          onNext={() => navigatePeriod('next')}
+        />
       </div>
 
       {/* Calendar Content */}
