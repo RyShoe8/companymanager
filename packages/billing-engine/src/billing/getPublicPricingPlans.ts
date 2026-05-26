@@ -23,6 +23,7 @@ export type PublicPricingPlan = {
 
 /**
  * Active, non-paused, non-archived plans for public pricing — one card per slug (highest version).
+ * Plans that have reached maxSubscriptionSlots are omitted (sold out).
  */
 export async function getPublicPricingPlans(): Promise<PublicPricingPlan[]> {
   await connectBillingDb();
@@ -43,5 +44,5 @@ export async function getPublicPricingPlans(): Promise<PublicPricingPlan[]> {
     out.push(await mapPlanDocToPublicPricing(r));
   }
 
-  return out;
+  return out.filter((p) => !p.soldOut);
 }

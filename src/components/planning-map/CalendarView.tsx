@@ -438,6 +438,13 @@ export default function CalendarView({
     };
   }
 
+  function canExpandProjectCard(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
+    if ((project.tasks?.length ?? 0) > 0) return true;
+    if (project.description?.trim()) return true;
+    const summary = getWeeklyCollapsedSummary(project, rangeStart, rangeEnd);
+    return summary.hasItemsInWeek || summary.contentCount > 0;
+  }
+
   const handleDateChange = (newDate: Date) => {
     setViewDate(newDate);
     if (onDateChange) {
@@ -540,7 +547,7 @@ export default function CalendarView({
                     const displayColor = project.status === 'in-review' ? '#ef4444' : project.color; // Red for in-review
                     const projectId = project._id.toString();
                     const isExpanded = expandedProjects.has(projectId);
-                    const hasTasks = project.tasks && project.tasks.length > 0;
+                    const canExpand = canExpandProjectCard(project, today, today);
 
                     return (
                       <div
@@ -599,7 +606,7 @@ export default function CalendarView({
                             >
                               {getProjectStatusDisplayLabel(project.status)}
                             </span>
-                            {hasTasks && (
+                            {canExpand && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1005,12 +1012,12 @@ export default function CalendarView({
                     >
                       {(() => {
                         const project = pos.project!;
-                        const hasTasks = project.tasks && project.tasks.length > 0;
                         const weekStart = new Date(days[0]);
                         weekStart.setHours(0, 0, 0, 0);
                         const weekEnd = new Date(days[6]);
                         weekEnd.setHours(23, 59, 59, 999);
                         const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
+                        const canExpand = canExpandProjectCard(project, weekStart, weekEnd);
                         const showInlineSummary =
                           !isExpanded &&
                           (summary.hasItemsInWeek ||
@@ -1021,47 +1028,52 @@ export default function CalendarView({
                         return (
                           <>
                             <div
-                              className="flex items-center gap-2 min-w-0 flex-nowrap overflow-hidden cursor-pointer px-6 py-6"
+                              className="flex items-center justify-between gap-2 min-w-0 cursor-pointer px-6 py-6"
                               onClick={() => onProjectClick(pos.project!)}
                             >
-                              <h4
-                                className={`text-xl font-bold text-white truncate min-w-0 max-w-[35%] shrink ${status === 'completed' ? 'line-through opacity-60' : ''}`}
-                              >
-                                {name}
-                              </h4>
-                              {hasTasks ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleProjectExpanded(projectId!);
-                                  }}
-                                  className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity shrink-0"
-                                  aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                                <h4
+                                  className={`text-xl font-bold text-white truncate min-w-0 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                                 >
-                                  {isExpanded ? '▼' : '▶'}
-                                </button>
-                              ) : null}
-                              <span
-                                className="px-3 py-1 rounded-full text-sm font-medium text-white shrink-0"
-                                style={{ backgroundColor: displayColor }}
-                              >
-                                {getProjectStatusDisplayLabel(status)}
-                              </span>
-                              {showInlineSummary ? (
-                                <p className="text-sm text-white/90 whitespace-nowrap truncate min-w-0 flex-1">
-                                  <span>
-                                    Tasks {summary.openTasks}/{summary.totalTasks}
-                                  </span>
-                                  <span className="mx-1.5 opacity-60" aria-hidden>
-                                    ·
-                                  </span>
-                                  <span>Content ({summary.contentCount})</span>
-                                  <span className="mx-1.5 opacity-60" aria-hidden>
-                                    ·
-                                  </span>
-                                  <span>Hours Scheduled: {summary.hours}h</span>
-                                </p>
-                              ) : null}
+                                  {name}
+                                </h4>
+                                {showInlineSummary ? (
+                                  <p className="text-sm text-white/90 whitespace-nowrap truncate min-w-0">
+                                    <span>
+                                      Tasks {summary.openTasks}/{summary.totalTasks}
+                                    </span>
+                                    <span className="mx-1.5 opacity-60" aria-hidden>
+                                      ·
+                                    </span>
+                                    <span>Content ({summary.contentCount})</span>
+                                    <span className="mx-1.5 opacity-60" aria-hidden>
+                                      ·
+                                    </span>
+                                    <span>Hours Scheduled: {summary.hours}h</span>
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className="px-3 py-1 rounded-full text-sm font-medium text-white"
+                                  style={{ backgroundColor: displayColor }}
+                                >
+                                  {getProjectStatusDisplayLabel(status)}
+                                </span>
+                                {canExpand ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleProjectExpanded(projectId!);
+                                    }}
+                                    className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
+                                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                                  >
+                                    {isExpanded ? '▼' : '▶'}
+                                  </button>
+                                ) : null}
+                              </div>
                             </div>
                             {!isExpanded &&
                             !summary.hasItemsInWeek &&
@@ -1085,11 +1097,20 @@ export default function CalendarView({
                       })()}
                       {(() => {
                         const project = pos.project!;
-                        const hasTasks = project.tasks && project.tasks.length > 0;
+                        const hasTasks = (project.tasks?.length ?? 0) > 0;
 
                         if (!isExpanded) return null;
 
-                        // Show expanded view
+                        const weekStart = new Date(days[0]);
+                        weekStart.setHours(0, 0, 0, 0);
+                        const weekEnd = new Date(days[6]);
+                        weekEnd.setHours(23, 59, 59, 999);
+                        const weekSummary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
+                        const visibleTasks = hasTasks
+                          ? project.tasks!.filter((task) => taskOverlapsWeek(task, days[0], days[6]))
+                          : [];
+                        const displayed = weekSummary.displayList.slice(0, 3);
+                        const moreItemsCount = Math.max(0, weekSummary.displayList.length - displayed.length);
 
                         return (
                           <>
@@ -1103,51 +1124,34 @@ export default function CalendarView({
                               </div>
                             </div>
 
-                            {hasTasks && (() => {
-                              const weekStart = new Date(days[0]);
-                              weekStart.setHours(0, 0, 0, 0);
-                              const weekEnd = new Date(days[6]);
-                              weekEnd.setHours(23, 59, 59, 999);
-
-                              const visibleTasks = project.tasks!.filter((task) =>
-                                taskOverlapsWeek(task, days[0], days[6])
-                              );
-
-                              if (visibleTasks.length === 0 && project.tasks!.length > 0) {
-                                return (
-                                  <div className="mt-4 px-6 pb-6">
-                                    <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
-                                    <p className="text-sm text-text-secondary mb-2">No tasks scheduled this week.</p>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                      }}
-                                      className="text-sm text-primary hover:underline"
-                                    >
-                                      View all
-                                    </button>
-                                  </div>
-                                );
-                              }
-
-                              const displayedTasks = visibleTasks.slice(0, 3); // Limit to 3 tasks for better fit in weekly view
-                              const weekSummary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
-                              const moreItemsCount = Math.max(
-                                0,
-                                weekSummary.displayList.length - displayedTasks.length
-                              );
-
-                              return (
-                                <div className="mt-4 px-6 pb-6 flex flex-col min-h-0">
-                                  <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
-                                  <div className="space-y-2">
-                                    {displayedTasks.map((task, taskIdx) => {
+                            {visibleTasks.length === 0 && hasTasks && project.tasks!.length > 0 ? (
+                              <div className="mt-4 px-6 pb-6">
+                                <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
+                                <p className="text-sm text-text-secondary mb-2">No tasks scheduled this week.</p>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                  }}
+                                  className="text-sm text-primary hover:underline"
+                                >
+                                  View all
+                                </button>
+                              </div>
+                            ) : displayed.length > 0 ? (
+                              <div className="mt-4 px-6 pb-6 flex flex-col min-h-0">
+                                <p className="text-sm font-semibold text-text-primary mb-2">
+                                  {hasTasks ? 'Tasks:' : 'Tasks & Content:'}
+                                </p>
+                                <div className="space-y-2">
+                                  {displayed.map((item, idx) => {
+                                    if (item.type === 'task') {
+                                      const task = item.task;
                                       const tIdx = resolveTaskIndexInProject(project, task);
                                       return (
                                         <button
-                                          key={taskIdx}
+                                          key={`${projectId}-task-${idx}`}
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -1155,9 +1159,16 @@ export default function CalendarView({
                                           }}
                                           className="w-full min-w-0 text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer min-h-[112px]"
                                         >
-                                          <div className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`} title={task.name}>{task.name}</div>
+                                          <div
+                                            className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                            title={task.name}
+                                          >
+                                            {task.name}
+                                          </div>
                                           {task.description && (
-                                            <p className="text-sm text-text-secondary mt-1 max-h-10 overflow-hidden">{task.description}</p>
+                                            <p className="text-sm text-text-secondary mt-1 max-h-10 overflow-hidden">
+                                              {task.description}
+                                            </p>
                                           )}
                                           <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                             {task.estimatedHours && <span>{task.estimatedHours}h</span>}
@@ -1168,24 +1179,51 @@ export default function CalendarView({
                                           </div>
                                         </button>
                                       );
-                                    })}
-                                    {moreItemsCount > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                        }}
-                                        className="text-sm text-text-primary underline hover:opacity-90 pt-1 pb-0.5 text-left w-full shrink-0"
+                                    }
+                                    const c = item.content;
+                                    return (
+                                      <div
+                                        key={c._id.toString()}
+                                        className={`p-3 rounded border border-dashed border-border bg-background-card min-h-[112px] ${c.status === 'published' ? 'opacity-60' : ''}`}
                                       >
-                                        +{moreItemsCount} more items
-                                      </button>
-                                    )}
-                                  </div>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onContentItemClick?.(c);
+                                          }}
+                                          className="text-left w-full"
+                                        >
+                                          <span className="mr-2" aria-hidden>
+                                            📝
+                                          </span>
+                                          <span
+                                            className={`font-medium text-text-primary break-words ${c.status === 'published' ? 'line-through' : ''}`}
+                                          >
+                                            {c.title}
+                                          </span>
+                                          <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">
+                                            {c.channel}
+                                          </span>
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                  {moreItemsCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                      }}
+                                      className="text-sm text-text-primary underline hover:opacity-90 pt-1 pb-0.5 text-left w-full shrink-0"
+                                    >
+                                      +{moreItemsCount} more items
+                                    </button>
+                                  )}
                                 </div>
-                              );
-                            })()}
-
+                              </div>
+                            ) : null}
                           </>
                         );
                       })()}

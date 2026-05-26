@@ -59,15 +59,12 @@ export default async function PricingPage() {
                 variant="marketing"
                 className={isRecommendedPlan(plan) ? 'ring-2 ring-primary/40' : undefined}
                 footer={
-                  plan.soldOut ? (
-                    <Button className="w-full" disabled>
-                      Sold out
-                    </Button>
-                  ) : (
-                    <Link href={ctaByPlanId[plan.id] ?? `/register?plan=${encodeURIComponent(plan.id)}`} className="block w-full">
-                      <Button className="w-full">Get started — {plan.name}</Button>
-                    </Link>
-                  )
+                  <Link
+                    href={ctaByPlanId[plan.id] ?? `/register?plan=${encodeURIComponent(plan.id)}`}
+                    className="block w-full"
+                  >
+                    <Button className="w-full">Get started — {plan.name}</Button>
+                  </Link>
                 }
               />
             ))}
