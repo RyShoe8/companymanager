@@ -21,6 +21,7 @@ export type PlanRow = {
   maxSubscriptionSlots?: number;
   subscriptionCount?: number;
   soldOut?: boolean;
+  trialDays?: number;
 };
 
 function fmtMoney(cents: number) {
@@ -157,6 +158,7 @@ export function AdminPlansTable({
             <tr className="border-b bg-muted/40 text-left">
               <th className="p-3 font-medium">Name</th>
               <th className="p-3 font-medium">Interval</th>
+              <th className="p-3 font-medium">Trial</th>
               <th className="p-3 font-medium">Base</th>
               <th className="p-3 font-medium">Slots</th>
               <th className="p-3 font-medium">Active</th>
@@ -169,7 +171,7 @@ export function AdminPlansTable({
           <tbody>
             {plans.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-6 text-center text-muted-foreground">
+                <td colSpan={10} className="p-6 text-center text-muted-foreground">
                   {mode === 'archived' ? 'No archived plans.' : 'No active plans.'}
                 </td>
               </tr>
@@ -181,6 +183,9 @@ export function AdminPlansTable({
                     <span className="block text-xs text-muted-foreground">v{p.version}</span>
                   </td>
                   <td className="p-3">{p.interval}</td>
+                  <td className="p-3">
+                    {(p.trialDays ?? 0) > 0 ? `${p.trialDays}d` : '—'}
+                  </td>
                   <td className="p-3">{fmtMoney(p.basePriceCents)}</td>
                   <td className="p-3">{slotsLabel(p)}</td>
                   <td className="p-3">{p.active ? 'Yes' : 'No'}</td>

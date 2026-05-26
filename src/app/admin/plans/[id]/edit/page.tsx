@@ -29,6 +29,7 @@ export default async function EditAdminPlanPage({ params }: Props) {
     description: String(p.description ?? ''),
     badge: String(p.badge ?? ''),
     maxSubscriptionSlots: Number(p.maxSubscriptionSlots ?? 0),
+    trialDays: Number(p.trialDays ?? 0),
   };
 
   const backHref = p.archived ? '/admin/plans' : '/admin/plans';

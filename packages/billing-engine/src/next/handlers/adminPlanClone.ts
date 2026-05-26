@@ -42,6 +42,7 @@ export async function POST(_request: Request, { params }: Params) {
     description: src.description,
     badge: src.badge ?? '',
     maxSubscriptionSlots: src.maxSubscriptionSlots ?? 0,
+    trialDays: src.trialDays ?? 0,
     archived: false,
     version: nextVersion,
     stripeProductId: '',

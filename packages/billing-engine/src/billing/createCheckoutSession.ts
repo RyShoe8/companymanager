@@ -10,6 +10,7 @@ import {
   isPlanOfferable,
   PlanSubscriptionCapError,
 } from './planSubscriptionCap';
+import { checkoutTrialPeriodDays, shouldApplyPlanTrialAtCheckout } from './planTrial';
 import { getBillingContext } from '../context';
 
 export class CheckoutSessionError extends Error {
@@ -43,7 +44,7 @@ export async function validatePlanForCheckout(
 }
 
 export type CreateCheckoutSessionInput = {
-  org: Pick<OrganizationBillingFields, '_id' | 'stripeCustomerId'>;
+  org: Pick<OrganizationBillingFields, '_id' | 'stripeCustomerId' | 'stripeSubscriptionId'>;
   userEmail?: string | null;
   subscriptionPlanId?: string;
   planSlug?: 'basic' | 'pro';
@@ -147,6 +148,18 @@ export async function createCheckoutSessionForOrganization(
 
   if (checkoutMode === 'subscription') {
     params.subscription_data = { metadata: meta };
+    if (
+      dbPlanForSeats &&
+      (await shouldApplyPlanTrialAtCheckout(orgId, dbPlanForSeats, input.org))
+    ) {
+      const trialDays = checkoutTrialPeriodDays(dbPlanForSeats);
+      if (trialDays) {
+        params.subscription_data = {
+          ...params.subscription_data,
+          trial_period_days: trialDays,
+        };
+      }
+    }
   }
 
   if (input.org.stripeCustomerId) {

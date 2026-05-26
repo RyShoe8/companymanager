@@ -19,6 +19,7 @@ const PatchSchema = z.object({
   active: z.boolean().optional(),
   paused: z.boolean().optional(),
   maxSubscriptionSlots: z.number().int().nonnegative().optional(),
+  trialDays: z.number().int().min(0).max(365).optional(),
   archived: z.boolean().optional(),
 });
 

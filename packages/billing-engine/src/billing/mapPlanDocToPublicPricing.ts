@@ -20,5 +20,6 @@ export async function mapPlanDocToPublicPricing(
     maxSubscriptionSlots: Number(plan.maxSubscriptionSlots ?? 0),
     subscriptionCount: usage.used,
     soldOut: usage.soldOut,
+    trialDays: Number(plan.trialDays ?? 0),
   };
 }

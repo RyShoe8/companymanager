@@ -18,6 +18,7 @@ export type PublicPricingPlan = {
   maxSubscriptionSlots: number;
   subscriptionCount: number;
   soldOut: boolean;
+  trialDays: number;
 };
 
 /**

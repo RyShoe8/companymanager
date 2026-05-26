@@ -33,7 +33,18 @@ Host `Organization` documents should include:
 
 - `plan`, `subscriptionStatus`, `stripeCustomerId`, `stripeSubscriptionId`
 
-Canonical subscription data lives in `OrganizationSubscription` (package model).
+Canonical subscription data lives in `OrganizationSubscription` (package model), including `trialEndsAt` when Stripe reports a trial.
+
+## Plan trials (`trialDays`)
+
+Each `SubscriptionPlan` may set `trialDays` (0–365, default 0). When greater than zero on a **monthly or yearly** plan:
+
+- **Stripe Checkout** (first subscription for that organization only) receives `subscription_data.trial_period_days`; the customer is not charged until the trial ends (payment method is still collected up front).
+- Trials are **not** applied when an org already has a prior subscription record, an existing `stripeSubscriptionId`, or when changing plans / adding seats in place.
+- **Lifetime** plans ignore `trialDays`.
+- After sync, Stripe product metadata includes `tailnoteTrialDays` for dashboard visibility.
+
+Admin: set **Trial days** on create/edit plan. Public pricing cards show a trial line when applicable.
 
 ## Environment variables
 

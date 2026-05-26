@@ -13,6 +13,7 @@ import { consumeSelectedPlanId } from '@/lib/billing/selectedPlanStorage';
 
 type BillingSummary = {
   renewsAt?: string | null;
+  trialEndsAt?: string | null;
   cancelAtPeriodEnd?: boolean;
   subscriptionStatus?: string;
   canCancel?: boolean;
@@ -280,6 +281,9 @@ function BillingPageInner() {
             <h2 className="text-lg font-semibold text-text-primary">Subscription</h2>
             <p className="text-sm text-text-secondary mt-1">
               Status: {loadError ? '—' : billing?.subscriptionStatus ?? '—'}
+              {billing?.subscriptionStatus === 'trialing' && billing?.trialEndsAt && !loadError
+                ? ` · Trial ends ${formatBillingDate(billing.trialEndsAt)}`
+                : null}
               {billing?.renewsAt && !loadError
                 ? ` · ${billing.cancelAtPeriodEnd ? 'Access until' : 'Renews'} ${formatBillingDate(billing.renewsAt)}`
                 : ''}

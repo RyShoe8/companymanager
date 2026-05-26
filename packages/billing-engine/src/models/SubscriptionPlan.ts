@@ -19,6 +19,8 @@ const SubscriptionPlanSchema = new Schema(
     version: { type: Number, default: 1, min: 1 },
     /** Max org subscriptions for this plan document; 0 = unlimited */
     maxSubscriptionSlots: { type: Number, default: 0, min: 0 },
+    /** Free trial length for first-time Checkout subscriptions; 0 = none */
+    trialDays: { type: Number, default: 0, min: 0, max: 365 },
     /** Retired from public catalog; existing subs stay pinned */
     archived: { type: Boolean, default: false, index: true },
   },

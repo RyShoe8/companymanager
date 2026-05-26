@@ -19,6 +19,7 @@ const empty = {
   description: '',
   badge: '',
   maxSubscriptionSlots: 0,
+  trialDays: 0,
 };
 
 export function AdminPlanForm({
@@ -49,6 +50,7 @@ export function AdminPlanForm({
         description: form.description,
         badge: form.badge,
         maxSubscriptionSlots: Number(form.maxSubscriptionSlots),
+        trialDays: Number(form.trialDays),
       };
       const url = mode === 'create' ? '/api/admin/plans' : `/api/admin/plans/${planId}`;
       const res = await fetch(url, {
@@ -107,6 +109,22 @@ export function AdminPlanForm({
               <option value="year">Year</option>
               <option value="lifetime">Lifetime</option>
             </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="trialDays">Trial days</Label>
+            <Input
+              id="trialDays"
+              type="number"
+              min={0}
+              max={365}
+              value={form.trialDays}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setForm((f) => ({ ...f, trialDays: Number(e.target.value) }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              0 = no trial. Applies to monthly/yearly Checkout only; first subscription per organization.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="base">Base price (cents)</Label>

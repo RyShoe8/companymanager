@@ -19,6 +19,13 @@ export function intervalSuffix(interval: PublicPricingPlan['interval']): string 
   }
 }
 
+export function trialLine(plan: PublicPricingPlan): string | null {
+  if (plan.interval === 'lifetime') return null;
+  const days = Math.floor(Number(plan.trialDays ?? 0));
+  if (days <= 0) return null;
+  return `${days}-day free trial`;
+}
+
 export function primaryPriceLine(plan: PublicPricingPlan): string {
   if (plan.interval === 'lifetime') {
     return `${formatUsd(plan.basePriceCents)} one-time`;

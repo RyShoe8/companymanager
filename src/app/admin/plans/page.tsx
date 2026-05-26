@@ -36,6 +36,7 @@ export default async function AdminPlansPage() {
         maxSubscriptionSlots: Number(p.maxSubscriptionSlots ?? 0),
         subscriptionCount: usage.used,
         soldOut: usage.soldOut,
+        trialDays: Number(p.trialDays ?? 0),
       };
     })
   );
