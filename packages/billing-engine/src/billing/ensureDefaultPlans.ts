@@ -1,7 +1,11 @@
 import { connectBillingDb } from '../context';
 import { SubscriptionPlanModel } from '../models/SubscriptionPlan';
 
-/** Idempotent seed for Basic/Pro yearly plans (amounts match marketing defaults; edit in admin). */
+/**
+ * Idempotent seed for Basic/Pro yearly plans (legacy Tailnote placeholders).
+ * @deprecated Do not call from Nucleas public pricing — use admin-created plans instead.
+ * Not invoked by getPublicPricingPlans; kept exported for optional manual/bootstrap use.
+ */
 export async function ensureDefaultSubscriptionPlans(): Promise<void> {
   await connectBillingDb();
   const basic = await SubscriptionPlanModel.findOne({ slug: 'basic', version: 1 });
