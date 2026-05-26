@@ -105,12 +105,19 @@ export default function MeetingsCalendarView({
     onDateChange(next);
   };
 
-  const renderMeetingRows = (dayMeetings: IMeeting[]) => {
+  const renderMeetingRows = (
+    dayMeetings: IMeeting[],
+    variant: 'default' | 'weekColumn' = 'default'
+  ) => {
     if (dayMeetings.length === 0) {
-      return <p className="text-sm text-text-secondary py-2">No meetings</p>;
+      return (
+        <p className={`text-sm text-text-secondary ${variant === 'weekColumn' ? 'py-1' : 'py-2'}`}>
+          No meetings
+        </p>
+      );
     }
     return (
-      <div className="divide-y divide-border">
+      <div className="divide-y divide-border min-w-0">
         {dayMeetings.map((m) => {
           const row = toMeetingRow(m);
           return (
@@ -124,6 +131,7 @@ export default function MeetingsCalendarView({
               onToggleProject={onToggleProject}
               onStartEdit={() => onStartEdit(row._id, row.linkedProjectIds || [])}
               onSaveLinks={() => onSaveLinks(row._id)}
+              variant={variant}
             />
           );
         })}
@@ -177,7 +185,7 @@ export default function MeetingsCalendarView({
             return (
               <div
                 key={dayIdx}
-                className={`p-3 min-h-[320px] ${currentDay ? 'bg-primary-light' : ''}`}
+                className={`p-4 min-h-[380px] min-w-0 ${currentDay ? 'bg-primary-light' : ''}`}
               >
                 <div
                   className={`text-lg font-semibold mb-3 ${
@@ -186,7 +194,7 @@ export default function MeetingsCalendarView({
                 >
                   {day.getDate()}
                 </div>
-                {renderMeetingRows(dayMeetings)}
+                {renderMeetingRows(dayMeetings, 'weekColumn')}
               </div>
             );
           })}

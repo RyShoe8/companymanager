@@ -47,6 +47,7 @@ interface MeetingAgendaRowProps {
   onToggleProject: (id: string) => void;
   onStartEdit: () => void;
   onSaveLinks: () => void;
+  variant?: 'default' | 'weekColumn';
 }
 
 export default function MeetingAgendaRow({
@@ -58,11 +59,82 @@ export default function MeetingAgendaRow({
   onToggleProject,
   onStartEdit,
   onSaveLinks,
+  variant = 'default',
 }: MeetingAgendaRowProps) {
   const start = new Date(meeting.start);
   const end = new Date(meeting.end);
   const inviteeLine = formatMeetingInvitees(meeting, employees);
   const linkedCount = meeting.linkedProjectIds?.length || 0;
+  const timeRange = formatMeetingTimeRange(start, end);
+
+  if (variant === 'weekColumn') {
+    const metaLine = [inviteeLine, linkedCount > 0 && !isEditing ? `${linkedCount} linked` : null]
+      .filter(Boolean)
+      .join(' · ');
+
+    return (
+      <div className="px-2 py-2 text-sm min-w-0">
+        <p className="text-xs font-medium text-text-primary truncate" title={timeRange}>
+          {timeRange}
+        </p>
+        <p className="font-medium text-text-primary truncate mt-0.5" title={meeting.title}>
+          {meeting.title}
+        </p>
+        {meeting.googleRecurringEventId && (
+          <span className="inline-block mt-0.5 text-[10px] text-text-muted border border-border rounded px-1 py-px">
+            Recurring
+          </span>
+        )}
+        {metaLine ? (
+          <p className="text-[11px] text-text-muted truncate mt-0.5" title={metaLine}>
+            {metaLine}
+          </p>
+        ) : null}
+        <div className="flex flex-col gap-1 mt-1.5 w-full min-w-0">
+          {meeting.agendaToken && (
+            <Link
+              href={`/scheduling/agenda/${meeting.agendaToken}`}
+              className="text-xs text-primary hover:text-primary-hover truncate"
+            >
+              Open agenda
+            </Link>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={onStartEdit}
+            className="w-full justify-center text-xs"
+          >
+            Link projects
+          </Button>
+        </div>
+        {isEditing && (
+          <div className="mt-2 pt-2 border-t border-border">
+            <div className="flex flex-col gap-1.5 mb-2 max-h-28 overflow-y-auto">
+              {projects.map((p) => (
+                <label
+                  key={p._id.toString()}
+                  className="flex items-center gap-1 text-xs text-text-secondary cursor-pointer min-w-0"
+                >
+                  <input
+                    type="checkbox"
+                    checked={editProjectIds.includes(p._id.toString())}
+                    onChange={() => onToggleProject(p._id.toString())}
+                    className="rounded border-border shrink-0"
+                  />
+                  <span className="truncate">{p.name}</span>
+                </label>
+              ))}
+            </div>
+            <Button type="button" size="sm" onClick={onSaveLinks} className="w-full justify-center">
+              Save links
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-3 text-sm">
@@ -78,7 +150,7 @@ export default function MeetingAgendaRow({
                 Recurring
               </span>
             )}
-            <span className="text-xs text-text-muted">{formatMeetingTimeRange(start, end)}</span>
+            <span className="text-xs text-text-muted">{timeRange}</span>
           </div>
           <p className="text-xs text-text-secondary mt-0.5">
             {start.toLocaleDateString(undefined, {

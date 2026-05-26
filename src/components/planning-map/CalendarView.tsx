@@ -37,10 +37,6 @@ function taskOverlapsWeek(
   return taskOverlapsViewRange(weekStartDay, weekEndDay, taskStart, taskEnd);
 }
 
-/** Collapsed weekly card body when project has tasks but none in the visible week. */
-const WEEKLY_EMPTY_STATE_BODY_HEIGHT = 48;
-/** Extra body when collapsed weekly card shows "No tasks this week". */
-const WEEKLY_COLLAPSED_EMPTY_EXTRA_HEIGHT = 28;
 const WEEKLY_MORE_ITEMS_BUTTON_HEIGHT = 36;
 
 function projectOverlapsDateRange(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
@@ -896,24 +892,12 @@ export default function CalendarView({
                   const projectId = pos.project!._id.toString();
                   const isExpanded = expandedProjects.has(projectId);
 
-                  const topPadding = 24; // p-6 top padding
-                  const headerHeight = 52; // Single-row title + status + inline summary
-                  const bottomPadding = 24; // p-6 bottom padding
+                  const topPadding = 16; // py-4 top padding
+                  const headerHeight = 42; // Single-row title + status + inline summary
+                  const bottomPadding = 16; // py-4 bottom padding
 
                   if (!isExpanded) {
-                    const weekStart = new Date(days[0]);
-                    weekStart.setHours(0, 0, 0, 0);
-                    const weekEnd = new Date(days[6]);
-                    weekEnd.setHours(23, 59, 59, 999);
-
-                    const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
-                    let collapsedItemsHeight = 0;
-                    if (!summary.hasItemsInWeek && (project.tasks?.length ?? 0) > 0) {
-                      collapsedItemsHeight =
-                        WEEKLY_EMPTY_STATE_BODY_HEIGHT + WEEKLY_COLLAPSED_EMPTY_EXTRA_HEIGHT;
-                    }
-
-                    return topPadding + headerHeight + collapsedItemsHeight + bottomPadding;
+                    return topPadding + headerHeight + bottomPadding;
                   }
 
                   // Expanded height calculation must match rendered weekly content.
@@ -921,23 +905,20 @@ export default function CalendarView({
                   weekStart.setHours(0, 0, 0, 0);
                   const weekEnd = new Date(days[6]);
                   weekEnd.setHours(23, 59, 59, 999);
-                  const visibleTasks = hasTasks
-                    ? project.tasks!.filter((task) => taskOverlapsWeek(task, days[0], days[6]))
-                    : [];
                   const { displayList: expandedDisplayList } = getWeeklyCollapsedSummary(
                     project,
                     weekStart,
                     weekEnd
                   );
-                  const displayedTasksCount = Math.min(visibleTasks.length, 3);
-                  const moreItemsCount = Math.max(0, expandedDisplayList.length - displayedTasksCount);
+                  const displayedCount = Math.min(expandedDisplayList.length, 3);
+                  const moreItemsCount = Math.max(0, expandedDisplayList.length - displayedCount);
                   const hasMoreItems = moreItemsCount > 0;
                   const descriptionHeight = project.description ? 40 : 0; // project description block
                   const estimatedHoursHeight = 56; // info block including spacing
                   const tasksSectionPadding = 16; // mt-4
                   const tasksHeaderHeight = 24; // label + margin
                   const taskCardHeight = 112; // fixed weekly task card height (see rendered min-h below)
-                  const taskGapHeight = displayedTasksCount > 0 ? (displayedTasksCount - 1) * 8 : 0; // space-y-2
+                  const taskGapHeight = displayedCount > 0 ? (displayedCount - 1) * 8 : 0; // space-y-2
                   const moreIndicatorHeight = hasMoreItems ? WEEKLY_MORE_ITEMS_BUTTON_HEIGHT : 0;
                   return (
                     topPadding +
@@ -946,7 +927,7 @@ export default function CalendarView({
                     estimatedHoursHeight +
                     tasksSectionPadding +
                     tasksHeaderHeight +
-                    displayedTasksCount * taskCardHeight +
+                    displayedCount * taskCardHeight +
                     taskGapHeight +
                     moreIndicatorHeight +
                     bottomPadding
@@ -1018,17 +999,16 @@ export default function CalendarView({
                         weekEnd.setHours(23, 59, 59, 999);
                         const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
                         const canExpand = canExpandProjectCard(project, weekStart, weekEnd);
-                        const showInlineSummary =
+                        const showMetricsSummary = !isExpanded && summary.hasItemsInWeek;
+                        const showEmptyWeekSummary =
                           !isExpanded &&
-                          (summary.hasItemsInWeek ||
-                            (project.tasks?.length ?? 0) > 0 ||
-                            summary.contentCount > 0) &&
-                          summary.hasItemsInWeek;
+                          !summary.hasItemsInWeek &&
+                          (project.tasks?.length ?? 0) > 0;
 
                         return (
                           <>
                             <div
-                              className="flex items-center justify-between gap-2 min-w-0 cursor-pointer px-6 py-6"
+                              className="flex items-center justify-between gap-2 min-w-0 cursor-pointer px-6 py-4"
                               onClick={() => onProjectClick(pos.project!)}
                             >
                               <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
@@ -1037,7 +1017,7 @@ export default function CalendarView({
                                 >
                                   {name}
                                 </h4>
-                                {showInlineSummary ? (
+                                {showMetricsSummary ? (
                                   <p className="text-sm text-white/90 whitespace-nowrap truncate min-w-0">
                                     <span>
                                       Tasks {summary.openTasks}/{summary.totalTasks}
@@ -1050,6 +1030,24 @@ export default function CalendarView({
                                       ·
                                     </span>
                                     <span>Hours Scheduled: {summary.hours}h</span>
+                                  </p>
+                                ) : null}
+                                {showEmptyWeekSummary ? (
+                                  <p className="text-sm text-white/90 whitespace-nowrap truncate min-w-0">
+                                    <span>No tasks this week</span>
+                                    <span className="mx-1.5 opacity-60" aria-hidden>
+                                      ·
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                      }}
+                                      className="underline hover:opacity-100 opacity-90"
+                                    >
+                                      View all
+                                    </button>
                                   </p>
                                 ) : null}
                               </div>
@@ -1075,23 +1073,6 @@ export default function CalendarView({
                                 ) : null}
                               </div>
                             </div>
-                            {!isExpanded &&
-                            !summary.hasItemsInWeek &&
-                            (project.tasks?.length ?? 0) > 0 ? (
-                              <div className="px-6 pb-6">
-                                <p className="text-xs text-white/90">No tasks this week.</p>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                  }}
-                                  className="text-xs text-white underline mt-1 hover:opacity-100 opacity-90"
-                                >
-                                  View all
-                                </button>
-                              </div>
-                            ) : null}
                           </>
                         );
                       })()}
