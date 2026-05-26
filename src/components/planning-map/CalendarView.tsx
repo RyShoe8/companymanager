@@ -25,6 +25,7 @@ import CalendarPeriodHeader from '@/components/planning-map/CalendarPeriodHeader
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
 import { contentPassesAssignmentFilter } from '@/lib/utils/assigneeDisplay';
+import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import {
   buildContentItemsByProjectId,
   getProjectLatestActivityMs,
@@ -456,20 +457,7 @@ export default function CalendarView({
     };
   }
 
-  function canExpandProjectCard(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
-    if ((project.tasks?.length ?? 0) > 0) return true;
-    if (project.description?.trim()) return true;
-    const summary = getWeeklyCollapsedSummary(project, rangeStart, rangeEnd);
-    return summary.hasItemsInWeek || summary.contentCount > 0;
-  }
-
   useEffect(() => {
-    if (timeframe !== 'weekly') return;
-    const range = getTimeframeRange('weekly', viewDate);
-    const weekStart = new Date(range.start);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = new Date(range.end);
-    weekEnd.setHours(23, 59, 59, 999);
     const projectIds = new Set(projects.map((p) => p._id.toString()));
     setExpandedProjects((prev) => {
       let changed = false;
@@ -478,18 +466,11 @@ export default function CalendarView({
         if (!projectIds.has(id)) {
           next.delete(id);
           changed = true;
-          continue;
-        }
-        const project = projects.find((p) => p._id.toString() === id);
-        if (project && !canExpandProjectCard(project, weekStart, weekEnd)) {
-          next.delete(id);
-          changed = true;
         }
       }
       return changed ? next : prev;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- canExpandProjectCard closes over filters/content
-  }, [timeframe, viewDate, projects, showTasks, showContent, contentItems]);
+  }, [projects]);
 
   const handleDateChange = (newDate: Date) => {
     setViewDate(newDate);
@@ -593,7 +574,7 @@ export default function CalendarView({
                     const displayColor = project.status === 'in-review' ? '#ef4444' : project.color; // Red for in-review
                     const projectId = project._id.toString();
                     const isExpanded = expandedProjects.has(projectId);
-                    const canExpand = canExpandProjectCard(project, today, today);
+                    const headerTextClass = getProjectCardHeaderTextClass(displayColor);
 
                     return (
                       <div
@@ -608,7 +589,7 @@ export default function CalendarView({
                           className="flex items-start justify-between cursor-pointer"
                           onClick={() => onProjectClick(project)}
                         >
-                          <h4 className={`text-xl font-bold text-white ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                          <h4 className={`text-xl font-bold ${headerTextClass} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}>
                             {project.name}
                           </h4>
                           <div className="flex items-center gap-2">
@@ -652,18 +633,17 @@ export default function CalendarView({
                             >
                               {getProjectStatusDisplayLabel(project.status)}
                             </span>
-                            {canExpand && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleProjectExpanded(projectId);
-                                }}
-                                className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
-                                aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                              >
-                                {isExpanded ? '▼' : '▶'}
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleProjectExpanded(projectId);
+                              }}
+                              className={`${headerTextClass} opacity-80 hover:opacity-100 transition-opacity`}
+                              aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                            >
+                              {isExpanded ? '▼' : '▶'}
+                            </button>
                           </div>
                         </div>
 
@@ -1046,7 +1026,7 @@ export default function CalendarView({
                         const weekEnd = new Date(days[6]);
                         weekEnd.setHours(23, 59, 59, 999);
                         const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
-                        const canExpand = canExpandProjectCard(project, weekStart, weekEnd);
+                        const headerTextClass = getProjectCardHeaderTextClass(displayColor);
                         const showMetricsSummary = !isExpanded && summary.showWeekMetrics;
                         const showEmptyWeekSummary =
                           !isExpanded &&
@@ -1061,12 +1041,12 @@ export default function CalendarView({
                             >
                               <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                                 <h4
-                                  className={`text-xl font-bold text-white truncate min-w-0 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                  className={`text-xl font-bold truncate min-w-0 ${headerTextClass} ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                                 >
                                   {name}
                                 </h4>
                                 {showMetricsSummary ? (
-                                  <p className="text-sm text-white/90 whitespace-nowrap truncate min-w-0">
+                                  <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
                                     <span>
                                       Tasks {summary.openTasks}/{summary.totalTasks}
                                     </span>
@@ -1081,7 +1061,7 @@ export default function CalendarView({
                                   </p>
                                 ) : null}
                                 {showEmptyWeekSummary ? (
-                                  <p className="text-sm text-white/90 whitespace-nowrap truncate min-w-0">
+                                  <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
                                     <span>No tasks this week</span>
                                     <span className="mx-1.5 opacity-60" aria-hidden>
                                       ·
@@ -1106,19 +1086,17 @@ export default function CalendarView({
                                 >
                                   {getProjectStatusDisplayLabel(status)}
                                 </span>
-                                {canExpand || isExpanded ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleProjectExpanded(projectId!);
-                                    }}
-                                    className="text-white hover:text-white opacity-80 hover:opacity-100 transition-opacity"
-                                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                                  >
-                                    {isExpanded ? '▼' : '▶'}
-                                  </button>
-                                ) : null}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleProjectExpanded(projectId!);
+                                  }}
+                                  className={`${headerTextClass} opacity-80 hover:opacity-100 transition-opacity`}
+                                  aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                                >
+                                  {isExpanded ? '▼' : '▶'}
+                                </button>
                               </div>
                             </div>
                           </>
