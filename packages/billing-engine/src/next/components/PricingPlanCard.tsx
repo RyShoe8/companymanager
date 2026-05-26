@@ -42,7 +42,7 @@ export function PricingPlanCard({
         'relative flex w-full flex-col overflow-hidden',
         isMarketing
           ? 'border-slate-200/80 bg-white text-gray-900 shadow-float ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-ring'
-          : 'border-border bg-card shadow-sm',
+          : 'border-border bg-background-card text-text-primary shadow-sm',
         recommended && isMarketing ? 'ring-2 ring-primary/40' : '',
         isCurrent ? 'ring-2 ring-primary/30' : '',
         className
@@ -57,41 +57,75 @@ export function PricingPlanCard({
         </div>
       ) : null}
       <CardHeader className={cn('space-y-3', compact ? 'pt-4 pb-2' : 'pt-6')}>
-        <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className={cn(compact ? 'text-lg' : 'text-xl', isMarketing && 'text-gray-900')}>{plan.name}</CardTitle>
+        <div
+          className={cn(
+            'flex flex-wrap items-center gap-2',
+            isMarketing && 'justify-center'
+          )}
+        >
+          <CardTitle className={cn(compact ? 'text-lg' : 'text-xl')}>{plan.name}</CardTitle>
           {plan.badge.trim() ? (
             <span className="rounded-full border border-primary/30 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
               {plan.badge.trim()}
             </span>
           ) : null}
           {plan.soldOut ? (
-            <span className="rounded-full border border-destructive/30 bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
+            <span
+              className={cn(
+                'rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                isMarketing
+                  ? 'border-red-300 bg-red-50 text-red-600'
+                  : 'border-error/30 bg-error/10 text-error'
+              )}
+            >
               Sold out
             </span>
           ) : null}
         </div>
         {description && !compact ? (
-          <p className={cn('text-sm leading-relaxed', isMarketing ? 'text-gray-600' : 'text-muted-foreground')}>{description}</p>
+          <p
+            className={cn(
+              'leading-relaxed',
+              isMarketing
+                ? 'text-center text-base font-medium text-gray-800 px-2'
+                : 'text-sm text-text-muted'
+            )}
+          >
+            {description}
+          </p>
         ) : null}
         {hasCap && !compact ? <SubscriptionAvailabilityCallout plan={plan} marketing={isMarketing} /> : null}
       </CardHeader>
       <CardContent className={cn('flex flex-1 flex-col gap-5', compact && 'gap-3')}>
         <div>
-          <p className={cn('font-semibold tracking-tight', compact ? 'text-2xl' : 'text-4xl', isMarketing && 'text-gray-900')}>
+          <p
+            className={cn(
+              'font-semibold tracking-tight',
+              compact ? 'text-2xl' : 'text-4xl'
+            )}
+          >
             {primaryPriceLine(plan)}
           </p>
           {trial ? (
-            <p className={cn('mt-2 text-sm font-medium text-primary', isMarketing && 'text-primary')}>
-              {trial}
-            </p>
+            <p className="mt-2 text-sm font-medium text-primary">{trial}</p>
           ) : null}
-          <p className={cn('mt-2 text-base font-medium', isMarketing ? 'text-gray-900' : 'text-foreground')}>{includedUsersSummary(plan)}</p>
-          <p className={cn('mt-0.5 text-sm', isMarketing ? 'text-gray-600' : 'text-muted-foreground')}>Per subscription</p>
+          <p className={cn('mt-2 text-base font-medium', isMarketing ? 'text-gray-900' : 'text-text-primary')}>
+            {includedUsersSummary(plan)}
+          </p>
+          <p className={cn('mt-0.5 text-sm', isMarketing ? 'text-gray-600' : 'text-text-muted')}>
+            Per subscription
+          </p>
         </div>
         {!compact ? (
           <ul className="space-y-2.5">
             {features.map((line: string) => (
-              <li key={line} className={cn('flex items-start gap-2.5 text-sm', isMarketing ? 'text-gray-600' : 'text-muted-foreground')}>
+              <li
+                key={line}
+                className={cn(
+                  'flex items-start gap-2.5 text-sm',
+                  isMarketing ? 'text-gray-600' : 'text-text-muted'
+                )}
+              >
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
                 <span>{line}</span>
               </li>

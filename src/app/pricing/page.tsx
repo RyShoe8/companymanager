@@ -1,7 +1,7 @@
 import '@/lib/billing-engine';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getPublicPricingPlans, isRecommendedPlan } from 'billing-engine';
+import { getPublicPricingPlans, isRecommendedPlan, sortPlansForPricingDisplay } from 'billing-engine';
 import { PricingPlanCard } from 'billing-engine/next/components';
 import Button from '@/components/ui/Button';
 import { NUCLEAS_PLATFORM_FEATURES } from '@/lib/marketing/nucleasPlatformFeatures';
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PricingPage() {
-  const plans = await getPublicPricingPlans();
+  const plans = sortPlansForPricingDisplay(await getPublicPricingPlans());
   const planCtas = await Promise.all(
     plans.map(async (plan) => ({
       id: plan.id,

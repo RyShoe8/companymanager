@@ -71,3 +71,8 @@ export function planFeatureBullets(_plan: PublicPricingPlan): string[] {
 export function isRecommendedPlan(plan: PublicPricingPlan): boolean {
   return plan.badge.trim().toLowerCase() === 'popular';
 }
+
+/** Cheapest (left) to most expensive (right) on the public pricing grid. */
+export function sortPlansForPricingDisplay(plans: PublicPricingPlan[]): PublicPricingPlan[] {
+  return [...plans].sort((a, b) => a.basePriceCents - b.basePriceCents);
+}

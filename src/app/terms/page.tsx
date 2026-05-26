@@ -71,10 +71,12 @@ export default function TermsPage() {
           </p>
           <p className="text-text-secondary leading-relaxed mb-4">
             <strong className="text-text-primary">Lifetime subscriptions.</strong> A &ldquo;lifetime&rdquo; subscription
-            grants access to Nucleas only for as long as we continue to operate and make the platform available. It does
-            not guarantee that the Service will run forever. If we discontinue, shut down, or cease operating the
-            platform, your lifetime subscription ends without further obligation on our part, except where applicable law
-            requires otherwise (for example, mandatory refunds).
+            grants access to Nucleas only for as long as we continue to operate and make the platform available. We
+            guarantee that Nucleas will remain in operation and available for at least one (1) year from the date you
+            purchase a lifetime subscription. After that period, the terms below regarding discontinuation of the Service
+            still apply. A lifetime plan does not guarantee that the Service will run forever. If we discontinue, shut
+            down, or cease operating the platform, your lifetime subscription ends without further obligation on our part,
+            except where applicable law requires otherwise (for example, mandatory refunds).
           </p>
         </Card>
 
