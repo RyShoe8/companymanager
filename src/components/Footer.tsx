@@ -4,13 +4,13 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <footer className="bg-text-primary border-t border-white/10 mt-auto">
+    <footer className="bg-background border-t border-white/10 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
           {/* Brand */}
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <span className="inline-flex rounded-md bg-white px-2 py-1.5">
+              <span className="inline-flex rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-black/5">
                 <img
                   src="/images/nucleas-logo-legacy.png?v=1"
                   alt="Nucleas Logo"
