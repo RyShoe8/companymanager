@@ -51,6 +51,7 @@ export async function PUT(request: NextRequest) {
           startTime: s.startTime,
           endTime: s.endTime,
           enabled: s.enabled !== false,
+          outOfOffice: s.outOfOffice === true,
         })),
       },
       { upsert: true, new: true }

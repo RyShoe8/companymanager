@@ -17,7 +17,7 @@ const phases: { value: PhaseType; label: string }[] = [
 
 export default function PhaseFilter({ selected, onSelect }: PhaseFilterProps) {
     return (
-        <div className="flex items-center bg-gray-800/60 rounded-lg p-0.5" role="tablist" aria-label="Phase filter">
+        <div className="flex items-center bg-muted/40 rounded-lg p-0.5 border border-border" role="tablist" aria-label="Phase filter">
             {phases.map((p) => (
                 <button
                     key={p.value}
@@ -26,7 +26,7 @@ export default function PhaseFilter({ selected, onSelect }: PhaseFilterProps) {
                     onClick={() => onSelect(p.value)}
                     className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${selected === p.value
                             ? 'bg-primary text-white shadow-sm'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-background-elevated'
                         }`}
                 >
                     {p.label}

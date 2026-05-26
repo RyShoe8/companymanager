@@ -18,6 +18,7 @@ export type AvailabilitySlotInput = {
   startTime: string;
   endTime: string;
   enabled?: boolean;
+  outOfOffice?: boolean;
 };
 
 function defaultSlotForDay(dayOfWeek: number): AvailabilitySlotInput {
@@ -44,6 +45,7 @@ export function normalizeAvailabilitySlots(
       startTime: slot.startTime || '09:00',
       endTime: slot.endTime || '17:00',
       enabled: slot.enabled !== false,
+      outOfOffice: slot.outOfOffice === true,
     });
   }
 

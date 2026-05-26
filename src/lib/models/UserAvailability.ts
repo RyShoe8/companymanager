@@ -5,6 +5,7 @@ export interface IAvailabilitySlot {
   startTime: string;
   endTime: string;
   enabled?: boolean;
+  outOfOffice?: boolean;
 }
 
 export interface IUserAvailability extends Document {
@@ -20,6 +21,7 @@ const AvailabilitySlotSchema = new Schema(
     startTime: { type: String, required: true, trim: true },
     endTime: { type: String, required: true, trim: true },
     enabled: { type: Boolean, default: true },
+    outOfOffice: { type: Boolean, default: false },
   },
   { _id: false }
 );

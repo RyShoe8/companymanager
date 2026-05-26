@@ -24,7 +24,7 @@ function appendTargetToFormData(formData: FormData, target: ScreenshotUploadTarg
 
 export async function uploadScreenshotAsset(
   file: File,
-  target: ScreenshotUploadTarget,
+  target: ScreenshotUploadTarget | null,
   options?: { name?: string }
 ): Promise<IAsset> {
   const formData = new FormData();
@@ -34,7 +34,9 @@ export async function uploadScreenshotAsset(
     options?.name?.trim() || file.name.replace(/\.[^/.]+$/, '') || 'Screenshot'
   );
   formData.append('type', 'screenshot');
-  appendTargetToFormData(formData, target);
+  if (target) {
+    appendTargetToFormData(formData, target);
+  }
 
   const response = await fetch('/api/assets/upload', {
     method: 'POST',

@@ -4,11 +4,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
 import SocialIcon from '@/components/projects/SocialIcon';
-import ScreenshotNameDialog from '@/components/shared/ScreenshotNameDialog';
-import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
+import ScreenshotToolPanel from '@/components/shared/ScreenshotToolPanel';
 import { detectSocialNetwork, parseSocialLinkInput, SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
-import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
-import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
 import type { ScreenshotUploadTarget } from '@/lib/uploadScreenshotAsset';
 
 interface CatalogEntry {
@@ -110,8 +107,6 @@ export default function CategoryModal({
   const [socialUrl, setSocialUrl] = useState('');
   const [addingSocial, setAddingSocial] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const screenshotFileInputRef = useRef<HTMLInputElement>(null);
-
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
 
   const screenshotTarget = useMemo<ScreenshotUploadTarget | null>(() => {
@@ -135,25 +130,6 @@ export default function CategoryModal({
     return null;
   }, [linkContext, projectId]);
 
-  const screenshotCaptureSupported = isScreenshotCaptureSupported();
-  const {
-    statusMessage: screenshotStatusMessage,
-    errorMessage: screenshotErrorMessage,
-    isBusy: screenshotBusy,
-    isNaming: screenshotNaming,
-    suggestedName: screenshotSuggestedName,
-    previewUrl: screenshotPreviewUrl,
-    uploadFromFiles: screenshotUploadFromFiles,
-    captureAndUpload: screenshotCaptureAndUpload,
-    confirmName: screenshotConfirmName,
-    cancelNaming: screenshotCancelNaming,
-  } = useScreenshotUpload(
-    screenshotTarget ?? { entityType: 'project', entityId: projectId },
-    () => {
-      onDocumentCreated?.();
-      onClose();
-    }
-  );
   const isEntityContext = !!(linkContext?.linkedContentItemId || linkContext?.linkedProjectTaskId);
   const useAssetFlow = isEntityContext || mode === 'draft';
   const entitySubmitLabel = linkContext?.linkedProjectTaskId
@@ -476,80 +452,23 @@ export default function CategoryModal({
     }
 
     if (step === 'screenshot') {
-      const triggerCapture = () => {
-        if (screenshotBusy) return;
-        void screenshotCaptureAndUpload();
-      };
-      const triggerUpload = () => {
-        if (screenshotBusy) return;
-        screenshotFileInputRef.current?.click();
-      };
       return (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {linkContext?.linkedProjectTaskId
+        <ScreenshotToolPanel
+          target={screenshotTarget ?? { entityType: 'project', entityId: projectId }}
+          description={
+            linkContext?.linkedProjectTaskId
               ? 'Attach a screenshot to this task.'
               : linkContext?.linkedContentItemId
                 ? 'Attach a screenshot to this content item.'
-                : 'Attach a screenshot to this project.'}
-          </p>
-          <input
-            ref={screenshotFileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            disabled={screenshotBusy}
-            onChange={(e) => {
-              const files = e.target.files ? Array.from(e.target.files) : [];
-              e.target.value = '';
-              if (files.length > 0) {
-                screenshotUploadFromFiles(files);
-              }
-            }}
-          />
-          <div className="flex flex-col gap-2">
-            {screenshotCaptureSupported && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={triggerCapture}
-                disabled={screenshotBusy}
-              >
-                {screenshotBusy && screenshotStatusMessage?.startsWith('Capturing')
-                  ? screenshotStatusMessage
-                  : 'Take screenshot'}
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={triggerUpload}
-              disabled={screenshotBusy}
-            >
-              {screenshotBusy && screenshotStatusMessage?.startsWith('Uploading')
-                ? screenshotStatusMessage
-                : 'Upload file'}
-            </Button>
-          </div>
-          {screenshotStatusMessage && !screenshotBusy && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{screenshotStatusMessage}</p>
-          )}
-          {screenshotErrorMessage && (
-            <p className="text-xs text-red-600 dark:text-red-400">{screenshotErrorMessage}</p>
-          )}
-          {!screenshotCaptureSupported && !screenshotErrorMessage && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Screenshot capture is unavailable on this device. Please upload an image instead.
-            </p>
-          )}
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')} disabled={screenshotBusy}>
-              Back
-            </Button>
-          </div>
-        </div>
+                : 'Attach a screenshot to this project.'
+          }
+          onUploaded={() => {
+            onDocumentCreated?.();
+            onClose();
+          }}
+          onBack={() => setStep('type')}
+          showBack
+        />
       );
     }
 
@@ -806,27 +725,6 @@ export default function CategoryModal({
   );
 
   if (typeof window === 'undefined') return null;
-
-  if (screenshotNaming && screenshotPreviewUrl) {
-    return createPortal(
-      <>
-        <ImagePreviewModal
-          mode="naming"
-          isOpen
-          onClose={() => {}}
-          src={screenshotPreviewUrl}
-          title="Screenshot preview"
-        />
-        <ScreenshotNameDialog
-          isOpen
-          defaultName={screenshotSuggestedName}
-          onConfirm={(name) => void screenshotConfirmName(name)}
-          onCancel={screenshotCancelNaming}
-        />
-      </>,
-      document.body
-    );
-  }
 
   return createPortal(modal, document.body);
 }

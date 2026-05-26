@@ -13,8 +13,14 @@ import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import AgendaView from '@/components/workspace/AgendaView';
 import OrganizationBrand from '@/components/organization/OrganizationBrand';
-import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
+import SchedulingPanel, { startOfWeek } from '@/components/scheduling/SchedulingPanel';
+import SchedulingCalendarBar from '@/components/scheduling/SchedulingCalendarBar';
+import AvailabilityModal from '@/components/scheduling/AvailabilityModal';
 import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
+import ImageCreateModal from '@/components/workspace/ImageCreateModal';
+import ScreenshotToolModal from '@/components/shared/ScreenshotToolModal';
+import { useSchedulingCalendar } from '@/hooks/scheduling/useSchedulingCalendar';
+import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvailability';
 import ProjectsLens from '@/components/workspace/ProjectsLens';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
@@ -79,9 +85,29 @@ export default function WorkspaceShell({
     const [showMeetingModal, setShowMeetingModal] = useState(false);
     const [meetingRefreshKey, setMeetingRefreshKey] = useState(0);
     const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
+    const [scheduleWeekStart, setScheduleWeekStart] = useState(() => startOfWeek(new Date()));
+    const [scheduleSyncRefreshKey, setScheduleSyncRefreshKey] = useState(0);
+    const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+    const [showImageModal, setShowImageModal] = useState(false);
+    const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+    const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
+
+    const {
+        calendar: scheduleCalendar,
+        syncing: scheduleSyncing,
+        message: scheduleCalendarMessage,
+        setMessage: setScheduleCalendarMessage,
+        loadCalendar: loadScheduleCalendar,
+        handleSync: handleScheduleCalendarSync,
+        handleDisconnect: handleScheduleCalendarDisconnect,
+    } = useSchedulingCalendar(scheduleWeekStart);
+    const schedulingAvailability = useSchedulingAvailability();
 
     const meetingsFetchEnabled =
-        ws.lens === 'agenda' || ws.lens === 'schedule' || ws.lens === 'capacity';
+        ws.phase === 'Schedule' ||
+        ws.lens === 'agenda' ||
+        ws.lens === 'schedule' ||
+        ws.lens === 'capacity';
     const { meetings: workspaceMeetings } = useWorkspaceMeetings(
         ws.timeframe,
         ws.currentDate,
@@ -1045,12 +1071,27 @@ export default function WorkspaceShell({
 
     const isSchedulingPhase = ws.phase === 'Schedule';
 
+    useEffect(() => {
+        if (isSchedulingPhase) {
+            void loadScheduleCalendar();
+        }
+    }, [isSchedulingPhase, loadScheduleCalendar]);
+
+    const handleScheduleSync = useCallback(async () => {
+        const data = await handleScheduleCalendarSync();
+        if (data) {
+            setScheduleSyncRefreshKey((k) => k + 1);
+        }
+    }, [handleScheduleCalendarSync]);
+
+    const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
+
     // Default status for new projects depends on phase
     const defaultStatus = ws.phase === 'Build' ? 'in-development' : ws.phase === 'Run' ? 'launched' : 'planning';
 
     if (ws.loading && ws.allProjects.length === 0) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-screen bg-background flex items-center justify-center">
                 <div className="text-text-secondary">Loading...</div>
             </div>
         );
@@ -1066,7 +1107,7 @@ export default function WorkspaceShell({
             }}
         >
             <VoiceProvider getWorkspaceContext={() => workspaceIntentContext}>
-                <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px]">
+                <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
                     <div className="w-full mx-auto pt-[30px] pb-8">
                     {/* ===== Workspace Header ===== */}
                     <div className="mb-4">
@@ -1074,6 +1115,24 @@ export default function WorkspaceShell({
                         <div className="flex flex-row items-center gap-4 flex-wrap mb-3">
                             <OrganizationBrand />
                             <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
+                            {isSchedulingPhase && (
+                                <>
+                                    <SchedulingCalendarBar
+                                        calendar={scheduleCalendar}
+                                        syncing={scheduleSyncing}
+                                        onSync={() => void handleScheduleSync()}
+                                        onDisconnect={() => void handleScheduleCalendarDisconnect()}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => setShowAvailabilityModal(true)}
+                                    >
+                                        Set Availability
+                                    </Button>
+                                </>
+                            )}
                             {!isSchedulingPhase && (
                                 <TimeHorizonSelector
                                     selected={ws.timeframe}
@@ -1096,6 +1155,7 @@ export default function WorkspaceShell({
                                         setAddContentVoicePrefill(null);
                                     }}
                                     onCreateMeeting={() => setShowMeetingModal(true)}
+                                    onCreateImage={() => setShowImageModal(true)}
                                 />
                             </div>
                         </div>
@@ -1146,12 +1206,38 @@ export default function WorkspaceShell({
                     <div className="flex w-full gap-6">
                         <div className="flex-1 min-w-0">
                             {isSchedulingPhase ? (
-                                <SchedulingPanel
-                                    projects={ws.allProjects}
-                                    employees={ws.employees}
-                                    currentUserEmployeeId={ws.currentUserEmployeeId}
-                                    meetingRefreshKey={meetingRefreshKey}
-                                />
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                                    <div className="xl:col-span-2 min-h-0 min-w-0">
+                                        <SchedulingPanel
+                                            projects={ws.allProjects}
+                                            employees={ws.employees}
+                                            currentUserEmployeeId={ws.currentUserEmployeeId}
+                                            meetingRefreshKey={meetingRefreshKey + scheduleSyncRefreshKey}
+                                            weekStart={scheduleWeekStart}
+                                            onWeekStartChange={setScheduleWeekStart}
+                                            schedulingTimeZone={schedulingAvailability.timezone}
+                                            externalMessage={scheduleHeaderMessage}
+                                            onClearExternalMessage={() => {
+                                                setSchedulePanelMessage(null);
+                                                setScheduleCalendarMessage(null);
+                                            }}
+                                            onSetMessage={setSchedulePanelMessage}
+                                        />
+                                    </div>
+                                    <div className="xl:col-span-1">
+                                        <EmployeeSidebar
+                                            employees={ws.employees}
+                                            projects={ws.filteredProjects}
+                                            allProjects={ws.allProjects}
+                                            contentItems={ws.filteredContentItems}
+                                            meetings={workspaceMeetings}
+                                            timeframe={ws.timeframe}
+                                            currentDate={ws.currentDate}
+                                            currentUserRole={ws.currentUserRole}
+                                            currentUserEmployeeId={ws.currentUserEmployeeId}
+                                        />
+                                    </div>
+                                </div>
                             ) : ws.lens === 'schedule' || ws.lens === 'agenda' ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
@@ -1261,7 +1347,31 @@ export default function WorkspaceShell({
                         projects={ws.allProjects}
                         employees={ws.employees}
                         currentUserEmployeeId={ws.currentUserEmployeeId}
+                        schedulingTimeZone={schedulingAvailability.timezone}
                         onSuccess={() => setMeetingRefreshKey((k) => k + 1)}
+                    />
+
+                    <AvailabilityModal
+                        isOpen={showAvailabilityModal}
+                        onClose={() => setShowAvailabilityModal(false)}
+                        timezone={schedulingAvailability.timezone}
+                        onTimezoneChange={schedulingAvailability.setTimezone}
+                        slots={schedulingAvailability.slots}
+                        onUpdateSlot={schedulingAvailability.updateSlotByDay}
+                        onSave={schedulingAvailability.saveAvailability}
+                        saving={schedulingAvailability.saving}
+                    />
+
+                    <ImageCreateModal
+                        isOpen={showImageModal}
+                        onClose={() => setShowImageModal(false)}
+                        onScreenshot={() => setShowScreenshotModal(true)}
+                    />
+
+                    <ScreenshotToolModal
+                        isOpen={showScreenshotModal}
+                        onClose={() => setShowScreenshotModal(false)}
+                        target={null}
                     />
 
                     <ContentItemCreateModal

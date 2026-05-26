@@ -16,7 +16,7 @@ export function defaultScreenshotName(): string {
 }
 
 export function useScreenshotUpload(
-  target: ScreenshotUploadTarget,
+  target: ScreenshotUploadTarget | null,
   onUploaded?: () => void
 ) {
   const [status, setStatus] = useState<ScreenshotUploadStatus>('idle');
