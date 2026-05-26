@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 
+interface AdminPlan {
+  _id: string;
+  name: string;
+  slug: string;
+  archived?: boolean;
+}
+
 interface User {
   id: string;
   email: string;
@@ -12,6 +19,11 @@ interface User {
   organizationId: string;
   organizationName: string;
   organizationDomain: string | null;
+  organizationMongoId: string | null;
+  plan: string | null;
+  planName: string | null;
+  subscriptionStatus: string | null;
+  subscriptionPlanId: string | null;
   createdAt: string;
   isAdmin: boolean;
 }
@@ -20,6 +32,11 @@ interface OrgGroup {
   organizationId: string;
   displayName: string;
   domain: string | null;
+  organizationMongoId: string | null;
+  plan: string | null;
+  planName: string | null;
+  subscriptionStatus: string | null;
+  subscriptionPlanId: string | null;
   members: User[];
 }
 
@@ -44,7 +61,18 @@ function buildOrgGroups(users: User[]): OrgGroup[] {
       'Unknown organization';
     const domain =
       sortedMembers.find((m) => m.organizationDomain)?.organizationDomain ?? null;
-    groups.push({ organizationId, displayName, domain, members: sortedMembers });
+    const meta = sortedMembers.find((m) => m.organizationMongoId) ?? primary;
+    groups.push({
+      organizationId,
+      displayName,
+      domain,
+      organizationMongoId: meta.organizationMongoId ?? null,
+      plan: meta.plan ?? null,
+      planName: meta.planName ?? null,
+      subscriptionStatus: meta.subscriptionStatus ?? null,
+      subscriptionPlanId: meta.subscriptionPlanId ?? null,
+      members: sortedMembers,
+    });
   }
 
   groups.sort((a, b) => {
@@ -66,6 +94,24 @@ export default function AdminPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   /** Org IDs in this set have their member list collapsed (empty set = all expanded). */
   const [collapsedOrgIds, setCollapsedOrgIds] = useState<Set<string>>(new Set());
+  const [plans, setPlans] = useState<AdminPlan[]>([]);
+  const [planSelections, setPlanSelections] = useState<Record<string, string>>({});
+  const [applyingOrgId, setApplyingOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const response = await fetch('/api/admin/plans');
+        if (!response.ok) return;
+        const data = await response.json();
+        const active = (data.plans || []).filter((p: AdminPlan) => !p.archived);
+        setPlans(active);
+      } catch {
+        // Plans list optional for page load
+      }
+    };
+    fetchPlans();
+  }, []);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -85,6 +131,13 @@ export default function AdminPage() {
         }));
         setUsers(list);
         setTotalUsers(data.totalUsers);
+        const initialSelections: Record<string, string> = {};
+        for (const u of list) {
+          if (u.subscriptionPlanId && u.organizationId && !initialSelections[u.organizationId]) {
+            initialSelections[u.organizationId] = u.subscriptionPlanId;
+          }
+        }
+        setPlanSelections(initialSelections);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load users');
       } finally {
@@ -131,6 +184,53 @@ export default function AdminPage() {
       alert(err instanceof Error ? err.message : 'Failed to update user');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleApplyPlan = async (group: OrgGroup) => {
+    if (!group.organizationMongoId) {
+      alert('No organization record found for this group. The owner may not have completed setup.');
+      return;
+    }
+    const planId = planSelections[group.organizationId];
+    if (!planId) {
+      alert('Select a subscription plan first.');
+      return;
+    }
+
+    setApplyingOrgId(group.organizationId);
+    try {
+      const response = await fetch(
+        `/api/admin/organizations/${group.organizationMongoId}/subscription`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId, status: 'active' }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to assign plan');
+      }
+
+      const selectedPlan = plans.find((p) => p._id === planId);
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.organizationId === group.organizationId
+            ? {
+                ...u,
+                plan: data.plan ?? u.plan,
+                subscriptionStatus: data.subscriptionStatus ?? u.subscriptionStatus,
+                subscriptionPlanId: planId,
+                planName: selectedPlan?.name ?? u.planName,
+              }
+            : u
+        )
+      );
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to assign plan');
+    } finally {
+      setApplyingOrgId(null);
     }
   };
 
@@ -248,6 +348,53 @@ export default function AdminPage() {
                         {isCollapsed ? '▶' : '▼'}
                       </span>
                     </button>
+
+                    <div
+                      className="px-4 py-3 border-t border-border bg-muted/10 flex flex-wrap items-center gap-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-sm text-text-secondary shrink-0">Subscription:</span>
+                      <span className="text-sm text-text-primary">
+                        {group.planName || group.plan || 'No plan'}
+                        {group.subscriptionStatus && group.subscriptionStatus !== 'none'
+                          ? ` (${group.subscriptionStatus})`
+                          : ''}
+                      </span>
+                      <select
+                        value={planSelections[group.organizationId] ?? group.subscriptionPlanId ?? ''}
+                        onChange={(e) =>
+                          setPlanSelections((prev) => ({
+                            ...prev,
+                            [group.organizationId]: e.target.value,
+                          }))
+                        }
+                        disabled={!group.organizationMongoId || applyingOrgId === group.organizationId}
+                        className="text-sm rounded border border-border bg-background px-2 py-1.5 text-text-primary min-w-[160px] disabled:opacity-50"
+                        title={
+                          group.organizationMongoId
+                            ? 'Assign subscription plan'
+                            : 'Organization not set up'
+                        }
+                      >
+                        <option value="">Select plan…</option>
+                        {plans.map((plan) => (
+                          <option key={plan._id} value={plan._id}>
+                            {plan.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleApplyPlan(group)}
+                        disabled={
+                          !group.organizationMongoId ||
+                          applyingOrgId === group.organizationId ||
+                          !(planSelections[group.organizationId] ?? group.subscriptionPlanId)
+                        }
+                      >
+                        {applyingOrgId === group.organizationId ? 'Applying…' : 'Apply'}
+                      </Button>
+                    </div>
 
                     {!isCollapsed && (
                       <>

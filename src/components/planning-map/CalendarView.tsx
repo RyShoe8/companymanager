@@ -11,7 +11,11 @@ import {
   taskOverlapsViewRange,
   publishDateOnViewDay,
 } from '@/lib/utils/dateUtils';
-import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
+import {
+  computeProjectEstimatedHours,
+  sumContentHoursInTimeframe,
+  sumTaskHoursInTimeframe,
+} from '@/lib/utils/projectHours';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import PeriodNavButton from '@/components/ui/PeriodNavButton';
@@ -32,8 +36,25 @@ function taskOverlapsWeek(
 
 /** Collapsed weekly card body when project has tasks but none in the visible week. */
 const WEEKLY_EMPTY_STATE_BODY_HEIGHT = 48;
-const WEEKLY_COLLAPSED_LINE_HEIGHT = 20;
-const WEEKLY_COLLAPSED_LINE_GAP = 8;
+/** Single summary row under collapsed weekly header. */
+const WEEKLY_COLLAPSED_SUMMARY_HEIGHT = 28;
+const WEEKLY_MORE_ITEMS_BUTTON_HEIGHT = 36;
+
+function projectOverlapsDateRange(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
+  let pStart: Date;
+  if (project.tasks && project.tasks.length > 0) {
+    const earliestTask = project.tasks.reduce((earliest, task) =>
+      new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest
+    );
+    pStart = new Date(earliestTask.startDate);
+  } else {
+    pStart = new Date(project.createdAt);
+  }
+  const pEnd = project.endDate
+    ? new Date(project.endDate)
+    : new Date(pStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return pStart <= rangeEnd && pEnd >= rangeStart;
+}
 
 interface CalendarViewProps {
   projects: IProject[];
@@ -387,6 +408,32 @@ export default function CalendarView({
     return { merged, taskItems, contentInRange };
   }
 
+  function getWeeklyCollapsedSummary(project: IProject, weekStart: Date, weekEnd: Date) {
+    const { merged, contentInRange } = getMergedItemsForProject(project, weekStart, weekEnd, {});
+    const displayList = merged.filter(
+      (item): item is MergedCalendarItem =>
+        item.type === 'content' || taskPassesAssignmentFilter(item.task)
+    );
+    const tasksInRange = displayList.filter((item) => item.type === 'task');
+    const openTasks = tasksInRange.filter((item) => item.task.status !== 'completed').length;
+    const totalTasks = tasksInRange.length;
+    const contentCount = contentInRange.length;
+    const range = { start: weekStart, end: weekEnd };
+    const hours =
+      Math.round(
+        (sumTaskHoursInTimeframe(project, range) +
+          sumContentHoursInTimeframe(project._id.toString(), contentItems, 'weekly', range)) *
+          100
+      ) / 100;
+    return {
+      openTasks,
+      totalTasks,
+      contentCount,
+      hours,
+      displayList,
+      hasItemsInWeek: displayList.length > 0,
+    };
+  }
 
   const handleDateChange = (newDate: Date) => {
     setViewDate(newDate);
@@ -881,23 +928,14 @@ export default function CalendarView({
                   const bottomPadding = 24; // p-6 bottom padding
 
                   if (!isExpanded) {
-                    // Calculate collapsed height: header + collapsed task/operation list
                     const weekStart = new Date(days[0]);
                     weekStart.setHours(0, 0, 0, 0);
                     const weekEnd = new Date(days[6]);
                     weekEnd.setHours(23, 59, 59, 999);
 
-                    const { merged } = getMergedItemsForProject(project, weekStart, weekEnd, {});
-                    const displayList = merged.filter(
-                      (item): item is MergedCalendarItem =>
-                        item.type === 'content' || taskPassesAssignmentFilter(item.task)
-                    );
-                    const collapsedLineCount = Math.min(displayList.length, 5);
-                    let collapsedItemsHeight =
-                      collapsedLineCount > 0
-                        ? collapsedLineCount * WEEKLY_COLLAPSED_LINE_HEIGHT + WEEKLY_COLLAPSED_LINE_GAP
-                        : 0;
-                    if (displayList.length === 0 && (project.tasks?.length ?? 0) > 0) {
+                    const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
+                    let collapsedItemsHeight = WEEKLY_COLLAPSED_SUMMARY_HEIGHT;
+                    if (!summary.hasItemsInWeek && (project.tasks?.length ?? 0) > 0) {
                       collapsedItemsHeight = WEEKLY_EMPTY_STATE_BODY_HEIGHT;
                     }
 
@@ -912,15 +950,21 @@ export default function CalendarView({
                   const visibleTasks = hasTasks
                     ? project.tasks!.filter((task) => taskOverlapsWeek(task, days[0], days[6]))
                     : [];
+                  const { displayList: expandedDisplayList } = getWeeklyCollapsedSummary(
+                    project,
+                    weekStart,
+                    weekEnd
+                  );
                   const displayedTasksCount = Math.min(visibleTasks.length, 3);
-                  const hasMoreTasks = visibleTasks.length > 3;
+                  const moreItemsCount = Math.max(0, expandedDisplayList.length - displayedTasksCount);
+                  const hasMoreItems = moreItemsCount > 0;
                   const descriptionHeight = project.description ? 40 : 0; // project description block
                   const estimatedHoursHeight = 56; // info block including spacing
                   const tasksSectionPadding = 16; // mt-4
                   const tasksHeaderHeight = 24; // label + margin
                   const taskCardHeight = 112; // fixed weekly task card height (see rendered min-h below)
                   const taskGapHeight = displayedTasksCount > 0 ? (displayedTasksCount - 1) * 8 : 0; // space-y-2
-                  const moreIndicatorHeight = hasMoreTasks ? 20 : 0;
+                  const moreIndicatorHeight = hasMoreItems ? WEEKLY_MORE_ITEMS_BUTTON_HEIGHT : 0;
                   return (
                     topPadding +
                     headerHeight +
@@ -1028,77 +1072,43 @@ export default function CalendarView({
                         const project = pos.project!;
                         const hasTasks = project.tasks && project.tasks.length > 0;
 
-                        // Show collapsed task/content list when not expanded
+                        // Show collapsed summary when not expanded
                         if (!isExpanded) {
                           const weekStart = new Date(days[0]);
                           weekStart.setHours(0, 0, 0, 0);
                           const weekEnd = new Date(days[6]);
                           weekEnd.setHours(23, 59, 59, 999);
 
-                          const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, weekStart, weekEnd, {});
-                          const displayList = merged.filter((item): item is MergedCalendarItem =>
-                            item.type === 'content' || taskPassesAssignmentFilter(item.task)
-                          );
-                          const visible = displayList.slice(0, 5);
-                          const moreCount = displayList.length - 5;
+                          const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
 
-                          if (displayList.length > 0) {
-                            return (
-                              <div className="px-6 pb-6">
-                                <div className="space-y-1">
-                                  {visible.map((item, idx) => {
-                                    if (item.type === 'task') {
-                                      const tIdx = resolveTaskIndexInProject(project, item.task);
-                                      return (
-                                        <button
-                                          key={`${project._id}-t-${idx}`}
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (tIdx >= 0) onTaskClick?.(project, tIdx);
-                                          }}
-                                          className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
-                                          title={item.task.name}
-                                        >
-                                          {item.task.name}
-                                        </button>
-                                      );
-                                    }
-                                    return (
-                                      <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
-                                        <span className="mr-1" aria-hidden>📝</span>
-                                        {item.content.title}
-                                        <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
-                                      </div>
-                                    );
-                                  })}
-                                  {moreCount > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd }); }}
-                                      className="text-xs text-white italic opacity-80 hover:opacity-100"
-                                    >
-                                      +{moreCount} more
-                                    </button>
-                                  )}
+                          if (summary.hasItemsInWeek || (project.tasks?.length ?? 0) > 0 || summary.contentCount > 0) {
+                            if (!summary.hasItemsInWeek && (project.tasks?.length ?? 0) > 0) {
+                              return (
+                                <div className="px-6 pb-6">
+                                  <p className="text-xs text-white/90">No tasks this week.</p>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                    }}
+                                    className="text-xs text-white underline mt-1 hover:opacity-100 opacity-90"
+                                  >
+                                    View all
+                                  </button>
                                 </div>
-                              </div>
-                            );
-                          }
-                          if ((project.tasks?.length ?? 0) > 0) {
+                              );
+                            }
+
                             return (
-                              <div className="px-6 pb-6">
-                                <p className="text-xs text-white/90">No tasks this week.</p>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                  }}
-                                  className="text-xs text-white underline mt-1 hover:opacity-100 opacity-90"
-                                >
-                                  View all
-                                </button>
+                              <div className="px-6 pb-6 min-w-0">
+                                <p className="text-sm text-white/90 leading-snug break-words">
+                                  <span>Tasks {summary.openTasks}/{summary.totalTasks}</span>
+                                  <span className="mx-1.5 opacity-60" aria-hidden>·</span>
+                                  <span>Content ({summary.contentCount})</span>
+                                  <span className="mx-1.5 opacity-60" aria-hidden>·</span>
+                                  <span>Hours Scheduled: {summary.hours}h</span>
+                                </p>
                               </div>
                             );
                           }
@@ -1150,9 +1160,14 @@ export default function CalendarView({
                               }
 
                               const displayedTasks = visibleTasks.slice(0, 3); // Limit to 3 tasks for better fit in weekly view
+                              const weekSummary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
+                              const moreItemsCount = Math.max(
+                                0,
+                                weekSummary.displayList.length - displayedTasks.length
+                              );
 
                               return (
-                                <div className="mt-4 px-6 pb-6">
+                                <div className="mt-4 px-6 pb-6 flex flex-col min-h-0">
                                   <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
                                   <div className="space-y-2">
                                     {displayedTasks.map((task, taskIdx) => {
@@ -1181,8 +1196,17 @@ export default function CalendarView({
                                         </button>
                                       );
                                     })}
-                                    {visibleTasks.length > 3 && (
-                                      <div className="text-xs text-text-secondary italic">+{visibleTasks.length - 3} more tasks</div>
+                                    {moreItemsCount > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                        }}
+                                        className="text-sm text-text-primary underline hover:opacity-90 pt-1 pb-0.5 text-left w-full shrink-0"
+                                      >
+                                        +{moreItemsCount} more items
+                                      </button>
                                     )}
                                   </div>
                                 </div>
@@ -1203,18 +1227,14 @@ export default function CalendarView({
     );
   };
 
-  // Monthly View - Standard calendar grid with slightly larger boxes
+  // Monthly View — week panels (same chip layout as quarterly/yearly)
   const renderMonthlyView = () => {
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    // Get first day of month and adjust to Monday
     const firstDayOfMonth = new Date(startDate);
     const firstDay = firstDayOfMonth.getDay();
     const mondayOffset = firstDay === 0 ? 6 : firstDay - 1;
     const calendarStart = new Date(firstDayOfMonth);
     calendarStart.setDate(calendarStart.getDate() - mondayOffset);
 
-    // Get last day of month and adjust to Sunday
     const lastDayOfMonth = new Date(endDate);
     const lastDay = lastDayOfMonth.getDay();
     const sundayOffset = lastDay === 0 ? 0 : 7 - lastDay;
@@ -1233,179 +1253,68 @@ export default function CalendarView({
       weeks.push(days.slice(i, i + 7));
     }
 
+    const formatWeekLabel = (week: Date[]) => {
+      const weekStart = week[0];
+      const weekEnd = week[6];
+      const startLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endLabel = weekEnd.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      return `Week of ${startLabel} – ${endLabel}`;
+    };
+
     return (
-      <>
-        <div className="grid grid-cols-7 border-b border-border">
-          {dayNames.map((day) => (
-            <div
-              key={day}
-              className="p-2 text-center text-sm font-semibold text-text-secondary bg-background"
-            >
-              {day}
-            </div>
-          ))}
+      <div className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {weeks.map((week, weekIdx) => {
+            const weekStart = new Date(week[0]);
+            weekStart.setHours(0, 0, 0, 0);
+            const weekEnd = new Date(week[6]);
+            weekEnd.setHours(23, 59, 59, 999);
+
+            const weekProjects = sortProjectsByLatestUpdate(
+              projects.filter((p) => projectOverlapsDateRange(p, weekStart, weekEnd))
+            );
+
+            return (
+              <div
+                key={weekIdx}
+                className="bg-background rounded-lg border border-border p-4 min-h-[300px]"
+              >
+                <h3 className="text-lg font-semibold text-text-primary mb-3">
+                  {formatWeekLabel(week)}
+                </h3>
+                <div className="space-y-2">
+                  {weekProjects.length === 0 ? (
+                    <p className="text-sm text-text-secondary">No projects this week</p>
+                  ) : (
+                    weekProjects.map((project) => {
+                      const projectColor =
+                        project.status === 'in-review' ? '#ef4444' : project.color;
+                      return (
+                        <div
+                          key={project._id.toString()}
+                          onClick={() => onProjectClick(project)}
+                          className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          style={{
+                            backgroundColor: projectColor,
+                            color: 'white',
+                          }}
+                          title={project.name}
+                        >
+                          <div className="font-medium truncate">{project.name}</div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-        <div className="divide-y divide-gray-200 dark:divide-gray-700 relative">
-          {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="grid grid-cols-7 divide-x divide-gray-200 dark:divide-gray-700 min-h-[200px] relative">
-              {week.map((day, dayIdx) => {
-                const isCurrentDay = isToday(day);
-                const inViewRange = isInViewRange(day);
-
-                return (
-                  <div
-                    key={dayIdx}
-                    className={`p-2 relative ${!inViewRange ? 'bg-background opacity-50' : ''} ${isCurrentDay ? 'bg-primary-light' : ''
-                      }`}
-                  >
-                    <div
-                      className={`text-sm font-medium mb-1 ${isCurrentDay ? 'text-primary' : 'text-text-primary'
-                        }`}
-                    >
-                      {day.getDate()}
-                    </div>
-                    {/* Project slots - projects will be rendered as absolute positioned elements */}
-                    <div className="space-y-1 min-h-[170px]" style={{ position: 'relative' }}>
-                      {/* Projects will be rendered here */}
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Render projects that span across days */}
-              {(() => {
-                // Get all unique projects for this week
-                const weekProjects = new Map<string, IProject>();
-                week.forEach(day => {
-                  getProjectsForDay(day).forEach(project => {
-                    weekProjects.set(project._id.toString(), project);
-                  });
-                });
-
-                const allItems: Array<{ type: 'project'; project: IProject; startDate: Date; endDate: Date }> = [];
-
-                // Add projects - projects span the full week since they have no dates
-                const weekStart = new Date(week[0]);
-                weekStart.setHours(0, 0, 0, 0);
-                const weekEnd = new Date(week[6]);
-                weekEnd.setHours(23, 59, 59, 999);
-
-                Array.from(weekProjects.values()).forEach(project => {
-                  // Projects always exist - they span the full visible timeframe
-                  allItems.push({
-                    type: 'project',
-                    project: project,
-                    startDate: weekStart,
-                    endDate: weekEnd,
-                  });
-                });
-
-                // Calculate positions for each item with stacking
-                const itemPositions = allItems.map((item) => {
-                  const itemStart = item.startDate;
-                  const itemEnd = item.endDate;
-
-                  // Find the first day in the week that overlaps with the item
-                  const weekStart = new Date(week[0]);
-                  weekStart.setHours(0, 0, 0, 0);
-                  const weekEnd = new Date(week[6]);
-                  weekEnd.setHours(23, 59, 59, 999);
-
-                  // Item start is either the item's actual start or the week start, whichever is later
-                  const displayStart = itemStart < weekStart ? weekStart : itemStart;
-                  // Item end is either the item's actual end or the week end, whichever is earlier
-                  const displayEnd = itemEnd > weekEnd ? weekEnd : itemEnd;
-
-                  // Find the start column in this week
-                  const startCol = week.findIndex(d => {
-                    const dayStart = new Date(d);
-                    dayStart.setHours(0, 0, 0, 0);
-                    const dayEnd = new Date(d);
-                    dayEnd.setHours(23, 59, 59, 999);
-                    return displayStart >= dayStart && displayStart <= dayEnd;
-                  });
-
-                  if (startCol === -1) return null;
-
-                  // Calculate how many days the item spans in this week
-                  // Normalize dates to midnight for accurate day-only comparison
-                  const startDayNormalized = new Date(displayStart);
-                  startDayNormalized.setHours(0, 0, 0, 0);
-                  const endDayNormalized = new Date(displayEnd);
-                  endDayNormalized.setHours(0, 0, 0, 0);
-                  const startDay = startDayNormalized.toDateString();
-                  const endDay = endDayNormalized.toDateString();
-                  // For inclusive dates: Jan 19 to Jan 20 = 2 days (19th and 20th)
-                  const daysInWeek = startDay === endDay ? 1 : Math.floor((endDayNormalized.getTime() - startDayNormalized.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                  const span = Math.min(daysInWeek, 7 - startCol);
-
-                  return {
-                    ...item,
-                    startCol,
-                    span,
-                    displayStart,
-                    displayEnd,
-                  };
-                }).filter((pos): pos is NonNullable<typeof pos> => pos !== null);
-
-                // Calculate vertical stacking positions
-                const stackPositions: number[] = new Array(itemPositions.length).fill(0);
-                const rowHeight = 20; // Height of each row in pixels
-                const baseTop = 24; // Base top position
-
-                for (let i = 0; i < itemPositions.length; i++) {
-                  const current = itemPositions[i];
-                  let stackLevel = 0;
-
-                  // Check all previous items to see if they overlap
-                  for (let j = 0; j < i; j++) {
-                    const previous = itemPositions[j];
-                    // Check if items overlap in time
-                    if (current.displayStart <= previous.displayEnd && current.displayEnd >= previous.displayStart) {
-                      // They overlap, so this item needs to be on a higher stack level
-                      stackLevel = Math.max(stackLevel, stackPositions[j] + 1);
-                    }
-                  }
-
-                  stackPositions[i] = stackLevel;
-                }
-
-                return itemPositions.map((pos, idx) => {
-                  const topPosition = baseTop + (stackPositions[idx] * rowHeight);
-                  const status = pos.project!.status;
-                  const baseColor = pos.project?.color || '#3b82f6';
-                  const color = status === 'in-review' ? '#ef4444' : baseColor; // Red for in-review
-                  const name = pos.project!.name;
-                  const estimatedHours = getProjectEstimatedHours(pos.project!);
-                  const assignedToId = (pos.project! as any).assignedToEmployeeId?.toString();
-                  const assignedToName = pos.project!.assignedTo;
-                  const assignedTo = getEmployeeName(assignedToId, assignedToName);
-
-                  return (
-                    <div
-                      key={`${pos.project!._id.toString()}-${weekIdx}`}
-                      onClick={() => onProjectClick(pos.project!)}
-                      className={`absolute text-xs px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
-                      style={{
-                        backgroundColor: color,
-                        color: 'white',
-                        left: `calc(${pos.startCol * (100 / 7)}% + ${pos.startCol * 1}px)`,
-                        width: `calc(${pos.span * (100 / 7)}% - ${pos.span * 1}px)`,
-                        top: `${topPosition}px`,
-                        height: `${rowHeight - 2}px`,
-                        overflow: 'hidden',
-                        lineHeight: `${rowHeight - 2}px`,
-                      }}
-                      title={`${name}${estimatedHours ? ` - ${estimatedHours}h` : ''}${assignedTo ? ` - ${assignedTo}` : ''}`}
-                    >
-                      <div className="font-medium truncate">{name}</div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          ))}
-        </div>
-      </>
+      </div>
     );
   };
 

@@ -164,8 +164,8 @@ export default function EmployeesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-300">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-text-secondary">Loading...</div>
       </div>
     );
   }
@@ -174,10 +174,10 @@ export default function EmployeesPage() {
   const atSeatLimit = seatLimits !== null && !seatLimits.canAddMore;
 
   return (
-    <div className="min-h-screen bg-gray-900 px-4 sm:px-6 lg:px-[100px] py-8">
-      <div className="w-full mx-auto">
+    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
+      <div className="w-full mx-auto max-w-7xl">
         <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-          <h1 className="text-3xl font-bold text-white">Team</h1>
+          <h1 className="text-3xl font-bold text-text-primary">Team</h1>
           <div className="flex items-center gap-2">
             {isOrgOwner && (
               <Button variant="secondary" onClick={() => router.push('/billing')}>
@@ -191,14 +191,14 @@ export default function EmployeesPage() {
         </div>
 
         {usageLine ? (
-          <Card className="mb-6 p-4 border border-gray-700 bg-gray-800/80">
-            <p className="text-sm text-gray-200">{usageLine}</p>
+          <Card className="mb-6 p-4 border border-border">
+            <p className="text-sm text-text-primary">{usageLine}</p>
             {atSeatLimit ? (
-              <p className="text-sm text-amber-200 mt-2">
+              <p className="text-sm text-warning mt-2">
                 {isOrgOwner ? (
                   <>
                     You&apos;ve reached your seat limit.{' '}
-                    <Link href="/billing" className="underline hover:text-white">
+                    <Link href="/billing" className="text-primary underline hover:text-primary-hover">
                       Upgrade on billing
                     </Link>{' '}
                     to add more team members.
@@ -212,8 +212,8 @@ export default function EmployeesPage() {
         ) : null}
 
         {employees.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <p className="text-gray-300 mb-4">No team members yet. Create your first team member!</p>
+          <div className="text-center py-12 bg-background-card rounded-lg border border-border">
+            <p className="text-text-secondary mb-4">No team members yet. Create your first team member!</p>
             <Button onClick={handleCreateEmployee}>Create Team Member</Button>
           </div>
         ) : (
@@ -222,43 +222,46 @@ export default function EmployeesPage() {
               <Card key={employee._id.toString()} className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">{employee.name}</h3>
+                    <h3 className="font-semibold text-text-primary mb-1">{employee.name}</h3>
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        employee.role === 'Administrator' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${
+                        employee.role === 'Administrator'
+                          ? 'bg-primary-light text-primary-dark'
+                          : 'bg-muted text-text-secondary'
                       }`}>
                         {employee.role}
                       </span>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        employee.employeeType === 'full-time' ? 'bg-blue-100 text-blue-800' :
-                        employee.employeeType === 'part-time' ? 'bg-green-100 text-green-800' :
-                        'bg-purple-100 text-purple-800'
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${
+                        employee.employeeType === 'full-time'
+                          ? 'bg-primary-light/80 text-primary-dark'
+                          : employee.employeeType === 'part-time'
+                            ? 'bg-muted text-text-primary'
+                            : 'bg-muted text-text-secondary'
                       }`}>
                         {employee.employeeType === 'full-time' ? 'Full-Time' :
                          employee.employeeType === 'part-time' ? 'Part-Time' : 'Contractor'}
                       </span>
                       {employee.email && !employee.userId && (
-                        <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-800">
+                        <span className="text-xs px-2 py-1 rounded bg-warning-light text-warning-dark font-medium">
                           Pending invite
                         </span>
                       )}
                     </div>
                     {employee.jobTitle && (
-                      <p className="text-sm text-gray-600 mb-1">{employee.jobTitle}</p>
+                      <p className="text-sm text-text-secondary mb-1">{employee.jobTitle}</p>
                     )}
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-text-secondary">
                       {employee.weeklyHours} hours/week
                     </p>
                     {employee.email && (
-                      <p className="text-xs text-gray-500 mt-1">{employee.email}</p>
+                      <p className="text-xs text-text-secondary mt-1">{employee.email}</p>
                     )}
                     {employee.email && !employee.userId && currentUserEmployee?.role === 'Administrator' && (
                       <button
                         type="button"
                         onClick={() => handleResendInvite(employee._id.toString())}
                         disabled={resendingId === employee._id.toString()}
-                        className="mt-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
+                        className="mt-2 text-xs text-primary hover:text-primary-hover disabled:opacity-50"
                       >
                         {resendingId === employee._id.toString() ? 'Sending…' : 'Resend invite'}
                       </button>
@@ -268,7 +271,8 @@ export default function EmployeesPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditEmployee(employee)}
-                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        className="text-primary hover:text-primary-hover"
+                        aria-label="Edit team member"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -276,7 +280,8 @@ export default function EmployeesPage() {
                       </button>
                       <button
                         onClick={() => handleDeleteEmployee(employee._id.toString())}
-                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                        className="text-error hover:text-error-dark"
+                        aria-label="Delete team member"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
