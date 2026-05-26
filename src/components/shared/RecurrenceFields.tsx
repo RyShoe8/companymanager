@@ -2,6 +2,7 @@
 
 import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { countRecurrenceOccurrences } from '@/lib/recurrence/expandRecurrenceDates';
+import { formInputClass } from '@/components/ui/formClasses';
 
 export const REPEAT_OPTIONS: { value: RecurrencePreset; label: string }[] = [
   { value: 'none', label: 'Does not repeat' },
@@ -16,9 +17,6 @@ export const RECURRENCE_END_OPTIONS: { value: RecurrenceEnd; label: string }[] =
   { value: 'on', label: 'On date' },
   { value: 'after', label: 'After' },
 ];
-
-const defaultInputClass =
-  'block mt-1 w-full rounded-lg border border-border bg-background-card text-text-primary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
 
 export interface RecurrenceFieldsProps {
   repeatPreset: RecurrencePreset;
@@ -44,7 +42,7 @@ export default function RecurrenceFields({
   onRecurrenceUntilChange,
   recurrenceCount,
   onRecurrenceCountChange,
-  inputClass = defaultInputClass,
+  inputClass = formInputClass,
   anchorDate,
   occurrenceLabel = 'items',
 }: RecurrenceFieldsProps) {

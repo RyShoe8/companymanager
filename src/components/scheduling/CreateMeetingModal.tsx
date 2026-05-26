@@ -9,6 +9,7 @@ import Input from '@/components/ui/Input';
 import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { validateRecurrenceInput } from '@/lib/scheduling/recurrence';
 import RecurrenceFields from '@/components/shared/RecurrenceFields';
+import { formInputClass } from '@/components/ui/formClasses';
 
 export type MeetingCreateSuccessInfo = {
   invitesSent?: number;
@@ -26,9 +27,6 @@ interface CreateMeetingModalProps {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
-
-const inputClass =
-  'block mt-1 w-full rounded-lg border border-border bg-background-card text-text-primary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
 
 function employeeHasInviteEmail(emp: IEmployee): boolean {
   return !!(emp.email?.trim() || emp.userId);
@@ -237,7 +235,7 @@ export default function CreateMeetingModal({
               value={start}
               onChange={(e) => setStart(e.target.value)}
               required
-              className={inputClass}
+              className={formInputClass}
             />
           </label>
           <label className="text-sm text-text-primary">
@@ -247,7 +245,7 @@ export default function CreateMeetingModal({
               value={end}
               onChange={(e) => setEnd(e.target.value)}
               required
-              className={inputClass}
+              className={formInputClass}
             />
           </label>
         </div>
@@ -261,7 +259,7 @@ export default function CreateMeetingModal({
           onRecurrenceUntilChange={setRecurrenceUntil}
           recurrenceCount={recurrenceCount}
           onRecurrenceCountChange={setRecurrenceCount}
-          inputClass={inputClass}
+          inputClass={formInputClass}
           anchorDate={start ? new Date(start) : undefined}
           occurrenceLabel="meetings"
         />
@@ -302,7 +300,7 @@ export default function CreateMeetingModal({
               value={externalEmailInput}
               onChange={(e) => setExternalEmailInput(e.target.value)}
               placeholder="email@example.com"
-              className={inputClass + ' mt-0 flex-1'}
+              className={formInputClass + ' mt-0 flex-1'}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();

@@ -197,14 +197,14 @@ export default function ContentTargetingSection({
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:underline"
+                      className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary hover:underline"
                     >
                       {asset.name}
                     </a>
                   ) : (
                     <span
                       key={asset._id}
-                      className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      className="text-xs px-2 py-1 rounded-full bg-background-elevated text-text-secondary"
                     >
                       {asset.name}
                     </span>

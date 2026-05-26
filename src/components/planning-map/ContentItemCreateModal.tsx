@@ -6,6 +6,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import ContentTargetingSection, { parseKeywordsInput } from '@/components/planning-map/ContentTargetingSection';
 import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
@@ -15,6 +16,7 @@ import { createPendingAssets } from '@/lib/utils/linkedAssets';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
+import { formInputClass } from '@/components/ui/formClasses';
 
 function toInputDate(d: Date): string {
   const y = d.getFullYear();
@@ -31,6 +33,27 @@ function matchContentChannel(raw: string | undefined): ContentChannel | null {
   const n = raw.trim().toLowerCase();
   const hit = CHANNELS.find((c) => c.toLowerCase() === n);
   return hit ?? null;
+}
+
+function FormSelect({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block text-sm font-medium text-text-primary">
+      {label}
+      <select value={value} onChange={onChange} className={formInputClass}>
+        {children}
+      </select>
+    </label>
+  );
 }
 
 interface ContentItemCreateModalProps {
@@ -203,39 +226,31 @@ export default function ContentItemCreateModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Add Content" maxWidth="md" elevated>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-text-secondary">Project: {project.name}</p>
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Title *</label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Content title"
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary focus:ring-2 focus:ring-blue-500"
-            autoFocus
-          />
-        </div>
+        <Input
+          label="Title *"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Content title"
+          autoFocus
+        />
         <DistributionSection distributionMethods={distributionMethods} onToggle={toggleDistribution} />
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Channel *</label>
-          <select
-            value={channel}
-            onChange={(e) => setChannel(e.target.value as ContentChannel)}
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-          >
-            {CHANNELS.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Publish date</label>
+        <FormSelect label="Channel *" value={channel} onChange={(e) => setChannel(e.target.value as ContentChannel)}>
+          {CHANNELS.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </FormSelect>
+        <label className="block text-sm font-medium text-text-primary">
+          Publish date
           <input
             type="date"
             value={publishDate}
             onChange={(e) => setPublishDate(e.target.value)}
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
+            className={formInputClass}
           />
-        </div>
+        </label>
         <RecurrenceFields
           repeatPreset={repeatPreset}
           onRepeatPresetChange={setRepeatPreset}
@@ -245,22 +260,17 @@ export default function ContentItemCreateModal({
           onRecurrenceUntilChange={setRecurrenceUntil}
           recurrenceCount={recurrenceCount}
           onRecurrenceCountChange={setRecurrenceCount}
-          inputClass="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary mt-1"
+          inputClass={formInputClass}
           anchorDate={publishDate ? new Date(publishDate) : new Date()}
           occurrenceLabel="content items"
         />
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Status</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as ContentStatus)}
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>{s.replace('_', ' ')}</option>
-            ))}
-          </select>
-        </div>
+        <FormSelect label="Status" value={status} onChange={(e) => setStatus(e.target.value as ContentStatus)}>
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s.replace('_', ' ')}
+            </option>
+          ))}
+        </FormSelect>
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
           <AutoGrowTextarea
@@ -269,29 +279,25 @@ export default function ContentItemCreateModal({
             placeholder="Optional notes"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Assignee</label>
-          <select
-            value={assignedToEmployeeId}
-            onChange={(e) => setAssignedToEmployeeId(e.target.value)}
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-          >
-            <option value="">Unassigned</option>
-            {assigneeOptions.map((emp) => (
-              <option key={emp._id.toString()} value={emp._id.toString()}>{emp.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Estimated hours</label>
-          <input
-            type="number"
-            step="0.5"
-            value={estimatedHours}
-            onChange={(e) => setEstimatedHours(e.target.value)}
-            className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-          />
-        </div>
+        <FormSelect
+          label="Assignee"
+          value={assignedToEmployeeId}
+          onChange={(e) => setAssignedToEmployeeId(e.target.value)}
+        >
+          <option value="">Unassigned</option>
+          {assigneeOptions.map((emp) => (
+            <option key={emp._id.toString()} value={emp._id.toString()}>
+              {emp.name}
+            </option>
+          ))}
+        </FormSelect>
+        <Input
+          label="Estimated hours"
+          type="number"
+          step="0.5"
+          value={estimatedHours}
+          onChange={(e) => setEstimatedHours(e.target.value)}
+        />
 
         <ContentTargetingSection
           project={project}
@@ -312,8 +318,12 @@ export default function ContentItemCreateModal({
 
         {error && <ErrorMessage message={error} />}
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button type="submit" disabled={isSubmitting || isEstimating} className="flex-1">{isEstimating ? 'Estimating…' : isSubmitting ? 'Creating...' : 'Create'}</Button>
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting || isEstimating} className="flex-1">
+            {isEstimating ? 'Estimating…' : isSubmitting ? 'Creating...' : 'Create'}
+          </Button>
         </div>
       </form>
     </Modal>
@@ -338,16 +348,11 @@ function DistributionSection({
               key={method}
               className={`inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
                 checked
-                  ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-600 text-indigo-900 dark:text-indigo-100'
-                  : 'border-border text-text-secondary hover:bg-gray-50 dark:hover:bg-gray-800'
+                  ? 'bg-primary/10 border-primary text-primary'
+                  : 'border-border bg-background-card text-text-secondary hover:bg-background-elevated'
               }`}
             >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => onToggle(method)}
-                className="sr-only"
-              />
+              <input type="checkbox" checked={checked} onChange={() => onToggle(method)} className="sr-only" />
               {method}
             </label>
           );
@@ -358,5 +363,9 @@ function DistributionSection({
 }
 
 function ErrorMessage({ message }: { message: string }) {
-  return <div className="text-red-500 text-sm">{message}</div>;
+  return (
+    <div className="rounded-lg border border-error/30 bg-error-light px-3 py-2 text-sm text-error">
+      {message}
+    </div>
+  );
 }

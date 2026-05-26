@@ -47,16 +47,8 @@ import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectSocialLink } from '@/lib/models/Project';
 import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoContainer';
 import type { RefObject } from 'react';
-import RecurrenceFields from '@/components/shared/RecurrenceFields';
-import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { expandTaskInstances } from '@/lib/recurrence/expandTaskInstances';
-
-function toInputDateLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import TaskRecurrenceInline, { type TaskRecurrenceValue } from '@/components/planning-map/TaskRecurrenceInline';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -259,14 +251,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [fontSheetOpen, setFontSheetOpen] = useState(false);
   const [fontDraft, setFontDraft] = useState<string[]>(['']);
   const [fontSaving, setFontSaving] = useState(false);
-  const [addTaskSheetOpen, setAddTaskSheetOpen] = useState(false);
-  const [addTaskSaving, setAddTaskSaving] = useState(false);
-  const [addTaskStart, setAddTaskStart] = useState('');
-  const [addTaskEnd, setAddTaskEnd] = useState('');
-  const [taskRepeatPreset, setTaskRepeatPreset] = useState<RecurrencePreset>('none');
-  const [taskRecurrenceEnd, setTaskRecurrenceEnd] = useState<RecurrenceEnd>('never');
-  const [taskRecurrenceUntil, setTaskRecurrenceUntil] = useState('');
-  const [taskRecurrenceCount, setTaskRecurrenceCount] = useState('10');
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -984,18 +968,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setShowTaskActions(false);
     setSelectedTaskIndex(null);
   };
-  const openAddTaskSheet = () => {
-    const now = new Date();
-    const weekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    setAddTaskStart(toInputDateLocal(now));
-    setAddTaskEnd(toInputDateLocal(weekLater));
-    setTaskRepeatPreset('none');
-    setTaskRecurrenceEnd('never');
-    setTaskRecurrenceUntil('');
-    setTaskRecurrenceCount('10');
-    setAddTaskSheetOpen(true);
-  };
-
   const commitAddTasks = async (tasksToAppend: NonNullable<IProject['tasks']>) => {
     const prevTasks = localProject.tasks || [];
     const nextTasks = [...prevTasks, ...tasksToAppend];
@@ -1008,7 +980,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setTaskTab('active');
       setAutoEditTaskIndex(newIdx);
       setPendingScrollToTaskIndex(newIdx);
-      setAddTaskSheetOpen(false);
     } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);
@@ -1019,7 +990,48 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
-  const handleAddTaskImmediate = async () => {
+  const applyTaskRecurrence = useCallback(
+    async (taskIndex: number, recurrence: TaskRecurrenceValue) => {
+      if (recurrence.preset === 'none') return;
+
+      const tasks = localProjectRef.current.tasks || [];
+      const task = tasks[taskIndex];
+      if (!task || task.recurrenceSeriesId) return;
+
+      try {
+        const until =
+          recurrence.end === 'on' && recurrence.until
+            ? new Date(`${recurrence.until}T23:59:59`)
+            : undefined;
+        const instances = expandTaskInstances(task, {
+          preset: recurrence.preset,
+          end: recurrence.end,
+          until,
+          count: recurrence.count,
+        });
+        const nextTasks = [
+          ...tasks.slice(0, taskIndex),
+          ...instances,
+          ...tasks.slice(taskIndex + 1),
+        ];
+        const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
+          localProjectRef.current,
+          nextTasks
+        );
+        setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
+        await onUpdate({ tasks: tasksToSave });
+        setViewTab('tasks');
+        setTaskTab('active');
+        setAutoEditTaskIndex(taskIndex);
+        setPendingScrollToTaskIndex(taskIndex);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Invalid recurrence settings');
+      }
+    },
+    [onUpdate]
+  );
+
+  const handleAddTask = async () => {
     const newTask = {
       name: '',
       description: '',
@@ -1029,60 +1041,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       estimatedHours: 0,
     };
     await commitAddTasks([newTask]);
-  };
-
-  const handleAddTask = () => {
-    openAddTaskSheet();
-  };
-
-  const handleConfirmAddTask = async () => {
-    const start = new Date(addTaskStart);
-    const end = new Date(addTaskEnd);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      alert('Enter valid start and end dates.');
-      return;
-    }
-    if (end.getTime() < start.getTime()) {
-      alert('End date must be on or after start date.');
-      return;
-    }
-
-    const baseTask = {
-      name: '',
-      description: '',
-      status: 'active' as TaskStatus,
-      startDate: start,
-      endDate: end,
-      estimatedHours: 0,
-    };
-
-    let tasksToAppend: NonNullable<IProject['tasks']> = [baseTask];
-    if (taskRepeatPreset !== 'none') {
-      try {
-        const until =
-          taskRecurrenceEnd === 'on' && taskRecurrenceUntil
-            ? new Date(`${taskRecurrenceUntil}T23:59:59`)
-            : undefined;
-        const count =
-          taskRecurrenceEnd === 'after' ? parseInt(taskRecurrenceCount, 10) : undefined;
-        tasksToAppend = expandTaskInstances(baseTask, {
-          preset: taskRepeatPreset,
-          end: taskRecurrenceEnd,
-          until,
-          count: Number.isFinite(count) ? count : undefined,
-        });
-      } catch (err) {
-        alert(err instanceof Error ? err.message : 'Invalid recurrence settings');
-        return;
-      }
-    }
-
-    setAddTaskSaving(true);
-    try {
-      await commitAddTasks(tasksToAppend);
-    } finally {
-      setAddTaskSaving(false);
-    }
   };
 
   useEffect(() => {
@@ -1097,7 +1055,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const key = project._id.toString();
     if (autoAddTaskAppliedKeyRef.current === key) return;
     autoAddTaskAppliedKeyRef.current = key;
-    void handleAddTaskImmediate().finally(() => onAutoAddTaskConsumed?.());
+    void handleAddTask().finally(() => onAutoAddTaskConsumed?.());
   }, [autoAddTaskOnOpen, isManagerOrAdmin, project._id, onAutoAddTaskConsumed]);
 
   const handleCopyPalette = async () => {
@@ -1596,7 +1554,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <button type="button" onClick={() => setViewTab('content')} className={`px-3 py-2 rounded text-sm font-medium ${viewTab === 'content' ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-100'}`}>Content ({projectContentItems.length})</button>
 
           <div className="ml-auto flex gap-2">
-            {viewTab === 'tasks' && isManagerOrAdmin && <Button size="sm" onClick={handleAddTask}>+ Add Task</Button>}
+            {viewTab === 'tasks' && isManagerOrAdmin && <Button size="sm" onClick={() => void handleAddTask()}>+ Add Task</Button>}
             {viewTab === 'content' && onAddContent && canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && <Button size="sm" variant="secondary" onClick={() => onAddContent(localProject)}>+ Add Content</Button>}
           </div>
         </div>
@@ -1739,6 +1697,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <span className="leading-none">→</span>
                             <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900 leading-none py-0" placeholder="End" disabled={!isManagerOrAdmin} />
                           </div>
+                          {isManagerOrAdmin && task.recurrenceSeriesId ? (
+                            <span className="text-xs text-gray-400 italic leading-none">Repeating series</span>
+                          ) : isManagerOrAdmin ? (
+                            <TaskRecurrenceInline
+                              anchorDate={new Date(task.startDate)}
+                              onRecurrenceChange={(value) => void applyTaskRecurrence(idx, value)}
+                            />
+                          ) : null}
                           {estimatingTaskIndices.has(idx) ? (
                             <span className="text-gray-400 italic leading-none">Estimating…</span>
                           ) : (
@@ -1962,68 +1928,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               onClick={() => void confirmDeleteLinkedAsset()}
             >
               {deletingLinkedAsset ? 'Deleting…' : 'Delete'}
-            </Button>
-          </div>
-        </div>
-      </BottomSheet>
-
-      {/* Add task (optional recurrence) */}
-      <BottomSheet
-        isOpen={addTaskSheetOpen}
-        onClose={() => {
-          if (!addTaskSaving) setAddTaskSheetOpen(false);
-        }}
-        title="Add task"
-        elevated
-      >
-        <div className="p-4 pb-8 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="text-sm text-gray-700 block">
-              Start date
-              <input
-                type="date"
-                value={addTaskStart}
-                onChange={(e) => setAddTaskStart(e.target.value)}
-                disabled={addTaskSaving}
-                className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
-              />
-            </label>
-            <label className="text-sm text-gray-700 block">
-              End date
-              <input
-                type="date"
-                value={addTaskEnd}
-                onChange={(e) => setAddTaskEnd(e.target.value)}
-                disabled={addTaskSaving}
-                className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
-              />
-            </label>
-          </div>
-          <RecurrenceFields
-            repeatPreset={taskRepeatPreset}
-            onRepeatPresetChange={setTaskRepeatPreset}
-            recurrenceEnd={taskRecurrenceEnd}
-            onRecurrenceEndChange={setTaskRecurrenceEnd}
-            recurrenceUntil={taskRecurrenceUntil}
-            onRecurrenceUntilChange={setTaskRecurrenceUntil}
-            recurrenceCount={taskRecurrenceCount}
-            onRecurrenceCountChange={setTaskRecurrenceCount}
-            inputClass="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
-            anchorDate={addTaskStart ? new Date(addTaskStart) : new Date()}
-            occurrenceLabel="tasks"
-          />
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-            <Button type="button" size="sm" disabled={addTaskSaving} onClick={() => void handleConfirmAddTask()}>
-              {addTaskSaving ? 'Adding…' : 'Add task'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={addTaskSaving}
-              onClick={() => setAddTaskSheetOpen(false)}
-            >
-              Cancel
             </Button>
           </div>
         </div>
