@@ -23,7 +23,7 @@ export default function SchedulingCalendarBar({
             Last sync: {new Date(calendar.syncedAt).toLocaleString()}
           </span>
         )}
-        <Button type="button" size="sm" onClick={onSync} disabled={syncing}>
+        <Button type="button" size="sm" variant="secondary" onClick={onSync} disabled={syncing}>
           {syncing ? 'Syncing…' : 'Sync meetings'}
         </Button>
       </div>

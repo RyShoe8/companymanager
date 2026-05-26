@@ -2,6 +2,8 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
+import Button from '@/components/ui/Button';
+import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IEmployee } from '@/lib/models/Employee';
@@ -340,12 +342,15 @@ export default function AgendaView({
                                         ) : null}
                                     </div>
                                     {meeting.agendaToken ? (
-                                        <Link
-                                            href={`/scheduling/agenda/${meeting.agendaToken}`}
-                                            className="text-xs text-primary hover:text-primary-hover shrink-0"
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="secondary"
+                                            className="shrink-0"
+                                            onClick={() => openMeetingPopout(meeting.agendaToken)}
                                         >
-                                            Open agenda
-                                        </Link>
+                                            Open Meeting
+                                        </Button>
                                     ) : null}
                                 </div>
                             );

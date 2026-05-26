@@ -2,6 +2,7 @@ import Meeting from '@/lib/models/Meeting';
 import { GoogleCalendarEvent, listCalendarEvents, parseEventTimes } from '@/lib/scheduling/googleCalendar';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
 import { generateAgendaToken } from '@/lib/scheduling/tokenCrypto';
+import { extractMeetingJoinUrl } from '@/lib/scheduling/extractMeetingJoinUrl';
 import type { SchedulingContext } from '@/lib/scheduling/schedulingContext';
 import {
   applySeriesDefaultsToNewMeeting,
@@ -104,6 +105,15 @@ export async function upsertMeetingsFromGoogleEvents(
       ...(resolvedAttendees || {}),
     };
 
+    const join = extractMeetingJoinUrl(ev);
+    if (join) {
+      payload.joinUrl = join.joinUrl;
+      payload.joinPlatform = join.joinPlatform;
+    } else {
+      payload.joinUrl = null;
+      payload.joinPlatform = null;
+    }
+
     const found = existingByGoogleId.get(ev.id);
     if (found) {
       const hasLinkedProjects = found.linkedProjectIds.length > 0;
@@ -134,6 +144,35 @@ export async function upsertMeetingsFromGoogleEvents(
   }
 
   return { imported, updated };
+}
+
+/**
+ * Remove calendar-backed meetings for this user that overlap the sync window but no
+ * longer appear on Google Calendar. Scoped to rangeStart/rangeEnd so we do not delete
+ * meetings outside the fetched timeframe. Nucleas-only rows (no googleEventId) are kept.
+ */
+export async function removeMeetingsMissingFromGoogleSync(
+  userId: Types.ObjectId,
+  rangeStart: Date,
+  rangeEnd: Date,
+  googleEventIdsPresent: Set<string>
+): Promise<number> {
+  const googleEventId: Record<string, unknown> = {
+    $exists: true,
+    $ne: null,
+  };
+  if (googleEventIdsPresent.size > 0) {
+    googleEventId.$nin = [...googleEventIdsPresent];
+  }
+
+  const result = await Meeting.deleteMany({
+    userId,
+    googleEventId,
+    start: { $lt: rangeEnd },
+    end: { $gt: rangeStart },
+  });
+
+  return result.deletedCount ?? 0;
 }
 
 /** Instances belonging to a newly created recurring series. */

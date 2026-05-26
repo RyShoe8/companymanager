@@ -4,8 +4,10 @@ import { requireAuth } from '@/lib/auth/middleware';
 import Meeting from '@/lib/models/Meeting';
 import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
 import Project from '@/lib/models/Project';
+import Asset from '@/lib/models/Asset';
 import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
 import { buildMeetingAgenda } from '@/lib/scheduling/buildMeetingAgenda';
+import { buildMeetingDetailPayload } from '@/lib/scheduling/buildMeetingDetailPayload';
 import {
   getOrganizationUserIds,
   migrateProjectFields,
@@ -69,17 +71,51 @@ export async function GET(
     }).lean();
     const migrated = projects.map((p) => migrateProjectFields(migrateStagesToTasks(p)));
 
+    const projectIds = linkedProjectIds.map((id) => id.toString());
+    const assetsByProjectId = new Map<
+      string,
+      {
+        _id: { toString(): string };
+        name: string;
+        type: string;
+        url?: string;
+        fileUrl?: string;
+        linkedProjectId?: { toString(): string };
+      }[]
+    >();
+    if (projectIds.length > 0) {
+      const assets = await Asset.find({
+        linkedProjectId: { $in: linkedProjectIds },
+        userId: { $in: orgUserIds },
+        $and: [
+          { $or: [{ linkedProjectTaskId: { $exists: false } }, { linkedProjectTaskId: null }] },
+          { $or: [{ linkedProjectTaskIndex: { $exists: false } }, { linkedProjectTaskIndex: null }] },
+        ],
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      for (const asset of assets) {
+        const pid = asset.linkedProjectId?.toString();
+        if (!pid) continue;
+        const list = assetsByProjectId.get(pid) || [];
+        list.push(asset);
+        assetsByProjectId.set(pid, list);
+      }
+    }
+
     const baseUrl = new URL(request.url).origin;
     const agendaUrl = `${baseUrl}/scheduling/agenda/${token}`;
-    const payload = buildMeetingAgenda(
-      {
-        title: meeting.title,
-        start: new Date(meeting.start),
-        end: new Date(meeting.end),
-        agendaUrl,
-      },
-      migrated as any
-    );
+    const meetingWindow = {
+      title: meeting.title,
+      start: new Date(meeting.start),
+      end: new Date(meeting.end),
+      agendaUrl,
+      joinUrl: meeting.joinUrl,
+      joinPlatform: meeting.joinPlatform,
+    };
+    const payload = buildMeetingAgenda(meetingWindow, migrated as any);
+    const detail = buildMeetingDetailPayload(meetingWindow, migrated as any, assetsByProjectId);
 
     return NextResponse.json({
       meeting: {
@@ -88,9 +124,12 @@ export async function GET(
         start: meeting.start,
         end: meeting.end,
         agendaToken: token,
-        linkedProjectIds: linkedProjectIds.map((id) => id.toString()),
+        linkedProjectIds: projectIds,
+        joinUrl: meeting.joinUrl,
+        joinPlatform: meeting.joinPlatform,
       },
       agenda: payload,
+      detail,
     });
   } catch (error) {
     console.error('Agenda GET error:', error);

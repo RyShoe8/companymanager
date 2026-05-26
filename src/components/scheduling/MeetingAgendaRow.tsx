@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import Button from '@/components/ui/Button';
+import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 
@@ -93,12 +93,15 @@ export default function MeetingAgendaRow({
         ) : null}
         <div className="flex flex-col gap-1 mt-1.5 w-full min-w-0">
           {meeting.agendaToken && (
-            <Link
-              href={`/scheduling/agenda/${meeting.agendaToken}`}
-              className="text-xs text-primary hover:text-primary-hover truncate"
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="w-full justify-center text-xs"
+              onClick={() => openMeetingPopout(meeting.agendaToken)}
             >
-              Open agenda
-            </Link>
+              Open Meeting
+            </Button>
           )}
           <Button
             type="button"
@@ -170,12 +173,14 @@ export default function MeetingAgendaRow({
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
           {meeting.agendaToken && (
-            <Link
-              href={`/scheduling/agenda/${meeting.agendaToken}`}
-              className="text-xs text-primary hover:text-primary-hover"
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => openMeetingPopout(meeting.agendaToken)}
             >
-              Open agenda
-            </Link>
+              Open Meeting
+            </Button>
           )}
           <Button type="button" size="sm" variant="secondary" onClick={onStartEdit}>
             Link projects

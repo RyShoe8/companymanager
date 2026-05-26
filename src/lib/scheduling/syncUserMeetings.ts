@@ -3,7 +3,10 @@ import Meeting from '@/lib/models/Meeting';
 import UserCalendarConnection from '@/lib/models/UserCalendarConnection';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
 import { listCalendarEvents } from '@/lib/scheduling/googleCalendar';
-import { upsertMeetingsFromGoogleEvents } from '@/lib/scheduling/importGoogleMeetings';
+import {
+  removeMeetingsMissingFromGoogleSync,
+  upsertMeetingsFromGoogleEvents,
+} from '@/lib/scheduling/importGoogleMeetings';
 import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
 import { Types } from 'mongoose';
 
@@ -11,6 +14,7 @@ export type SyncMeetingsForUserResult = {
   userId: string;
   imported: number;
   updated: number;
+  removed: number;
   error?: string;
 };
 
@@ -23,12 +27,12 @@ export async function syncMeetingsForUser(
 
   const ctx = await getSchedulingContext(userId);
   if (!ctx) {
-    return { userId, imported: 0, updated: 0, error: 'User or organization not found' };
+    return { userId, imported: 0, updated: 0, removed: 0, error: 'User or organization not found' };
   }
 
   const google = await getGoogleAccessTokenForUser(ctx.userId);
   if (!google) {
-    return { userId, imported: 0, updated: 0, error: 'Calendar not connected' };
+    return { userId, imported: 0, updated: 0, removed: 0, error: 'Calendar not connected' };
   }
 
   const events = await listCalendarEvents(
@@ -42,9 +46,19 @@ export async function syncMeetingsForUser(
     createdInNucleas: false,
   });
 
+  const googleEventIds = new Set(
+    events.map((e) => e.id).filter((id): id is string => Boolean(id))
+  );
+  const removed = await removeMeetingsMissingFromGoogleSync(
+    ctx.userId,
+    rangeStart,
+    rangeEnd,
+    googleEventIds
+  );
+
   await UserCalendarConnection.updateOne({ userId: ctx.userId }, { syncedAt: new Date() });
 
-  return { userId, imported, updated };
+  return { userId, imported, updated, removed };
 }
 
 export async function listMeetingsForUserInRange(
@@ -83,6 +97,7 @@ export async function syncAllConnectedCalendars(
         userId,
         imported: 0,
         updated: 0,
+        removed: 0,
         error: error instanceof Error ? error.message : 'Sync failed',
       });
     }

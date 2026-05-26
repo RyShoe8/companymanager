@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 
 export interface IMeeting extends Document {
   userId: Types.ObjectId;
@@ -18,6 +19,9 @@ export interface IMeeting extends Document {
   externalAttendeeEmails?: string[];
   createdInNucleas: boolean;
   description?: string;
+  /** Video call URL extracted from Google Calendar on sync. */
+  joinUrl?: string;
+  joinPlatform?: MeetingJoinPlatform;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +42,11 @@ const MeetingSchema = new Schema(
     externalAttendeeEmails: [{ type: String, trim: true, lowercase: true }],
     createdInNucleas: { type: Boolean, default: true },
     description: { type: String, trim: true },
+    joinUrl: { type: String, trim: true },
+    joinPlatform: {
+      type: String,
+      enum: ['google_meet', 'zoom', 'teams', 'discord', 'other'],
+    },
   },
   { timestamps: true }
 );

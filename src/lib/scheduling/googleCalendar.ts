@@ -68,16 +68,27 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
   return data.access_token as string;
 }
 
+export type GoogleCalendarConferenceEntryPoint = {
+  entryPointType?: string;
+  uri?: string;
+  label?: string;
+  meetingCode?: string;
+};
+
 export type GoogleCalendarEvent = {
   id: string;
   summary?: string;
   description?: string;
+  location?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   htmlLink?: string;
   recurringEventId?: string;
   iCalUID?: string;
   attendees?: { email?: string; responseStatus?: string }[];
+  conferenceData?: {
+    entryPoints?: GoogleCalendarConferenceEntryPoint[];
+  };
 };
 
 export async function listCalendarEvents(

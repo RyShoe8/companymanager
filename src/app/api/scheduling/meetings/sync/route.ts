@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       imported: result.imported,
       updated: result.updated,
+      removed: result.removed,
       meetings,
     });
   } catch (error) {

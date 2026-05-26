@@ -36,7 +36,12 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
     if (err) setMessage(`Calendar error: ${err}`);
   }, [searchParams]);
 
-  const handleSync = useCallback(async (): Promise<{ meetings?: unknown[]; imported?: number; updated?: number } | null> => {
+  const handleSync = useCallback(async (): Promise<{
+    meetings?: unknown[];
+    imported?: number;
+    updated?: number;
+    removed?: number;
+  } | null> => {
     setSyncing(true);
     setMessage(null);
     try {
@@ -46,7 +51,9 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
         setMessage(data.error || 'Sync failed');
         return null;
       }
-      setMessage(`Synced: ${data.imported || 0} new, ${data.updated || 0} updated.`);
+      setMessage(
+        `Synced: ${data.imported || 0} new, ${data.updated || 0} updated, ${data.removed || 0} removed.`
+      );
       await loadCalendar();
       return data;
     } catch {
