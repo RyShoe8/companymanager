@@ -21,7 +21,6 @@ import ImageCreateModal from '@/components/workspace/ImageCreateModal';
 import ScreenshotToolModal from '@/components/shared/ScreenshotToolModal';
 import { useSchedulingCalendar } from '@/hooks/scheduling/useSchedulingCalendar';
 import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvailability';
-import ProjectsLens from '@/components/workspace/ProjectsLens';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
 import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
@@ -132,6 +131,9 @@ export default function WorkspaceShell({
         if (ws.lens === 'agenda' && !isFeatureEnabled('agendaViewEnabled')) {
             ws.setLens('schedule');
         }
+        if (ws.lens === 'projects') {
+            ws.setLens('schedule');
+        }
     }, [ws.lens, ws]);
 
     const syncWorkspaceUrl = useCallback(
@@ -158,8 +160,10 @@ export default function WorkspaceShell({
 
     const handleLensSelect = useCallback(
         (lens: LensType) => {
-            const resolved =
-                lens === 'agenda' && !isFeatureEnabled('agendaViewEnabled') ? 'schedule' : lens;
+            let resolved = lens === 'projects' ? 'schedule' : lens;
+            if (resolved === 'agenda' && !isFeatureEnabled('agendaViewEnabled')) {
+                resolved = 'schedule';
+            }
             ws.setLens(resolved);
             syncWorkspaceUrl({ lens: resolved });
         },
@@ -404,13 +408,9 @@ export default function WorkspaceShell({
         }
         if (intent.type === 'SWITCH_LENS') {
             const lens = intent.slots.lens;
-            if (lens === 'schedule') {
+            if (lens === 'schedule' || lens === 'projects') {
                 handleLensSelect('schedule');
-                return { success: true, message: 'Switched to schedule lens' };
-            }
-            if (lens === 'projects') {
-                handleLensSelect('projects');
-                return { success: true, message: 'Switched to projects lens' };
+                return { success: true, message: 'Switched to projects view' };
             }
             if (lens === 'agenda') {
                 handleLensSelect('agenda');
@@ -435,7 +435,7 @@ export default function WorkspaceShell({
         if (intent.type === 'SWITCH_VIEW') {
             if (intent.slots.mode === 'calendar') {
                 handleLensSelect('schedule');
-                return { success: true, message: 'Switched to schedule view' };
+                return { success: true, message: 'Switched to projects view' };
             }
             if (intent.slots.mode === 'agenda') {
                 handleLensSelect('agenda');
@@ -865,11 +865,18 @@ export default function WorkspaceShell({
     useEffect(() => {
         const commands = [
             {
-                id: 'nav-schedule',
-                label: 'Go to Schedule',
+                id: 'nav-projects',
+                label: 'Go to Projects',
                 category: 'navigate' as const,
-                keywords: ['calendar', 'agenda', 'schedule', 'time'],
-                voicePatterns: ['go to schedule', 'show schedule', 'open schedule', 'view schedule'],
+                keywords: ['calendar', 'projects', 'schedule', 'time'],
+                voicePatterns: [
+                    'go to projects',
+                    'show projects',
+                    'open projects',
+                    'view projects',
+                    'go to schedule',
+                    'show schedule',
+                ],
                 execute: () => handleLensSelect('schedule'),
             },
             {
@@ -879,14 +886,6 @@ export default function WorkspaceShell({
                 keywords: ['agenda', 'list', 'day'],
                 voicePatterns: ['go to agenda', 'show agenda', 'open agenda', 'view agenda'],
                 execute: () => handleLensSelect('agenda'),
-            },
-            {
-                id: 'nav-projects',
-                label: 'Go to Projects',
-                category: 'navigate' as const,
-                keywords: ['list', 'board', 'all', 'projects'],
-                voicePatterns: ['go to projects', 'show projects', 'open projects', 'view project'],
-                execute: () => handleLensSelect('projects'),
             },
             {
                 id: 'nav-capacity',
@@ -1321,16 +1320,6 @@ export default function WorkspaceShell({
                                     </div>
                                 </div>
                             ) : null}
-
-                            {!isSchedulingPhase && ws.lens === 'projects' && (
-                                <ProjectsLens
-                                    projects={ws.filteredProjects}
-                                    contentItems={ws.filteredContentItems}
-                                    timeframe={ws.timeframe}
-                                    referenceDate={ws.currentDate}
-                                    onProjectClick={handleViewProject}
-                                />
-                            )}
 
                             {!isSchedulingPhase && ws.lens === 'capacity' && (
                                 <div className="max-w-4xl mx-auto">

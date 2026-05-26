@@ -11,6 +11,7 @@ const VALID_LENSES: LensType[] = ['schedule', 'agenda', 'projects', 'capacity'];
 function resolveLens(raw: string | null): LensType {
     const lens = (raw as LensType) || 'schedule';
     if (!VALID_LENSES.includes(lens)) return 'schedule';
+    if (lens === 'projects') return 'schedule';
     if (lens === 'agenda' && !isFeatureEnabled('agendaViewEnabled')) return 'schedule';
     return lens;
 }

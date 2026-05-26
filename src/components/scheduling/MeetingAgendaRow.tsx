@@ -73,7 +73,8 @@ export default function MeetingAgendaRow({
       .join(' · ');
 
     return (
-      <div className="px-2 py-2 text-sm min-w-0">
+      <div className="rounded-lg border border-border bg-background-card shadow-sm overflow-hidden min-w-0">
+        <div className="p-3 text-sm min-w-0">
         <p className="text-xs font-medium text-text-primary truncate" title={timeRange}>
           {timeRange}
         </p>
@@ -132,6 +133,7 @@ export default function MeetingAgendaRow({
             </Button>
           </div>
         )}
+        </div>
       </div>
     );
   }

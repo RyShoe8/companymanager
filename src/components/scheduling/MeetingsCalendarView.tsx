@@ -116,8 +116,11 @@ export default function MeetingsCalendarView({
         </p>
       );
     }
+    const listClass =
+      variant === 'weekColumn' ? 'flex flex-col gap-2 min-w-0' : 'divide-y divide-border min-w-0';
+
     return (
-      <div className="divide-y divide-border min-w-0">
+      <div className={listClass}>
         {dayMeetings.map((m) => {
           const row = toMeetingRow(m);
           return (

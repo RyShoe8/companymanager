@@ -30,7 +30,7 @@ function contentProjectIdStr(item: IContentItem): string {
 function taskOverlapsTimeframe(task: IProjectTask, range: DateRange): boolean {
   const start = parseDateSafe(task.startDate);
   const end = parseDateSafe(task.endDate);
-  if (!start || !end) return true;
+  if (!start || !end) return false;
   return taskOverlapsViewRange(range.start, range.end, start, end);
 }
 

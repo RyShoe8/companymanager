@@ -408,14 +408,18 @@ export default function CalendarView({
   }
 
   function getWeeklyCollapsedSummary(project: IProject, weekStart: Date, weekEnd: Date) {
-    const { merged, contentInRange } = getMergedItemsForProject(project, weekStart, weekEnd, {});
+    const { merged, taskItems, contentInRange } = getMergedItemsForProject(
+      project,
+      weekStart,
+      weekEnd,
+      {}
+    );
     const displayList = merged.filter(
       (item): item is MergedCalendarItem =>
         item.type === 'content' || taskPassesAssignmentFilter(item.task)
     );
-    const tasksInRange = displayList.filter((item) => item.type === 'task');
-    const openTasks = tasksInRange.filter((item) => item.task.status !== 'completed').length;
-    const totalTasks = tasksInRange.length;
+    const openTasks = taskItems.filter((item) => item.task.status !== 'completed').length;
+    const totalTasks = taskItems.length;
     const contentCount = contentInRange.length;
     const range = { start: weekStart, end: weekEnd };
     const hours =
@@ -424,6 +428,7 @@ export default function CalendarView({
           sumContentHoursInTimeframe(project._id.toString(), contentItems, 'weekly', range)) *
           100
       ) / 100;
+    const showWeekMetrics = totalTasks > 0 || contentCount > 0 || hours > 0;
     return {
       openTasks,
       totalTasks,
@@ -431,6 +436,7 @@ export default function CalendarView({
       hours,
       displayList,
       hasItemsInWeek: displayList.length > 0,
+      showWeekMetrics,
     };
   }
 
@@ -440,6 +446,34 @@ export default function CalendarView({
     const summary = getWeeklyCollapsedSummary(project, rangeStart, rangeEnd);
     return summary.hasItemsInWeek || summary.contentCount > 0;
   }
+
+  useEffect(() => {
+    if (timeframe !== 'weekly') return;
+    const range = getTimeframeRange('weekly', viewDate);
+    const weekStart = new Date(range.start);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(range.end);
+    weekEnd.setHours(23, 59, 59, 999);
+    const projectIds = new Set(projects.map((p) => p._id.toString()));
+    setExpandedProjects((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (!projectIds.has(id)) {
+          next.delete(id);
+          changed = true;
+          continue;
+        }
+        const project = projects.find((p) => p._id.toString() === id);
+        if (project && !canExpandProjectCard(project, weekStart, weekEnd)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- canExpandProjectCard closes over filters/content
+  }, [timeframe, viewDate, projects, showTasks, showContent, contentItems]);
 
   const handleDateChange = (newDate: Date) => {
     setViewDate(newDate);
@@ -914,7 +948,6 @@ export default function CalendarView({
                   const moreItemsCount = Math.max(0, expandedDisplayList.length - displayedCount);
                   const hasMoreItems = moreItemsCount > 0;
                   const descriptionHeight = project.description ? 40 : 0; // project description block
-                  const estimatedHoursHeight = 56; // info block including spacing
                   const tasksSectionPadding = 16; // mt-4
                   const tasksHeaderHeight = 24; // label + margin
                   const taskCardHeight = 112; // fixed weekly task card height (see rendered min-h below)
@@ -924,7 +957,6 @@ export default function CalendarView({
                     topPadding +
                     headerHeight +
                     descriptionHeight +
-                    estimatedHoursHeight +
                     tasksSectionPadding +
                     tasksHeaderHeight +
                     displayedCount * taskCardHeight +
@@ -999,10 +1031,10 @@ export default function CalendarView({
                         weekEnd.setHours(23, 59, 59, 999);
                         const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
                         const canExpand = canExpandProjectCard(project, weekStart, weekEnd);
-                        const showMetricsSummary = !isExpanded && summary.hasItemsInWeek;
+                        const showMetricsSummary = !isExpanded && summary.showWeekMetrics;
                         const showEmptyWeekSummary =
                           !isExpanded &&
-                          !summary.hasItemsInWeek &&
+                          !summary.showWeekMetrics &&
                           (project.tasks?.length ?? 0) > 0;
 
                         return (
@@ -1058,7 +1090,7 @@ export default function CalendarView({
                                 >
                                   {getProjectStatusDisplayLabel(status)}
                                 </span>
-                                {canExpand ? (
+                                {canExpand || isExpanded ? (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -1098,12 +1130,6 @@ export default function CalendarView({
                             {project.description && (
                               <p className="text-white opacity-90 mb-3 mt-3 px-6">{project.description}</p>
                             )}
-
-                            <div className="space-y-2 mt-3 px-6">
-                              <div className="text-sm text-white opacity-90">
-                                <strong>Estimated Hours:</strong> {getProjectEstimatedHours(project)}h
-                              </div>
-                            </div>
 
                             {visibleTasks.length === 0 && hasTasks && project.tasks!.length > 0 ? (
                               <div className="mt-4 px-6 pb-6">
