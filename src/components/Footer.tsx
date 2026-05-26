@@ -23,12 +23,6 @@ export default function Footer() {
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-6">
               The operating system for planning, building, and running every project you own. One command center for your entire internet business.
             </p>
-            <Link
-              href="/#demo"
-              className="inline-flex items-center text-sm font-semibold text-primary hover:text-primary-light transition-colors"
-            >
-              Try Interactive Demo →
-            </Link>
           </div>
 
           {/* Plan / Build / Run */}
@@ -57,7 +51,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link href="/register" className="text-sm text-primary hover:text-primary-light transition-colors font-medium">
-                  Start Free
+                  Get started
                 </Link>
               </li>
             </ul>

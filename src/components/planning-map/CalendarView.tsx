@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import {
@@ -25,6 +25,11 @@ import CalendarPeriodHeader from '@/components/planning-map/CalendarPeriodHeader
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
 import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
 import { contentPassesAssignmentFilter } from '@/lib/utils/assigneeDisplay';
+import {
+  buildContentItemsByProjectId,
+  getProjectLatestActivityMs,
+} from '@/lib/utils/projectLatestActivity';
+import ActionMenu from '@/components/ui/ActionMenu';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -103,6 +108,13 @@ export default function CalendarView({
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
+  const prevActivityMsRef = useRef<Map<string, number>>(new Map());
+  const hasInitializedActivityRef = useRef(false);
+
+  const contentByProjectId = useMemo(
+    () => buildContentItemsByProjectId(contentItems),
+    [contentItems]
+  );
 
   // Load expanded projects from localStorage on mount
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
@@ -144,104 +156,123 @@ export default function CalendarView({
     fetchEmployees();
   }, []);
 
+  const getLatestActivityMs = useCallback(
+    (project: IProject): number => {
+      const projectId = project._id.toString();
+      const commentDate = projectLatestComments.get(projectId);
+      const commentMs = commentDate ? commentDate.getTime() : undefined;
+      return getProjectLatestActivityMs(
+        project,
+        contentByProjectId.get(projectId) ?? [],
+        commentMs
+      );
+    },
+    [contentByProjectId, projectLatestComments]
+  );
+
   // Fetch latest comment timestamps for all projects
   useEffect(() => {
+    if (projects.length === 0) {
+      setProjectLatestComments(new Map());
+      return;
+    }
+
+    let cancelled = false;
+
+    const getAllCommentTimestamps = (commentList: { createdAt?: string; updatedAt?: string; replies?: unknown[] }[]): Date[] => {
+      const timestamps: Date[] = [];
+      commentList.forEach((comment) => {
+        if (comment.createdAt) timestamps.push(new Date(comment.createdAt));
+        if (comment.updatedAt) timestamps.push(new Date(comment.updatedAt));
+        if (comment.replies && comment.replies.length > 0) {
+          timestamps.push(...getAllCommentTimestamps(comment.replies as typeof commentList));
+        }
+      });
+      return timestamps;
+    };
+
     const fetchLatestComments = async () => {
       const commentMap = new Map<string, Date>();
 
-      // Get last refresh time from localStorage
-      let lastRefreshTime: Date | null = null;
-      if (typeof window !== 'undefined') {
-        const savedRefreshTime = localStorage.getItem('calendar-last-refresh-time');
-        if (savedRefreshTime) {
-          try {
-            lastRefreshTime = new Date(savedRefreshTime);
-          } catch (e) {
-            // Ignore parse errors
-          }
-        }
-      }
-
-      // If no last refresh time, set it to now (first time loading)
-      if (!lastRefreshTime) {
-        lastRefreshTime = new Date();
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('calendar-last-refresh-time', lastRefreshTime.toISOString());
-        }
-      }
-
-      // Load manually collapsed projects from localStorage
-      const manuallyCollapsed = new Set<string>();
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('calendar-manually-collapsed-projects');
-        if (saved) {
-          try {
-            const projectIds = JSON.parse(saved);
-            projectIds.forEach((id: string) => manuallyCollapsed.add(id));
-          } catch (e) {
-            // Ignore parse errors
-          }
-        }
-      }
-
-      // Fetch comments for all projects
       const commentPromises = projects.map(async (project) => {
         try {
           const response = await fetch(`/api/comments?entityType=project&entityId=${project._id.toString()}`);
           if (response.ok) {
             const comments = await response.json();
-            // Flatten comments and replies to get all comment timestamps
-            const getAllCommentTimestamps = (commentList: any[]): Date[] => {
-              const timestamps: Date[] = [];
-              commentList.forEach((comment) => {
-                if (comment.createdAt) timestamps.push(new Date(comment.createdAt));
-                if (comment.updatedAt) timestamps.push(new Date(comment.updatedAt));
-                if (comment.replies && comment.replies.length > 0) {
-                  timestamps.push(...getAllCommentTimestamps(comment.replies));
-                }
-              });
-              return timestamps;
-            };
-
             const timestamps = getAllCommentTimestamps(comments);
-            const projectId = project._id.toString();
-            let latestUpdateTime: Date | null = null;
-
             if (timestamps.length > 0) {
-              const latestComment = new Date(Math.max(...timestamps.map(t => t.getTime())));
-              commentMap.set(projectId, latestComment);
-              latestUpdateTime = latestComment;
-            }
-
-            // Also check project.updatedAt
-            const projectUpdatedAt = new Date((project as any).updatedAt || project.createdAt);
-            if (!latestUpdateTime || projectUpdatedAt > latestUpdateTime) {
-              latestUpdateTime = projectUpdatedAt;
-            }
-
-            // Only auto-expand if project was updated AFTER last refresh AND hasn't been manually collapsed
-            if (latestUpdateTime && latestUpdateTime > lastRefreshTime && !manuallyCollapsed.has(projectId)) {
-              setExpandedProjects(prev => new Set(prev).add(projectId));
+              const latestComment = new Date(Math.max(...timestamps.map((t) => t.getTime())));
+              commentMap.set(project._id.toString(), latestComment);
             }
           }
-        } catch (error) {
+        } catch {
           // Error fetching comments for project
         }
       });
 
       await Promise.all(commentPromises);
-      setProjectLatestComments(commentMap);
-
-      // Update last refresh time to now
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('calendar-last-refresh-time', new Date().toISOString());
+      if (!cancelled) {
+        setProjectLatestComments(commentMap);
       }
     };
 
-    if (projects.length > 0) {
-      fetchLatestComments();
-    }
+    void fetchLatestComments();
+    return () => {
+      cancelled = true;
+    };
   }, [projects]);
+
+  // Auto-expand projects when activity increases (unless manually collapsed)
+  useEffect(() => {
+    if (projects.length === 0) return;
+
+    const manuallyCollapsed = new Set<string>();
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('calendar-manually-collapsed-projects');
+      if (saved) {
+        try {
+          const projectIds = JSON.parse(saved) as string[];
+          projectIds.forEach((id) => manuallyCollapsed.add(id));
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    }
+
+    const prev = prevActivityMsRef.current;
+    const next = new Map<string, number>();
+    const toExpand: string[] = [];
+
+    for (const project of projects) {
+      const projectId = project._id.toString();
+      const activityMs = getLatestActivityMs(project);
+      next.set(projectId, activityMs);
+
+      if (hasInitializedActivityRef.current) {
+        const prevMs = prev.get(projectId);
+        if (prevMs !== undefined && activityMs > prevMs && !manuallyCollapsed.has(projectId)) {
+          toExpand.push(projectId);
+        }
+      }
+    }
+
+    prevActivityMsRef.current = next;
+
+    if (!hasInitializedActivityRef.current) {
+      hasInitializedActivityRef.current = true;
+      return;
+    }
+
+    if (toExpand.length > 0) {
+      setExpandedProjects((prevSet) => {
+        const updated = new Set(prevSet);
+        for (const id of toExpand) {
+          updated.add(id);
+        }
+        return updated;
+      });
+    }
+  }, [projects, contentItems, projectLatestComments, getLatestActivityMs]);
 
   // Helper function to get employee name from ID or return the name if available
   const getEmployeeName = (assignedToId: string | undefined, assignedToName: string | undefined): string | undefined => {
@@ -253,24 +284,10 @@ export default function CalendarView({
     return undefined;
   };
 
-  // Helper function to get latest update time for a project
-  const getProjectLatestUpdate = (project: IProject): Date => {
-    const projectId = project._id.toString();
-    const projectUpdatedAt = new Date((project as any).updatedAt || project.createdAt);
-    const latestComment = projectLatestComments.get(projectId);
-
-    if (latestComment) {
-      return latestComment > projectUpdatedAt ? latestComment : projectUpdatedAt;
-    }
-    return projectUpdatedAt;
-  };
-
-  // Sort projects by latest update time (newest first)
+  // Sort projects by latest activity (newest first)
   const sortProjectsByLatestUpdate = (projectList: IProject[]): IProject[] => {
     return [...projectList].sort((a, b) => {
-      const aUpdate = getProjectLatestUpdate(a);
-      const bUpdate = getProjectLatestUpdate(b);
-      return bUpdate.getTime() - aUpdate.getTime();
+      return getLatestActivityMs(b) - getLatestActivityMs(a);
     });
   };
 
@@ -306,7 +323,6 @@ export default function CalendarView({
     setViewDate(currentDate);
   }, [currentDate, timeframe]);
 
-  const [addMenuProjectId, setAddMenuProjectId] = useState<string | null>(null);
   const [timeframeModalOpen, setTimeframeModalOpen] = useState<{
     project: IProject;
     startDate: Date;
@@ -597,37 +613,37 @@ export default function CalendarView({
                           </h4>
                           <div className="flex items-center gap-2">
                             {onAddContent && canAddContentToProject(project) && (
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(prev => prev === projectId ? null : projectId); }}
-                                  className="text-white hover:opacity-100 opacity-90 px-2 py-1 rounded border border-white/50 text-sm"
-                                >
-                                  + Add
-                                </button>
-                                {addMenuProjectId === projectId && (
-                                  <div className="absolute right-0 top-full mt-1 py-1 bg-background-card border border-border rounded shadow-lg z-10 min-w-[120px]">
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <ActionMenu
+                                  align="right"
+                                  width="w-36"
+                                  useBackdrop
+                                  items={[
+                                    {
+                                      label: 'Add Task',
+                                      onClick: () => {
+                                        if (onAddTask) onAddTask(project);
+                                        else onProjectClick(project);
+                                      },
+                                    },
+                                    {
+                                      label: 'Add Content',
+                                      onClick: () => onAddContent(project, today),
+                                    },
+                                  ]}
+                                  trigger={({ toggle }) => (
                                     <button
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setAddMenuProjectId(null);
-                                        if (onAddTask) onAddTask(project);
-                                        else onProjectClick(project);
+                                        toggle();
                                       }}
-                                      className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
+                                      className="text-white hover:opacity-100 opacity-90 px-2 py-1 rounded border border-white/50 text-sm"
                                     >
-                                      Add Task
+                                      + Add
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => { e.stopPropagation(); setAddMenuProjectId(null); onAddContent(project, today); }}
-                                      className="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-muted"
-                                    >
-                                      Add Content
-                                    </button>
-                                  </div>
-                                )}
+                                  )}
+                                />
                               </div>
                             )}
                             <span

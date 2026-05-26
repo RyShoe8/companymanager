@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Comment from '@/lib/models/Comment';
 import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
+import { resolveProjectIdFromCommentEntity, touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 
 export async function GET(request: NextRequest) {
   try {
@@ -113,6 +114,11 @@ export async function POST(request: NextRequest) {
     }
 
     const comment = await Comment.create(commentData);
+
+    const projectId = await resolveProjectIdFromCommentEntity(entityType, entityId);
+    if (projectId) {
+      await touchProjectActivity(projectId);
+    }
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

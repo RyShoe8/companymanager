@@ -9,6 +9,7 @@ import { isValidObjectId } from '@/lib/utils/security';
 import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
+import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 
 const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
 const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
@@ -113,6 +114,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     await doc.save();
+    await touchProjectActivity(doc.projectId.toString());
     const updated = await ContentItem.findById(id).lean();
     return NextResponse.json(updated);
   } catch (e) {
@@ -132,7 +134,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const { item, error } = await getContentItemWithAccess(id, session as any);
     if (error) return NextResponse.json({ error: error.message }, { status: error.status });
 
+    const projectId = (item as { projectId?: Types.ObjectId }).projectId?.toString();
     await ContentItem.findByIdAndDelete(id);
+    if (projectId) {
+      await touchProjectActivity(projectId);
+    }
     return NextResponse.json({ message: 'Content item deleted successfully' });
   } catch (e) {
     console.error('DELETE content-items/[id] error:', e);

@@ -33,6 +33,8 @@ export interface IProjectTask {
   assignedToEmployeeId?: Types.ObjectId; // Legacy single assignment (synced from first in array)
   assignedToEmployeeIds?: Types.ObjectId[];
   status?: TaskStatus;
+  /** Shared id when created as part of a recurring series (instance generation). */
+  recurrenceSeriesId?: string;
 }
 
 export type ProjectActionButtonKind = 'link' | 'email';
@@ -269,6 +271,10 @@ const ProjectSchema: Schema = new Schema(
           type: String,
           enum: ['active', 'completed', 'in-review'],
           default: 'active',
+        },
+        recurrenceSeriesId: {
+          type: String,
+          trim: true,
         },
       },
     ],

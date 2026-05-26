@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Comment from '@/lib/models/Comment';
 import { requireAuth } from '@/lib/auth/middleware';
+import { resolveProjectIdFromCommentEntity, touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -29,6 +30,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await comment.save();
+
+    const projectId = await resolveProjectIdFromCommentEntity(comment.entityType, comment.entityId.toString());
+    if (projectId) {
+      await touchProjectActivity(projectId);
+    }
 
     return NextResponse.json(comment);
   } catch (error) {
@@ -64,7 +70,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       await Comment.findByIdAndDelete(commentId);
     };
 
+    const projectId = await resolveProjectIdFromCommentEntity(comment.entityType, comment.entityId.toString());
     await deleteCommentAndReplies(id);
+    if (projectId) {
+      await touchProjectActivity(projectId);
+    }
 
     return NextResponse.json({ message: 'Comment deleted successfully' });
   } catch (error) {

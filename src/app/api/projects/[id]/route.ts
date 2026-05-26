@@ -14,6 +14,7 @@ import {
   sanitizeTaskAssigneesForProjectTeam,
 } from '@/lib/utils/projectTeam';
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
+import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -209,11 +210,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
         sanitized.push(parsed.normalized);
       }
-      if (sanitized.length === 0) {
-        return NextResponse.json({ error: 'colorPalette must include at least one valid color' }, { status: 400 });
-      }
       project.colorPalette = sanitized;
-      project.color = sanitized[0];
+      if (sanitized.length > 0) {
+        project.color = sanitized[0];
+      }
     }
 
     if (fontPalette !== undefined) {
@@ -475,7 +475,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Save the project
     await project.save();
-
+    await touchProjectActivity(id);
 
     // Reload the project to ensure we return the latest data
     const savedProject = await Project.findById(id).lean();

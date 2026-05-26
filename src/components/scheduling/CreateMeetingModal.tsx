@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { validateRecurrenceInput } from '@/lib/scheduling/recurrence';
+import RecurrenceFields from '@/components/shared/RecurrenceFields';
 
 export type MeetingCreateSuccessInfo = {
   invitesSent?: number;
@@ -23,20 +24,6 @@ interface CreateMeetingModalProps {
   schedulingTimeZone?: string;
   onSuccess?: (info?: MeetingCreateSuccessInfo) => void;
 }
-
-const REPEAT_OPTIONS: { value: RecurrencePreset; label: string }[] = [
-  { value: 'none', label: 'Does not repeat' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'biweekly', label: 'Every 2 weeks' },
-  { value: 'monthly', label: 'Monthly' },
-];
-
-const END_OPTIONS: { value: RecurrenceEnd; label: string }[] = [
-  { value: 'never', label: 'Never' },
-  { value: 'on', label: 'On date' },
-  { value: 'after', label: 'After' },
-];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
@@ -226,8 +213,6 @@ export default function CreateMeetingModal({
     }
   };
 
-  const showRecurrenceEnd = repeatPreset !== 'none';
-
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="New meeting" maxWidth="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -267,65 +252,19 @@ export default function CreateMeetingModal({
           </label>
         </div>
 
-        <label className="text-sm text-text-primary block">
-          Repeat
-          <select
-            value={repeatPreset}
-            onChange={(e) => setRepeatPreset(e.target.value as RecurrencePreset)}
-            className={inputClass}
-          >
-            {REPEAT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {showRecurrenceEnd && (
-          <div className="space-y-3 rounded-lg border border-border p-3 bg-background-card">
-            <label className="text-sm text-text-primary block">
-              Ends
-              <select
-                value={recurrenceEnd}
-                onChange={(e) => setRecurrenceEnd(e.target.value as RecurrenceEnd)}
-                className={inputClass}
-              >
-                {END_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {recurrenceEnd === 'on' && (
-              <label className="text-sm text-text-primary block">
-                End date
-                <input
-                  type="date"
-                  value={recurrenceUntil}
-                  onChange={(e) => setRecurrenceUntil(e.target.value)}
-                  required
-                  className={inputClass}
-                />
-              </label>
-            )}
-            {recurrenceEnd === 'after' && (
-              <label className="text-sm text-text-primary block">
-                Occurrences
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={recurrenceCount}
-                  onChange={(e) => setRecurrenceCount(e.target.value)}
-                  required
-                  className={inputClass}
-                />
-              </label>
-            )}
-          </div>
-        )}
+        <RecurrenceFields
+          repeatPreset={repeatPreset}
+          onRepeatPresetChange={setRepeatPreset}
+          recurrenceEnd={recurrenceEnd}
+          onRecurrenceEndChange={setRecurrenceEnd}
+          recurrenceUntil={recurrenceUntil}
+          onRecurrenceUntilChange={setRecurrenceUntil}
+          recurrenceCount={recurrenceCount}
+          onRecurrenceCountChange={setRecurrenceCount}
+          inputClass={inputClass}
+          anchorDate={start ? new Date(start) : undefined}
+          occurrenceLabel="meetings"
+        />
 
         <div>
           <p className="text-sm font-medium text-text-primary mb-2">Invite team members (optional)</p>

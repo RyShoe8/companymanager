@@ -35,7 +35,7 @@ export default function EmployeesPage() {
         badge="Organization"
         title="Team"
         subtitle="Track team capacity, workload, and assignments. Manage your team effectively with role-based access, hours tracking, and workload visibility."
-        ctaText="Start Free"
+        ctaText="Get started"
         ctaHref="/register"
       />
 
@@ -85,12 +85,9 @@ export default function EmployeesPage() {
           </ul>
         </Card>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
+        <div className="flex justify-center pt-8">
           <Link href="/register" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-colors">
-            Start Free
-          </Link>
-          <Link href="/#demo" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-primary text-primary font-semibold hover:bg-primary/5 transition-colors">
-            Try Interactive Demo
+            Get started
           </Link>
         </div>
       </div>

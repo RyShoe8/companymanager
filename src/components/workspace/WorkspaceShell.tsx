@@ -136,6 +136,38 @@ export default function WorkspaceShell({
         }
     }, [ws.lens, ws]);
 
+    const shouldPollProjectActivity = useMemo(() => {
+        const activePhase = ws.phase === 'All' || ws.phase === 'Plan' || ws.phase === 'Build';
+        const scheduleView =
+            ws.phase !== 'Schedule' && (ws.lens === 'schedule' || ws.lens === 'projects');
+        return activePhase && scheduleView;
+    }, [ws.phase, ws.lens]);
+
+    const refreshProjectActivity = useCallback(() => {
+        void ws.loadData({ silent: true });
+        void ws.fetchContentItems();
+    }, [ws.loadData, ws.fetchContentItems]);
+
+    useEffect(() => {
+        if (!shouldPollProjectActivity) return;
+
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                refreshProjectActivity();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [shouldPollProjectActivity, refreshProjectActivity]);
+
+    useEffect(() => {
+        if (!shouldPollProjectActivity) return;
+
+        const intervalId = window.setInterval(refreshProjectActivity, 60_000);
+        return () => window.clearInterval(intervalId);
+    }, [shouldPollProjectActivity, refreshProjectActivity]);
+
     const syncWorkspaceUrl = useCallback(
         (opts: { phase?: PhaseType; lens?: LensType }) => {
             if (pathname !== '/workspace') return;

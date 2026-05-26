@@ -13,7 +13,7 @@ export default function MarketingPageHeader({
   title,
   subtitle,
   badge,
-  ctaText = 'Start Free',
+  ctaText = 'Get started',
   ctaHref = '/register',
   showCta = true,
 }: MarketingPageHeaderProps) {

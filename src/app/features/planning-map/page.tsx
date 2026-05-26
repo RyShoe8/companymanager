@@ -99,9 +99,6 @@ export default function PlanningMapPage() {
             <Link href="/plan" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary-hover transition-colors">
               Go to Plan
             </Link>
-            <Link href="/#demo" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-primary text-primary font-semibold hover:bg-primary/5 transition-colors">
-              Try Interactive Demo
-            </Link>
           </div>
         </div>
       </div>

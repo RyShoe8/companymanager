@@ -91,9 +91,6 @@ export default function ProjectsPage() {
           <Link href="/build" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-primary text-primary font-semibold hover:bg-primary/5 transition-colors">
             Go to Build
           </Link>
-          <Link href="/#demo" className="inline-flex items-center justify-center px-8 py-3.5 rounded-xl border-2 border-border text-text-secondary font-semibold hover:border-primary hover:text-primary transition-colors">
-            Try Interactive Demo
-          </Link>
         </div>
       </div>
     </div>

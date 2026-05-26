@@ -47,6 +47,16 @@ import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectSocialLink } from '@/lib/models/Project';
 import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoContainer';
 import type { RefObject } from 'react';
+import RecurrenceFields from '@/components/shared/RecurrenceFields';
+import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
+import { expandTaskInstances } from '@/lib/recurrence/expandTaskInstances';
+
+function toInputDateLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -249,6 +259,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [fontSheetOpen, setFontSheetOpen] = useState(false);
   const [fontDraft, setFontDraft] = useState<string[]>(['']);
   const [fontSaving, setFontSaving] = useState(false);
+  const [addTaskSheetOpen, setAddTaskSheetOpen] = useState(false);
+  const [addTaskSaving, setAddTaskSaving] = useState(false);
+  const [addTaskStart, setAddTaskStart] = useState('');
+  const [addTaskEnd, setAddTaskEnd] = useState('');
+  const [taskRepeatPreset, setTaskRepeatPreset] = useState<RecurrencePreset>('none');
+  const [taskRecurrenceEnd, setTaskRecurrenceEnd] = useState<RecurrenceEnd>('never');
+  const [taskRecurrenceUntil, setTaskRecurrenceUntil] = useState('');
+  const [taskRecurrenceCount, setTaskRecurrenceCount] = useState('10');
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -730,13 +748,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const sanitized: string[] = [];
     for (let i = 0; i < paletteDraft.length; i++) {
       const t = paletteDraft[i].trim();
-      if (!t) {
-        if (i === 0) {
-          alert('Primary color is required. Enter a hex or rgb() value.');
-          return;
-        }
-        continue;
-      }
+      if (!t) continue;
       const p = parseCssColorInput(t);
       if (!p.ok) {
         alert(`Invalid ${labelForPaletteIndex(i)}: ${t}. Use #hex or rgb() / rgba().`);
@@ -744,17 +756,33 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       }
       sanitized.push(p.normalized);
     }
-    if (sanitized.length === 0) {
-      alert('Add at least one valid color.');
-      return;
-    }
     setPaletteSaving(true);
-    setLocalProject((prev) => ({ ...prev, colorPalette: sanitized, color: sanitized[0] } as IProject));
+    const nextColor = sanitized.length > 0 ? sanitized[0] : localProject.color;
+    setLocalProject((prev) => ({ ...prev, colorPalette: sanitized as string[], color: nextColor } as IProject));
     try {
-      await onUpdate({ colorPalette: sanitized, color: sanitized[0] });
+      await onUpdate({
+        colorPalette: sanitized,
+        ...(sanitized.length > 0 ? { color: sanitized[0] } : {}),
+      });
       setPaletteSheetOpen(false);
     } catch (error) {
       console.error('Error saving palette:', error);
+      setLocalProject(project);
+      alert(error instanceof Error ? error.message : 'Failed to save');
+    } finally {
+      setPaletteSaving(false);
+    }
+  };
+
+  const clearPalette = async () => {
+    setPaletteSaving(true);
+    setPaletteDraft(['']);
+    setLocalProject((prev) => ({ ...prev, colorPalette: [] as string[], color: prev.color } as IProject));
+    try {
+      await onUpdate({ colorPalette: [] });
+      setPaletteSheetOpen(false);
+    } catch (error) {
+      console.error('Error clearing palette:', error);
       setLocalProject(project);
       alert(error instanceof Error ? error.message : 'Failed to save');
     } finally {
@@ -956,10 +984,21 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setShowTaskActions(false);
     setSelectedTaskIndex(null);
   };
-  const handleAddTask = async () => {
-    const newTask = { name: '', description: '', status: 'active' as TaskStatus, startDate: new Date(), endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), estimatedHours: 0 };
+  const openAddTaskSheet = () => {
+    const now = new Date();
+    const weekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    setAddTaskStart(toInputDateLocal(now));
+    setAddTaskEnd(toInputDateLocal(weekLater));
+    setTaskRepeatPreset('none');
+    setTaskRecurrenceEnd('never');
+    setTaskRecurrenceUntil('');
+    setTaskRecurrenceCount('10');
+    setAddTaskSheetOpen(true);
+  };
+
+  const commitAddTasks = async (tasksToAppend: NonNullable<IProject['tasks']>) => {
     const prevTasks = localProject.tasks || [];
-    const nextTasks = [...prevTasks, newTask];
+    const nextTasks = [...prevTasks, ...tasksToAppend];
     const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, nextTasks);
     const newIdx = tasksToSave.length - 1;
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
@@ -969,12 +1008,80 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setTaskTab('active');
       setAutoEditTaskIndex(newIdx);
       setPendingScrollToTaskIndex(newIdx);
+      setAddTaskSheetOpen(false);
     } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);
       setPendingScrollToTaskIndex(null);
       setAutoEditTaskIndex(null);
       alert(error instanceof Error ? error.message : 'Failed to save');
+      throw error;
+    }
+  };
+
+  const handleAddTaskImmediate = async () => {
+    const newTask = {
+      name: '',
+      description: '',
+      status: 'active' as TaskStatus,
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      estimatedHours: 0,
+    };
+    await commitAddTasks([newTask]);
+  };
+
+  const handleAddTask = () => {
+    openAddTaskSheet();
+  };
+
+  const handleConfirmAddTask = async () => {
+    const start = new Date(addTaskStart);
+    const end = new Date(addTaskEnd);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      alert('Enter valid start and end dates.');
+      return;
+    }
+    if (end.getTime() < start.getTime()) {
+      alert('End date must be on or after start date.');
+      return;
+    }
+
+    const baseTask = {
+      name: '',
+      description: '',
+      status: 'active' as TaskStatus,
+      startDate: start,
+      endDate: end,
+      estimatedHours: 0,
+    };
+
+    let tasksToAppend: NonNullable<IProject['tasks']> = [baseTask];
+    if (taskRepeatPreset !== 'none') {
+      try {
+        const until =
+          taskRecurrenceEnd === 'on' && taskRecurrenceUntil
+            ? new Date(`${taskRecurrenceUntil}T23:59:59`)
+            : undefined;
+        const count =
+          taskRecurrenceEnd === 'after' ? parseInt(taskRecurrenceCount, 10) : undefined;
+        tasksToAppend = expandTaskInstances(baseTask, {
+          preset: taskRepeatPreset,
+          end: taskRecurrenceEnd,
+          until,
+          count: Number.isFinite(count) ? count : undefined,
+        });
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Invalid recurrence settings');
+        return;
+      }
+    }
+
+    setAddTaskSaving(true);
+    try {
+      await commitAddTasks(tasksToAppend);
+    } finally {
+      setAddTaskSaving(false);
     }
   };
 
@@ -990,7 +1097,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const key = project._id.toString();
     if (autoAddTaskAppliedKeyRef.current === key) return;
     autoAddTaskAppliedKeyRef.current = key;
-    void handleAddTask().finally(() => onAutoAddTaskConsumed?.());
+    void handleAddTaskImmediate().finally(() => onAutoAddTaskConsumed?.());
   }, [autoAddTaskOnOpen, isManagerOrAdmin, project._id, onAutoAddTaskConsumed]);
 
   const handleCopyPalette = async () => {
@@ -1860,6 +1967,68 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         </div>
       </BottomSheet>
 
+      {/* Add task (optional recurrence) */}
+      <BottomSheet
+        isOpen={addTaskSheetOpen}
+        onClose={() => {
+          if (!addTaskSaving) setAddTaskSheetOpen(false);
+        }}
+        title="Add task"
+        elevated
+      >
+        <div className="p-4 pb-8 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="text-sm text-gray-700 block">
+              Start date
+              <input
+                type="date"
+                value={addTaskStart}
+                onChange={(e) => setAddTaskStart(e.target.value)}
+                disabled={addTaskSaving}
+                className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
+              />
+            </label>
+            <label className="text-sm text-gray-700 block">
+              End date
+              <input
+                type="date"
+                value={addTaskEnd}
+                onChange={(e) => setAddTaskEnd(e.target.value)}
+                disabled={addTaskSaving}
+                className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
+              />
+            </label>
+          </div>
+          <RecurrenceFields
+            repeatPreset={taskRepeatPreset}
+            onRepeatPresetChange={setTaskRepeatPreset}
+            recurrenceEnd={taskRecurrenceEnd}
+            onRecurrenceEndChange={setTaskRecurrenceEnd}
+            recurrenceUntil={taskRecurrenceUntil}
+            onRecurrenceUntilChange={setTaskRecurrenceUntil}
+            recurrenceCount={taskRecurrenceCount}
+            onRecurrenceCountChange={setTaskRecurrenceCount}
+            inputClass="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
+            anchorDate={addTaskStart ? new Date(addTaskStart) : new Date()}
+            occurrenceLabel="tasks"
+          />
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+            <Button type="button" size="sm" disabled={addTaskSaving} onClick={() => void handleConfirmAddTask()}>
+              {addTaskSaving ? 'Adding…' : 'Add task'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={addTaskSaving}
+              onClick={() => setAddTaskSheetOpen(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+
       {/* Project color palette */}
       <BottomSheet
         isOpen={paletteSheetOpen}
@@ -1871,7 +2040,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       >
         <div className="p-4 pb-8 space-y-4">
           <p className="text-sm text-gray-600">
-            Primary is used on the map and logo. Enter hex (#RGB or #RRGGBB) or rgb() / rgba(). Extra rows can be left blank and are omitted when you save.
+            Primary is optional and is used on the map when set. Enter hex (#RGB or #RRGGBB) or rgb() / rgba(). Blank rows are omitted when you save. Clear palette removes all swatches but keeps your project color on the map.
           </p>
           <div className="space-y-3">
             {paletteDraft.map((row, idx) => {
@@ -1927,6 +2096,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
             <Button type="button" size="sm" disabled={paletteSaving} onClick={() => void savePaletteFromDraft()}>
               {paletteSaving ? 'Saving…' : 'Save'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={paletteSaving}
+              onClick={() => void clearPalette()}
+            >
+              Clear palette
             </Button>
             <Button
               type="button"

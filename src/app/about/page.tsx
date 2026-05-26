@@ -35,7 +35,7 @@ export default function AboutPage() {
           badge="Company"
           title="About Nucleas"
           subtitle="The operating system for planning, building, and running every project you own."
-          ctaText="Start Free"
+          ctaText="Get started"
           ctaHref="/register"
         />
 

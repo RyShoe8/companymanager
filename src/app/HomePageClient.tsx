@@ -49,23 +49,14 @@ export default function HomePageClient() {
             </p>
           </AnimateIn>
           <AnimateIn delay={300}>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+            <div className="flex justify-center">
               <Link
                 href="/register"
                 className="inline-flex items-center justify-center w-full sm:w-auto px-10 py-4 min-h-[52px] text-base font-semibold rounded-xl bg-primary text-white hover:bg-primary-hover transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98]"
               >
-                Start Free
+                Get started
               </Link>
-              <a
-                href="#demo"
-                className="inline-flex items-center justify-center w-full sm:w-auto px-10 py-4 min-h-[52px] text-base font-semibold rounded-xl border-2 border-white/30 bg-white/5 text-white hover:bg-white/15 hover:border-white/50 transition-all backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98]"
-              >
-                Try the Interactive Demo
-              </a>
             </div>
-            <p className="text-sm text-slate-500">
-              Free for one project. Upgrade when you&apos;re running more.
-            </p>
           </AnimateIn>
         </div>
       </section>
@@ -325,19 +316,13 @@ export default function HomePageClient() {
             <p className="text-xl text-white/90 mb-12">
               Run it from Nucleas.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex justify-center">
               <Link
                 href="/register"
                 className="inline-flex items-center justify-center w-full sm:w-auto px-10 py-4 min-h-[52px] text-base font-semibold rounded-xl bg-white text-primary hover:bg-gray-100 transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98]"
               >
-                Start Free
+                Get started
               </Link>
-              <a
-                href="#demo"
-                className="inline-flex items-center justify-center w-full sm:w-auto px-10 py-4 min-h-[52px] text-base font-semibold rounded-xl border-2 border-white/50 bg-white/10 text-white hover:bg-white/20 hover:border-white/80 transition-all backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98]"
-              >
-                Try Interactive Demo
-              </a>
             </div>
           </AnimateIn>
         </div>

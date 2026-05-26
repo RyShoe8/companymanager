@@ -12,7 +12,7 @@ const faqSchemaMainEntity = FAQ_DATA.map((item) => ({
 
 export const metadata = {
   title: 'Nucleas - Run Your Entire Internet Business From One Command Center',
-  description: 'Stop juggling tabs, tools, and documents. Nucleas is the operating system for planning, building, and running every project you own. Free for one project.',
+  description: 'Stop juggling tabs, tools, and documents. Nucleas is the operating system for planning, building, and running every project you own.',
   keywords: ['project management', 'command center', 'plan build run', 'internet business', 'startup tools', 'project planning'],
   alternates: { canonical: '/' },
   openGraph: {

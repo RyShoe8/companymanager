@@ -177,7 +177,12 @@ export default function useWorkspaceData(
         setAllProjects((prev) =>
             prev.map((p) => {
                 if (p._id.toString() !== id) return p;
-                const next = { ...p, ...updated, _id: p._id } as IProject;
+                const next = {
+                    ...p,
+                    ...updated,
+                    _id: p._id,
+                    updatedAt: (updated as { updatedAt?: Date }).updatedAt ?? new Date(),
+                } as IProject;
                 if ('logo' in updated && (updated.logo === null || updated.logo === undefined)) {
                     next.logo = undefined;
                 }

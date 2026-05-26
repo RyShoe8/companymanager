@@ -13,6 +13,8 @@ import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
 import { createPendingAssets } from '@/lib/utils/linkedAssets';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
+import RecurrenceFields from '@/components/shared/RecurrenceFields';
+import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
 
 function toInputDate(d: Date): string {
   const y = d.getFullYear();
@@ -73,6 +75,10 @@ export default function ContentItemCreateModal({
   const [isEstimating, setIsEstimating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
+  const [recurrenceEnd, setRecurrenceEnd] = useState<RecurrenceEnd>('never');
+  const [recurrenceUntil, setRecurrenceUntil] = useState('');
+  const [recurrenceCount, setRecurrenceCount] = useState('10');
 
   const assigneeOptions = project ? filterEmployeesForTaskAssignment(employees, project) : employees;
 
@@ -107,6 +113,10 @@ export default function ContentItemCreateModal({
     setEstimatedHours('');
     setPendingAssets([]);
     setShowAdvanced(false);
+    setRepeatPreset('none');
+    setRecurrenceEnd('never');
+    setRecurrenceUntil('');
+    setRecurrenceCount('10');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,6 +161,14 @@ export default function ContentItemCreateModal({
         const d = new Date(publishDate);
         if (!isNaN(d.getTime())) body.publishDate = d.toISOString();
       }
+      if (repeatPreset !== 'none') {
+        body.recurrence = {
+          preset: repeatPreset,
+          end: recurrenceEnd,
+          ...(recurrenceEnd === 'on' && recurrenceUntil ? { until: recurrenceUntil } : {}),
+          ...(recurrenceEnd === 'after' ? { count: parseInt(recurrenceCount, 10) } : {}),
+        };
+      }
       const res = await fetch('/api/content-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -160,7 +178,10 @@ export default function ContentItemCreateModal({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to create content');
       }
-      const created = (await res.json()) as IContentItem;
+      const payload = await res.json();
+      const created = (Array.isArray((payload as { items?: IContentItem[] }).items)
+        ? (payload as { items: IContentItem[] }).items[0]
+        : payload) as IContentItem;
       const contentId = created._id?.toString?.() ?? (created._id as unknown as string);
       if (contentId && pendingAssets.length > 0) {
         await createPendingAssets(contentId, pendingAssets);
@@ -215,6 +236,19 @@ export default function ContentItemCreateModal({
             className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
           />
         </div>
+        <RecurrenceFields
+          repeatPreset={repeatPreset}
+          onRepeatPresetChange={setRepeatPreset}
+          recurrenceEnd={recurrenceEnd}
+          onRecurrenceEndChange={setRecurrenceEnd}
+          recurrenceUntil={recurrenceUntil}
+          onRecurrenceUntilChange={setRecurrenceUntil}
+          recurrenceCount={recurrenceCount}
+          onRecurrenceCountChange={setRecurrenceCount}
+          inputClass="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary mt-1"
+          anchorDate={publishDate ? new Date(publishDate) : new Date()}
+          occurrenceLabel="content items"
+        />
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1">Status</label>
           <select
