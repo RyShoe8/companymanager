@@ -1,29 +1,54 @@
 import * as React from 'react';
 import { cn } from './cn';
 
+type ButtonVariant = 'primary' | 'secondary' | 'danger';
+type LegacyVariant = 'default' | 'outline' | 'ghost' | 'link';
+
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'default' | 'secondary' | 'outline' | 'ghost' | 'link';
-  size?: 'default' | 'sm' | 'lg';
+  variant?: ButtonVariant | LegacyVariant;
+  size?: 'sm' | 'md' | 'lg' | 'default';
 };
 
+function resolveVariant(variant: ButtonVariant | LegacyVariant): ButtonVariant {
+  switch (variant) {
+    case 'secondary':
+    case 'outline':
+    case 'ghost':
+      return 'secondary';
+    case 'danger':
+      return 'danger';
+    case 'link':
+      return 'secondary';
+    case 'default':
+    case 'primary':
+    default:
+      return 'primary';
+  }
+}
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'default', size = 'default', ...props }, ref) => (
-    <button
-      ref={ref}
-      className={cn(
-        'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
-        variant === 'default' && 'bg-primary text-primary-foreground hover:bg-primary/90',
-        variant === 'secondary' && 'bg-muted text-foreground hover:bg-muted/80',
-        variant === 'outline' && 'border border-input bg-background hover:bg-muted',
-        variant === 'ghost' && 'hover:bg-muted',
-        variant === 'link' && 'text-foreground underline-offset-4 hover:underline',
-        size === 'default' && 'h-9 px-4 py-2',
-        size === 'sm' && 'h-8 rounded-md px-3 text-xs',
-        size === 'lg' && 'h-10 rounded-md px-8',
-        className
-      )}
-      {...props}
-    />
-  )
+  ({ className, variant = 'primary', size = 'md', ...props }, ref) => {
+    const resolved = resolveVariant(variant);
+    const resolvedSize = size === 'default' ? 'md' : size;
+
+    return (
+      <button
+        ref={ref}
+        className={cn(
+          'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px] sm:min-h-0',
+          resolved === 'primary' &&
+            'bg-primary text-white hover:bg-primary-hover focus:ring-primary',
+          resolved === 'secondary' &&
+            'bg-secondary-light text-secondary hover:bg-secondary-light/80 focus:ring-secondary border border-secondary/20',
+          resolved === 'danger' && 'bg-error text-white hover:bg-error-dark focus:ring-error',
+          resolvedSize === 'sm' && 'px-3 py-1.5 text-sm',
+          resolvedSize === 'md' && 'px-4 py-2 text-base',
+          resolvedSize === 'lg' && 'px-6 py-3 text-lg',
+          className
+        )}
+        {...props}
+      />
+    );
+  }
 );
 Button.displayName = 'Button';

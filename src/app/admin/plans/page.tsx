@@ -1,13 +1,12 @@
 import '@/lib/billing-engine';
-import Link from 'next/link';
 import connectDB from '@/lib/db/mongodb';
+import CreatePlanButton from '@/app/admin/plans/CreatePlanButton';
 import {
   SubscriptionPlanModel,
   type SubscriptionPlanDoc,
 } from 'billing-engine/models';
 import { getPlanSubscriptionCapUsage } from 'billing-engine';
 import { AdminPlansTable, type PlanRow } from 'billing-engine/next/components';
-import Button from '@/components/ui/Button';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,9 +50,7 @@ export default async function AdminPlansPage() {
               Source of truth for pricing. Sync creates Stripe products and immutable prices.
             </p>
           </div>
-          <Link href="/admin/plans/new">
-            <Button>Create plan</Button>
-          </Link>
+          <CreatePlanButton />
         </div>
         <AdminPlansTable initialPlans={initialPlans} mode="active" />
       </div>

@@ -5,7 +5,7 @@ const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
   title: 'Terms of Service',
-  description: 'Terms of Service for Nucleas. Acceptance of terms, use license, user accounts, content, prohibited uses, disclaimer, and limitations.',
+  description: 'Terms of Service for Nucleas. Acceptance of terms, use license, user accounts, subscriptions, content, prohibited uses, disclaimer, and limitations.',
   keywords: 'terms of service, legal, Nucleas terms, use license',
   openGraph: {
     title: 'Terms of Service | Nucleas',
@@ -64,7 +64,22 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-8 mb-6">
-          <h2 className="text-2xl font-semibold text-text-primary mb-4">4. User Content</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-4">4. Subscriptions and Billing</h2>
+          <p className="text-text-secondary leading-relaxed mb-4">
+            Paid subscriptions grant access to Nucleas according to the plan you select. Fees, billing intervals,
+            and included features are described at the time of purchase and may change for new subscribers with notice.
+          </p>
+          <p className="text-text-secondary leading-relaxed mb-4">
+            <strong className="text-text-primary">Lifetime subscriptions.</strong> A &ldquo;lifetime&rdquo; subscription
+            grants access to Nucleas only for as long as we continue to operate and make the platform available. It does
+            not guarantee that the Service will run forever. If we discontinue, shut down, or cease operating the
+            platform, your lifetime subscription ends without further obligation on our part, except where applicable law
+            requires otherwise (for example, mandatory refunds).
+          </p>
+        </Card>
+
+        <Card className="p-8 mb-6">
+          <h2 className="text-2xl font-semibold text-text-primary mb-4">5. User Content</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
             You retain ownership of any content you upload or create within Nucleas. By using the Service, you grant 
             Nucleas a license to store, display, and process your content solely for the purpose of providing the Service.
@@ -72,7 +87,7 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-8 mb-6">
-          <h2 className="text-2xl font-semibold text-text-primary mb-4">5. Prohibited Uses</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-4">6. Prohibited Uses</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
             You may not use Nucleas:
           </p>
@@ -85,7 +100,7 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-8 mb-6">
-          <h2 className="text-2xl font-semibold text-text-primary mb-4">6. Disclaimer</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-4">7. Disclaimer</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
             The materials on Nucleas are provided on an 'as is' basis. Nucleas makes no warranties, expressed or implied, 
             and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions 
@@ -94,7 +109,7 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-8 mb-6">
-          <h2 className="text-2xl font-semibold text-text-primary mb-4">7. Limitations</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-4">8. Limitations</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
             In no event shall Nucleas or its suppliers be liable for any damages (including, without limitation, damages for 
             loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on 
@@ -104,15 +119,19 @@ export default function TermsPage() {
         </Card>
 
         <Card className="p-8 mb-6">
-          <h2 className="text-2xl font-semibold text-text-primary mb-4">8. Termination</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-4">9. Termination</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
             We may terminate or suspend your account and access to the Service immediately, without prior notice or liability, 
             for any reason whatsoever, including without limitation if you breach the Terms.
           </p>
+          <p className="text-text-secondary leading-relaxed mb-4">
+            If we discontinue or cease operating the platform, lifetime subscriptions end as described in Section 4,
+            without further obligation on our part except where applicable law requires otherwise.
+          </p>
         </Card>
 
         <Card className="p-8">
-          <h2 className="text-2xl font-semibold text-text-primary mb-4">9. Changes to Terms</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-4">10. Changes to Terms</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
             Nucleas reserves the right to revise these terms of service at any time without notice. By using this Service you 
             are agreeing to be bound by the then current version of these terms of service.

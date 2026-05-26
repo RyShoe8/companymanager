@@ -155,7 +155,7 @@ export function AdminPlansTable({
         <div className="overflow-x-auto rounded-md border min-w-0">
         <table className="w-full min-w-[52rem] text-sm">
           <thead>
-            <tr className="border-b bg-muted/40 text-left">
+            <tr className="border-b bg-background-elevated text-left">
               <th className="p-3 font-medium">Name</th>
               <th className="p-3 font-medium">Interval</th>
               <th className="p-3 font-medium">Trial</th>
@@ -171,7 +171,7 @@ export function AdminPlansTable({
           <tbody>
             {plans.length === 0 ? (
               <tr>
-                <td colSpan={10} className="p-6 text-center text-muted-foreground">
+                <td colSpan={10} className="p-6 text-center text-text-muted">
                   {mode === 'archived' ? 'No archived plans.' : 'No active plans.'}
                 </td>
               </tr>
@@ -180,7 +180,7 @@ export function AdminPlansTable({
                 <tr key={p._id} className="border-b last:border-0">
                   <td className="p-3 font-medium">
                     {p.name}
-                    <span className="block text-xs text-muted-foreground">v{p.version}</span>
+                    <span className="block text-xs text-text-muted">v{p.version}</span>
                   </td>
                   <td className="p-3">{p.interval}</td>
                   <td className="p-3">
@@ -199,31 +199,30 @@ export function AdminPlansTable({
                           <Button type="button" size="sm" variant="secondary" onClick={() => void sync(p._id)}>
                             Sync
                           </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => void clone(p._id)}>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => void clone(p._id)}>
                             Clone
                           </Button>
                           <Button
                             type="button"
                             size="sm"
-                            variant="outline"
+                            variant="secondary"
                             onClick={() => void togglePause(p._id, p.paused)}
                           >
                             {p.paused ? 'Unpause' : 'Pause'}
                           </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => void setArchived(p._id, true)}>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => void setArchived(p._id, true)}>
                             Archive
                           </Button>
                           <Link
                             href={`/admin/plans/${p._id}/edit`}
-                            className="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium hover:bg-muted"
+                            className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-lg bg-secondary-light text-secondary hover:bg-secondary-light/80 border border-secondary/20 transition-colors"
                           >
                             Edit
                           </Link>
                           <Button
                             type="button"
                             size="sm"
-                            variant="outline"
-                            className="text-destructive border-destructive/40"
+                            variant="danger"
                             onClick={() => void removePlan(p._id, p.name)}
                           >
                             Delete
@@ -236,15 +235,14 @@ export function AdminPlansTable({
                           </Button>
                           <Link
                             href={`/admin/plans/${p._id}/edit`}
-                            className="inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-medium hover:bg-muted"
+                            className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-lg bg-secondary-light text-secondary hover:bg-secondary-light/80 border border-secondary/20 transition-colors"
                           >
                             Edit
                           </Link>
                           <Button
                             type="button"
                             size="sm"
-                            variant="outline"
-                            className="text-destructive border-destructive/40"
+                            variant="danger"
                             onClick={() => void removePlan(p._id, p.name)}
                           >
                             Delete

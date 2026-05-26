@@ -122,7 +122,7 @@ export function AdminPlanForm({
                 setForm((f) => ({ ...f, trialDays: Number(e.target.value) }))
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-text-muted">
               0 = no trial. Applies to monthly/yearly Checkout only; first subscription per organization.
             </p>
           </div>
@@ -150,7 +150,7 @@ export function AdminPlanForm({
                 setForm((f) => ({ ...f, additionalUserPriceCents: Number(e.target.value) }))
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-text-muted">
               Set to 0 to disallow employees beyond included users (no seat add-ons).
             </p>
           </div>
@@ -178,7 +178,7 @@ export function AdminPlanForm({
                 setForm((f) => ({ ...f, maxSubscriptionSlots: Number(e.target.value) }))
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-text-muted">
               Promo cap: every org signup uses a slot permanently (cancel does not free a slot).
             </p>
           </div>
@@ -202,12 +202,12 @@ export function AdminPlanForm({
               }
             />
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? <p className="text-sm text-error">{error}</p> : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" variant="primary" disabled={loading}>
               {loading ? 'Saving…' : 'Save'}
             </Button>
-            <Button type="button" variant="outline" onClick={() => router.push('/admin/plans')}>
+            <Button type="button" variant="secondary" onClick={() => router.push('/admin/plans')}>
               Cancel
             </Button>
           </div>
