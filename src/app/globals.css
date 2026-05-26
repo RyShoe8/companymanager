@@ -39,6 +39,11 @@ select {
   border-color: var(--border);
 }
 
+select option {
+  background-color: var(--background-card);
+  color: var(--text-primary);
+}
+
 input[type='date'],
 input[type='datetime-local'] {
   color-scheme: dark;

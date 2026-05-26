@@ -6,6 +6,7 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { cn } from '../../ui/cn';
 
 type Interval = 'month' | 'year' | 'lifetime';
 
@@ -91,15 +92,20 @@ export function AdminPlanForm({
             <Label htmlFor="interval">Interval</Label>
             <select
               id="interval"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              className={cn(
+                'flex h-9 w-full rounded-md border border-border px-3 py-1 text-sm shadow-sm',
+                'bg-background-elevated text-text-primary',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50',
+                '[&>option]:bg-background-card [&>option]:text-text-primary'
+              )}
               value={form.interval}
               onChange={(e: ChangeEvent<HTMLSelectElement>) =>
                 setForm((f) => ({ ...f, interval: e.target.value as Interval }))
               }
             >
-              <option value="month">month</option>
-              <option value="year">year</option>
-              <option value="lifetime">lifetime</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+              <option value="lifetime">Lifetime</option>
             </select>
           </div>
           <div className="space-y-2">
