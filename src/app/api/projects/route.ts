@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
           { assignedToEmployeeId: employeeId },
           { assignedToEmployeeIds: employeeId },
           { 'tasks.assignedToEmployeeId': employeeId },
+          { 'tasks.assignedToEmployeeIds': employeeId },
           // Legacy support for name-based assignments
           { assignedTo: currentUserEmployee.name },
           { assignedToNames: currentUserEmployee.name },
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
               { assignedToEmployeeId: employeeId },
               { assignedToEmployeeIds: employeeId },
               { 'tasks.assignedToEmployeeId': employeeId },
+              { 'tasks.assignedToEmployeeIds': employeeId },
               // Legacy support for name-based assignments
               { assignedTo: currentUserEmployee.name },
               { assignedToNames: currentUserEmployee.name },

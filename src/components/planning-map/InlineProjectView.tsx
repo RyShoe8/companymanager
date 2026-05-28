@@ -825,6 +825,48 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
+    if (field === 'status' && !isManagerOrAdmin) {
+      const previousTasks = [...(localProject.tasks || [])];
+      const optimisticTasks = [...previousTasks];
+      const existingTask = optimisticTasks[taskIndex];
+      if (!existingTask) return;
+      optimisticTasks[taskIndex] = { ...existingTask, status: value };
+      setLocalProject((prev) => ({ ...prev, tasks: optimisticTasks } as IProject));
+      try {
+        const taskId = (existingTask as { _id?: { toString?: () => string } })._id?.toString?.();
+        const response = await fetch(`/api/tasks/${taskIndex}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: localProjectRef.current._id.toString(),
+            taskIndex,
+            taskId,
+            status: value,
+          }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update task status');
+        }
+        const data = (await response.json()) as {
+          task?: { status?: TaskStatus };
+          status?: TaskStatus;
+        };
+        const savedStatus = data.task?.status ?? data.status ?? value;
+        setLocalProject((prev) => {
+          const tasks = [...(prev.tasks || [])];
+          const task = tasks[taskIndex];
+          if (task) tasks[taskIndex] = { ...task, status: savedStatus };
+          return { ...prev, tasks } as IProject;
+        });
+      } catch (error) {
+        console.error('Error updating task status:', error);
+        setLocalProject((prev) => ({ ...prev, tasks: previousTasks } as IProject));
+        alert(error instanceof Error ? error.message : 'Failed to save');
+      }
+      return;
+    }
+
     const updatedTasks = [...(localProject.tasks || [])];
     const updatedTask = { ...updatedTasks[taskIndex], [field]: value };
 

@@ -5,7 +5,12 @@ import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 
-type TaskLike = { status: string; assignedTo?: string; assignedToEmployeeId?: { toString: () => string } };
+type TaskLike = {
+  status: string;
+  assignedTo?: string;
+  assignedToEmployeeId?: { toString: () => string };
+  assignedToEmployeeIds?: Array<{ toString: () => string }>;
+};
 
 /** Resolve task by stable taskId or legacy taskIndex. Returns { task, index } or null. */
 function getTaskByProject(project: { tasks?: unknown[] }, taskId?: string, taskIndex?: number): { task: TaskLike; index: number } | null {
@@ -58,8 +63,10 @@ export async function POST(
     }
 
     const { task, index } = resolved;
+    const employeeId = employee?._id.toString();
     const isAssigned =
-      task.assignedToEmployeeId?.toString() === employee?._id.toString() ||
+      task.assignedToEmployeeId?.toString() === employeeId ||
+      (task.assignedToEmployeeIds ?? []).some((id) => id?.toString() === employeeId) ||
       task.assignedTo === employee?.name;
 
     if (!isAssigned) {

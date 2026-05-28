@@ -35,9 +35,11 @@ async function getContentItemWithAccess(id: string, session: { userId: string })
   if (!projectInOrg) return { item: null, error: { status: 404, message: 'Content item not found' } };
 
   if (userRole !== 'Administrator' && userRole !== 'Manager') {
-    const assignedId = (item as any).assignedToEmployeeId?.toString();
-    const myId = currentUserEmployee?._id?.toString();
-    if (!myId || assignedId !== myId) return { item: null, error: { status: 404, message: 'Content item not found' } };
+    const assignedId = String((item as any).assignedToEmployeeId?.toString?.() ?? '').trim();
+    const myId = String(currentUserEmployee?._id?.toString?.() ?? '').trim();
+    if (!myId || assignedId !== myId) {
+      return { item: null, error: { status: 404, message: 'Content item not found' } };
+    }
   }
 
   return { item, userRole, currentUserEmployee };
