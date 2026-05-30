@@ -6,54 +6,35 @@ import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import ContentTargetingSection, { parseKeywordsInput } from '@/components/planning-map/ContentTargetingSection';
+import ContentItemFormFields, { ContentFormErrorMessage } from '@/components/planning-map/ContentItemFormFields';
+import ContentItemAssetsSection from '@/components/planning-map/ContentItemAssetsSection';
 import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
-import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
 import { createPendingAssets } from '@/lib/utils/linkedAssets';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { formInputClass } from '@/components/ui/formClasses';
-
-function toInputDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-const CHANNELS: ContentChannel[] = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'];
-const STATUSES: ContentStatus[] = ['idea', 'planned', 'in_progress', 'ready', 'published'];
+import { toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
 
 function matchContentChannel(raw: string | undefined): ContentChannel | null {
   if (!raw?.trim()) return null;
   const n = raw.trim().toLowerCase();
-  const hit = CHANNELS.find((c) => c.toLowerCase() === n);
+  const channels: ContentChannel[] = [
+    'X',
+    'LinkedIn',
+    'Instagram',
+    'TikTok',
+    'Email',
+    'Article',
+    'Video',
+    'Reddit',
+    'Bluesky',
+    'Other',
+  ];
+  const hit = channels.find((c) => c.toLowerCase() === n);
   return hit ?? null;
-}
-
-function FormSelect({
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  label: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block text-sm font-medium text-text-primary">
-      {label}
-      <select value={value} onChange={onChange} className={formInputClass}>
-        {children}
-      </select>
-    </label>
-  );
 }
 
 interface ContentItemCreateModalProps {
@@ -84,7 +65,7 @@ export default function ContentItemCreateModal({
   const defaultDate = defaultPublishDate || new Date();
   const [title, setTitle] = useState('');
   const [channel, setChannel] = useState<ContentChannel>('Other');
-  const [publishDate, setPublishDate] = useState(toInputDate(defaultDate));
+  const [publishDate, setPublishDate] = useState(toContentInputDate(defaultDate));
   const [status, setStatus] = useState<ContentStatus>('planned');
   const [notes, setNotes] = useState('');
   const [assignedToEmployeeId, setAssignedToEmployeeId] = useState<string>('');
@@ -112,7 +93,7 @@ export default function ContentItemCreateModal({
     setChannel(ch ?? 'Other');
     setNotes(initialNotes?.trim() ?? '');
     const base = defaultPublishDate || new Date();
-    setPublishDate(toInputDate(base));
+    setPublishDate(toContentInputDate(base));
     setError(null);
   }, [isOpen, project?._id, initialTitle, initialChannel, initialNotes, defaultPublishDate]);
 
@@ -125,7 +106,7 @@ export default function ContentItemCreateModal({
   const resetForm = () => {
     setTitle('');
     setChannel('Other');
-    setPublishDate(toInputDate(new Date()));
+    setPublishDate(toContentInputDate(new Date()));
     setStatus('planned');
     setNotes('');
     setAssignedToEmployeeId('');
@@ -226,31 +207,26 @@ export default function ContentItemCreateModal({
     <Modal isOpen={isOpen} onClose={onClose} title="Add Content" maxWidth="md" elevated>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-text-secondary">Project: {project.name}</p>
-        <Input
-          label="Title *"
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Content title"
-          autoFocus
+        <ContentItemFormFields
+          title={title}
+          onTitleChange={setTitle}
+          titleAutoFocus
+          distributionMethods={distributionMethods}
+          onToggleDistribution={toggleDistribution}
+          channel={channel}
+          onChannelChange={setChannel}
+          status={status}
+          onStatusChange={setStatus}
+          publishDate={publishDate}
+          onPublishDateChange={setPublishDate}
+          notes={notes}
+          onNotesChange={setNotes}
+          assignedToEmployeeId={assignedToEmployeeId}
+          onAssignedToEmployeeIdChange={setAssignedToEmployeeId}
+          assigneeOptions={assigneeOptions}
+          estimatedHours={estimatedHours}
+          onEstimatedHoursChange={setEstimatedHours}
         />
-        <DistributionSection distributionMethods={distributionMethods} onToggle={toggleDistribution} />
-        <FormSelect label="Channel *" value={channel} onChange={(e) => setChannel(e.target.value as ContentChannel)}>
-          {CHANNELS.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </FormSelect>
-        <label className="block text-sm font-medium text-text-primary">
-          Publish date
-          <input
-            type="date"
-            value={publishDate}
-            onChange={(e) => setPublishDate(e.target.value)}
-            className={formInputClass}
-          />
-        </label>
         <RecurrenceFields
           repeatPreset={repeatPreset}
           onRepeatPresetChange={setRepeatPreset}
@@ -264,39 +240,15 @@ export default function ContentItemCreateModal({
           anchorDate={publishDate ? new Date(publishDate) : new Date()}
           occurrenceLabel="content items"
         />
-        <FormSelect label="Status" value={status} onChange={(e) => setStatus(e.target.value as ContentStatus)}>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s.replace('_', ' ')}
-            </option>
-          ))}
-        </FormSelect>
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
-          <AutoGrowTextarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes"
-          />
-        </div>
-        <FormSelect
-          label="Assignee"
-          value={assignedToEmployeeId}
-          onChange={(e) => setAssignedToEmployeeId(e.target.value)}
-        >
-          <option value="">Unassigned</option>
-          {assigneeOptions.map((emp) => (
-            <option key={emp._id.toString()} value={emp._id.toString()}>
-              {emp.name}
-            </option>
-          ))}
-        </FormSelect>
-        <Input
-          label="Estimated hours"
-          type="number"
-          step="0.5"
-          value={estimatedHours}
-          onChange={(e) => setEstimatedHours(e.target.value)}
+
+        <ContentItemAssetsSection
+          project={project}
+          isManagerOrAdmin={isManagerOrAdmin}
+          assignedToEmployeeId={assignedToEmployeeId}
+          mode="draft"
+          pendingAssets={pendingAssets}
+          onPendingAsset={(asset) => setPendingAssets((prev) => [...prev, asset])}
+          onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
         />
 
         <ContentTargetingSection
@@ -310,13 +262,10 @@ export default function ContentItemCreateModal({
           onInternalLinksChange={setInternalLinks}
           externalUrl={externalUrl}
           onExternalUrlChange={setExternalUrl}
-          mode="draft"
-          pendingAssets={pendingAssets}
-          onPendingAsset={(asset) => setPendingAssets((prev) => [...prev, asset])}
-          onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
+          mode="live"
         />
 
-        {error && <ErrorMessage message={error} />}
+        {error && <ContentFormErrorMessage message={error} />}
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
             Cancel
@@ -327,45 +276,5 @@ export default function ContentItemCreateModal({
         </div>
       </form>
     </Modal>
-  );
-}
-
-function DistributionSection({
-  distributionMethods,
-  onToggle,
-}: {
-  distributionMethods: DistributionMethod[];
-  onToggle: (method: DistributionMethod) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-text-primary mb-2">Distribution methods</label>
-      <div className="flex flex-wrap gap-2">
-        {DISTRIBUTION_METHODS.map((method) => {
-          const checked = distributionMethods.includes(method);
-          return (
-            <label
-              key={method}
-              className={`inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
-                checked
-                  ? 'bg-primary/10 border-primary text-primary'
-                  : 'border-border bg-background-card text-text-secondary hover:bg-background-elevated'
-              }`}
-            >
-              <input type="checkbox" checked={checked} onChange={() => onToggle(method)} className="sr-only" />
-              {method}
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ErrorMessage({ message }: { message: string }) {
-  return (
-    <div className="rounded-lg border border-error/30 bg-error-light px-3 py-2 text-sm text-error">
-      {message}
-    </div>
   );
 }

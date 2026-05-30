@@ -1,56 +1,39 @@
 'use client';
 
-import { useState } from 'react';
 import { IProject } from '@/lib/models/Project';
-import AddButton from '@/components/checklist/AddButton';
-import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
-import { mapStatusToStage } from '@/lib/utils/statusMapping';
-import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+import ContentItemAssetsSection from '@/components/planning-map/ContentItemAssetsSection';
 
 interface ContentLinkedAssetsProps {
   project: IProject;
   contentItemId: string;
   isManagerOrAdmin: boolean;
+  currentUserId?: string;
+  currentUserEmployeeId?: string | null;
+  assignedToEmployeeId?: string;
+  refreshToken?: number;
 }
 
+/** Compact assets row under a content item in the project inspector. */
 export default function ContentLinkedAssets({
   project,
   contentItemId,
   isManagerOrAdmin,
+  currentUserId,
+  currentUserEmployeeId,
+  assignedToEmployeeId,
+  refreshToken,
 }: ContentLinkedAssetsProps) {
-  const light = useInspectorLight();
-  const [refreshToken, setRefreshToken] = useState(0);
-
-  if (!isManagerOrAdmin) return null;
-
-  const projectId = project._id.toString();
-  const phase = mapStatusToStage(project.status);
-  const projectType = project.projectType || 'generic';
-
   return (
-    <div className={lightSurface('mt-2 pt-2 border-t border-gray-100', 'dark:border-gray-700', light)}>
-      <div className="flex flex-wrap items-center gap-2">
-        <ScreenshotGallery
-          compact
-          entityType="contentItem"
-          entityId={contentItemId}
-          isManagerOrAdmin={isManagerOrAdmin}
-          refreshToken={refreshToken}
-        />
-        <AddButton
-          projectId={projectId}
-          phase={phase}
-          projectType={projectType}
-          isManagerOrAdmin={isManagerOrAdmin}
-          label="Add"
-          linkContext={{
-            linkedProjectId: projectId,
-            linkedContentItemId: contentItemId,
-          }}
-          onDocumentCreated={() => setRefreshToken((n) => n + 1)}
-          onAddButton={async () => {}}
-        />
-      </div>
-    </div>
+    <ContentItemAssetsSection
+      project={project}
+      contentItemId={contentItemId}
+      isManagerOrAdmin={isManagerOrAdmin}
+      currentUserId={currentUserId}
+      currentUserEmployeeId={currentUserEmployeeId}
+      assignedToEmployeeId={assignedToEmployeeId}
+      mode="live"
+      compact
+      refreshToken={refreshToken}
+    />
   );
 }

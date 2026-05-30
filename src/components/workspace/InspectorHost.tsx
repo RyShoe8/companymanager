@@ -3,7 +3,6 @@
 import { useMemo, useRef, type RefObject } from 'react';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
-import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
@@ -11,23 +10,19 @@ import type { TimeframeType } from '@/lib/utils/dateUtils';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 
-export type FocusType = 'project' | 'content' | 'task';
+export type FocusType = 'project' | 'task';
 
 interface InspectorHostProps {
-    focusId: string | null;  // e.g., 'project:123' or 'content:456'
+    focusId: string | null;
     onClose: () => void;
-    // context props
     projects: IProject[];
     employees: IEmployee[];
     isManagerOrAdmin: boolean;
     currentUserEmployeeId?: string;
     onRefresh: () => void;
-    /** After a successful project PUT, merge API JSON into workspace state (avoids full reload on each save). */
     onProjectPatched?: (project: IProject) => void;
-    /** When opening the inspector from a schedule task row, focus this task index in the project view. */
     initialOpenTaskIndex?: number | null;
     onInitialOpenTaskConsumed?: () => void;
-    /** When opening from schedule content click, focus this content item in the project Content tab. */
     initialOpenContentId?: string | null;
     onInitialOpenContentConsumed?: () => void;
     scrollContainerRef?: RefObject<HTMLDivElement | null>;
@@ -80,7 +75,6 @@ export default function InspectorHost({
         return null;
     }, [type, id, projects]);
 
-    // Handle actual content rendering for the inspector
     const renderInnerContent = () => {
         if (type === 'project' && focusedProject) {
             return (
@@ -135,29 +129,6 @@ export default function InspectorHost({
             );
         }
 
-        if (type === 'content' && id) {
-            return (
-                <ContentItemDetailModal
-                    isOpen={true}
-                    onClose={onClose}
-                    contentItemId={id}
-                    employees={employees}
-                    isManagerOrAdmin={isManagerOrAdmin}
-                    onSaved={() => {
-                        onRefresh();
-                        onContentListChanged?.();
-                    }}
-                    onDeleted={() => {
-                        onRefresh();
-                        onContentListChanged?.();
-                        onClose();
-                    }}
-                    isInline={true}
-                />
-            );
-        }
-
-
         if (type === 'task' && id) {
             return (
                 <div className="p-6 text-center text-gray-400">
@@ -177,13 +148,6 @@ export default function InspectorHost({
         );
     };
 
-    const getTitle = () => {
-        if (type === 'project') return focusedProject?.name || 'Project Details';
-        if (type === 'content') return 'Content Details';
-        if (type === 'task') return 'Task Details';
-        return 'Details';
-    };
-
     if (!focusId) return null;
 
     const isProjectInspector = type === 'project';
@@ -192,7 +156,7 @@ export default function InspectorHost({
         <BottomSheet
             isOpen={!!focusId}
             onClose={onClose}
-            title={isProjectInspector ? undefined : getTitle()}
+            title={undefined}
             surface={isProjectInspector ? 'chrome' : 'card'}
             layout={isProjectInspector ? 'centeredInspector' : 'bottomSheet'}
             maxHeight="90vh"

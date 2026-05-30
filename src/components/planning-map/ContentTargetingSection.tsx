@@ -1,15 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { IProject } from '@/lib/models/Project';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import Button from '@/components/ui/Button';
-import AddButton from '@/components/checklist/AddButton';
-import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
-import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
-import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import { parseDelimitedList } from '@/lib/constants/contentDistribution';
-import { linkedAssetHref, normalizeLinkedAssetChip, type LinkedAssetChip } from '@/lib/utils/linkedAssets';
 
 interface ContentTargetingSectionProps {
   project: IProject;
@@ -24,9 +18,6 @@ interface ContentTargetingSectionProps {
   onExternalUrlChange: (value: string) => void;
   contentItemId?: string;
   mode?: 'live' | 'draft';
-  pendingAssets?: PendingAssetPayload[];
-  onPendingAsset?: (asset: PendingAssetPayload) => void;
-  onRemovePendingAsset?: (index: number) => void;
 }
 
 export function parseKeywordsInput(text: string): string[] {
@@ -34,8 +25,6 @@ export function parseKeywordsInput(text: string): string[] {
 }
 
 export default function ContentTargetingSection({
-  project,
-  isManagerOrAdmin,
   expanded,
   onToggle,
   keywords,
@@ -44,41 +33,7 @@ export default function ContentTargetingSection({
   onInternalLinksChange,
   externalUrl,
   onExternalUrlChange,
-  contentItemId,
-  mode = 'live',
-  pendingAssets = [],
-  onPendingAsset,
-  onRemovePendingAsset,
 }: ContentTargetingSectionProps) {
-  const [linkedAssets, setLinkedAssets] = useState<LinkedAssetChip[]>([]);
-  const [screenshotRefreshToken, setScreenshotRefreshToken] = useState(0);
-  const projectId = project._id.toString();
-  const phase = mapStatusToStage(project.status);
-  const projectType = project.projectType || 'generic';
-
-  const loadLinkedAssets = useCallback(async () => {
-    if (!contentItemId || mode === 'draft') return;
-    try {
-      const res = await fetch(`/api/assets?linkedContentItemId=${contentItemId}`);
-      if (!res.ok) {
-        setLinkedAssets([]);
-        return;
-      }
-      const data = await res.json();
-      if (!Array.isArray(data)) {
-        setLinkedAssets([]);
-        return;
-      }
-      setLinkedAssets(data.map(normalizeLinkedAssetChip).filter((x): x is LinkedAssetChip => x != null));
-    } catch {
-      setLinkedAssets([]);
-    }
-  }, [contentItemId, mode]);
-
-  useEffect(() => {
-    void loadLinkedAssets();
-  }, [loadLinkedAssets]);
-
   const addInternalLink = () => onInternalLinksChange([...internalLinks, '']);
   const updateInternalLink = (index: number, value: string) => {
     const next = [...internalLinks];
@@ -137,82 +92,6 @@ export default function ContentTargetingSection({
               placeholder="https://..."
             />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">Assets</label>
-            {isManagerOrAdmin && (
-              <div className="flex flex-wrap items-center gap-2">
-                {contentItemId && mode === 'live' && (
-                  <ScreenshotGallery
-                    compact
-                    entityType="contentItem"
-                    entityId={contentItemId}
-                    isManagerOrAdmin={isManagerOrAdmin}
-                    refreshToken={screenshotRefreshToken}
-                  />
-                )}
-                <AddButton
-                  projectId={projectId}
-                  phase={phase}
-                  projectType={projectType}
-                  isManagerOrAdmin={isManagerOrAdmin}
-                  label="Add asset"
-                  mode={mode}
-                  linkContext={{
-                    linkedProjectId: projectId,
-                    ...(contentItemId ? { linkedContentItemId: contentItemId } : {}),
-                  }}
-                  onPendingAsset={onPendingAsset}
-                  onDocumentCreated={() => {
-                    void loadLinkedAssets();
-                    setScreenshotRefreshToken((n) => n + 1);
-                  }}
-                  onAddButton={async () => {}}
-                />
-              </div>
-            )}
-            {mode === 'draft' && pendingAssets.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {pendingAssets.map((asset, index) => (
-                  <li key={`${asset.name}-${index}`} className="flex items-center justify-between gap-2 text-sm text-text-secondary">
-                    <span className="truncate">{asset.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => onRemovePendingAsset?.(index)}
-                      className="text-red-500 hover:text-red-400 text-xs shrink-0"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {mode === 'live' && linkedAssets.filter((a) => a.type !== 'screenshot').length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {linkedAssets.filter((a) => a.type !== 'screenshot').map((asset) => {
-                  const href = linkedAssetHref(asset);
-                  return href ? (
-                    <a
-                      key={asset._id}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary hover:underline"
-                    >
-                      {asset.name}
-                    </a>
-                  ) : (
-                    <span
-                      key={asset._id}
-                      className="text-xs px-2 py-1 rounded-full bg-background-elevated text-text-secondary"
-                    >
-                      {asset.name}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
       )}
     </>
@@ -235,7 +114,7 @@ function TargetingToggle({ expanded, onToggle }: { expanded: boolean; onToggle: 
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
-        Targeting, Assets and Links
+        Targeting and links
       </button>
     </div>
   );

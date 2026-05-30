@@ -24,6 +24,7 @@ import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvail
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
 import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
+import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import CreateMenu from '@/components/workspace/CreateMenu';
 import InspectorHost from '@/components/workspace/InspectorHost';
 import Modal from '@/components/ui/Modal';
@@ -72,8 +73,7 @@ export default function WorkspaceShell({
     } | null>(null);
 
     const [inspectorFocus, setInspectorFocus] = useState<string | null>(null);
-    /** When opening content from the project inspector, restore this focus on close. */
-    const [inspectorReturnFocus, setInspectorReturnFocus] = useState<string | null>(null);
+    const [editingContentItemId, setEditingContentItemId] = useState<string | null>(null);
     /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
     /** Content item id when opening inspector from schedule content click. */
@@ -209,28 +209,15 @@ export default function WorkspaceShell({
     };
 
     const closeInspector = useCallback(() => {
-        if (inspectorFocus?.startsWith('content:') && inspectorReturnFocus) {
-            setInspectorFocus(inspectorReturnFocus);
-            setInspectorReturnFocus(null);
-            return;
-        }
         setInspectorFocus(null);
-        setInspectorReturnFocus(null);
         setInspectorOpenTaskIndex(null);
         setInspectorOpenContentId(null);
         setInspectorAutoAddTask(false);
-    }, [inspectorFocus, inspectorReturnFocus]);
+    }, []);
 
-    const handleContentItemClickFromProject = useCallback(
-        (item: IContentItem) => {
-            setInspectorReturnFocus((prev) => {
-                if (inspectorFocus?.startsWith('project:')) return inspectorFocus;
-                return prev;
-            });
-            setInspectorFocus(`content:${item._id}`);
-        },
-        [inspectorFocus]
-    );
+    const handleContentItemClickFromProject = useCallback((item: IContentItem) => {
+        setEditingContentItemId(item._id.toString());
+    }, []);
 
     const handleViewProject = useCallback((project: IProject) => {
         setInspectorAutoAddTask(false);
@@ -578,7 +565,11 @@ export default function WorkspaceShell({
                 });
                 if (target) {
                     setInspectorOpenTaskIndex(null);
-                    setInspectorFocus(`content:${target._id}`);
+                    const projectId = target.projectId?.toString();
+                    if (projectId) {
+                        setInspectorFocus(`project:${projectId}`);
+                    }
+                    setEditingContentItemId(target._id.toString());
                     return { success: true, message: `Opening content: ${target.title}` };
                 }
             }
@@ -1422,6 +1413,25 @@ export default function WorkspaceShell({
                         onSuccess={async () => {
                             await ws.fetchContentItems();
                             setContentRefreshTrigger((t) => t + 1);
+                        }}
+                    />
+
+                    <ContentItemDetailModal
+                        isOpen={!!editingContentItemId}
+                        onClose={() => setEditingContentItemId(null)}
+                        contentItemId={editingContentItemId}
+                        employees={ws.employees}
+                        isManagerOrAdmin={ws.isManagerOrAdmin}
+                        currentUserEmployeeId={ws.currentUserEmployeeId}
+                        stackAboveOverlays
+                        onSaved={() => {
+                            void ws.fetchContentItems();
+                            setContentRefreshTrigger((t) => t + 1);
+                        }}
+                        onDeleted={() => {
+                            void ws.fetchContentItems();
+                            setContentRefreshTrigger((t) => t + 1);
+                            setEditingContentItemId(null);
                         }}
                     />
 

@@ -6,20 +6,12 @@ import { IEmployee } from '@/lib/models/Employee';
 import { IProject } from '@/lib/models/Project';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
-import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import ContentTargetingSection, { parseKeywordsInput } from '@/components/planning-map/ContentTargetingSection';
+import ContentItemFormFields, { ContentFormErrorMessage } from '@/components/planning-map/ContentItemFormFields';
+import ContentItemAssetsSection from '@/components/planning-map/ContentItemAssetsSection';
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
-import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
 import CommentThread from '@/components/comments/CommentThread';
-const CHANNELS: ContentChannel[] = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'];
-const STATUSES: ContentStatus[] = ['idea', 'planned', 'in_progress', 'ready', 'published'];
-
-function toInputDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import { CONTENT_CHANNELS, CONTENT_STATUSES, toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
 
 interface ContentItemDetailModalProps {
   isOpen: boolean;
@@ -28,9 +20,10 @@ interface ContentItemDetailModalProps {
   employees: IEmployee[];
   project?: IProject | null;
   isManagerOrAdmin?: boolean;
+  currentUserEmployeeId?: string | null;
   onSaved: () => void;
   onDeleted?: () => void;
-  isInline?: boolean;
+  stackAboveOverlays?: boolean;
 }
 
 export default function ContentItemDetailModal({
@@ -40,9 +33,10 @@ export default function ContentItemDetailModal({
   employees,
   project: projectProp,
   isManagerOrAdmin = true,
+  currentUserEmployeeId,
   onSaved,
   onDeleted,
-  isInline = false,
+  stackAboveOverlays = false,
 }: ContentItemDetailModalProps) {
   const [item, setItem] = useState<IContentItem | null>(null);
   const [project, setProject] = useState<IProject | null>(projectProp ?? null);
@@ -50,6 +44,7 @@ export default function ContentItemDetailModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assetsRefreshToken, setAssetsRefreshToken] = useState(0);
 
   const [title, setTitle] = useState('');
   const [channel, setChannel] = useState<ContentChannel>('Other');
@@ -84,9 +79,9 @@ export default function ContentItemDetailModal({
       .then(async (data) => {
         setItem(data);
         setTitle(data.title ?? '');
-        setChannel(CHANNELS.includes(data.channel) ? data.channel : 'Other');
-        setStatus(STATUSES.includes(data.status) ? data.status : 'planned');
-        setPublishDate(data.publishDate ? toInputDate(new Date(data.publishDate)) : '');
+        setChannel(CONTENT_CHANNELS.includes(data.channel) ? data.channel : 'Other');
+        setStatus(CONTENT_STATUSES.includes(data.status) ? data.status : 'planned');
+        setPublishDate(data.publishDate ? toContentInputDate(new Date(data.publishDate)) : '');
         setNotes(data.notes ?? '');
         setAssignedToEmployeeId(data.assignedToEmployeeId?.toString() ?? '');
         setKeywords(Array.isArray(data.keywords) ? data.keywords.join(', ') : (data.keywords ?? ''));
@@ -109,7 +104,9 @@ export default function ContentItemDetailModal({
   }, [isOpen, contentItemId, projectProp]);
 
   const assigneeOptions = project
-    ? filterEmployeesForTaskAssignment(employees, project, { includeEmployeeIds: assignedToEmployeeId ? [assignedToEmployeeId] : [] })
+    ? filterEmployeesForTaskAssignment(employees, project, {
+        includeEmployeeIds: assignedToEmployeeId ? [assignedToEmployeeId] : [],
+      })
     : employees;
 
   const toggleDistribution = (method: DistributionMethod) => {
@@ -185,85 +182,39 @@ export default function ContentItemDetailModal({
     <div className="text-text-secondary py-4">{error || 'Content not found'}</div>
   ) : (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-1">Title *</label>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-          required
+      {project && <p className="text-sm text-text-secondary">Project: {project.name}</p>}
+      <ContentItemFormFields
+        title={title}
+        onTitleChange={setTitle}
+        distributionMethods={distributionMethods}
+        onToggleDistribution={toggleDistribution}
+        channel={channel}
+        onChannelChange={setChannel}
+        status={status}
+        onStatusChange={setStatus}
+        publishDate={publishDate}
+        onPublishDateChange={setPublishDate}
+        notes={notes}
+        onNotesChange={setNotes}
+        assignedToEmployeeId={assignedToEmployeeId}
+        onAssignedToEmployeeIdChange={setAssignedToEmployeeId}
+        assigneeOptions={assigneeOptions}
+        estimatedHours={estimatedHours}
+        onEstimatedHoursChange={setEstimatedHours}
+      />
+
+      {project && contentItemId && (
+        <ContentItemAssetsSection
+          project={project}
+          contentItemId={contentItemId}
+          isManagerOrAdmin={isManagerOrAdmin}
+          currentUserEmployeeId={currentUserEmployeeId}
+          assignedToEmployeeId={assignedToEmployeeId || item.assignedToEmployeeId?.toString()}
+          mode="live"
+          refreshToken={assetsRefreshToken}
+          onAssetsChanged={() => setAssetsRefreshToken((n) => n + 1)}
         />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">Distribution methods</label>
-        <div className="flex flex-wrap gap-2">
-          {DISTRIBUTION_METHODS.map((method) => {
-            const checked = distributionMethods.includes(method);
-            return (
-              <label
-                key={method}
-                className={`inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
-                  checked
-                    ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-400 dark:border-indigo-600 text-indigo-900 dark:text-indigo-100'
-                    : 'border-border text-text-secondary hover:bg-background-elevated'
-                }`}
-              >
-                <input type="checkbox" checked={checked} onChange={() => toggleDistribution(method)} className="sr-only" />
-                {method}
-              </label>
-            );
-          })}
-        </div>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-1">Channel *</label>
-        <select
-          value={channel}
-          onChange={(e) => setChannel(e.target.value as ContentChannel)}
-          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-        >
-          {CHANNELS.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-1">Status *</label>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as ContentStatus)}
-          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>{s.replace('_', ' ')}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-1">Publish date</label>
-        <input
-          type="date"
-          value={publishDate}
-          onChange={(e) => setPublishDate(e.target.value)}
-          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
-        <AutoGrowTextarea value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </div>
-      <AssigneeSelect assigneeOptions={assigneeOptions} value={assignedToEmployeeId} onChange={setAssignedToEmployeeId} />
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-1">Estimated hours</label>
-        <input
-          type="number"
-          step="0.5"
-          value={estimatedHours}
-          onChange={(e) => setEstimatedHours(e.target.value)}
-          className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-        />
-      </div>
+      )}
 
       {project && (
         <ContentTargetingSection
@@ -288,64 +239,50 @@ export default function ContentItemDetailModal({
             <button
               type="button"
               onClick={() => setExpandedComments((prev) => !prev)}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
             >
               <span className="text-xs">{expandedComments ? '▼' : '▶'}</span> Comments
             </button>
           </div>
           {expandedComments && (
             <div className="mt-2">
-              <CommentThread entityType="contentItem" entityId={contentItemId} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} showScreenshotGallery={false} />
+              <CommentThread
+                entityType="contentItem"
+                entityId={contentItemId}
+                showHeading={false}
+                isManagerOrAdmin={isManagerOrAdmin}
+                showScreenshotGallery={false}
+              />
             </div>
           )}
         </div>
       )}
 
-      {error && <div className="text-red-500 text-sm">{error}</div>}
+      {error && <ContentFormErrorMessage message={error} />}
       <div className="flex gap-2 pt-2 flex-wrap">
-        {!isInline && (
-          <Button type="button" variant="secondary" onClick={onClose} className="flex-1 min-w-0">Close</Button>
-        )}
-        <Button type="submit" disabled={saving} className="flex-1 min-w-0">{saving ? 'Saving...' : 'Save'}</Button>
-        <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1 min-w-0">{deleting ? 'Deleting...' : 'Delete'}</Button>
+        <Button type="button" variant="secondary" onClick={onClose} className="flex-1 min-w-0">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={saving} className="flex-1 min-w-0">
+          {saving ? 'Saving...' : 'Save'}
+        </Button>
+        <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1 min-w-0">
+          {deleting ? 'Deleting...' : 'Delete'}
+        </Button>
       </div>
     </form>
   );
 
-  if (isInline) {
-    if (!isOpen) return null;
-    return <div className="h-full overflow-y-auto p-4">{formContent}</div>;
-  }
-
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Content Item" maxWidth="md" elevated>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Edit Content"
+      maxWidth="md"
+      elevated
+      stackAboveOverlays={stackAboveOverlays}
+    >
       {formContent}
     </Modal>
-  );
-}
-
-function AssigneeSelect({
-  assigneeOptions,
-  value,
-  onChange,
-}: {
-  assigneeOptions: IEmployee[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-text-primary mb-1">Assignee</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-2 border border-border rounded-lg bg-background-card text-text-primary"
-      >
-        <option value="">Unassigned</option>
-        {assigneeOptions.map((emp) => (
-          <option key={emp._id.toString()} value={emp._id.toString()}>{emp.name}</option>
-        ))}
-      </select>
-    </div>
   );
 }

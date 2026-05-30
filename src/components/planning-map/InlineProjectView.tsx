@@ -1684,6 +1684,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       project={localProject}
                       contentItemId={itemId}
                       isManagerOrAdmin={isManagerOrAdmin}
+                      currentUserId={currentUserId}
+                      currentUserEmployeeId={currentUserEmployeeId}
+                      assignedToEmployeeId={item.assignedToEmployeeId?.toString()}
+                      refreshToken={contentRefreshTrigger}
                     />
                   </div>
                   );
