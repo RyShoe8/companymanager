@@ -88,8 +88,107 @@ export type GoogleCalendarEvent = {
   attendees?: { email?: string; responseStatus?: string }[];
   conferenceData?: {
     entryPoints?: GoogleCalendarConferenceEntryPoint[];
+    createRequest?: {
+      requestId?: string;
+      status?: { statusCode?: string };
+    };
   };
 };
+
+function buildGoogleMeetCreateRequest() {
+  return {
+    requestId: crypto.randomUUID(),
+    conferenceSolutionKey: { type: 'hangoutsMeet' },
+  };
+}
+
+function isConferencePending(event: GoogleCalendarEvent): boolean {
+  return event.conferenceData?.createRequest?.status?.statusCode === 'pending';
+}
+
+export async function getCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string
+): Promise<GoogleCalendarEvent> {
+  const url = new URL(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+  );
+  url.searchParams.set('conferenceDataVersion', '1');
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error('Failed to get calendar event');
+  }
+  return res.json();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hasVideoConferenceEntryPoint(event: GoogleCalendarEvent): boolean {
+  return !!event.conferenceData?.entryPoints?.some(
+    (ep) => ep.entryPointType === 'video' && ep.uri?.trim()
+  );
+}
+
+/** Poll Google when conference creation is still pending. */
+export async function resolveCalendarEventConference(
+  accessToken: string,
+  calendarId: string,
+  event: GoogleCalendarEvent
+): Promise<GoogleCalendarEvent> {
+  if (hasVideoConferenceEntryPoint(event) || !isConferencePending(event)) {
+    return event;
+  }
+
+  let current = event;
+  for (const delayMs of [0, 500]) {
+    if (delayMs > 0) await sleep(delayMs);
+    current = await getCalendarEvent(accessToken, calendarId, event.id);
+    if (hasVideoConferenceEntryPoint(current) || !isConferencePending(current)) {
+      return current;
+    }
+  }
+  return current;
+}
+
+async function postCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  body: Record<string, unknown>,
+  options: {
+    sendUpdates?: 'all' | 'externalOnly' | 'none';
+    conferenceDataVersion?: boolean;
+  }
+): Promise<GoogleCalendarEvent> {
+  const url = new URL(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
+  );
+  if (options.sendUpdates) {
+    url.searchParams.set('sendUpdates', options.sendUpdates);
+  }
+  if (options.conferenceDataVersion) {
+    url.searchParams.set('conferenceDataVersion', '1');
+  }
+
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Failed to create calendar event: ${err}`);
+  }
+  return res.json();
+}
 
 export async function listCalendarEvents(
   accessToken: string,
@@ -128,14 +227,13 @@ export async function insertCalendarEvent(
     recurrence?: string[];
     attendees?: { email: string }[];
     sendUpdates?: 'all' | 'externalOnly' | 'none';
+    addGoogleMeet?: boolean;
   }
 ): Promise<GoogleCalendarEvent> {
-  let url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
   const sendUpdates =
     event.sendUpdates ?? (event.attendees?.length ? 'all' : undefined);
-  if (sendUpdates) {
-    url += `?sendUpdates=${encodeURIComponent(sendUpdates)}`;
-  }
+  const addGoogleMeet = event.addGoogleMeet !== false;
+
   const body: Record<string, unknown> = {
     summary: event.summary,
     description: event.description,
@@ -148,19 +246,25 @@ export async function insertCalendarEvent(
   if (event.attendees?.length) {
     body.attendees = event.attendees;
   }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Failed to create calendar event: ${err}`);
+  if (addGoogleMeet) {
+    body.conferenceData = { createRequest: buildGoogleMeetCreateRequest() };
   }
-  return res.json();
+
+  try {
+    const created = await postCalendarEvent(accessToken, calendarId, body, {
+      sendUpdates,
+      conferenceDataVersion: addGoogleMeet,
+    });
+    if (!addGoogleMeet) return created;
+    return resolveCalendarEventConference(accessToken, calendarId, created);
+  } catch (error) {
+    // Some calendars/accounts cannot create Meet links; still create the event.
+    if (!addGoogleMeet) throw error;
+    console.warn('Google Meet conference creation failed; creating event without Meet link.', error);
+    const bodyWithoutMeet = { ...body };
+    delete bodyWithoutMeet.conferenceData;
+    return postCalendarEvent(accessToken, calendarId, bodyWithoutMeet, { sendUpdates });
+  }
 }
 
 export async function patchCalendarEventDescription(

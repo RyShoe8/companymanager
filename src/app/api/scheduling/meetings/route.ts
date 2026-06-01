@@ -19,6 +19,7 @@ import {
   insertCalendarEvent,
   listCalendarEvents,
 } from '@/lib/scheduling/googleCalendar';
+import { extractMeetingJoinUrl, type MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import {
   buildRecurrenceRule,
   getRecurrenceImportRangeEnd,
@@ -300,6 +301,8 @@ export async function POST(request: NextRequest) {
 
     let googleEventId: string | undefined;
     let iCalUID: string | undefined;
+    let joinUrl: string | undefined;
+    let joinPlatform: MeetingJoinPlatform | undefined;
     if (syncToGoogle !== false) {
       const google = await getGoogleAccessTokenForUser(ctx.userId);
       if (!google && hasInvitees) {
@@ -312,6 +315,11 @@ export async function POST(request: NextRequest) {
         const created = await insertCalendarEvent(google.accessToken, google.calendarId, calendarEventBase);
         googleEventId = created.id;
         iCalUID = created.iCalUID;
+        const join = extractMeetingJoinUrl(created);
+        if (join) {
+          joinUrl = join.joinUrl;
+          joinPlatform = join.joinPlatform;
+        }
 
         if (hasInvitees) {
           const importEnd = new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000);
@@ -348,6 +356,7 @@ export async function POST(request: NextRequest) {
       externalAttendeeEmails: invitees.externalAttendeeEmails,
       createdInNucleas: true,
       description: description || undefined,
+      ...(joinUrl ? { joinUrl, joinPlatform } : {}),
     });
 
     return NextResponse.json(
