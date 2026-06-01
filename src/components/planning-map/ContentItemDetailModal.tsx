@@ -213,6 +213,7 @@ export default function ContentItemDetailModal({
           mode="live"
           refreshToken={assetsRefreshToken}
           onAssetsChanged={() => setAssetsRefreshToken((n) => n + 1)}
+          nestedInModal={stackAboveOverlays}
         />
       )}
 

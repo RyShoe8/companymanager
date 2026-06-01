@@ -23,6 +23,7 @@ interface AddButtonProps {
   label?: string;
   socialsToolbarHidden?: boolean;
   onAddSocial?: (url: string) => Promise<void>;
+  stackAboveLightbox?: boolean;
 }
 
 export default function AddButton({
@@ -38,6 +39,7 @@ export default function AddButton({
   label = 'Add',
   socialsToolbarHidden = false,
   onAddSocial,
+  stackAboveLightbox = false,
 }: AddButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -78,6 +80,7 @@ export default function AddButton({
           socialsToolbarHidden={socialsToolbarHidden}
           onAddSocial={onAddSocial}
           panelRef={panelRef}
+          stackAboveLightbox={stackAboveLightbox}
         />
       )}
     </>

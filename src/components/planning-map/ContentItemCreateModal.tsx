@@ -249,6 +249,7 @@ export default function ContentItemCreateModal({
           pendingAssets={pendingAssets}
           onPendingAsset={(asset) => setPendingAssets((prev) => [...prev, asset])}
           onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
+          nestedInModal
         />
 
         <ContentTargetingSection

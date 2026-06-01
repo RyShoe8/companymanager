@@ -12,6 +12,7 @@ interface AssetDeleteConfirmModalProps {
   deleting?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  stackAboveLightbox?: boolean;
 }
 
 export default function AssetDeleteConfirmModal({
@@ -21,6 +22,7 @@ export default function AssetDeleteConfirmModal({
   deleting = false,
   onCancel,
   onConfirm,
+  stackAboveLightbox = false,
 }: AssetDeleteConfirmModalProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -31,7 +33,15 @@ export default function AssetDeleteConfirmModal({
   if (!mounted) return null;
 
   return createPortal(
-    <Modal isOpen={isOpen} onClose={onCancel} title="Delete asset?" maxWidth="sm" elevated stackAboveOverlays>
+    <Modal
+      isOpen={isOpen}
+      onClose={onCancel}
+      title="Delete asset?"
+      maxWidth="sm"
+      elevated
+      stackAboveOverlays={!stackAboveLightbox}
+      stackAboveLightbox={stackAboveLightbox}
+    >
       <div className="space-y-4">
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Are you sure you want to delete{' '}

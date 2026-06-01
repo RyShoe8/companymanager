@@ -18,6 +18,7 @@ interface LinkedAssetDocumentSheetProps {
   onClose: () => void;
   projectId?: string;
   onSaved: (updated: { name: string; textContent: string }) => void;
+  stackAboveLightbox?: boolean;
 }
 
 export default function LinkedAssetDocumentSheet({
@@ -26,6 +27,7 @@ export default function LinkedAssetDocumentSheet({
   onClose,
   projectId,
   onSaved,
+  stackAboveLightbox = false,
 }: LinkedAssetDocumentSheetProps) {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [editName, setEditName] = useState('');
@@ -89,7 +91,8 @@ export default function LinkedAssetDocumentSheet({
       isOpen={isOpen}
       onClose={handleClose}
       title={mode === 'edit' ? 'Edit asset' : (asset?.name ?? 'Document')}
-      elevated
+      elevated={!stackAboveLightbox}
+      stackAboveLightbox={stackAboveLightbox}
     >
       <div className="p-4 pb-8 space-y-4">
         {mode === 'view' ? (

@@ -26,6 +26,8 @@ interface BottomSheetProps {
   hideCloseButton?: boolean;
   /** Use higher z-index so this sheet appears above other overlays. */
   elevated?: boolean;
+  /** Above parent modal / lightbox (z-[120]). */
+  stackAboveLightbox?: boolean;
   /** `card` = filled panel; `chrome` = transparent shell (content supplies its own surface). */
   surface?: 'card' | 'chrome';
   sheetClassName?: string;
@@ -44,6 +46,7 @@ export default function BottomSheet({
   maxHeight = '80vh',
   hideCloseButton = false,
   elevated = false,
+  stackAboveLightbox = false,
   surface = 'card',
   sheetClassName = '',
   scrollContainerRef,
@@ -116,7 +119,7 @@ export default function BottomSheet({
 
   if (!mounted || !shouldRender) return null;
 
-  const zClass = elevated ? 'z-[60]' : 'z-50';
+  const zClass = stackAboveLightbox ? 'z-[120]' : elevated ? 'z-[60]' : 'z-50';
   const surfaceClass =
     surface === 'chrome'
       ? 'bg-transparent shadow-none'

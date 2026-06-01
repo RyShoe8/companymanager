@@ -71,6 +71,8 @@ interface CategoryModalProps {
   socialsToolbarHidden?: boolean;
   onAddSocial?: (url: string) => Promise<void>;
   panelRef?: React.RefObject<HTMLDivElement | null>;
+  /** Above parent modal (z-[110]). */
+  stackAboveLightbox?: boolean;
 }
 
 export default function CategoryModal({
@@ -87,6 +89,7 @@ export default function CategoryModal({
   socialsToolbarHidden = false,
   onAddSocial,
   panelRef,
+  stackAboveLightbox = false,
 }: CategoryModalProps) {
   const [step, setStep] = useState<AddStep>('type');
   const [entries, setEntries] = useState<CatalogEntry[]>([]);
@@ -699,9 +702,11 @@ export default function CategoryModal({
     return null;
   };
 
+  const zClass = stackAboveLightbox ? 'z-[120]' : 'z-[80]';
+
   const modal = (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50"
+      className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black/50`}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div

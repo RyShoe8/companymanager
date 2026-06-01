@@ -11,6 +11,7 @@ interface ImagePreviewModalProps {
   src: string | null;
   title?: string;
   mode?: 'view' | 'naming';
+  stackAboveLightbox?: boolean;
 }
 
 export default function ImagePreviewModal({
@@ -19,6 +20,7 @@ export default function ImagePreviewModal({
   src,
   title = 'Screenshot',
   mode = 'view',
+  stackAboveLightbox = false,
 }: ImagePreviewModalProps) {
   const [mounted, setMounted] = useState(false);
   const isNaming = mode === 'naming';
@@ -49,9 +51,11 @@ export default function ImagePreviewModal({
     downloadImage(src, title);
   };
 
+  const zClass = stackAboveLightbox ? 'z-[120]' : 'z-[110]';
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[110] flex flex-col bg-black/90"
+      className={`fixed inset-0 ${zClass} flex flex-col bg-black/90`}
       role="dialog"
       aria-modal="true"
       aria-label={title}

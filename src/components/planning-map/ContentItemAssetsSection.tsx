@@ -42,6 +42,7 @@ interface ContentItemAssetsSectionProps {
   refreshToken?: number;
   compact?: boolean;
   onAssetsChanged?: () => void;
+  nestedInModal?: boolean;
 }
 
 export default function ContentItemAssetsSection({
@@ -58,6 +59,7 @@ export default function ContentItemAssetsSection({
   refreshToken = 0,
   compact = false,
   onAssetsChanged,
+  nestedInModal = false,
 }: ContentItemAssetsSectionProps) {
   const light = useInspectorLight();
   const [assets, setAssets] = useState<LinkedAssetChip[]>([]);
@@ -230,6 +232,7 @@ export default function ContentItemAssetsSection({
                 onAssetsChanged?.();
               }}
               onAddButton={async () => {}}
+              stackAboveLightbox={nestedInModal}
             />
           </div>
         )}
@@ -278,12 +281,14 @@ export default function ContentItemAssetsSection({
         onClose={() => setPreviewImage(null)}
         src={previewImage?.src ?? null}
         title={previewImage?.title}
+        stackAboveLightbox={nestedInModal}
       />
       <LinkedAssetDocumentSheet
         asset={previewDocument}
         isOpen={previewDocument !== null}
         onClose={() => setPreviewDocument(null)}
         projectId={projectId}
+        stackAboveLightbox={nestedInModal}
         onSaved={(updated) => {
           setAssets((prev) =>
             prev.map((a) =>
@@ -301,6 +306,7 @@ export default function ContentItemAssetsSection({
         onCancel={() => setAssetPendingDelete(null)}
         onConfirm={() => void confirmDeleteAsset()}
         deleting={deletingAsset}
+        stackAboveLightbox={nestedInModal}
       />
     </>
   );
