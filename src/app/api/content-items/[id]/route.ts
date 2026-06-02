@@ -81,7 +81,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (title !== undefined) doc.title = String(title).trim();
     if (channel !== undefined && CHANNELS.includes(channel)) doc.channel = channel;
-    if (status !== undefined && STATUSES.includes(status)) doc.status = status;
+    if (status !== undefined) {
+      if (!STATUSES.includes(status)) {
+        return NextResponse.json({ error: 'Invalid content status' }, { status: 400 });
+      }
+      doc.status = status;
+    }
     if (notes !== undefined) doc.notes = notes === '' ? undefined : String(notes).trim();
     if (publishDate !== undefined) doc.publishDate = publishDate === null || publishDate === '' ? undefined : new Date(publishDate);
     if (keywords !== undefined) doc.keywords = Array.isArray(keywords) ? keywords.map(String) : [];

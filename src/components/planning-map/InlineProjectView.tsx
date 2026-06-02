@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
-import { IContentItem } from '@/lib/models/ContentItem';
+import { IContentItem, type ContentStatus } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
 import EditableDate from '@/components/ui/EditableDate';
 import EditableNumber from '@/components/ui/EditableNumber';
@@ -252,6 +252,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [fontDraft, setFontDraft] = useState<string[]>(['']);
   const [fontSaving, setFontSaving] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
+  const [taskAssetsRefreshToken, setTaskAssetsRefreshToken] = useState(0);
+  const [contentAssetsRefreshToken, setContentAssetsRefreshToken] = useState(0);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -369,6 +371,66 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
     setDeletingLinkedAsset(false);
   };
+
+  const unlinkAssetFromEntity = useCallback(
+    async (assetId: string, entityType: 'projectTask' | 'contentItem') => {
+      const payload =
+        entityType === 'projectTask'
+          ? { linkedProjectTaskId: '' }
+          : { linkedContentItemId: '' };
+      const res = await fetch(`/api/assets/${assetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        let msg = 'Could not unlink linked asset.';
+        try {
+          const data = await res.json();
+          if (data && typeof data.error === 'string') msg = data.error;
+        } catch {
+          // ignore parse failures
+        }
+        throw new Error(msg);
+      }
+    },
+    []
+  );
+
+  const unlinkAssetsForCompletedTask = useCallback(
+    async (taskId: string | undefined) => {
+      if (!taskId) return;
+      const res = await fetch(`/api/assets?linkedProjectTaskId=${taskId}`);
+      if (!res.ok) throw new Error('Could not load linked task assets.');
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return;
+      for (const raw of data) {
+        const asset = normalizeLinkedAsset(raw);
+        if (!asset) continue;
+        await unlinkAssetFromEntity(asset._id, 'projectTask');
+      }
+      setTaskAssetsRefreshToken((n) => n + 1);
+      await loadLinkedAssets();
+    },
+    [loadLinkedAssets, unlinkAssetFromEntity]
+  );
+
+  const unlinkAssetsForCompletedContent = useCallback(
+    async (contentItemId: string) => {
+      const res = await fetch(`/api/assets?linkedContentItemId=${contentItemId}`);
+      if (!res.ok) throw new Error('Could not load linked content assets.');
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return;
+      for (const raw of data) {
+        const asset = normalizeLinkedAsset(raw);
+        if (!asset) continue;
+        await unlinkAssetFromEntity(asset._id, 'contentItem');
+      }
+      setContentAssetsRefreshToken((n) => n + 1);
+      await loadLinkedAssets();
+    },
+    [loadLinkedAssets, unlinkAssetFromEntity]
+  );
 
   const closePreviewAssetSheet = () => {
     setPreviewSheetMode('view');
@@ -697,6 +759,46 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  const canEditContentItemStatus = useCallback(
+    (item: IContentItem): boolean => {
+      if (isManagerOrAdmin) return true;
+      if (!currentUserEmployeeId) return false;
+      return item.assignedToEmployeeId?.toString() === currentUserEmployeeId;
+    },
+    [currentUserEmployeeId, isManagerOrAdmin]
+  );
+
+  const handleContentItemStatusUpdate = async (item: IContentItem, status: ContentStatus) => {
+    const id = item._id.toString();
+    const previousStatus = item.status;
+    setProjectContentItems((prev) =>
+      prev.map((c) =>
+        c._id.toString() === id ? ({ ...c, status } as IContentItem) : c
+      )
+    );
+    try {
+      const res = await fetch(`/api/content-items/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === 'string' ? data.error : 'Could not update content status.');
+      }
+      if (previousStatus !== 'published' && status === 'published') {
+        await unlinkAssetsForCompletedContent(id);
+      }
+    } catch (error) {
+      setProjectContentItems((prev) =>
+        prev.map((c) =>
+          c._id.toString() === id ? ({ ...c, status: previousStatus } as IContentItem) : c
+        )
+      );
+      alert(error instanceof Error ? error.message : 'Could not update content status.');
+    }
+  };
+
   const handleFieldUpdate = async (field: string, value: any) => {
     setLocalProject(prev => ({ ...prev, [field]: value } as IProject));
     try {
@@ -859,6 +961,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           if (task) tasks[taskIndex] = { ...task, status: savedStatus };
           return { ...prev, tasks } as IProject;
         });
+        const wasCompleted = existingTask.status === 'completed';
+        if (!wasCompleted && savedStatus === 'completed') {
+          await unlinkAssetsForCompletedTask(taskId);
+        }
       } catch (error) {
         console.error('Error updating task status:', error);
         setLocalProject((prev) => ({ ...prev, tasks: previousTasks } as IProject));
@@ -868,6 +974,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
 
     const updatedTasks = [...(localProject.tasks || [])];
+    const previousStatus = updatedTasks[taskIndex]?.status;
     const updatedTask = { ...updatedTasks[taskIndex], [field]: value };
 
     // Optimistically update the name if the ID changes
@@ -890,6 +997,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
     try {
       await onUpdate({ tasks: tasksToSave });
+      if (field === 'status' && previousStatus !== 'completed' && value === 'completed') {
+        const taskId = (updatedTasks[taskIndex] as { _id?: { toString?: () => string } })?._id?.toString?.();
+        await unlinkAssetsForCompletedTask(taskId);
+      }
     } catch (error) {
       console.error('Error updating task:', error);
       setLocalProject(project);
@@ -1119,6 +1230,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const projectTypeOptions = [{ value: 'internal', label: 'Internal' }, { value: 'client', label: 'Client' }];
   const categoryOptions = [{ value: 'website', label: 'Website' }, { value: 'store', label: 'Store' }, { value: 'app', label: 'App' }, { value: 'generic', label: 'Generic' }];
   const taskStatusOptions = [{ value: 'active', label: 'Active', color: '#3b82f6' }, { value: 'in-review', label: 'In Review', color: '#f59e0b' }, { value: 'completed', label: 'Completed', color: '#22c55e' }];
+  const contentStatusOptions: { value: ContentStatus; label: string; color: string }[] = [
+    { value: 'idea', label: 'Idea', color: '#6b7280' },
+    { value: 'planned', label: 'Planned', color: '#3b82f6' },
+    { value: 'in_progress', label: 'In Progress', color: '#f59e0b' },
+    { value: 'ready', label: 'Ready', color: '#22c55e' },
+    { value: 'published', label: 'Published', color: '#8b5cf6' },
+  ];
   const hasEndDate = !!localProject.endDate;
   const compactFieldLabelClass =
     'text-sm text-gray-500 rounded px-1 py-0.5 transition-colors hover:bg-gray-100';
@@ -1666,7 +1784,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           />
                         </div>
                       )}
-                      {item.status === 'published' && <span className="opacity-70 shrink-0">Published</span>}
+                      <EditableSelect
+                        value={item.status}
+                        options={contentStatusOptions}
+                        onSave={(v) => handleContentItemStatusUpdate(item, v as ContentStatus)}
+                        disabled={!canEditContentItemStatus(item)}
+                        showColorDot
+                        className="text-xs text-gray-900"
+                      />
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-between gap-2">
@@ -1687,7 +1812,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       currentUserId={currentUserId}
                       currentUserEmployeeId={currentUserEmployeeId}
                       assignedToEmployeeId={item.assignedToEmployeeId?.toString()}
-                      refreshToken={contentRefreshTrigger}
+                      refreshToken={(contentRefreshTrigger ?? 0) + contentAssetsRefreshToken}
                     />
                   </div>
                   );
@@ -1789,6 +1914,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           )}
                         </div>
                         <TaskLinkedAssets
+                          key={`task-assets-${(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString() ?? idx}-${taskAssetsRefreshToken}`}
                           project={localProject}
                           taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
                           isManagerOrAdmin={isManagerOrAdmin}
