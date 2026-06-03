@@ -36,66 +36,8 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function waitForNextFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve());
-    });
-  });
-}
-
-function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-
-    const finish = async () => {
-      if (settled) return;
-
-      try {
-        if ('requestVideoFrameCallback' in video) {
-          await new Promise<void>((res) => {
-            video.requestVideoFrameCallback(() => res());
-          });
-        } else {
-          await waitForNextFrame();
-        }
-
-        await delay(75);
-
-        if (!video.videoWidth || !video.videoHeight) {
-          settled = true;
-          reject(new ScreenshotCaptureError('Could not read screenshot dimensions.', 'capture_failed'));
-          return;
-        }
-
-        settled = true;
-        resolve();
-      } catch (error) {
-        if (!settled) {
-          settled = true;
-          reject(error);
-        }
-      }
-    };
-
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
-      void finish();
-      return;
-    }
-
-    video.addEventListener('loadeddata', () => void finish(), { once: true });
-    video.addEventListener('playing', () => void finish(), { once: true });
-    video.addEventListener(
-      'error',
-      () => {
-        if (!settled) {
-          settled = true;
-          reject(new ScreenshotCaptureError('Failed to read screen capture.', 'capture_failed'));
-        }
-      },
-      { once: true }
-    );
-  });
+function stopStream(stream: MediaStream | null): void {
+  stream?.getTracks().forEach((track) => track.stop());
 }
 
 function canvasToFile(canvas: HTMLCanvasElement, fileName: string): Promise<File> {
@@ -113,6 +55,27 @@ function canvasToFile(canvas: HTMLCanvasElement, fileName: string): Promise<File
   });
 }
 
+async function waitForCapturableFrame(
+  video: HTMLVideoElement,
+  timeoutMs = 1500
+): Promise<void> {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+      await delay(50);
+      return;
+    }
+    await delay(50);
+  }
+
+  if (video.videoWidth > 0 && video.videoHeight > 0) {
+    return;
+  }
+
+  throw new ScreenshotCaptureError('Could not read screenshot dimensions.', 'capture_failed');
+}
+
 /** Capture a single frame from user-selected display media (tab, window, or screen). */
 export async function captureScreenshot(): Promise<File> {
   if (!isScreenshotCaptureSupported()) {
@@ -123,20 +86,40 @@ export async function captureScreenshot(): Promise<File> {
   }
 
   let stream: MediaStream | null = null;
+  let canceledBeforeCapture = false;
 
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: false,
-    });
+      preferCurrentTab: false,
+      selfBrowserSurface: 'exclude',
+    } as DisplayMediaStreamOptions);
 
     const video = document.createElement('video');
     video.srcObject = stream;
     video.muted = true;
     video.playsInline = true;
 
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener(
+        'ended',
+        () => {
+          if (video.videoWidth === 0 || video.videoHeight === 0) {
+            canceledBeforeCapture = true;
+          }
+        },
+        { once: true }
+      );
+    }
+
     await video.play();
-    await waitForVideoFrame(video);
+    await waitForCapturableFrame(video);
+
+    if (canceledBeforeCapture) {
+      throw new ScreenshotCaptureError('Screenshot capture was canceled.', 'canceled');
+    }
 
     const width = video.videoWidth;
     const height = video.videoHeight;
@@ -155,11 +138,14 @@ export async function captureScreenshot(): Promise<File> {
 
     ctx.drawImage(video, 0, 0, width, height);
 
+    stopStream(stream);
+    stream = null;
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     return await canvasToFile(canvas, `screenshot-${timestamp}.png`);
   } catch (error) {
     throw mapCaptureError(error);
   } finally {
-    stream?.getTracks().forEach((track) => track.stop());
+    stopStream(stream);
   }
 }

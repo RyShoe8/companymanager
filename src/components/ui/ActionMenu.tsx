@@ -114,9 +114,9 @@ export default function ActionMenu({
 
   const runAction = (item: ActionMenuItem) => {
     if (item.disabled || !item.onClick) return;
+    item.onClick();
     setOpen(false);
     clearHighlight();
-    item.onClick();
   };
 
   const triggerNode =

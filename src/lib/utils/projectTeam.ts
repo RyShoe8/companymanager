@@ -1,8 +1,13 @@
 import type { IEmployee } from '@/lib/models/Employee';
+import type { IProject } from '@/lib/models/Project';
 
 export type ProjectTeamSource = {
   assignedToEmployeeIds?: unknown[];
   assignedToEmployeeId?: unknown;
+  tasks?: Array<{
+    assignedToEmployeeIds?: unknown[];
+    assignedToEmployeeId?: unknown;
+  }>;
 };
 
 function normalizeEmployeeId(id: unknown): string | null {
@@ -36,6 +41,26 @@ export function isEmployeeOnProjectTeam(
   const normalized = normalizeEmployeeId(employeeId);
   if (!normalized) return false;
   return getProjectTeamEmployeeIds(project).has(normalized);
+}
+
+/** True when the user may create tasks or content on this project. */
+export function canUserContributeToProject(
+  project: ProjectTeamSource,
+  employeeId: string | null | undefined,
+  isManagerOrAdmin: boolean
+): boolean {
+  if (isManagerOrAdmin) return true;
+  if (!employeeId) return false;
+  if (isEmployeeOnProjectTeam(project, employeeId)) return true;
+  return (project.tasks ?? []).some((task) => getTaskAssigneeEmployeeIds(task).includes(employeeId));
+}
+
+export function filterContributableProjects(
+  projects: IProject[],
+  employeeId: string | null | undefined,
+  isManagerOrAdmin: boolean
+): IProject[] {
+  return projects.filter((project) => canUserContributeToProject(project, employeeId, isManagerOrAdmin));
 }
 
 export function filterEmployeesForTaskAssignment(

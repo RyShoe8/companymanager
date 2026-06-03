@@ -28,6 +28,8 @@ import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
 import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
 import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import CreateMenu from '@/components/workspace/CreateMenu';
+import SelectProjectModal from '@/components/workspace/SelectProjectModal';
+import { filterContributableProjects } from '@/lib/utils/projectTeam';
 import InspectorHost from '@/components/workspace/InspectorHost';
 import Modal from '@/components/ui/Modal';
 import BottomSheet from '@/components/ui/BottomSheet';
@@ -67,6 +69,8 @@ export default function WorkspaceShell({
     const [showProjectForm, setShowProjectForm] = useState(false);
     const [editingProject, setEditingProject] = useState<IProject | undefined>();
     const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
+    const [showContentCreateModal, setShowContentCreateModal] = useState(false);
+    const [projectPickerMode, setProjectPickerMode] = useState<'task' | 'content' | null>(null);
     const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
     const [addContentVoicePrefill, setAddContentVoicePrefill] = useState<{
         title?: string;
@@ -92,6 +96,16 @@ export default function WorkspaceShell({
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
 
     const createScreenshot = useScreenshotUpload(null);
+
+    const canCreateTaskOrContent = useMemo(
+        () =>
+            filterContributableProjects(
+                ws.allProjects,
+                ws.currentUserEmployeeId,
+                ws.isManagerOrAdmin
+            ).length > 0,
+        [ws.allProjects, ws.currentUserEmployeeId, ws.isManagerOrAdmin]
+    );
 
     const {
         calendar: scheduleCalendar,
@@ -501,6 +515,7 @@ export default function WorkspaceShell({
             setAddContentProject(project);
             setAddContentDefaultDate(defaultDate);
             setAddContentVoicePrefill({ title: titleStr, channel: channelStr, notes: notesStr });
+            setShowContentCreateModal(true);
             return { success: true, message: 'Opening content creation form' };
         }
         if (intent.type === 'TOGGLE_FILTER') {
@@ -1182,12 +1197,10 @@ export default function WorkspaceShell({
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}
+                                    canCreateTaskOrContent={canCreateTaskOrContent}
                                     onCreateProject={handleCreateProject}
-                                    onCreateContent={() => {
-                                        setAddContentProject(null);
-                                        setAddContentDefaultDate(new Date());
-                                        setAddContentVoicePrefill(null);
-                                    }}
+                                    onCreateTask={() => setProjectPickerMode('task')}
+                                    onCreateContent={() => setProjectPickerMode('content')}
                                     onCreateMeeting={() => setShowMeetingModal(true)}
                                     onCreateScreenshot={() => {
                                         if (!isScreenshotCaptureSupported()) {
@@ -1306,6 +1319,7 @@ export default function WorkspaceShell({
                                                     setAddContentVoicePrefill(null);
                                                     setAddContentProject(project);
                                                     setAddContentDefaultDate(defaultDate);
+                                                    setShowContentCreateModal(true);
                                                 }}
                                                 onAddTask={handleAddTaskToProject}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
@@ -1335,6 +1349,7 @@ export default function WorkspaceShell({
                                                     setAddContentVoicePrefill(null);
                                                     setAddContentProject(project);
                                                     setAddContentDefaultDate(defaultDate);
+                                                    setShowContentCreateModal(true);
                                                 }}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
                                             />
@@ -1396,6 +1411,27 @@ export default function WorkspaceShell({
                         saving={schedulingAvailability.saving}
                     />
 
+                    <SelectProjectModal
+                        isOpen={projectPickerMode !== null}
+                        title={projectPickerMode === 'task' ? 'Add task to project' : 'Add content to project'}
+                        projects={ws.allProjects}
+                        currentUserEmployeeId={ws.currentUserEmployeeId}
+                        isManagerOrAdmin={ws.isManagerOrAdmin}
+                        onClose={() => setProjectPickerMode(null)}
+                        onSelect={(project) => {
+                            const mode = projectPickerMode;
+                            setProjectPickerMode(null);
+                            if (mode === 'task') {
+                                handleAddTaskToProject(project);
+                                return;
+                            }
+                            setAddContentVoicePrefill(null);
+                            setAddContentProject(project);
+                            setAddContentDefaultDate(new Date());
+                            setShowContentCreateModal(true);
+                        }}
+                    />
+
                     <ScreenshotToolModal
                         isOpen={showScreenshotModal}
                         onClose={() => setShowScreenshotModal(false)}
@@ -1416,8 +1452,9 @@ export default function WorkspaceShell({
                     />
 
                     <ContentItemCreateModal
-                        isOpen={!!addContentProject}
+                        isOpen={showContentCreateModal && !!addContentProject}
                         onClose={() => {
+                            setShowContentCreateModal(false);
                             setAddContentProject(null);
                             setAddContentDefaultDate(undefined);
                             setAddContentVoicePrefill(null);
@@ -1473,6 +1510,7 @@ export default function WorkspaceShell({
                             onAddContent={(project) => {
                                 setAddContentVoicePrefill(null);
                                 setAddContentProject(project);
+                                setShowContentCreateModal(true);
                             }}
                             onContentItemClick={handleContentItemClickFromProject}
                             contentRefreshTrigger={contentRefreshTrigger}

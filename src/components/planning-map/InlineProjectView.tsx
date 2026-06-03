@@ -29,6 +29,7 @@ import { labelForPaletteIndex, parseCssColorInput, formatColorPaletteForCopy } f
 import {
   taskAssigneeSelectOptions,
   getTaskAssigneeEmployeeIds,
+  canUserContributeToProject,
   filterEmployeesForTaskAssignment,
   isTaskAssigneeOnProjectTeam,
   sanitizeTaskAssigneesForProjectTeam,
@@ -184,14 +185,7 @@ function contentAssigneeOptions(
 }
 
 function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, currentUserEmployeeId: string | null | undefined): boolean {
-  if (isManagerOrAdmin) return true;
-  if (!currentUserEmployeeId) return false;
-  const pid = (project as any).assignedToEmployeeId?.toString();
-  if (pid === currentUserEmployeeId) return true;
-  const ids = (project as any).assignedToEmployeeIds;
-  if (ids?.some((id: any) => id?.toString() === currentUserEmployeeId)) return true;
-  if (project.tasks?.some((t) => getTaskAssigneeEmployeeIds(t).includes(currentUserEmployeeId))) return true;
-  return false;
+  return canUserContributeToProject(project, currentUserEmployeeId ?? null, isManagerOrAdmin);
 }
 
 export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
@@ -1121,18 +1115,60 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setShowTaskActions(false);
     setSelectedTaskIndex(null);
   };
+  const canContributeToProject = canUserContributeToProject(
+    localProject,
+    currentUserEmployeeId ?? null,
+    isManagerOrAdmin
+  );
+
   const commitAddTasks = async (tasksToAppend: NonNullable<IProject['tasks']>) => {
     const prevTasks = localProject.tasks || [];
+    const newIdx = prevTasks.length + tasksToAppend.length - 1;
+
+    if (!isManagerOrAdmin) {
+      setLocalProject((prev) => ({
+        ...prev,
+        tasks: [...prevTasks, ...tasksToAppend],
+      } as IProject));
+      try {
+        const res = await fetch(`/api/projects/${localProject._id.toString()}/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks: tasksToAppend }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(typeof data.error === 'string' ? data.error : 'Failed to add task');
+        }
+        const data = (await res.json()) as { tasks: IProject['tasks']; addedFromIndex?: number };
+        const nextProject = { ...localProject, tasks: data.tasks ?? localProject.tasks } as IProject;
+        setLocalProject(nextProject);
+        onProjectPatched?.(nextProject);
+        setViewTab('tasks');
+        setTaskTab('active');
+        setAutoEditTaskIndex(data.addedFromIndex ?? newIdx);
+        setPendingScrollToTaskIndex(data.addedFromIndex ?? newIdx);
+        return;
+      } catch (error) {
+        console.error('Error adding task:', error);
+        setLocalProject(project);
+        setPendingScrollToTaskIndex(null);
+        setAutoEditTaskIndex(null);
+        alert(error instanceof Error ? error.message : 'Failed to save');
+        throw error;
+      }
+    }
+
     const nextTasks = [...prevTasks, ...tasksToAppend];
     const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, nextTasks);
-    const newIdx = tasksToSave.length - 1;
+    const addedIdx = tasksToSave.length - 1;
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
     try {
       await onUpdate({ tasks: tasksToSave });
       setViewTab('tasks');
       setTaskTab('active');
-      setAutoEditTaskIndex(newIdx);
-      setPendingScrollToTaskIndex(newIdx);
+      setAutoEditTaskIndex(addedIdx);
+      setPendingScrollToTaskIndex(addedIdx);
     } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);
@@ -1201,7 +1237,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       autoAddTaskAppliedKeyRef.current = null;
       return;
     }
-    if (!isManagerOrAdmin) {
+    if (!canContributeToProject) {
       onAutoAddTaskConsumed?.();
       return;
     }
@@ -1714,7 +1750,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <button type="button" onClick={() => setViewTab('content')} className={`px-3 py-2 rounded text-sm font-medium ${viewTab === 'content' ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-100'}`}>Content ({projectContentItems.length})</button>
 
           <div className="ml-auto flex gap-2">
-            {viewTab === 'tasks' && isManagerOrAdmin && <Button size="sm" onClick={() => void handleAddTask()}>+ Add Task</Button>}
+            {viewTab === 'tasks' && canContributeToProject && <Button size="sm" onClick={() => void handleAddTask()}>+ Add Task</Button>}
             {viewTab === 'content' && onAddContent && canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && <Button size="sm" variant="secondary" onClick={() => onAddContent(localProject)}>+ Add Content</Button>}
           </div>
         </div>

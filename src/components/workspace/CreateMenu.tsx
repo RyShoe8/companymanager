@@ -7,7 +7,9 @@ import ActionMenu from '@/components/ui/ActionMenu';
 interface CreateMenuProps {
     isManagerOrAdmin: boolean;
     currentUserRole?: string;
+    canCreateTaskOrContent: boolean;
     onCreateProject: () => void;
+    onCreateTask: () => void;
     onCreateContent: () => void;
     onCreateMeeting: () => void;
     onCreateScreenshot: () => void;
@@ -16,7 +18,9 @@ interface CreateMenuProps {
 export default function CreateMenu({
     isManagerOrAdmin,
     currentUserRole,
+    canCreateTaskOrContent,
     onCreateProject,
+    onCreateTask,
     onCreateContent,
     onCreateMeeting,
     onCreateScreenshot,
@@ -42,13 +46,13 @@ export default function CreateMenu({
     }, []);
 
     const items = [
-        ...(isManagerOrAdmin ? [{ label: 'New Project', onClick: onCreateProject }] : []),
-        { label: 'New Content Item', onClick: onCreateContent },
-        { label: 'New Meeting', onClick: onCreateMeeting },
+        ...(isManagerOrAdmin ? [{ label: 'Project', onClick: onCreateProject }] : []),
+        ...(canCreateTaskOrContent ? [{ label: 'Task', onClick: onCreateTask }] : []),
+        ...(canCreateTaskOrContent ? [{ label: 'Content', onClick: onCreateContent }] : []),
+        { label: 'Meeting', onClick: onCreateMeeting },
         { label: 'Screenshot', onClick: onCreateScreenshot },
-        { label: 'New Task (Coming Soon)', disabled: true },
         ...(currentUserRole === 'Administrator'
-            ? [{ label: 'New Employee (Coming Soon)', disabled: true }]
+            ? [{ label: 'Employee (Coming Soon)', disabled: true }]
             : []),
     ];
 

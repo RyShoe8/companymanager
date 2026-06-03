@@ -4,7 +4,7 @@ import ContentItem from '@/lib/models/ContentItem';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
-import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
+import { canUserContributeToProject, isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
 import { isValidObjectId } from '@/lib/utils/security';
@@ -14,13 +14,6 @@ import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrenc
 
 const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
 const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
-
-function isUserAssignedToProject(project: { assignedToEmployeeId?: Types.ObjectId; assignedToEmployeeIds?: Types.ObjectId[]; tasks?: { assignedToEmployeeId?: Types.ObjectId }[] }, employeeId: Types.ObjectId): boolean {
-  if (project.assignedToEmployeeId?.toString() === employeeId.toString()) return true;
-  if (project.assignedToEmployeeIds?.some((id) => id.toString() === employeeId.toString())) return true;
-  if (project.tasks?.some((t) => (t as any).assignedToEmployeeId?.toString() === employeeId.toString())) return true;
-  return false;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -138,10 +131,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
     const canCreate =
-      userRole === 'Administrator' ||
-      userRole === 'Manager' ||
-      (currentUserEmployee && isUserAssignedToProject(project as any, currentUserEmployee._id));
+      isManagerOrAdmin ||
+      (currentUserEmployee &&
+        canUserContributeToProject(project as Parameters<typeof canUserContributeToProject>[0], currentUserEmployee._id.toString(), false));
 
     if (!canCreate) {
       return NextResponse.json({ error: 'You can only create content on projects you are assigned to' }, { status: 403 });
