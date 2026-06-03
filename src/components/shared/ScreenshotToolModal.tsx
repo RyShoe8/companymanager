@@ -10,6 +10,7 @@ interface ScreenshotToolModalProps {
   onClose: () => void;
   target?: ScreenshotUploadTarget | null;
   projects?: IProject[];
+  uploadOnly?: boolean;
 }
 
 export default function ScreenshotToolModal({
@@ -17,15 +18,17 @@ export default function ScreenshotToolModal({
   onClose,
   target = null,
   projects = [],
+  uploadOnly = false,
 }: ScreenshotToolModalProps) {
   const allowAssignment = !target;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Screenshot" maxWidth="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={uploadOnly ? 'Upload image' : 'Screenshot'} maxWidth="md">
       <ScreenshotToolPanel
         target={target}
         projects={projects}
         allowAssignment={allowAssignment}
+        uploadOnly={uploadOnly}
         onUploaded={onClose}
         description="Capture your screen or upload an image. Save to Nucleas with optional project/task links, or download locally."
       />

@@ -14,6 +14,7 @@ interface ScreenshotToolPanelProps {
   target?: ScreenshotUploadTarget | null;
   projects?: IProject[];
   allowAssignment?: boolean;
+  uploadOnly?: boolean;
   description?: string;
   onUploaded?: () => void;
   onBack?: () => void;
@@ -24,6 +25,7 @@ export default function ScreenshotToolPanel({
   target = null,
   projects = [],
   allowAssignment = false,
+  uploadOnly = false,
   description = 'Capture a screen or upload an image to save as an asset.',
   onUploaded,
   onBack,
@@ -51,7 +53,12 @@ export default function ScreenshotToolPanel({
   return (
     <>
       <div className="space-y-3">
-        <p className="text-sm text-text-secondary">{description}</p>
+        {!uploadOnly && <p className="text-sm text-text-secondary">{description}</p>}
+        {uploadOnly && (
+          <p className="text-sm text-text-secondary">
+            Screenshot capture is unavailable on this device. Upload an image instead.
+          </p>
+        )}
         <input
           ref={screenshotFileInputRef}
           type="file"
@@ -68,7 +75,7 @@ export default function ScreenshotToolPanel({
           }}
         />
         <div className="flex flex-col gap-2">
-          {screenshotCaptureSupported && (
+          {screenshotCaptureSupported && !uploadOnly && (
             <Button
               type="button"
               size="sm"
@@ -84,7 +91,7 @@ export default function ScreenshotToolPanel({
           )}
           <Button
             type="button"
-            variant="secondary"
+            variant={uploadOnly ? undefined : 'secondary'}
             size="sm"
             onClick={() => {
               if (!screenshotBusy) screenshotFileInputRef.current?.click();
@@ -102,7 +109,7 @@ export default function ScreenshotToolPanel({
         {screenshotErrorMessage && (
           <p className="text-xs text-error">{screenshotErrorMessage}</p>
         )}
-        {!screenshotCaptureSupported && !screenshotErrorMessage && (
+        {!uploadOnly && !screenshotCaptureSupported && !screenshotErrorMessage && (
           <p className="text-xs text-text-muted">
             Screenshot capture is unavailable on this device. Please upload an image instead.
           </p>

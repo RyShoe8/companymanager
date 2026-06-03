@@ -18,6 +18,9 @@ import SchedulingCalendarBar from '@/components/scheduling/SchedulingCalendarBar
 import AvailabilityModal from '@/components/scheduling/AvailabilityModal';
 import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
 import ScreenshotToolModal from '@/components/shared/ScreenshotToolModal';
+import ScreenshotSaveDialog from '@/components/shared/ScreenshotSaveDialog';
+import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
+import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
 import { useSchedulingCalendar } from '@/hooks/scheduling/useSchedulingCalendar';
 import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvailability';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
@@ -87,6 +90,8 @@ export default function WorkspaceShell({
     const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
     const [showScreenshotModal, setShowScreenshotModal] = useState(false);
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
+
+    const createScreenshot = useScreenshotUpload(null);
 
     const {
         calendar: scheduleCalendar,
@@ -1184,7 +1189,13 @@ export default function WorkspaceShell({
                                         setAddContentVoicePrefill(null);
                                     }}
                                     onCreateMeeting={() => setShowMeetingModal(true)}
-                                    onCreateScreenshot={() => setShowScreenshotModal(true)}
+                                    onCreateScreenshot={() => {
+                                        if (!isScreenshotCaptureSupported()) {
+                                            setShowScreenshotModal(true);
+                                            return;
+                                        }
+                                        void createScreenshot.captureAndUpload();
+                                    }}
                                 />
                             </div>
                         </div>
@@ -1390,6 +1401,18 @@ export default function WorkspaceShell({
                         onClose={() => setShowScreenshotModal(false)}
                         target={null}
                         projects={ws.allProjects}
+                        uploadOnly
+                    />
+
+                    <ScreenshotSaveDialog
+                        isOpen={createScreenshot.isNaming}
+                        defaultName={createScreenshot.suggestedName}
+                        previewUrl={createScreenshot.previewUrl}
+                        projects={ws.allProjects}
+                        saving={createScreenshot.status === 'uploading'}
+                        onSave={(name, uploadTarget) => void createScreenshot.confirmName(name, uploadTarget)}
+                        onDownload={createScreenshot.downloadByName}
+                        onCancel={createScreenshot.cancelNaming}
                     />
 
                     <ContentItemCreateModal
