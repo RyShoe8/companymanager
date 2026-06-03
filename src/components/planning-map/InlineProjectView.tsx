@@ -1917,7 +1917,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           key={`task-assets-${(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString() ?? idx}-${taskAssetsRefreshToken}`}
                           project={localProject}
                           taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
+                          taskIndex={idx}
                           isManagerOrAdmin={isManagerOrAdmin}
+                          currentUserId={currentUserId}
+                          currentUserEmployeeId={currentUserEmployeeId}
+                          refreshToken={taskAssetsRefreshToken}
+                          onAssetsChanged={() => setTaskAssetsRefreshToken((n) => n + 1)}
                         />
                       </div>
                     </SwipeableCard>

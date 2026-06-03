@@ -3,13 +3,17 @@
 import { useRef } from 'react';
 import Button from '@/components/ui/Button';
 import ScreenshotNameDialog from '@/components/shared/ScreenshotNameDialog';
+import ScreenshotSaveDialog from '@/components/shared/ScreenshotSaveDialog';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
+import type { IProject } from '@/lib/models/Project';
 import type { ScreenshotUploadTarget } from '@/lib/uploadScreenshotAsset';
 
 interface ScreenshotToolPanelProps {
   target?: ScreenshotUploadTarget | null;
+  projects?: IProject[];
+  allowAssignment?: boolean;
   description?: string;
   onUploaded?: () => void;
   onBack?: () => void;
@@ -18,6 +22,8 @@ interface ScreenshotToolPanelProps {
 
 export default function ScreenshotToolPanel({
   target = null,
+  projects = [],
+  allowAssignment = false,
   description = 'Capture a screen or upload an image to save as an asset.',
   onUploaded,
   onBack,
@@ -25,8 +31,10 @@ export default function ScreenshotToolPanel({
 }: ScreenshotToolPanelProps) {
   const screenshotFileInputRef = useRef<HTMLInputElement>(null);
   const screenshotCaptureSupported = isScreenshotCaptureSupported();
+  const useSaveDialog = allowAssignment && !target;
 
   const {
+    status,
     statusMessage: screenshotStatusMessage,
     errorMessage: screenshotErrorMessage,
     isBusy: screenshotBusy,
@@ -36,6 +44,7 @@ export default function ScreenshotToolPanel({
     uploadFromFiles: screenshotUploadFromFiles,
     captureAndUpload: screenshotCaptureAndUpload,
     confirmName: screenshotConfirmName,
+    downloadByName: screenshotDownloadByName,
     cancelNaming: screenshotCancelNaming,
   } = useScreenshotUpload(target, onUploaded);
 
@@ -105,7 +114,7 @@ export default function ScreenshotToolPanel({
         )}
       </div>
 
-      {screenshotNaming && screenshotPreviewUrl && (
+      {screenshotNaming && screenshotPreviewUrl && !useSaveDialog && (
         <ImagePreviewModal
           mode="naming"
           isOpen
@@ -114,12 +123,25 @@ export default function ScreenshotToolPanel({
           title="Screenshot preview"
         />
       )}
-      <ScreenshotNameDialog
-        isOpen={screenshotNaming}
-        defaultName={screenshotSuggestedName}
-        onConfirm={(name) => void screenshotConfirmName(name)}
-        onCancel={screenshotCancelNaming}
-      />
+      {useSaveDialog ? (
+        <ScreenshotSaveDialog
+          isOpen={screenshotNaming}
+          defaultName={screenshotSuggestedName}
+          previewUrl={screenshotPreviewUrl}
+          projects={projects}
+          saving={status === 'uploading'}
+          onSave={(name, uploadTarget) => void screenshotConfirmName(name, uploadTarget)}
+          onDownload={screenshotDownloadByName}
+          onCancel={screenshotCancelNaming}
+        />
+      ) : (
+        <ScreenshotNameDialog
+          isOpen={screenshotNaming}
+          defaultName={screenshotSuggestedName}
+          onConfirm={(name) => void screenshotConfirmName(name)}
+          onCancel={screenshotCancelNaming}
+        />
+      )}
     </>
   );
 }

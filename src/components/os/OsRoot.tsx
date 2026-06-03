@@ -53,6 +53,7 @@ export default function OsRoot({ children }: OsRootProps) {
  * WindowManagerProvider so it can read window state for voice context.
  */
 function OsIntentLayer({ children }: { children: ReactNode }) {
+    const auth = useOsAuth();
     const wm = useWindowManager();
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
@@ -170,7 +171,10 @@ function OsIntentLayer({ children }: { children: ReactNode }) {
 
     return (
         <IntentConfirmationProvider executeIntent={handleOsIntent} onExecuted={onPaletteExecuted}>
-            <VoiceProvider getWorkspaceContext={getOsVoiceContext}>
+            <VoiceProvider
+                isAdministrator={auth.role === 'Administrator'}
+                getWorkspaceContext={getOsVoiceContext}
+            >
                 <OsCommandPaletteProvider
                     openCommandPalette={openPalette}
                     toggleCommandPalette={togglePalette}

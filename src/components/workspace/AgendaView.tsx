@@ -98,6 +98,55 @@ function formatMeetingTimeRange(start: Date, end: Date): string {
     return `${start.toLocaleTimeString(undefined, opts)} – ${end.toLocaleTimeString(undefined, opts)}`;
 }
 
+interface UndatedContentGroup {
+    project: IProject | null;
+    items: IContentItem[];
+}
+
+function renderAgendaContentRow(
+    item: IContentItem,
+    employees: IEmployee[],
+    currentUserEmployeeId: string | null,
+    currentUserEmployeeName: string | null,
+    onContentItemClick: (item: IContentItem) => void,
+    className = 'px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap',
+    stopPropagation = false
+) {
+    const assignee = formatAgendaAssigneeDisplay(
+        employees,
+        currentUserEmployeeId,
+        currentUserEmployeeName,
+        item
+    );
+    return (
+        <div
+            key={item._id.toString()}
+            className={className}
+            onClick={(e) => {
+                if (stopPropagation) e.stopPropagation();
+                onContentItemClick(item);
+            }}
+        >
+            <AgendaItemTypeBadge type="Content" />
+            <span className="flex-shrink-0" aria-hidden>
+                {channelIcons[item.channel] || '📎'}
+            </span>
+            <span className="text-text-primary">{item.title}</span>
+            <span
+                className="px-1.5 py-0.5 rounded text-xs font-medium"
+                style={{
+                    backgroundColor: (statusColors[item.status] || '#6b7280') + '20',
+                    color: statusColors[item.status] || '#6b7280',
+                }}
+            >
+                {item.status.replace('_', ' ')}
+            </span>
+            <span className="text-xs text-text-muted">{item.channel}</span>
+            {assignee ? <AssigneeTag name={assignee} /> : null}
+        </div>
+    );
+}
+
 export default function AgendaView({
     projects,
     contentItems,
@@ -251,6 +300,41 @@ export default function AgendaView({
         currentUserId,
     ]);
 
+    const undatedContent = useMemo(() => {
+        if (!showContent) return [];
+        return contentItems.filter((item) => {
+            if (item.publishDate) return false;
+            if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
+            return contentPassesAssignmentFilter(item, assignmentFilterOpts);
+        });
+    }, [contentItems, showContent, contentChannelFilter, assignmentFilterOpts]);
+
+    const undatedContentGroups = useMemo((): UndatedContentGroup[] => {
+        const byProjectId = new Map<string, UndatedContentGroup>();
+        const orphan: IContentItem[] = [];
+
+        for (const item of undatedContent) {
+            const projectId = item.projectId?.toString();
+            if (projectId) {
+                if (!byProjectId.has(projectId)) {
+                    const project = projects.find((p) => p._id.toString() === projectId) ?? null;
+                    byProjectId.set(projectId, { project, items: [] });
+                }
+                byProjectId.get(projectId)!.items.push(item);
+            } else {
+                orphan.push(item);
+            }
+        }
+
+        const groups = Array.from(byProjectId.values()).sort((a, b) =>
+            (a.project?.name ?? '').localeCompare(b.project?.name ?? '')
+        );
+        if (orphan.length > 0) {
+            groups.push({ project: null, items: orphan });
+        }
+        return groups;
+    }, [undatedContent, projects]);
+
     const periodHeader = (
         <div className="bg-background-card rounded-lg border border-border">
             <div className="flex items-center gap-3 p-4 border-b border-border">
@@ -269,7 +353,7 @@ export default function AgendaView({
         </div>
     );
 
-    if (agendaDays.length === 0) {
+    if (agendaDays.length === 0 && undatedContent.length === 0) {
         return (
             <div className="space-y-4">
                 {periodHeader}
@@ -283,9 +367,72 @@ export default function AgendaView({
         );
     }
 
+    const undatedSection =
+        undatedContentGroups.length > 0 ? (
+            <div className="border border-border rounded-lg overflow-hidden bg-background-card">
+                <div className="px-4 py-3 bg-background-elevated border-b border-border flex items-center justify-between">
+                    <span className="text-lg font-semibold text-text-primary">Undated content</span>
+                    <span className="text-sm text-text-secondary">
+                        {undatedContent.length} item{undatedContent.length === 1 ? '' : 's'}
+                    </span>
+                </div>
+                <div className="divide-y divide-border">
+                    {undatedContentGroups.map((group) => {
+                        const groupKey =
+                            group.project?._id.toString() ?? `orphan-${group.items.map((i) => i._id.toString()).join('-')}`;
+                        return (
+                            <div key={groupKey}>
+                                {group.project ? (
+                                    <div
+                                        className="px-4 py-2 flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity border-b border-border/60"
+                                        onClick={() => onProjectClick(group.project!)}
+                                    >
+                                        <div
+                                            className="w-3 h-3 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: group.project.color || '#3b82f6' }}
+                                        />
+                                        <span className="font-medium text-text-primary">{group.project.name}</span>
+                                        <span className="text-xs text-text-secondary">
+                                            {group.items.length} item{group.items.length === 1 ? '' : 's'}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="px-4 py-2 border-b border-border/60">
+                                        <span className="text-sm font-medium text-text-secondary">No project</span>
+                                    </div>
+                                )}
+                                {group.items.map((item) =>
+                                    renderAgendaContentRow(
+                                        item,
+                                        employees,
+                                        currentUserEmployeeId,
+                                        currentUserEmployeeName,
+                                        onContentItemClick,
+                                        group.project
+                                            ? 'ml-6 px-4 py-2 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap'
+                                            : 'px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap'
+                                    )
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        ) : null;
+
+    if (agendaDays.length === 0) {
+        return (
+            <div className="space-y-4">
+                {periodHeader}
+                {undatedSection}
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-4">
             {periodHeader}
+            {undatedSection}
             <div className="space-y-6">
             {agendaDays.map((day) => (
                 <div key={day.date.toISOString()} className="border border-border rounded-lg overflow-hidden bg-background-card">
@@ -310,6 +457,9 @@ export default function AgendaView({
                                     : null,
                                 day.projects.length > 0
                                     ? `${day.projects.length} project${day.projects.length > 1 ? 's' : ''}`
+                                    : null,
+                                showContent && day.projects.some((p) => p.content.length > 0)
+                                    ? `${day.projects.reduce((n, p) => n + p.content.length, 0) + day.contentItems.length} content`
                                     : null,
                             ]
                                 .filter(Boolean)
@@ -406,41 +556,17 @@ export default function AgendaView({
                                     );
                                 })}
 
-                                {content.map((item) => {
-                                    const assignee = formatAgendaAssigneeDisplay(
+                                {content.map((item) =>
+                                    renderAgendaContentRow(
+                                        item,
                                         employees,
                                         currentUserEmployeeId,
                                         currentUserEmployeeName,
-                                        item
-                                    );
-                                    return (
-                                        <div
-                                            key={item._id.toString()}
-                                            className="ml-6 py-1.5 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated rounded px-1 -mx-1 flex-wrap"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onContentItemClick(item);
-                                            }}
-                                        >
-                                            <AgendaItemTypeBadge type="Content" />
-                                            <span className="flex-shrink-0" aria-hidden>
-                                                {channelIcons[item.channel] || '📎'}
-                                            </span>
-                                            <span className="text-text-primary">{item.title}</span>
-                                            <span
-                                                className="px-1.5 py-0.5 rounded text-xs font-medium"
-                                                style={{
-                                                    backgroundColor: (statusColors[item.status] || '#6b7280') + '20',
-                                                    color: statusColors[item.status] || '#6b7280',
-                                                }}
-                                            >
-                                                {item.status.replace('_', ' ')}
-                                            </span>
-                                            <span className="text-xs text-text-muted">{item.channel}</span>
-                                            {assignee ? <AssigneeTag name={assignee} /> : null}
-                                        </div>
-                                    );
-                                })}
+                                        onContentItemClick,
+                                        'ml-6 py-1.5 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated rounded px-1 -mx-1 flex-wrap',
+                                        true
+                                    )
+                                )}
 
                                 {isManagerOrAdmin && (
                                     <button
@@ -457,38 +583,15 @@ export default function AgendaView({
                             </div>
                         ))}
 
-                        {day.contentItems.map((item) => {
-                            const assignee = formatAgendaAssigneeDisplay(
+                        {day.contentItems.map((item) =>
+                            renderAgendaContentRow(
+                                item,
                                 employees,
                                 currentUserEmployeeId,
                                 currentUserEmployeeName,
-                                item
-                            );
-                            return (
-                                <div
-                                    key={item._id.toString()}
-                                    className="px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap"
-                                    onClick={() => onContentItemClick(item)}
-                                >
-                                    <AgendaItemTypeBadge type="Content" />
-                                    <span className="flex-shrink-0" aria-hidden>
-                                        {channelIcons[item.channel] || '📎'}
-                                    </span>
-                                    <span className="text-text-primary">{item.title}</span>
-                                    <span
-                                        className="px-1.5 py-0.5 rounded text-xs font-medium"
-                                        style={{
-                                            backgroundColor: (statusColors[item.status] || '#6b7280') + '20',
-                                            color: statusColors[item.status] || '#6b7280',
-                                        }}
-                                    >
-                                        {item.status.replace('_', ' ')}
-                                    </span>
-                                    <span className="text-xs text-text-muted">{item.channel}</span>
-                                    {assignee ? <AssigneeTag name={assignee} /> : null}
-                                </div>
-                            );
-                        })}
+                                onContentItemClick
+                            )
+                        )}
                     </div>
                 </div>
             ))}

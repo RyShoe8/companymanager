@@ -8,7 +8,7 @@ export default function VoiceModule() {
     if (!voice.enabled) {
         return (
             <div className="p-6 text-sm text-zinc-500">
-                Voice is disabled. Enable it from the feature flags configuration.
+                Voice is unavailable. It is limited to Administrators when the voice feature flag is enabled.
             </div>
         );
     }

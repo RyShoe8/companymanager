@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { captureScreenshot, ScreenshotCaptureError } from '@/lib/captureScreenshot';
 import { compressImageFile } from '@/lib/compressImageFile';
+import { downloadImage } from '@/lib/downloadImage';
 import {
   uploadScreenshotAsset,
   type ScreenshotUploadTarget,
@@ -58,17 +59,19 @@ export function useScreenshotUpload(
   }, [clearSuccessTimer, revokePreviewUrl]);
 
   const uploadCompressedFiles = useCallback(
-    async (files: File[], name: string) => {
+    async (files: File[], name: string, uploadTarget?: ScreenshotUploadTarget | null) => {
       setStatus('uploading');
       setStatusMessage('Uploading screenshot...');
       setErrorMessage(null);
+
+      const resolvedTarget = uploadTarget !== undefined ? uploadTarget : target;
 
       try {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const compressed = await compressImageFile(file);
           const assetName = files.length > 1 ? `${name} (${i + 1})` : name;
-          await uploadScreenshotAsset(compressed, target, { name: assetName });
+          await uploadScreenshotAsset(compressed, resolvedTarget, { name: assetName });
         }
 
         setStatus('success');
@@ -108,12 +111,23 @@ export function useScreenshotUpload(
   }, [revokePreviewUrl]);
 
   const confirmName = useCallback(
-    async (name: string) => {
+    async (name: string, uploadTarget?: ScreenshotUploadTarget | null) => {
       const files = pendingFiles;
       if (files.length === 0) return;
-      await uploadCompressedFiles(files, name.trim());
+      await uploadCompressedFiles(files, name.trim(), uploadTarget);
     },
     [pendingFiles, uploadCompressedFiles]
+  );
+
+  const downloadByName = useCallback(
+    (name: string) => {
+      const url = previewUrlRef.current;
+      if (!url) return;
+      downloadImage(url, name.trim());
+      setPendingFiles([]);
+      reset();
+    },
+    [reset]
   );
 
   const cancelNaming = useCallback(() => {
@@ -168,6 +182,7 @@ export function useScreenshotUpload(
     uploadFromFiles,
     captureAndUpload,
     confirmName,
+    downloadByName,
     cancelNaming,
     reset,
   };

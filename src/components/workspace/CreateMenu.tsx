@@ -10,7 +10,7 @@ interface CreateMenuProps {
     onCreateProject: () => void;
     onCreateContent: () => void;
     onCreateMeeting: () => void;
-    onCreateImage: () => void;
+    onCreateScreenshot: () => void;
 }
 
 export default function CreateMenu({
@@ -19,7 +19,7 @@ export default function CreateMenu({
     onCreateProject,
     onCreateContent,
     onCreateMeeting,
-    onCreateImage,
+    onCreateScreenshot,
 }: CreateMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -45,7 +45,7 @@ export default function CreateMenu({
         ...(isManagerOrAdmin ? [{ label: 'New Project', onClick: onCreateProject }] : []),
         { label: 'New Content Item', onClick: onCreateContent },
         { label: 'New Meeting', onClick: onCreateMeeting },
-        { label: 'Image', onClick: onCreateImage },
+        { label: 'Screenshot', onClick: onCreateScreenshot },
         { label: 'New Task (Coming Soon)', disabled: true },
         ...(currentUserRole === 'Administrator'
             ? [{ label: 'New Employee (Coming Soon)', disabled: true }]

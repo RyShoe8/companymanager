@@ -17,7 +17,6 @@ import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
 import SchedulingCalendarBar from '@/components/scheduling/SchedulingCalendarBar';
 import AvailabilityModal from '@/components/scheduling/AvailabilityModal';
 import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
-import ImageCreateModal from '@/components/workspace/ImageCreateModal';
 import ScreenshotToolModal from '@/components/shared/ScreenshotToolModal';
 import { useSchedulingCalendar } from '@/hooks/scheduling/useSchedulingCalendar';
 import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvailability';
@@ -86,7 +85,6 @@ export default function WorkspaceShell({
     const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
     const [scheduleSyncRefreshKey, setScheduleSyncRefreshKey] = useState(0);
     const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-    const [showImageModal, setShowImageModal] = useState(false);
     const [showScreenshotModal, setShowScreenshotModal] = useState(false);
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
 
@@ -1127,7 +1125,10 @@ export default function WorkspaceShell({
                 }
             }}
         >
-            <VoiceProvider getWorkspaceContext={() => workspaceIntentContext}>
+            <VoiceProvider
+                isAdministrator={ws.currentUserRole === 'Administrator'}
+                getWorkspaceContext={() => workspaceIntentContext}
+            >
                 <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
                     <div className="w-full mx-auto pt-[30px] pb-8">
                     {/* ===== Workspace Header ===== */}
@@ -1183,7 +1184,7 @@ export default function WorkspaceShell({
                                         setAddContentVoicePrefill(null);
                                     }}
                                     onCreateMeeting={() => setShowMeetingModal(true)}
-                                    onCreateImage={() => setShowImageModal(true)}
+                                    onCreateScreenshot={() => setShowScreenshotModal(true)}
                                 />
                             </div>
                         </div>
@@ -1384,16 +1385,11 @@ export default function WorkspaceShell({
                         saving={schedulingAvailability.saving}
                     />
 
-                    <ImageCreateModal
-                        isOpen={showImageModal}
-                        onClose={() => setShowImageModal(false)}
-                        onScreenshot={() => setShowScreenshotModal(true)}
-                    />
-
                     <ScreenshotToolModal
                         isOpen={showScreenshotModal}
                         onClose={() => setShowScreenshotModal(false)}
                         target={null}
+                        projects={ws.allProjects}
                     />
 
                     <ContentItemCreateModal

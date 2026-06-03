@@ -71,11 +71,13 @@ export function useVoice(): VoiceContextValue {
 interface VoiceProviderProps {
     children: ReactNode;
     getWorkspaceContext?: () => WorkspaceIntentContextPayload | null;
+    /** Voice is enabled only when the feature flag is on and the user is an Administrator. */
+    isAdministrator?: boolean;
 }
 
-export default function VoiceProvider({ children, getWorkspaceContext }: VoiceProviderProps) {
+export default function VoiceProvider({ children, getWorkspaceContext, isAdministrator = false }: VoiceProviderProps) {
     const intentCtx = useIntentConfirmation();
-    const enabled = isFeatureEnabled('voiceEnabled');
+    const enabled = isFeatureEnabled('voiceEnabled') && isAdministrator;
     const [state, setState] = useState<VoiceState>('idle');
     const [transcript, setTranscript] = useState('');
     const [lastIntent, setLastIntent] = useState<ParsedIntent | null>(null);
