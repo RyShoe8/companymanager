@@ -38,6 +38,7 @@ export default function RecordingToolModal({
         allowAssignment={allowAssignment}
         uploadOnly={uploadOnly}
         onUploaded={onClose}
+        onPrepared={onClose}
         recordingControl={recordingControl}
         hideSaveDialog={!!recordingControl}
         description="Choose an audio source, then record your screen. Save to Nucleas with optional project/task links, or download locally as MP4."

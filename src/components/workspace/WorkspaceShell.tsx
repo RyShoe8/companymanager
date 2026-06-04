@@ -102,7 +102,7 @@ export default function WorkspaceShell({
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
 
     const createScreenshot = useScreenshotUpload(null);
-    const createRecording = useRecordingUpload(null);
+    const createRecording = useRecordingUpload(null, undefined, () => setShowRecordingModal(false));
 
     const canCreateTaskOrContent = useMemo(
         () =>
@@ -1464,9 +1464,12 @@ export default function WorkspaceShell({
                         recordingControl={createRecording}
                     />
 
-                    {createRecording.isRecording && !createRecording.controlsInPopout && (
+                    {(createRecording.isArmed || createRecording.isRecording) &&
+                        !createRecording.controlsInPopout && (
                         <RecordingOverlay
+                            phase={createRecording.isRecording ? 'recording' : 'armed'}
                             elapsedLabel={createRecording.elapsedLabel}
+                            onStart={createRecording.beginRecording}
                             onStop={() => void createRecording.stopRecording()}
                         />
                     )}

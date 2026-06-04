@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import {
   postRecordingPopoutMessage,
   subscribeRecordingPopoutMessages,
+  type RecordingPopoutPhase,
 } from '@/lib/recordings/recordingPopoutSync';
 
 function formatElapsed(seconds: number): string {
@@ -17,6 +18,7 @@ function formatElapsed(seconds: number): string {
 function RecordingControlsContent() {
   const searchParams = useSearchParams();
   const isPopout = searchParams?.get('popout') === '1';
+  const [phase, setPhase] = useState<RecordingPopoutPhase>('armed');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
@@ -25,7 +27,8 @@ function RecordingControlsContent() {
     postRecordingPopoutMessage({ type: 'ready' });
 
     const unsubscribe = subscribeRecordingPopoutMessages((message) => {
-      if (message.type === 'tick') {
+      if (message.type === 'state') {
+        setPhase(message.phase);
         setElapsedSeconds(message.elapsedSeconds);
       }
     });
@@ -41,7 +44,11 @@ function RecordingControlsContent() {
     };
   }, [isPopout]);
 
-  const handleStop = () => {
+  const handlePrimaryAction = () => {
+    if (phase === 'armed') {
+      postRecordingPopoutMessage({ type: 'start' });
+      return;
+    }
     postRecordingPopoutMessage({ type: 'stop' });
     window.close();
   };
@@ -54,18 +61,22 @@ function RecordingControlsContent() {
     );
   }
 
+  const isRecording = phase === 'recording';
+
   return (
     <div className="h-dvh overflow-hidden bg-white flex items-center justify-center px-3">
       <div className="flex items-center gap-3 w-full max-w-[320px]">
         <span className="flex items-center gap-2 text-sm font-medium text-gray-900 shrink-0">
-          <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" aria-hidden />
-          Recording
+          {isRecording && (
+            <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" aria-hidden />
+          )}
+          {isRecording ? 'Recording' : 'Ready'}
         </span>
         <span className="font-mono text-sm text-gray-600 tabular-nums flex-1 text-center">
           {formatElapsed(elapsedSeconds)}
         </span>
-        <Button type="button" size="sm" onClick={handleStop}>
-          Stop
+        <Button type="button" size="sm" onClick={handlePrimaryAction}>
+          {isRecording ? 'Stop' : 'Start'}
         </Button>
       </div>
     </div>

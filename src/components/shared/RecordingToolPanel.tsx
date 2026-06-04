@@ -23,6 +23,7 @@ interface RecordingToolPanelProps {
   uploadOnly?: boolean;
   description?: string;
   onUploaded?: () => void;
+  onPrepared?: () => void;
   onBack?: () => void;
   showBack?: boolean;
   recordingControl?: RecordingUploadControl;
@@ -52,6 +53,8 @@ function RecordingToolPanelInner({
     errorMessage,
     micWarning,
     isBusy,
+    isPreparing,
+    isArmed,
     isRecording,
     isConverting,
     isNaming,
@@ -59,7 +62,8 @@ function RecordingToolPanelInner({
     suggestedName,
     previewUrl,
     elapsedLabel,
-    startRecording,
+    prepareRecording,
+    beginRecording,
     stopRecording,
     uploadFromFiles,
     confirmSave,
@@ -67,15 +71,23 @@ function RecordingToolPanelInner({
     cancelNaming,
   } = control;
 
-  const handleStartRecording = () => {
+  const showSetup =
+    captureSupported && !uploadOnly && !isPreparing && !isArmed && !isRecording && !isConverting;
+
+  const handleShareScreen = () => {
     if (!audioSource || isBusy) return;
-    void startRecording(audioSource);
+    void prepareRecording(audioSource);
   };
 
   return (
     <>
-      {isRecording && !controlsInPopout && (
-        <RecordingOverlay elapsedLabel={elapsedLabel} onStop={() => void stopRecording()} />
+      {!controlsInPopout && (isArmed || isRecording) && (
+        <RecordingOverlay
+          phase={isRecording ? 'recording' : 'armed'}
+          elapsedLabel={elapsedLabel}
+          onStart={beginRecording}
+          onStop={() => void stopRecording()}
+        />
       )}
 
       <div className="space-y-3">
@@ -86,7 +98,7 @@ function RecordingToolPanelInner({
           </p>
         )}
 
-        {captureSupported && !uploadOnly && !isRecording && !isConverting && (
+        {showSetup && (
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-text-primary">Audio source</legend>
             <label className="flex items-start gap-2 text-sm text-text-secondary cursor-pointer">
@@ -125,6 +137,10 @@ function RecordingToolPanelInner({
           </fieldset>
         )}
 
+        {isPreparing && (
+          <p className="text-xs text-text-muted">{statusMessage ?? 'Select a screen to share…'}</p>
+        )}
+
         <input
           ref={fileInputRef}
           type="file"
@@ -138,29 +154,15 @@ function RecordingToolPanelInner({
           }}
         />
         <div className="flex flex-col gap-2">
-          {captureSupported && !uploadOnly && (
-            <>
-              {!isRecording && !isConverting && (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleStartRecording}
-                  disabled={isBusy || !audioSource}
-                >
-                  Record
-                </Button>
-              )}
-              {isRecording && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void stopRecording()}
-                >
-                  Stop recording
-                </Button>
-              )}
-            </>
+          {showSetup && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleShareScreen}
+              disabled={isBusy || !audioSource}
+            >
+              Share screen
+            </Button>
           )}
           <Button
             type="button"
@@ -177,7 +179,7 @@ function RecordingToolPanelInner({
         {isConverting && (
           <p className="text-xs text-text-muted">{statusMessage ?? 'Preparing video…'}</p>
         )}
-        {statusMessage && !isBusy && !isConverting && (
+        {statusMessage && !isBusy && !isConverting && !isPreparing && (
           <p className="text-xs text-text-muted">{statusMessage}</p>
         )}
         {errorMessage && <p className="text-xs text-error">{errorMessage}</p>}
@@ -218,13 +220,12 @@ function RecordingToolPanelInner({
 }
 
 export default function RecordingToolPanel(props: RecordingToolPanelProps) {
-  const internalControl = useRecordingUpload(props.target ?? null, props.onUploaded);
+  const internalControl = useRecordingUpload(
+    props.target ?? null,
+    props.onUploaded,
+    props.onPrepared
+  );
   const control = props.recordingControl ?? internalControl;
 
-  return (
-    <RecordingToolPanelInner
-      {...props}
-      control={control}
-    />
-  );
+  return <RecordingToolPanelInner {...props} control={control} />;
 }

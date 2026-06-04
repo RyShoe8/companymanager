@@ -1,8 +1,11 @@
 export const RECORDING_POPOUT_CHANNEL = 'nucleas-recording-controls';
 
+export type RecordingPopoutPhase = 'armed' | 'recording';
+
 export type RecordingPopoutMessage =
   | { type: 'ready' }
-  | { type: 'tick'; elapsedSeconds: number }
+  | { type: 'state'; phase: RecordingPopoutPhase; elapsedSeconds: number }
+  | { type: 'start' }
   | { type: 'stop' }
   | { type: 'closed' };
 

@@ -6,10 +6,15 @@ export type TranscodeProgress = {
 export type TranscodeResult = {
   file: File;
   usedFallback: boolean;
+  failureStage?: 'load' | 'exec' | 'read';
 };
 
 type FfmpegInstance = {
-  load: (config: { coreURL: string; wasmURL: string }) => Promise<void>;
+  load: (config: {
+    coreURL: string;
+    wasmURL: string;
+    classWorkerURL?: string;
+  }) => Promise<void>;
   writeFile: (name: string, data: Uint8Array) => Promise<void>;
   readFile: (name: string) => Promise<Uint8Array | string>;
   deleteFile: (name: string) => Promise<void>;
@@ -18,6 +23,10 @@ type FfmpegInstance = {
 };
 
 let ffmpegLoadPromise: Promise<FfmpegInstance | null> | null = null;
+
+function resetFfmpegLoadCache(): void {
+  ffmpegLoadPromise = null;
+}
 
 async function loadFfmpeg(): Promise<FfmpegInstance | null> {
   if (typeof window === 'undefined') return null;
@@ -29,14 +38,18 @@ async function loadFfmpeg(): Promise<FfmpegInstance | null> {
         const { toBlobURL } = await import('@ffmpeg/util');
 
         const ffmpeg = new FFmpeg();
-        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+        const base = `${window.location.origin}/ffmpeg`;
         await ffmpeg.load({
-          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+          coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+          classWorkerURL: await toBlobURL(`${base}/worker.js`, 'text/javascript'),
         });
         return ffmpeg as unknown as FfmpegInstance;
       } catch (error) {
-        console.warn('[transcodeRecording] ffmpeg.wasm failed to load', error);
+        resetFfmpegLoadCache();
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[transcodeRecording] ffmpeg.wasm failed to load', error);
+        }
         return null;
       }
     })();
@@ -49,6 +62,35 @@ function webmInputName(file: File): string {
   return file.name.endsWith('.webm') ? file.name : 'input.webm';
 }
 
+async function runTranscodeExec(
+  ffmpeg: FfmpegInstance,
+  inputName: string,
+  outputName: string,
+  includeAudio: boolean
+): Promise<void> {
+  const args = [
+    '-i',
+    inputName,
+    '-c:v',
+    'libx264',
+    '-preset',
+    'fast',
+    '-crf',
+    '20',
+    '-pix_fmt',
+    'yuv420p',
+  ];
+
+  if (includeAudio) {
+    args.push('-c:a', 'aac', '-b:a', '192k');
+  } else {
+    args.push('-an');
+  }
+
+  args.push('-movflags', '+faststart', outputName);
+  await ffmpeg.exec(args);
+}
+
 /**
  * Transcode a WebM recording to MP4 (H.264 + AAC) for broad desktop player support.
  * Falls back to the original file when WASM transcode is unavailable.
@@ -59,7 +101,7 @@ export async function transcodeRecordingToMp4(
 ): Promise<TranscodeResult> {
   const ffmpeg = await loadFfmpeg();
   if (!ffmpeg) {
-    return { file: webmFile, usedFallback: true };
+    return { file: webmFile, usedFallback: true, failureStage: 'load' };
   }
 
   const inputName = webmInputName(webmFile);
@@ -76,39 +118,25 @@ export async function transcodeRecordingToMp4(
       onProgress?.({ ratio, message: 'Preparing video…' });
     });
 
-    await ffmpeg.exec([
-      '-i',
-      inputName,
-      '-c:v',
-      'libx264',
-      '-preset',
-      'fast',
-      '-crf',
-      '20',
-      '-pix_fmt',
-      'yuv420p',
-      '-c:a',
-      'aac',
-      '-b:a',
-      '192k',
-      '-movflags',
-      '+faststart',
-      outputName,
-    ]);
+    try {
+      await runTranscodeExec(ffmpeg, inputName, outputName, true);
+    } catch {
+      await runTranscodeExec(ffmpeg, inputName, outputName, false);
+    }
 
     const data = await ffmpeg.readFile(outputName);
     const bytes =
-      data instanceof Uint8Array
-        ? data
-        : new TextEncoder().encode(String(data));
+      data instanceof Uint8Array ? data : new TextEncoder().encode(String(data));
 
     onProgress?.({ ratio: 1, message: 'Video ready' });
 
     const mp4File = new File([bytes as BlobPart], outputName, { type: 'video/mp4' });
     return { file: mp4File, usedFallback: false };
   } catch (error) {
-    console.warn('[transcodeRecording] transcode failed', error);
-    return { file: webmFile, usedFallback: true };
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[transcodeRecording] transcode failed', error);
+    }
+    return { file: webmFile, usedFallback: true, failureStage: 'exec' };
   } finally {
     try {
       await ffmpeg.deleteFile(inputName);
@@ -119,9 +147,7 @@ export async function transcodeRecordingToMp4(
   }
 }
 
-export async function transcodeAudioToMp4(
-  webmFile: File
-): Promise<File | null> {
+export async function transcodeAudioToMp4(webmFile: File): Promise<File | null> {
   const ffmpeg = await loadFfmpeg();
   if (!ffmpeg) return null;
 

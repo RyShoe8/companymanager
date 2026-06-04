@@ -25,6 +25,7 @@ export type RecordingCaptureResult = {
 };
 
 export type RecordingSession = {
+  begin: () => void;
   stop: () => Promise<RecordingCaptureResult>;
   cancel: () => void;
 };
@@ -161,15 +162,17 @@ export function isRecordingCaptureSupported(): boolean {
   );
 }
 
-export type StartRecordingSessionOptions = {
+export type PrepareRecordingSessionOptions = {
   audioSource: RecordingAudioSource;
+  /** Called when the user stops screen sharing before recording begins. */
+  onShareEnded?: () => void;
 };
 
-/** Start a screen recording session. Call stop() to finalize files. */
-export async function startRecordingSession(
-  options: StartRecordingSessionOptions
+/** Acquire screen share and prepare recorders. Call begin() to start capture. */
+export async function prepareRecordingSession(
+  options: PrepareRecordingSessionOptions
 ): Promise<RecordingSession> {
-  const { audioSource } = options;
+  const { audioSource, onShareEnded } = options;
 
   if (!isRecordingCaptureSupported()) {
     throw new RecordingCaptureError(
@@ -185,8 +188,9 @@ export async function startRecordingSession(
   let videoRecorder: MediaRecorder | null = null;
   let audioRecorder: MediaRecorder | null = null;
   let canceled = false;
+  let hasBegun = false;
   let autoStopTimer: number | null = null;
-  const startedAt = Date.now();
+  let startedAt = 0;
 
   const videoChunks: Blob[] = [];
   const audioChunks: Blob[] = [];
@@ -337,21 +341,17 @@ export async function startRecordingSession(
     displayTrack?.addEventListener(
       'ended',
       () => {
+        if (canceled) return;
         if (videoRecorder?.state === 'recording') {
           void videoRecorder.stop();
+        } else {
+          canceled = true;
+          cleanup();
+          onShareEnded?.();
         }
       },
       { once: true }
     );
-
-    videoRecorder.start(RECORDER_TIMESLICE_MS);
-    audioRecorder?.start(RECORDER_TIMESLICE_MS);
-
-    autoStopTimer = window.setTimeout(() => {
-      if (videoRecorder?.state === 'recording') {
-        videoRecorder.stop();
-      }
-    }, MAX_RECORDING_SECONDS * 1000);
 
     const finalize = (): Promise<RecordingCaptureResult> =>
       new Promise((resolve, reject) => {
@@ -408,9 +408,24 @@ export async function startRecordingSession(
       });
 
     return {
+      begin: () => {
+        if (canceled || hasBegun || !videoRecorder) return;
+        hasBegun = true;
+        startedAt = Date.now();
+        videoRecorder.start(RECORDER_TIMESLICE_MS);
+        audioRecorder?.start(RECORDER_TIMESLICE_MS);
+        autoStopTimer = window.setTimeout(() => {
+          if (videoRecorder?.state === 'recording') {
+            videoRecorder.stop();
+          }
+        }, MAX_RECORDING_SECONDS * 1000);
+      },
       stop: async () => {
         if (canceled) {
           throw new RecordingCaptureError('Recording was canceled.', 'canceled');
+        }
+        if (!hasBegun) {
+          throw new RecordingCaptureError('Recording was not started.', 'canceled');
         }
         if (videoRecorder?.state === 'recording') {
           videoRecorder.stop();
