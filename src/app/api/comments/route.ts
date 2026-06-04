@@ -4,6 +4,7 @@ import Comment from '@/lib/models/Comment';
 import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import { resolveProjectIdFromCommentEntity, touchProjectActivity } from '@/lib/projects/touchProjectActivity';
+import { mergeCommentSummary } from '@/lib/comments/commentUtils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
     const entityId = searchParams.get('entityId');
     const taskIndex = searchParams.get('taskIndex');
     const taskId = searchParams.get('taskId');
+    const summary = searchParams.get('summary') === '1';
 
     if (!entityType || !entityId) {
       return NextResponse.json({ error: 'entityType and entityId are required' }, { status: 400 });
@@ -36,6 +38,14 @@ export async function GET(request: NextRequest) {
     const comments = await Comment.find(query)
       .sort({ createdAt: 1 })
       .lean();
+
+    if (summary) {
+      let summaryResult = { count: 0, latestActivityMs: 0 };
+      for (const comment of comments) {
+        summaryResult = mergeCommentSummary(summaryResult, comment);
+      }
+      return NextResponse.json(summaryResult);
+    }
 
     // Build threaded structure
     const commentMap = new Map();

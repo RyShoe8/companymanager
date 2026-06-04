@@ -6,6 +6,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+import { getCommentTreeMeta } from '@/lib/comments/commentUtils';
 
 interface CommentThreadProps {
   entityType: 'project' | 'projectTask' | 'contentItem';
@@ -21,6 +22,7 @@ interface CommentThreadProps {
   isManagerOrAdmin?: boolean;
   /** When false, screenshot gallery is not shown (parent renders it elsewhere). */
   showScreenshotGallery?: boolean;
+  onMetaChange?: (meta: { count: number; latestActivityMs: number }) => void;
 }
 
 interface CommentWithReplies extends IComment {
@@ -37,6 +39,7 @@ export default function CommentThread({
   pollIntervalMs,
   isManagerOrAdmin = false,
   showScreenshotGallery = true,
+  onMetaChange,
 }: CommentThreadProps) {
   const light = useInspectorLight();
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
@@ -74,13 +77,14 @@ export default function CommentThread({
       if (response.ok) {
         const data = await response.json();
         setComments(data);
+        onMetaChange?.(getCommentTreeMeta(data));
       }
     } catch {
       // Error loading comments
     } finally {
       setLoading(false);
     }
-  }, [entityType, entityId, taskIndex, taskId]);
+  }, [entityType, entityId, taskIndex, taskId, onMetaChange]);
 
   useEffect(() => {
     loadComments();

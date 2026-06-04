@@ -17,6 +17,7 @@ import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal
 import Button from '@/components/ui/Button';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import CommentThread from '@/components/comments/CommentThread';
+import CommentsCollapsibleSection from '@/components/comments/CommentsCollapsibleSection';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import ProjectLogo from '@/components/projects/ProjectLogo';
@@ -55,6 +56,14 @@ import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoCon
 import type { RefObject } from 'react';
 import { expandTaskInstances } from '@/lib/recurrence/expandTaskInstances';
 import TaskRecurrenceInline, { type TaskRecurrenceValue } from '@/components/planning-map/TaskRecurrenceInline';
+import { taskCommentSummaryKey, type CommentSummary } from '@/lib/comments/commentUtils';
+import {
+  buildCommentThreadKey,
+  hasUnreadCommentActivity,
+  setCommentLastSeenMs,
+  setCommentThreadManuallyCollapsed,
+  shouldAutoExpandCommentThread,
+} from '@/lib/comments/commentReadState';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -199,6 +208,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   localProjectRef.current = localProject;
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
   const [expandedContentComments, setExpandedContentComments] = useState<Set<string>>(new Set());
+  const [commentSummaries, setCommentSummaries] = useState<{
+    tasks: Record<string, CommentSummary>;
+    contentItems: Record<string, CommentSummary>;
+  }>({ tasks: {}, contentItems: {} });
   const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null);
   const [showTaskActions, setShowTaskActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -532,20 +545,174 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const toggleTaskComments = (taskIdx: number) => {
-    setExpandedTaskComments(prev => {
+    const threadKey = currentUserId
+      ? buildCommentThreadKey(
+          currentUserId,
+          'projectTask',
+          localProject._id.toString(),
+          (localProject.tasks?.[taskIdx] as { _id?: { toString: () => string } })?._id?.toString()
+        )
+      : null;
+    const isExpanded = expandedTaskComments.has(taskIdx);
+    if (threadKey) {
+      setCommentThreadManuallyCollapsed(threadKey, isExpanded);
+    }
+    setExpandedTaskComments((prev) => {
       const newSet = new Set(prev);
-      newSet.has(taskIdx) ? newSet.delete(taskIdx) : newSet.add(taskIdx);
+      if (newSet.has(taskIdx)) {
+        newSet.delete(taskIdx);
+      } else {
+        newSet.add(taskIdx);
+      }
       return newSet;
     });
   };
 
   const toggleContentComments = (contentItemId: string) => {
+    const threadKey = currentUserId
+      ? buildCommentThreadKey(currentUserId, 'contentItem', contentItemId)
+      : null;
+    const isExpanded = expandedContentComments.has(contentItemId);
+    if (threadKey) {
+      setCommentThreadManuallyCollapsed(threadKey, isExpanded);
+    }
     setExpandedContentComments((prev) => {
       const newSet = new Set(prev);
-      newSet.has(contentItemId) ? newSet.delete(contentItemId) : newSet.add(contentItemId);
+      if (newSet.has(contentItemId)) {
+        newSet.delete(contentItemId);
+      } else {
+        newSet.add(contentItemId);
+      }
       return newSet;
     });
   };
+
+  const getTaskSummaryForIndex = useCallback(
+    (taskIdx: number): CommentSummary => {
+      const task = localProject.tasks?.[taskIdx];
+      const key = taskCommentSummaryKey(
+        (task as { _id?: { toString: () => string } })?._id?.toString(),
+        taskIdx
+      );
+      return commentSummaries.tasks[key] ?? { count: 0, latestActivityMs: 0 };
+    },
+    [commentSummaries.tasks, localProject.tasks]
+  );
+
+  const handleTaskCommentMetaChange = useCallback(
+    (taskIdx: number, meta: CommentSummary) => {
+      const key = taskCommentSummaryKey(
+        (localProject.tasks?.[taskIdx] as { _id?: { toString: () => string } })?._id?.toString(),
+        taskIdx
+      );
+      setCommentSummaries((prev) => ({
+        ...prev,
+        tasks: { ...prev.tasks, [key]: meta },
+      }));
+      if (expandedTaskComments.has(taskIdx) && currentUserId && meta.latestActivityMs > 0) {
+        const threadKey = buildCommentThreadKey(
+          currentUserId,
+          'projectTask',
+          localProject._id.toString(),
+          (localProject.tasks?.[taskIdx] as { _id?: { toString: () => string } })?._id?.toString()
+        );
+        setCommentLastSeenMs(threadKey, meta.latestActivityMs);
+      }
+    },
+    [currentUserId, expandedTaskComments, localProject._id, localProject.tasks]
+  );
+
+  const handleContentCommentMetaChange = useCallback(
+    (contentItemId: string, meta: CommentSummary) => {
+      setCommentSummaries((prev) => ({
+        ...prev,
+        contentItems: { ...prev.contentItems, [contentItemId]: meta },
+      }));
+      if (expandedContentComments.has(contentItemId) && currentUserId && meta.latestActivityMs > 0) {
+        const threadKey = buildCommentThreadKey(currentUserId, 'contentItem', contentItemId);
+        setCommentLastSeenMs(threadKey, meta.latestActivityMs);
+      }
+    },
+    [currentUserId, expandedContentComments]
+  );
+
+  const applyAutoExpandFromSummaries = useCallback(
+    (data: { tasks: Record<string, CommentSummary>; contentItems: Record<string, CommentSummary> }) => {
+      if (!currentUserId) return;
+
+      const tasksToExpand = new Set<number>();
+      (localProject.tasks ?? []).forEach((task, idx) => {
+        const summaryKey = taskCommentSummaryKey(
+          (task as { _id?: { toString: () => string } })?._id?.toString(),
+          idx
+        );
+        const summary = data.tasks[summaryKey];
+        if (!summary?.latestActivityMs) return;
+        const threadKey = buildCommentThreadKey(
+          currentUserId,
+          'projectTask',
+          localProject._id.toString(),
+          (task as { _id?: { toString: () => string } })?._id?.toString()
+        );
+        if (shouldAutoExpandCommentThread(threadKey, summary.latestActivityMs)) {
+          tasksToExpand.add(idx);
+        }
+      });
+
+      const contentToExpand = new Set<string>();
+      projectContentItems.forEach((item) => {
+        const itemId = item._id.toString();
+        const summary = data.contentItems[itemId];
+        if (!summary?.latestActivityMs) return;
+        const threadKey = buildCommentThreadKey(currentUserId, 'contentItem', itemId);
+        if (shouldAutoExpandCommentThread(threadKey, summary.latestActivityMs)) {
+          contentToExpand.add(itemId);
+        }
+      });
+
+      if (tasksToExpand.size > 0) {
+        setExpandedTaskComments((prev) => new Set([...prev, ...tasksToExpand]));
+      }
+      if (contentToExpand.size > 0) {
+        setExpandedContentComments((prev) => new Set([...prev, ...contentToExpand]));
+      }
+    },
+    [currentUserId, localProject._id, localProject.tasks, projectContentItems]
+  );
+
+  const fetchCommentSummaries = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${localProject._id.toString()}/comments-summary`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const summaries = {
+        tasks: (data.tasks ?? {}) as Record<string, CommentSummary>,
+        contentItems: (data.contentItems ?? {}) as Record<string, CommentSummary>,
+      };
+      setCommentSummaries(summaries);
+      applyAutoExpandFromSummaries(summaries);
+    } catch {
+      // ignore
+    }
+  }, [localProject._id, applyAutoExpandFromSummaries]);
+
+  useEffect(() => {
+    void fetchCommentSummaries();
+  }, [fetchCommentSummaries]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchCommentSummaries();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [fetchCommentSummaries]);
+
+  useEffect(() => {
+    applyAutoExpandFromSummaries(commentSummaries);
+  }, [projectContentItems, commentSummaries, applyAutoExpandFromSummaries]);
 
   useEffect(() => {
     if (project._id.toString() !== localProject._id.toString()) {
@@ -1843,16 +2010,28 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       />
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-between gap-2">
-                        <button type="button" onClick={() => toggleContentComments(itemId)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                          <span className="text-xs">{expandedContentComments.has(itemId) ? '▼' : '▶'}</span> Comments
-                        </button>
-                      </div>
-                      {expandedContentComments.has(itemId) && (
-                        <div className="mt-2">
-                          <CommentThread entityType="contentItem" entityId={itemId} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} showScreenshotGallery={false} />
-                        </div>
-                      )}
+                      <CommentsCollapsibleSection
+                        expanded={expandedContentComments.has(itemId)}
+                        onToggle={() => toggleContentComments(itemId)}
+                        count={commentSummaries.contentItems[itemId]?.count ?? 0}
+                        hasUnread={
+                          currentUserId
+                            ? hasUnreadCommentActivity(
+                                buildCommentThreadKey(currentUserId, 'contentItem', itemId),
+                                commentSummaries.contentItems[itemId]?.latestActivityMs ?? 0
+                              )
+                            : false
+                        }
+                      >
+                        <CommentThread
+                          entityType="contentItem"
+                          entityId={itemId}
+                          showHeading={false}
+                          isManagerOrAdmin={isManagerOrAdmin}
+                          showScreenshotGallery={false}
+                          onMetaChange={(meta) => handleContentCommentMetaChange(itemId, meta)}
+                        />
+                      </CommentsCollapsibleSection>
                     </div>
                     <ContentLinkedAssets
                       project={localProject}
@@ -1951,16 +2130,35 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           )}
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-between gap-2">
-                            <button onClick={() => toggleTaskComments(idx)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                              <span className="text-xs">{expandedTaskComments.has(idx) ? '▼' : '▶'}</span> Comments
-                            </button>
-                          </div>
-                          {expandedTaskComments.has(idx) && (
-                            <div className="mt-2">
-                              <CommentThread entityType="projectTask" entityId={localProject._id.toString()} taskIndex={idx} taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()} showHeading={false} isManagerOrAdmin={isManagerOrAdmin} showScreenshotGallery={false} />
-                            </div>
-                          )}
+                          <CommentsCollapsibleSection
+                            expanded={expandedTaskComments.has(idx)}
+                            onToggle={() => toggleTaskComments(idx)}
+                            count={getTaskSummaryForIndex(idx).count}
+                            hasUnread={
+                              currentUserId
+                                ? hasUnreadCommentActivity(
+                                    buildCommentThreadKey(
+                                      currentUserId,
+                                      'projectTask',
+                                      localProject._id.toString(),
+                                      (localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()
+                                    ),
+                                    getTaskSummaryForIndex(idx).latestActivityMs
+                                  )
+                                : false
+                            }
+                          >
+                            <CommentThread
+                              entityType="projectTask"
+                              entityId={localProject._id.toString()}
+                              taskIndex={idx}
+                              taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
+                              showHeading={false}
+                              isManagerOrAdmin={isManagerOrAdmin}
+                              showScreenshotGallery={false}
+                              onMetaChange={(meta) => handleTaskCommentMetaChange(idx, meta)}
+                            />
+                          </CommentsCollapsibleSection>
                         </div>
                         <TaskLinkedAssets
                           key={`task-assets-${(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString() ?? idx}-${taskAssetsRefreshToken}`}

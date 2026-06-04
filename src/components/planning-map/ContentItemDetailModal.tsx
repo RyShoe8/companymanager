@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import { IEmployee } from '@/lib/models/Employee';
 import { IProject } from '@/lib/models/Project';
@@ -11,6 +11,15 @@ import ContentItemFormFields, { ContentFormErrorMessage } from '@/components/pla
 import ContentItemAssetsSection from '@/components/planning-map/ContentItemAssetsSection';
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import CommentThread from '@/components/comments/CommentThread';
+import CommentsCollapsibleSection from '@/components/comments/CommentsCollapsibleSection';
+import { type CommentSummary } from '@/lib/comments/commentUtils';
+import {
+  buildCommentThreadKey,
+  hasUnreadCommentActivity,
+  setCommentLastSeenMs,
+  setCommentThreadManuallyCollapsed,
+  shouldAutoExpandCommentThread,
+} from '@/lib/comments/commentReadState';
 import { CONTENT_CHANNELS, CONTENT_STATUSES, toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
 
 interface ContentItemDetailModalProps {
@@ -59,6 +68,79 @@ export default function ContentItemDetailModal({
   const [estimatedHours, setEstimatedHours] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [expandedComments, setExpandedComments] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
+  const [commentSummary, setCommentSummary] = useState<CommentSummary>({ count: 0, latestActivityMs: 0 });
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data?.id && setCurrentUserId(data.id))
+      .catch(() => {});
+  }, []);
+
+  const fetchCommentSummary = useCallback(async () => {
+    if (!contentItemId) return;
+    try {
+      const params = new URLSearchParams({
+        entityType: 'contentItem',
+        entityId: contentItemId,
+        summary: '1',
+      });
+      const res = await fetch(`/api/comments?${params}`);
+      if (!res.ok) return;
+      const summary = (await res.json()) as CommentSummary;
+      setCommentSummary(summary);
+      if (currentUserId && summary.latestActivityMs > 0) {
+        const threadKey = buildCommentThreadKey(currentUserId, 'contentItem', contentItemId);
+        if (shouldAutoExpandCommentThread(threadKey, summary.latestActivityMs)) {
+          setExpandedComments(true);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [contentItemId, currentUserId]);
+
+  useEffect(() => {
+    if (!isOpen || !contentItemId) {
+      setExpandedComments(false);
+      setCommentSummary({ count: 0, latestActivityMs: 0 });
+      return;
+    }
+    void fetchCommentSummary();
+  }, [isOpen, contentItemId, fetchCommentSummary]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchCommentSummary();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [isOpen, fetchCommentSummary]);
+
+  const toggleComments = () => {
+    if (!contentItemId) return;
+    const threadKey = currentUserId
+      ? buildCommentThreadKey(currentUserId, 'contentItem', contentItemId)
+      : null;
+    if (threadKey) {
+      setCommentThreadManuallyCollapsed(threadKey, expandedComments);
+    }
+    setExpandedComments((prev) => !prev);
+  };
+
+  const handleCommentMetaChange = (meta: CommentSummary) => {
+    setCommentSummary(meta);
+    if (expandedComments && currentUserId && contentItemId && meta.latestActivityMs > 0) {
+      setCommentLastSeenMs(
+        buildCommentThreadKey(currentUserId, 'contentItem', contentItemId),
+        meta.latestActivityMs
+      );
+    }
+  };
 
   useEffect(() => {
     if (projectProp) setProject(projectProp);
@@ -236,26 +318,29 @@ export default function ContentItemDetailModal({
 
       {contentItemId && (
         <div className="pt-3 border-t border-border">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setExpandedComments((prev) => !prev)}
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              <span className="text-xs">{expandedComments ? '▼' : '▶'}</span> Comments
-            </button>
-          </div>
-          {expandedComments && (
-            <div className="mt-2">
-              <CommentThread
-                entityType="contentItem"
-                entityId={contentItemId}
-                showHeading={false}
-                isManagerOrAdmin={isManagerOrAdmin}
-                showScreenshotGallery={false}
-              />
-            </div>
-          )}
+          <CommentsCollapsibleSection
+            expanded={expandedComments}
+            onToggle={toggleComments}
+            count={commentSummary.count}
+            hasUnread={
+              currentUserId && contentItemId
+                ? hasUnreadCommentActivity(
+                    buildCommentThreadKey(currentUserId, 'contentItem', contentItemId),
+                    commentSummary.latestActivityMs
+                  )
+                : false
+            }
+            className="text-xs text-primary hover:underline flex items-center gap-1"
+          >
+            <CommentThread
+              entityType="contentItem"
+              entityId={contentItemId}
+              showHeading={false}
+              isManagerOrAdmin={isManagerOrAdmin}
+              showScreenshotGallery={false}
+              onMetaChange={handleCommentMetaChange}
+            />
+          </CommentsCollapsibleSection>
         </div>
       )}
 
