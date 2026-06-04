@@ -1221,7 +1221,7 @@ export default function WorkspaceShell({
                                             setShowRecordingModal(true);
                                             return;
                                         }
-                                        void createRecording.startRecording();
+                                        setShowRecordingModal(true);
                                     }}
                                 />
                             </div>
@@ -1460,7 +1460,8 @@ export default function WorkspaceShell({
                         onClose={() => setShowRecordingModal(false)}
                         target={null}
                         projects={ws.allProjects}
-                        uploadOnly
+                        uploadOnly={!isRecordingCaptureSupported()}
+                        recordingControl={createRecording}
                     />
 
                     {createRecording.isRecording && !createRecording.controlsInPopout && (

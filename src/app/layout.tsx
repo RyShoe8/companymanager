@@ -83,12 +83,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isOsShell = (await headers()).get('x-nucleas-shell') === 'os';
+  const shellHeader = (await headers()).get('x-nucleas-shell');
+  const isOsShell = shellHeader === 'os';
+  const isMinimalShell = shellHeader === 'minimal';
+  const isBareShell = isOsShell || isMinimalShell;
   const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen${isOsShell ? ' nucleas-os' : ''}`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen${isOsShell ? ' nucleas-os' : ''}${isMinimalShell ? ' nucleas-minimal' : ''}`}
         suppressHydrationWarning
       >
         <StructuredData
@@ -106,32 +109,36 @@ export default async function RootLayout({
             },
           }}
         />
-        {/* Google tag (gtag.js) */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-C71LD7T8PT"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
+        {!isMinimalShell && (
+          <>
+            {/* Google tag (gtag.js) */}
+            <Script
+              src="https://www.googletagmanager.com/gtag/js?id=G-C71LD7T8PT"
+              strategy="afterInteractive"
+            />
+            <Script id="google-analytics" strategy="afterInteractive">
+              {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
             gtag('config', 'G-C71LD7T8PT');
           `}
-        </Script>
-        {/* Cookie Management Platform */}
-        <Script
-          src="//cdn.cookie-script.com/s/59ce82450accfaf4f6d3d94203a5d496.js"
-          strategy="afterInteractive"
-        />
-        {/* Ahrefs Analytics */}
-        <Script
-          src="https://analytics.ahrefs.com/analytics.js"
-          data-key="D3V+ZYBYBWGuq2N1WcMRgg"
-          strategy="afterInteractive"
-        />
+            </Script>
+            {/* Cookie Management Platform */}
+            <Script
+              src="//cdn.cookie-script.com/s/59ce82450accfaf4f6d3d94203a5d496.js"
+              strategy="afterInteractive"
+            />
+            {/* Ahrefs Analytics */}
+            <Script
+              src="https://analytics.ahrefs.com/analytics.js"
+              data-key="D3V+ZYBYBWGuq2N1WcMRgg"
+              strategy="afterInteractive"
+            />
+          </>
+        )}
         <OrganizationSetupCheck>
-          {isOsShell ? (
+          {isBareShell ? (
             children
           ) : (
             <>

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   startRecordingSession,
   RecordingCaptureError,
+  recordingAudioWarning,
   MAX_RECORDING_SECONDS,
+  type RecordingAudioSource,
   type RecordingSession,
 } from '@/lib/captureRecording';
 import type { MediaUploadTarget } from '@/lib/mediaUploadTarget';
@@ -22,10 +24,12 @@ import {
   postRecordingPopoutMessage,
   subscribeRecordingPopoutMessages,
 } from '@/lib/recordings/recordingPopoutSync';
+import { transcodeAudioToMp4, transcodeRecordingToMp4 } from '@/lib/transcodeRecording';
 
 export type RecordingUploadStatus =
   | 'idle'
   | 'recording'
+  | 'converting'
   | 'naming'
   | 'uploading'
   | 'processing'
@@ -122,22 +126,47 @@ export function useRecordingUpload(
     closePopout();
   }, [clearTimer, clearSuccessTimer, revokePreviewUrl, closePopout]);
 
-  const stageForNaming = useCallback(
-    (videoFile: File, audioFile: File | null, durationSeconds: number, micIncluded: boolean) => {
+  const finalizeCapture = useCallback(
+    async (
+      videoFile: File,
+      audioFile: File | null,
+      durationSeconds: number,
+      audioSource: RecordingAudioSource,
+      audioIncluded: boolean
+    ) => {
       closePopout();
+      setStatus('converting');
+      setStatusMessage('Preparing video…');
+
+      const videoResult = await transcodeRecordingToMp4(videoFile, (progress) => {
+        setStatusMessage(progress.message);
+      });
+
+      let finalAudio = audioFile;
+      if (audioFile) {
+        const mp4Audio = await transcodeAudioToMp4(audioFile);
+        if (mp4Audio) finalAudio = mp4Audio;
+      }
+
       revokePreviewUrl();
-      const url = URL.createObjectURL(videoFile);
+      const url = URL.createObjectURL(videoResult.file);
       previewUrlRef.current = url;
       setPreviewUrl(url);
-      pendingVideoRef.current = videoFile;
-      pendingAudioRef.current = audioFile;
+      pendingVideoRef.current = videoResult.file;
+      pendingAudioRef.current = finalAudio;
       pendingDurationRef.current = durationSeconds;
       setSuggestedName(defaultRecordingName());
-      setMicWarning(
-        micIncluded
-          ? null
-          : 'Microphone was not available. Transcript may be limited without voice audio.'
-      );
+
+      const warnings: string[] = [];
+      const audioWarning = recordingAudioWarning(audioSource, audioIncluded);
+      if (audioWarning) warnings.push(audioWarning);
+      if (videoResult.usedFallback) {
+        warnings.push(
+          'Could not convert to MP4 in this browser. The file is WebM — use Chrome or Edge to play, or re-record on a desktop browser.'
+        );
+      }
+      setMicWarning(warnings.length > 0 ? warnings.join(' ') : null);
+
       setStatus('naming');
       setStatusMessage(null);
       setErrorMessage(null);
@@ -155,7 +184,13 @@ export function useRecordingUpload(
     try {
       const result = await session.stop();
       sessionRef.current = null;
-      stageForNaming(result.videoFile, result.audioFile, result.durationSeconds, result.micIncluded);
+      await finalizeCapture(
+        result.videoFile,
+        result.audioFile,
+        result.durationSeconds,
+        result.audioSource,
+        result.audioIncluded
+      );
     } catch (error) {
       if (error instanceof RecordingCaptureError && error.code === 'canceled') {
         reset();
@@ -172,7 +207,7 @@ export function useRecordingUpload(
       setStatusMessage(null);
       closePopout();
     }
-  }, [clearTimer, reset, stageForNaming, closePopout]);
+  }, [clearTimer, reset, finalizeCapture, closePopout]);
 
   stopRecordingRef.current = stopRecording;
 
@@ -192,56 +227,78 @@ export function useRecordingUpload(
     return unsubscribe;
   }, [status]);
 
-  const startRecording = useCallback(async () => {
-    setStatus('recording');
-    setStatusMessage('Starting recording...');
-    setErrorMessage(null);
-    setElapsedSeconds(0);
-    setControlsInPopout(false);
+  const startRecording = useCallback(
+    async (audioSource: RecordingAudioSource) => {
+      setStatus('recording');
+      setStatusMessage('Starting recording...');
+      setErrorMessage(null);
+      setElapsedSeconds(0);
+      setControlsInPopout(false);
 
-    try {
-      const session = await startRecordingSession();
-      sessionRef.current = session;
-      setStatusMessage('Recording');
+      try {
+        const session = await startRecordingSession({ audioSource });
+        sessionRef.current = session;
+        setStatusMessage('Recording');
 
-      const popup = openRecordingControlsPopout();
-      popoutRef.current = popup;
-      const usingPopout = popup != null && !popup.closed;
-      setControlsInPopout(usingPopout);
-      if (usingPopout) {
-        postRecordingPopoutMessage({ type: 'tick', elapsedSeconds: 0 });
-      }
+        const popup = openRecordingControlsPopout();
+        popoutRef.current = popup;
+        const usingPopout = popup != null && !popup.closed;
+        setControlsInPopout(usingPopout);
+        if (usingPopout) {
+          postRecordingPopoutMessage({ type: 'tick', elapsedSeconds: 0 });
+        }
 
-      clearTimer();
-      timerRef.current = window.setInterval(() => {
-        setElapsedSeconds((prev) => {
-          const next = prev + 1;
-          if (next >= MAX_RECORDING_SECONDS) {
-            clearTimer();
-          }
-          if (popoutRef.current && !popoutRef.current.closed) {
-            postRecordingPopoutMessage({ type: 'tick', elapsedSeconds: next });
-          }
-          return next;
-        });
-      }, 1000);
-    } catch (error) {
-      closePopout();
-      if (error instanceof RecordingCaptureError && error.code === 'canceled') {
-        reset();
-        return;
-      }
-      setStatus('error');
-      setErrorMessage(
-        error instanceof RecordingCaptureError
-          ? error.message
-          : error instanceof Error
+        clearTimer();
+        timerRef.current = window.setInterval(() => {
+          setElapsedSeconds((prev) => {
+            const next = prev + 1;
+            if (next >= MAX_RECORDING_SECONDS) {
+              clearTimer();
+            }
+            if (popoutRef.current && !popoutRef.current.closed) {
+              postRecordingPopoutMessage({ type: 'tick', elapsedSeconds: next });
+            }
+            return next;
+          });
+        }, 1000);
+      } catch (error) {
+        closePopout();
+        if (error instanceof RecordingCaptureError && error.code === 'canceled') {
+          reset();
+          return;
+        }
+        setStatus('error');
+        setErrorMessage(
+          error instanceof RecordingCaptureError
             ? error.message
-            : 'Failed to start recording.'
-      );
+            : error instanceof Error
+              ? error.message
+              : 'Failed to start recording.'
+        );
+        setStatusMessage(null);
+        setStatus('idle');
+      }
+    },
+    [clearTimer, reset, closePopout]
+  );
+
+  const stageForNaming = useCallback(
+    (videoFile: File, audioFile: File | null) => {
+      revokePreviewUrl();
+      const url = URL.createObjectURL(videoFile);
+      previewUrlRef.current = url;
+      setPreviewUrl(url);
+      pendingVideoRef.current = videoFile;
+      pendingAudioRef.current = audioFile;
+      pendingDurationRef.current = 0;
+      setSuggestedName(defaultRecordingName());
+      setMicWarning(null);
+      setStatus('naming');
       setStatusMessage(null);
-    }
-  }, [clearTimer, reset, closePopout]);
+      setErrorMessage(null);
+    },
+    [revokePreviewUrl]
+  );
 
   const uploadAndProcess = useCallback(
     async (name: string, uploadTarget?: MediaUploadTarget | null) => {
@@ -326,13 +383,16 @@ export function useRecordingUpload(
         setErrorMessage('Please select a video file.');
         return;
       }
-      stageForNaming(video, null, 0, false);
+      stageForNaming(video, null);
     },
     [stageForNaming]
   );
 
   const isBusy =
-    status === 'recording' || status === 'uploading' || status === 'processing';
+    status === 'recording' ||
+    status === 'converting' ||
+    status === 'uploading' ||
+    status === 'processing';
 
   return {
     status,
@@ -341,6 +401,7 @@ export function useRecordingUpload(
     micWarning,
     isBusy,
     isRecording: status === 'recording',
+    isConverting: status === 'converting',
     isNaming: status === 'naming',
     controlsInPopout,
     suggestedName,
@@ -356,3 +417,5 @@ export function useRecordingUpload(
     reset,
   };
 }
+
+export type RecordingUploadControl = ReturnType<typeof useRecordingUpload>;

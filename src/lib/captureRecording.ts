@@ -7,17 +7,21 @@ export class RecordingCaptureError extends Error {
       | 'canceled'
       | 'capture_failed'
       | 'mic_denied'
+      | 'system_audio_missing'
   ) {
     super(message);
     this.name = 'RecordingCaptureError';
   }
 }
 
+export type RecordingAudioSource = 'system' | 'mic';
+
 export type RecordingCaptureResult = {
   videoFile: File;
   audioFile: File | null;
   durationSeconds: number;
-  micIncluded: boolean;
+  audioIncluded: boolean;
+  audioSource: RecordingAudioSource;
 };
 
 export type RecordingSession = {
@@ -36,6 +40,11 @@ interface CaptureControllerLike {
 type DisplayMediaOptionsWithController = DisplayMediaStreamOptions & {
   controller?: CaptureControllerLike;
   preferCurrentTab?: boolean;
+};
+
+type AudioMixContext = {
+  audioContext: AudioContext;
+  destination: MediaStreamAudioDestinationNode;
 };
 
 function createCaptureController(): CaptureControllerLike | null {
@@ -117,14 +126,31 @@ function chunksToFile(chunks: Blob[], mimeType: string, fileName: string): File 
 }
 
 const MIN_VIDEO_BITRATE = 2_500_000;
-const MAX_VIDEO_BITRATE = 8_000_000;
+const MAX_VIDEO_BITRATE = 16_000_000;
 const DEFAULT_VIDEO_BITRATE = 6_000_000;
-const MIC_AUDIO_BITRATE = 192_000;
+const AUDIO_BITRATE = 192_000;
+const RECORDER_TIMESLICE_MS = 250;
 
 function computeVideoBitrate(width: number, height: number): number {
   const pixels = Math.max(1, width * height);
-  const computed = Math.round(pixels * 0.004);
+  const computed = Math.round(pixels * 0.005);
   return Math.min(MAX_VIDEO_BITRATE, Math.max(MIN_VIDEO_BITRATE, computed || DEFAULT_VIDEO_BITRATE));
+}
+
+function createMixedAudioTrack(audioStreams: MediaStream[]): AudioMixContext | null {
+  const tracks = audioStreams.flatMap((stream) => stream.getAudioTracks());
+  if (tracks.length === 0) return null;
+
+  const audioContext = new AudioContext();
+  const destination = audioContext.createMediaStreamDestination();
+
+  for (const track of tracks) {
+    const sourceStream = new MediaStream([track]);
+    const source = audioContext.createMediaStreamSource(sourceStream);
+    source.connect(destination);
+  }
+
+  return { audioContext, destination };
 }
 
 export function isRecordingCaptureSupported(): boolean {
@@ -135,8 +161,16 @@ export function isRecordingCaptureSupported(): boolean {
   );
 }
 
-/** Start a screen + optional mic recording session. Call stop() to finalize files. */
-export async function startRecordingSession(): Promise<RecordingSession> {
+export type StartRecordingSessionOptions = {
+  audioSource: RecordingAudioSource;
+};
+
+/** Start a screen recording session. Call stop() to finalize files. */
+export async function startRecordingSession(
+  options: StartRecordingSessionOptions
+): Promise<RecordingSession> {
+  const { audioSource } = options;
+
   if (!isRecordingCaptureSupported()) {
     throw new RecordingCaptureError(
       'Recording is unavailable in this browser. Please upload a video instead.',
@@ -147,6 +181,7 @@ export async function startRecordingSession(): Promise<RecordingSession> {
   let displayStream: MediaStream | null = null;
   let micStream: MediaStream | null = null;
   let combinedStream: MediaStream | null = null;
+  let audioMixContext: AudioMixContext | null = null;
   let videoRecorder: MediaRecorder | null = null;
   let audioRecorder: MediaRecorder | null = null;
   let canceled = false;
@@ -155,7 +190,7 @@ export async function startRecordingSession(): Promise<RecordingSession> {
 
   const videoChunks: Blob[] = [];
   const audioChunks: Blob[] = [];
-  let micIncluded = false;
+  let audioIncluded = false;
 
   const cleanup = () => {
     if (autoStopTimer != null) {
@@ -168,6 +203,10 @@ export async function startRecordingSession(): Promise<RecordingSession> {
     combinedStream = null;
     displayStream = null;
     micStream = null;
+    if (audioMixContext) {
+      void audioMixContext.audioContext.close().catch(() => {});
+      audioMixContext = null;
+    }
   };
 
   try {
@@ -182,11 +221,11 @@ export async function startRecordingSession(): Promise<RecordingSession> {
 
     const displayMediaOptions: DisplayMediaOptionsWithController = {
       video: {
-        width: { ideal: 1920, max: 1920 },
-        height: { ideal: 1080, max: 1080 },
-        frameRate: { ideal: 30, max: 30 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30 },
       },
-      audio: false,
+      audio: audioSource === 'system',
       preferCurrentTab: false,
     };
     if (controller) {
@@ -196,27 +235,73 @@ export async function startRecordingSession(): Promise<RecordingSession> {
     displayStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
     keepCapturingPageFocused(controller, displayStream);
 
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-        video: false,
-      });
-      micIncluded = true;
-    } catch {
-      micIncluded = false;
+    const videoTrack = displayStream.getVideoTracks()[0];
+    if (videoTrack) {
+      try {
+        videoTrack.contentHint = 'detail';
+      } catch {
+        // unsupported in some browsers
+      }
     }
 
+    if (audioSource === 'mic') {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+          video: false,
+        });
+      } catch {
+        throw new RecordingCaptureError(
+          'Microphone permission denied. Allow microphone access to record with your voice.',
+          'mic_denied'
+        );
+      }
+    }
+
+    const displayAudioTracks = displayStream.getAudioTracks();
+    const micAudioTracks = micStream?.getAudioTracks() ?? [];
+
+    if (audioSource === 'system') {
+      audioIncluded = displayAudioTracks.length > 0;
+    } else {
+      audioIncluded = micAudioTracks.length > 0;
+    }
+
+    const audioSourcesForMix: MediaStream[] = [];
+    if (audioSource === 'system' && displayAudioTracks.length > 0) {
+      audioSourcesForMix.push(new MediaStream(displayAudioTracks));
+    }
+    if (audioSource === 'mic' && micStream) {
+      audioSourcesForMix.push(micStream);
+    }
+
+    audioMixContext = createMixedAudioTrack(audioSourcesForMix);
+    const mixedAudioTrack = audioMixContext?.destination.stream.getAudioTracks()[0] ?? null;
+
     const videoTracks = displayStream.getVideoTracks();
-    const audioTracks = micStream?.getAudioTracks() ?? [];
-    combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
+    combinedStream = new MediaStream([
+      ...videoTracks,
+      ...(mixedAudioTrack ? [mixedAudioTrack] : []),
+    ]);
 
     const videoSettings = videoTracks[0]?.getSettings();
     const videoWidth = videoSettings?.width ?? 1920;
     const videoHeight = videoSettings?.height ?? 1080;
     const videoBitsPerSecond = computeVideoBitrate(videoWidth, videoHeight);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.info('[recording]', {
+        mimeType: pickVideoMimeType(),
+        width: videoWidth,
+        height: videoHeight,
+        bitrate: videoBitsPerSecond,
+        audioSource,
+        audioIncluded,
+      });
+    }
 
     const videoMimeType = pickVideoMimeType();
     const audioMimeType = pickAudioMimeType();
@@ -224,17 +309,24 @@ export async function startRecordingSession(): Promise<RecordingSession> {
     videoRecorder = new MediaRecorder(combinedStream, {
       mimeType: videoMimeType,
       videoBitsPerSecond,
-      audioBitsPerSecond: micIncluded ? MIC_AUDIO_BITRATE : undefined,
+      audioBitsPerSecond: mixedAudioTrack ? AUDIO_BITRATE : undefined,
     });
 
     videoRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) videoChunks.push(event.data);
     };
 
-    if (micStream && micStream.getAudioTracks().length > 0) {
-      audioRecorder = new MediaRecorder(micStream, {
+    const audioStreamForSeparateFile =
+      audioSource === 'mic' && micStream
+        ? micStream
+        : audioSource === 'system' && displayAudioTracks.length > 0
+          ? new MediaStream(displayAudioTracks)
+          : null;
+
+    if (audioStreamForSeparateFile && audioStreamForSeparateFile.getAudioTracks().length > 0) {
+      audioRecorder = new MediaRecorder(audioStreamForSeparateFile, {
         mimeType: audioMimeType,
-        audioBitsPerSecond: MIC_AUDIO_BITRATE,
+        audioBitsPerSecond: AUDIO_BITRATE,
       });
       audioRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) audioChunks.push(event.data);
@@ -252,8 +344,8 @@ export async function startRecordingSession(): Promise<RecordingSession> {
       { once: true }
     );
 
-    videoRecorder.start(1000);
-    audioRecorder?.start(1000);
+    videoRecorder.start(RECORDER_TIMESLICE_MS);
+    audioRecorder?.start(RECORDER_TIMESLICE_MS);
 
     autoStopTimer = window.setTimeout(() => {
       if (videoRecorder?.state === 'recording') {
@@ -284,7 +376,8 @@ export async function startRecordingSession(): Promise<RecordingSession> {
               videoFile,
               audioFile,
               durationSeconds,
-              micIncluded,
+              audioIncluded,
+              audioSource,
             });
           }
         };
@@ -350,4 +443,15 @@ export async function startRecordingSession(): Promise<RecordingSession> {
     cleanup();
     throw mapCaptureError(error);
   }
+}
+
+export function recordingAudioWarning(
+  audioSource: RecordingAudioSource,
+  audioIncluded: boolean
+): string | null {
+  if (audioIncluded) return null;
+  if (audioSource === 'system') {
+    return 'System audio was not shared. Enable "Share tab/system audio" in the screen picker.';
+  }
+  return 'Microphone was not available. Transcript may be limited without voice audio.';
 }

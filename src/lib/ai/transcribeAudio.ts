@@ -30,6 +30,8 @@ export async function transcribeAudioFromUrl(
   }
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const filename = audioUrl.includes('.mp4') ? 'recording-audio.mp4' : 'recording-audio.webm';
+  const filename = audioUrl.includes('.mp4') || audioUrl.includes('.m4a')
+    ? 'recording-audio.mp4'
+    : 'recording-audio.webm';
   return transcribeAudioBuffer(buffer, filename, apiKey);
 }

@@ -26,6 +26,13 @@ async function uploadViaBlobClient(
   return blob.url;
 }
 
+function recordingFileExtension(file: File): string {
+  if (file.type === 'video/mp4' || file.name.endsWith('.mp4')) return 'mp4';
+  if (file.type === 'audio/mp4' || file.name.endsWith('.m4a')) return 'm4a';
+  if (file.type.includes('webm') || file.name.endsWith('.webm')) return 'webm';
+  return 'mp4';
+}
+
 async function uploadRecordingFiles(
   videoFile: File,
   audioFile: File | null,
@@ -33,18 +40,20 @@ async function uploadRecordingFiles(
 ): Promise<{ videoUrl: string; audioUrl?: string }> {
   const timestamp = Date.now();
   const useBlobClient = typeof window !== 'undefined';
+  const videoExt = recordingFileExtension(videoFile);
 
   if (useBlobClient) {
     try {
       const videoUrl = await uploadViaBlobClient(
         videoFile,
-        `recordings/${orgHint}/${timestamp}-video.webm`
+        `recordings/${orgHint}/${timestamp}-video.${videoExt}`
       );
       let audioUrl: string | undefined;
       if (audioFile) {
+        const audioExt = recordingFileExtension(audioFile);
         audioUrl = await uploadViaBlobClient(
           audioFile,
-          `recordings/${orgHint}/${timestamp}-audio.webm`
+          `recordings/${orgHint}/${timestamp}-audio.${audioExt}`
         );
       }
       return { videoUrl, audioUrl };
@@ -158,7 +167,8 @@ export function downloadVideoFile(file: File, name: string): void {
   const link = document.createElement('a');
   link.href = url;
   const safeName = name.replace(/[^\w\s.-]/g, '').trim() || 'recording';
-  link.download = safeName.includes('.') ? safeName : `${safeName}.webm`;
+  const defaultExt = file.type === 'video/mp4' || file.name.endsWith('.mp4') ? '.mp4' : '.webm';
+  link.download = safeName.includes('.') ? safeName : `${safeName}${defaultExt}`;
   link.click();
   URL.revokeObjectURL(url);
 }

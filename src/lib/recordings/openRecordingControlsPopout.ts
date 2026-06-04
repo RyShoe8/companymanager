@@ -15,7 +15,7 @@ export function openRecordingControlsPopout(): Window | null {
 
   const url = buildRecordingControlsPopoutUrl();
   const width = 340;
-  const height = 120;
+  const height = 140;
   const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
   const top = Math.max(0, Math.round(window.screenY + window.outerHeight - height - 48));
 

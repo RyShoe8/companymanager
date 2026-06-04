@@ -48,15 +48,15 @@ function RecordingControlsContent() {
 
   if (!isPopout) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-700 text-sm p-4">
+      <div className="h-dvh overflow-hidden flex items-center justify-center bg-white text-gray-700 text-sm p-4">
         Open recording controls from the Create menu while recording.
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
-      <div className="flex items-center gap-3 w-full max-w-xs">
+    <div className="h-dvh overflow-hidden bg-white flex items-center justify-center px-3">
+      <div className="flex items-center gap-3 w-full max-w-[320px]">
         <span className="flex items-center gap-2 text-sm font-medium text-gray-900 shrink-0">
           <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" aria-hidden />
           Recording
@@ -76,7 +76,7 @@ export default function RecordingControlsPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-white text-gray-600 text-sm">
+        <div className="h-dvh overflow-hidden flex items-center justify-center bg-white text-gray-600 text-sm">
           Loading…
         </div>
       }

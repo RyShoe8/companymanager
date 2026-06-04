@@ -89,6 +89,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // Recording controls popout: minimal chrome-free shell (authenticated)
+  if (pathname.startsWith('/recording/controls')) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-nucleas-shell', 'minimal');
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   if (isOsHost) {
     // OS shell home
     if (pathname === '/') {

@@ -4,6 +4,7 @@ import Modal from '@/components/ui/Modal';
 import RecordingToolPanel from '@/components/shared/RecordingToolPanel';
 import type { IProject } from '@/lib/models/Project';
 import type { MediaUploadTarget } from '@/lib/mediaUploadTarget';
+import type { RecordingUploadControl } from '@/hooks/useRecordingUpload';
 
 interface RecordingToolModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface RecordingToolModalProps {
   target?: MediaUploadTarget | null;
   projects?: IProject[];
   uploadOnly?: boolean;
+  recordingControl?: RecordingUploadControl;
 }
 
 export default function RecordingToolModal({
@@ -19,6 +21,7 @@ export default function RecordingToolModal({
   target = null,
   projects = [],
   uploadOnly = false,
+  recordingControl,
 }: RecordingToolModalProps) {
   const allowAssignment = !target;
 
@@ -35,7 +38,9 @@ export default function RecordingToolModal({
         allowAssignment={allowAssignment}
         uploadOnly={uploadOnly}
         onUploaded={onClose}
-        description="Record your screen and microphone, or upload a video. Save to Nucleas with optional project/task links, or download locally."
+        recordingControl={recordingControl}
+        hideSaveDialog={!!recordingControl}
+        description="Choose an audio source, then record your screen. Save to Nucleas with optional project/task links, or download locally as MP4."
       />
     </Modal>
   );
