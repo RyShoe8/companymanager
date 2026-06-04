@@ -15,6 +15,50 @@ export function isScreenshotCaptureSupported(): boolean {
   );
 }
 
+type CaptureStartFocusBehavior = 'focus-capturing-application' | 'focus-captured-surface' | 'no-focus-change';
+
+interface CaptureControllerLike {
+  setFocusBehavior(behavior: CaptureStartFocusBehavior): void;
+}
+
+type DisplayMediaOptionsWithController = DisplayMediaStreamOptions & {
+  controller?: CaptureControllerLike;
+  preferCurrentTab?: boolean;
+};
+
+function createCaptureController(): CaptureControllerLike | null {
+  const CaptureControllerCtor = (globalThis as { CaptureController?: new () => CaptureControllerLike })
+    .CaptureController;
+  if (!CaptureControllerCtor) return null;
+  try {
+    return new CaptureControllerCtor();
+  } catch {
+    return null;
+  }
+}
+
+/** Keep the capturing page focused after the user picks a tab or window to share. */
+function keepCapturingPageFocused(
+  controller: CaptureControllerLike | null,
+  stream: MediaStream
+): void {
+  const videoTrack = stream.getVideoTracks()[0];
+  const displaySurface = videoTrack?.getSettings().displaySurface;
+
+  if (controller && (displaySurface === 'browser' || displaySurface === 'window')) {
+    try {
+      controller.setFocusBehavior('focus-capturing-application');
+      return;
+    } catch {
+      // Monitor shares or focus behavior already finalized — fall through.
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.focus();
+  }
+}
+
 function mapCaptureError(error: unknown): ScreenshotCaptureError {
   if (error instanceof ScreenshotCaptureError) return error;
 
@@ -89,12 +133,27 @@ export async function captureScreenshot(): Promise<File> {
   let canceledBeforeCapture = false;
 
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({
+    const controller = createCaptureController();
+    if (controller) {
+      try {
+        controller.setFocusBehavior('focus-capturing-application');
+      } catch {
+        // Unsupported before getDisplayMedia in some browsers — retry after selection.
+      }
+    }
+
+    const displayMediaOptions: DisplayMediaOptionsWithController = {
       video: true,
       audio: false,
       preferCurrentTab: false,
-      selfBrowserSurface: 'exclude',
-    } as DisplayMediaStreamOptions);
+    };
+    if (controller) {
+      displayMediaOptions.controller = controller;
+    }
+
+    stream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+
+    keepCapturingPageFocused(controller, stream);
 
     const video = document.createElement('video');
     video.srcObject = stream;

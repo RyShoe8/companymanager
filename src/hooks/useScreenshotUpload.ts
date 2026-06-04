@@ -16,6 +16,18 @@ export function defaultScreenshotName(): string {
   return `Screenshot ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
+function needsCompression(file: File): boolean {
+  return file.type !== 'image/webp' && file.type !== 'image/jpeg';
+}
+
+async function compressOrFallback(file: File): Promise<File> {
+  try {
+    return await compressImageFile(file);
+  } catch {
+    return file;
+  }
+}
+
 export function useScreenshotUpload(
   target: ScreenshotUploadTarget | null,
   onUploaded?: () => void
@@ -69,7 +81,7 @@ export function useScreenshotUpload(
       try {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          const compressed = await compressImageFile(file);
+          const compressed = needsCompression(file) ? await compressImageFile(file) : file;
           const assetName = files.length > 1 ? `${name} (${i + 1})` : name;
           await uploadScreenshotAsset(compressed, resolvedTarget, { name: assetName });
         }
@@ -97,13 +109,17 @@ export function useScreenshotUpload(
     [target, onUploaded, reset, clearSuccessTimer, revokePreviewUrl]
   );
 
-  const stageForNaming = useCallback((files: File[]) => {
+  const stageForNaming = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     revokePreviewUrl();
-    const url = URL.createObjectURL(files[0]);
+    setStatusMessage('Compressing screenshot...');
+
+    const compressed = await Promise.all(files.map(compressOrFallback));
+
+    const url = URL.createObjectURL(compressed[0]);
     previewUrlRef.current = url;
     setPreviewUrl(url);
-    setPendingFiles(files);
+    setPendingFiles(compressed);
     setSuggestedName(defaultScreenshotName());
     setStatus('naming');
     setStatusMessage(null);
@@ -121,13 +137,17 @@ export function useScreenshotUpload(
 
   const downloadByName = useCallback(
     (name: string) => {
-      const url = previewUrlRef.current;
-      if (!url) return;
-      downloadImage(url, name.trim());
+      const file = pendingFiles[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const ext = file.type === 'image/jpeg' ? '.jpg' : '.webp';
+      const baseName = name.trim().replace(/\.[^/.]+$/, '') || 'screenshot';
+      downloadImage(url, `${baseName}${ext}`);
+      URL.revokeObjectURL(url);
       setPendingFiles([]);
       reset();
     },
-    [reset]
+    [pendingFiles, reset]
   );
 
   const cancelNaming = useCallback(() => {
@@ -136,9 +156,9 @@ export function useScreenshotUpload(
   }, [reset]);
 
   const uploadFromFiles = useCallback(
-    (files: File[]) => {
+    async (files: File[]) => {
       if (files.length === 0) return;
-      stageForNaming(files);
+      await stageForNaming(files);
     },
     [stageForNaming]
   );
@@ -150,7 +170,7 @@ export function useScreenshotUpload(
 
     try {
       const captured = await captureScreenshot();
-      stageForNaming([captured]);
+      await stageForNaming([captured]);
     } catch (error) {
       if (error instanceof ScreenshotCaptureError && error.code === 'canceled') {
         reset();

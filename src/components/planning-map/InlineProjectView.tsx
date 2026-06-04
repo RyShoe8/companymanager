@@ -41,6 +41,7 @@ import {
 } from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
+import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import ContentLinkedAssets from '@/components/planning-map/ContentLinkedAssets';
 import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/lib/utils/linkedAssets';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
@@ -1592,6 +1593,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             }}
             onDocumentCreated={() => {
               void loadLinkedAssets();
+              setTaskAssetsRefreshToken((n) => n + 1);
             }}
           />
         </div>
@@ -1714,6 +1716,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   })}
                 </div>
               )}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <LinkedRecordingChips
+                  projectId={localProject._id.toString()}
+                  refreshToken={taskAssetsRefreshToken}
+                  chipClassName="relative group inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 max-w-[260px]"
+                />
+              </div>
             </>
           )}
         </div>

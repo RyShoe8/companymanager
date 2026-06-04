@@ -9,6 +9,7 @@ import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal
 import LinkedAssetDocumentSheet, { type LinkedAssetDocument } from '@/components/shared/LinkedAssetDocumentSheet';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
+import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import {
   canUserDeleteAsset,
   deleteLinkedAsset,
@@ -240,6 +241,16 @@ export default function TaskLinkedAssets({
             )}
             {!loading && assets.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">{assets.map(renderAssetChip)}</div>
+            )}
+            {taskId && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <LinkedRecordingChips
+                  projectId={projectId}
+                  taskId={taskId}
+                  refreshToken={refreshToken}
+                  chipClassName={chipClass}
+                />
+              </div>
             )}
           </>
         )}

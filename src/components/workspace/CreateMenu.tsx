@@ -13,6 +13,7 @@ interface CreateMenuProps {
     onCreateContent: () => void;
     onCreateMeeting: () => void;
     onCreateScreenshot: () => void;
+    onCreateRecord: () => void;
 }
 
 export default function CreateMenu({
@@ -24,6 +25,7 @@ export default function CreateMenu({
     onCreateContent,
     onCreateMeeting,
     onCreateScreenshot,
+    onCreateRecord,
 }: CreateMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -51,6 +53,7 @@ export default function CreateMenu({
         ...(canCreateTaskOrContent ? [{ label: 'Content', onClick: onCreateContent }] : []),
         { label: 'Meeting', onClick: onCreateMeeting },
         { label: 'Screenshot', onClick: onCreateScreenshot },
+        { label: 'Record', onClick: onCreateRecord },
         ...(currentUserRole === 'Administrator'
             ? [{ label: 'Employee (Coming Soon)', disabled: true }]
             : []),

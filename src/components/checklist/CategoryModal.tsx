@@ -5,8 +5,9 @@ import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
 import SocialIcon from '@/components/projects/SocialIcon';
 import ScreenshotToolPanel from '@/components/shared/ScreenshotToolPanel';
+import RecordingToolPanel from '@/components/shared/RecordingToolPanel';
 import { detectSocialNetwork, parseSocialLinkInput, SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
-import type { ScreenshotUploadTarget } from '@/lib/uploadScreenshotAsset';
+import type { MediaUploadTarget } from '@/lib/mediaUploadTarget';
 
 interface CatalogEntry {
   _id: string;
@@ -17,7 +18,7 @@ interface CatalogEntry {
   projectTypes?: string[];
 }
 
-type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more' | 'social' | 'screenshot';
+type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more' | 'social' | 'screenshot' | 'recording';
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
@@ -112,7 +113,7 @@ export default function CategoryModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
 
-  const screenshotTarget = useMemo<ScreenshotUploadTarget | null>(() => {
+  const screenshotTarget = useMemo<MediaUploadTarget | null>(() => {
     if (linkContext?.linkedProjectTaskId) {
       return {
         entityType: 'projectTask',
@@ -300,6 +301,7 @@ export default function CategoryModal({
       const typeOptions: { id: AddStep; label: string; desc: string }[] = [
         { id: 'document', label: 'Document', desc: 'Create and save a document' },
         { id: 'screenshot', label: 'Screenshot', desc: 'Capture a screen or upload an image' },
+        { id: 'recording', label: 'Recording', desc: 'Record screen + voice or upload video' },
         { id: 'link', label: 'Link', desc: 'Any URL with a button label' },
         { id: 'email', label: 'Email', desc: 'Mailbox address; optional stored password' },
         { id: 'figma', label: 'Figma', desc: 'Design link or suggested tools' },
@@ -464,6 +466,27 @@ export default function CategoryModal({
               : linkContext?.linkedContentItemId
                 ? 'Attach a screenshot to this content item.'
                 : 'Attach a screenshot to this project.'
+          }
+          onUploaded={() => {
+            onDocumentCreated?.();
+            onClose();
+          }}
+          onBack={() => setStep('type')}
+          showBack
+        />
+      );
+    }
+
+    if (step === 'recording') {
+      return (
+        <RecordingToolPanel
+          target={screenshotTarget ?? { entityType: 'project', entityId: projectId }}
+          description={
+            linkContext?.linkedProjectTaskId
+              ? 'Attach a recording to this task.'
+              : linkContext?.linkedContentItemId
+                ? 'Attach a recording to this content item.'
+                : 'Attach a recording to this project.'
           }
           onUploaded={() => {
             onDocumentCreated?.();
@@ -716,7 +739,7 @@ export default function CategoryModal({
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
+            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'recording' ? 'Recording' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

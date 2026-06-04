@@ -19,8 +19,13 @@ import AvailabilityModal from '@/components/scheduling/AvailabilityModal';
 import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
 import ScreenshotToolModal from '@/components/shared/ScreenshotToolModal';
 import ScreenshotSaveDialog from '@/components/shared/ScreenshotSaveDialog';
+import RecordingToolModal from '@/components/shared/RecordingToolModal';
+import RecordingSaveDialog from '@/components/shared/RecordingSaveDialog';
+import RecordingOverlay from '@/components/shared/RecordingOverlay';
 import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
+import { isRecordingCaptureSupported } from '@/lib/captureRecording';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
+import { useRecordingUpload } from '@/hooks/useRecordingUpload';
 import { useSchedulingCalendar } from '@/hooks/scheduling/useSchedulingCalendar';
 import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvailability';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
@@ -93,9 +98,11 @@ export default function WorkspaceShell({
     const [scheduleSyncRefreshKey, setScheduleSyncRefreshKey] = useState(0);
     const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
     const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+    const [showRecordingModal, setShowRecordingModal] = useState(false);
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
 
     const createScreenshot = useScreenshotUpload(null);
+    const createRecording = useRecordingUpload(null);
 
     const canCreateTaskOrContent = useMemo(
         () =>
@@ -1209,6 +1216,13 @@ export default function WorkspaceShell({
                                         }
                                         void createScreenshot.captureAndUpload();
                                     }}
+                                    onCreateRecord={() => {
+                                        if (!isRecordingCaptureSupported()) {
+                                            setShowRecordingModal(true);
+                                            return;
+                                        }
+                                        void createRecording.startRecording();
+                                    }}
                                 />
                             </div>
                         </div>
@@ -1440,6 +1454,21 @@ export default function WorkspaceShell({
                         uploadOnly
                     />
 
+                    <RecordingToolModal
+                        isOpen={showRecordingModal}
+                        onClose={() => setShowRecordingModal(false)}
+                        target={null}
+                        projects={ws.allProjects}
+                        uploadOnly
+                    />
+
+                    {createRecording.isRecording && (
+                        <RecordingOverlay
+                            elapsedLabel={createRecording.elapsedLabel}
+                            onStop={() => void createRecording.stopRecording()}
+                        />
+                    )}
+
                     <ScreenshotSaveDialog
                         isOpen={createScreenshot.isNaming}
                         defaultName={createScreenshot.suggestedName}
@@ -1449,6 +1478,20 @@ export default function WorkspaceShell({
                         onSave={(name, uploadTarget) => void createScreenshot.confirmName(name, uploadTarget)}
                         onDownload={createScreenshot.downloadByName}
                         onCancel={createScreenshot.cancelNaming}
+                    />
+
+                    <RecordingSaveDialog
+                        isOpen={createRecording.isNaming}
+                        defaultName={createRecording.suggestedName}
+                        previewUrl={createRecording.previewUrl}
+                        projects={ws.allProjects}
+                        micWarning={createRecording.micWarning}
+                        saving={createRecording.status === 'uploading'}
+                        processing={createRecording.status === 'processing'}
+                        statusMessage={createRecording.statusMessage}
+                        onSave={(name, uploadTarget) => void createRecording.confirmSave(name, uploadTarget)}
+                        onDownload={createRecording.downloadByName}
+                        onCancel={createRecording.cancelNaming}
                     />
 
                     <ContentItemCreateModal

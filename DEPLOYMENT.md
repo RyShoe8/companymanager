@@ -41,10 +41,15 @@ In the Vercel project settings, add the following environment variables:
 - `BREVO_SENDER_NAME`: Name to display as sender (optional)
   - Defaults to "Nucleas" if not set
 
-- `BLOB_READ_WRITE_TOKEN`: Vercel Blob store token for project logo uploads (required on Vercel)
-  - On Vercel the filesystem is read-only; project logos are stored in Vercel Blob when this is set.
+- `BLOB_READ_WRITE_TOKEN`: Vercel Blob store token for project logo and **screen recording** uploads (required on Vercel)
+  - On Vercel the filesystem is read-only; project logos and recordings are stored in Vercel Blob when this is set.
+  - Recordings use the `recordings/{organizationId}/` prefix; local dev falls back to `public/uploads/recordings/`.
   - Create a Blob store in your Vercel project (Storage tab) and add the token as an environment variable.
-  - Leave unset for local development (logos are saved to `public/uploads/projects/`).
+  - Leave unset for local development (logos are saved to `public/uploads/projects/`; recordings use multipart upload to the API).
+
+- `OPENAI_API_KEY`: Required for recording transcription (Whisper) and summary generation after upload.
+  - The process route (`/api/recordings/[id]/process`) uses `maxDuration = 300` seconds on Vercel Pro.
+  - Mic-only audio is uploaded separately to stay under Whisper's 25MB file limit for long recordings.
 
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Same OAuth client as Google sign-in (optional but required for Google login and calendar)
 
