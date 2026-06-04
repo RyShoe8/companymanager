@@ -155,38 +155,65 @@ export function useRecordingUpload(
       setStatus('converting');
       setStatusMessage('Preparing video…');
 
-      const videoResult = await transcodeRecordingToMp4(videoFile, (progress) => {
-        setStatusMessage(progress.message);
-      });
+      try {
+        const videoResult = await transcodeRecordingToMp4(videoFile, (progress) => {
+          setStatusMessage(progress.message);
+        });
 
-      let finalAudio = audioFile;
-      if (audioFile) {
-        const mp4Audio = await transcodeAudioToMp4(audioFile);
-        if (mp4Audio) finalAudio = mp4Audio;
-      }
+        let finalAudio = audioFile;
+        if (audioFile) {
+          const mp4Audio = await transcodeAudioToMp4(audioFile);
+          if (mp4Audio) finalAudio = mp4Audio;
+        }
 
-      revokePreviewUrl();
-      const url = URL.createObjectURL(videoResult.file);
-      previewUrlRef.current = url;
-      setPreviewUrl(url);
-      pendingVideoRef.current = videoResult.file;
-      pendingAudioRef.current = finalAudio;
-      pendingDurationRef.current = durationSeconds;
-      setSuggestedName(defaultRecordingName());
+        revokePreviewUrl();
+        const url = URL.createObjectURL(videoResult.file);
+        previewUrlRef.current = url;
+        setPreviewUrl(url);
+        pendingVideoRef.current = videoResult.file;
+        pendingAudioRef.current = finalAudio;
+        pendingDurationRef.current = durationSeconds;
+        setSuggestedName(defaultRecordingName());
 
-      const warnings: string[] = [];
-      const audioWarning = recordingAudioWarning(audioSource, audioIncluded);
-      if (audioWarning) warnings.push(audioWarning);
-      if (videoResult.usedFallback) {
+        const warnings: string[] = [];
+        const audioWarning = recordingAudioWarning(audioSource, audioIncluded);
+        if (audioWarning) warnings.push(audioWarning);
+        if (videoResult.usedFallback) {
+          warnings.push(
+            'MP4 conversion failed — your file was saved as WebM. It will play in Chrome and Edge; for Windows Media Player, try downloading again or contact support if this keeps happening.'
+          );
+        }
+        setMicWarning(warnings.length > 0 ? warnings.join(' ') : null);
+
+        setStatus('naming');
+        setStatusMessage(null);
+        setErrorMessage(null);
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[useRecordingUpload] finalizeCapture failed', error);
+        }
+
+        revokePreviewUrl();
+        const url = URL.createObjectURL(videoFile);
+        previewUrlRef.current = url;
+        setPreviewUrl(url);
+        pendingVideoRef.current = videoFile;
+        pendingAudioRef.current = audioFile;
+        pendingDurationRef.current = durationSeconds;
+        setSuggestedName(defaultRecordingName());
+
+        const warnings: string[] = [];
+        const audioWarning = recordingAudioWarning(audioSource, audioIncluded);
+        if (audioWarning) warnings.push(audioWarning);
         warnings.push(
           'MP4 conversion failed — your file was saved as WebM. It will play in Chrome and Edge; for Windows Media Player, try downloading again or contact support if this keeps happening.'
         );
-      }
-      setMicWarning(warnings.length > 0 ? warnings.join(' ') : null);
+        setMicWarning(warnings.join(' '));
 
-      setStatus('naming');
-      setStatusMessage(null);
-      setErrorMessage(null);
+        setStatus('naming');
+        setStatusMessage(null);
+        setErrorMessage(null);
+      }
     },
     [revokePreviewUrl, closePopout]
   );

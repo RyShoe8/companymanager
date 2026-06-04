@@ -15,6 +15,7 @@ import {
 } from '@/lib/utils/projectTeam';
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
+import { cleanupNewlyCompletedTasks, cleanupProjectMedia } from '@/lib/projects/projectCleanup';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -132,6 +133,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    let previousTasksSnapshot: Array<{ _id?: { toString: () => string }; status?: unknown }> = [];
 
     // Apply migration to the instance before modifying it
     migrateProjectFields(project);
@@ -345,6 +348,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // Debug: Log received tasks to verify status is included
         console.log('Processing tasks update:', sanitizedTasks.length, 'tasks');
 
+        const previousTasks = [...(project.tasks ?? [])];
+        previousTasksSnapshot = previousTasks;
+
         project.tasks = await Promise.all(sanitizedTasks.map(async (task: any, index: number) => {
           // Handle dates - provide defaults if not specified or invalid
           const defaultDates = getDefaultTaskDates();
@@ -389,8 +395,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             status: taskStatus, // ALWAYS explicitly set status - this is critical!
           };
 
-          // Don't preserve _id - Mongoose will handle subdocument IDs automatically when replacing the array
-          // Setting _id manually can cause issues with subdocument updates
+          if (task._id && Types.ObjectId.isValid(String(task._id))) {
+            taskData._id = new Types.ObjectId(String(task._id));
+          }
 
           // Handle employee assignment for tasks - prefer employeeIds array, then single id, then legacy name
           if (task.assignedToEmployeeIds !== undefined) {
@@ -475,6 +482,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Save the project
     await project.save();
+
+    if (tasks !== undefined && Array.isArray(tasks)) {
+      await cleanupNewlyCompletedTasks(id, previousTasksSnapshot ?? [], project.tasks ?? []);
+    }
+
     await touchProjectActivity(id);
 
     // Reload the project to ensure we return the latest data
@@ -514,10 +526,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // Find all users in the same organization
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
-    const project = await Project.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });
+    const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    await cleanupProjectMedia(id, project);
+
+    await Project.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });
 
     return NextResponse.json({ message: 'Project deleted successfully' });
   } catch (error) {

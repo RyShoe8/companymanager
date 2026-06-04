@@ -10,6 +10,7 @@ import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
+import { cleanupPublishedContentMedia } from '@/lib/recordings/recordingCleanup';
 
 const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
 const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
@@ -79,6 +80,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const { title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl, distributionMethods, estimatedHours } = body;
 
+    const previousStatus = doc.status;
+
     if (title !== undefined) doc.title = String(title).trim();
     if (channel !== undefined && CHANNELS.includes(channel)) doc.channel = channel;
     if (status !== undefined) {
@@ -121,6 +124,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     await doc.save();
+    if (previousStatus !== 'published' && doc.status === 'published') {
+      await cleanupPublishedContentMedia(id);
+    }
     await touchProjectActivity(doc.projectId.toString());
     const updated = await ContentItem.findById(id).lean();
     return NextResponse.json(updated);

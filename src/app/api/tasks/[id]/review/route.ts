@@ -4,6 +4,7 @@ import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
+import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
 
 type TaskLike = {
   status: string;
@@ -144,6 +145,15 @@ export async function PUT(
     const { task, index } = resolved;
     (project.tasks as { status: string }[])[index].status = approved ? 'completed' : 'active';
     await project.save();
+
+    if (approved) {
+      const taskObjectId = (project.tasks as { _id?: { toString: () => string } }[])[index]?._id?.toString();
+      await cleanupCompletedTaskMedia({
+        taskId: taskObjectId,
+        taskIndex: index,
+        projectId,
+      });
+    }
 
     return NextResponse.json({ success: true, task: project.tasks?.[index] ?? task });
   } catch (error) {

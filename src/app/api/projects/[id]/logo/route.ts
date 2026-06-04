@@ -8,7 +8,8 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { validateImageFile, isValidObjectId } from '@/lib/utils/security';
 import { getOrganizationUserIds, migrateProjectFields } from '@/lib/utils/apiHelpers';
-import { put, del } from '@vercel/blob';
+import { deleteStoredFile } from '@/lib/storage/deleteStoredFile';
+import { put } from '@vercel/blob';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -157,22 +158,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Delete logo file if it exists
     if (project.logo) {
-      try {
-        if (project.logo.startsWith('https://')) {
-          // Vercel Blob URL
-          await del(project.logo);
-        } else {
-          // Local filesystem path
-          const { unlink } = await import('fs/promises');
-          const logoPath = join(process.cwd(), 'public', project.logo);
-          if (existsSync(logoPath)) {
-            await unlink(logoPath);
-          }
-        }
-      } catch (error) {
-        // Log but don't fail if file deletion fails
-        console.error('Error deleting logo file:', error);
-      }
+      await deleteStoredFile(project.logo);
     }
 
     // Remove logo from project

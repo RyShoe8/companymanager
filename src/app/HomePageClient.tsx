@@ -24,7 +24,7 @@ export default function HomePageClient() {
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-32 text-center">
           <div className="flex justify-center mb-10">
             <img
-              src="/images/nucleas-logo.png?v=4"
+              src="/images/nucleas-logo.png?v=5"
               alt="Nucleas"
               width={160}
               height={160}

@@ -384,66 +384,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setDeletingLinkedAsset(false);
   };
 
-  const unlinkAssetFromEntity = useCallback(
-    async (assetId: string, entityType: 'projectTask' | 'contentItem') => {
-      const payload =
-        entityType === 'projectTask'
-          ? { linkedProjectTaskId: '' }
-          : { linkedContentItemId: '' };
-      const res = await fetch(`/api/assets/${assetId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        let msg = 'Could not unlink linked asset.';
-        try {
-          const data = await res.json();
-          if (data && typeof data.error === 'string') msg = data.error;
-        } catch {
-          // ignore parse failures
-        }
-        throw new Error(msg);
-      }
-    },
-    []
-  );
-
-  const unlinkAssetsForCompletedTask = useCallback(
-    async (taskId: string | undefined) => {
-      if (!taskId) return;
-      const res = await fetch(`/api/assets?linkedProjectTaskId=${taskId}`);
-      if (!res.ok) throw new Error('Could not load linked task assets.');
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) return;
-      for (const raw of data) {
-        const asset = normalizeLinkedAsset(raw);
-        if (!asset) continue;
-        await unlinkAssetFromEntity(asset._id, 'projectTask');
-      }
-      setTaskAssetsRefreshToken((n) => n + 1);
-      await loadLinkedAssets();
-    },
-    [loadLinkedAssets, unlinkAssetFromEntity]
-  );
-
-  const unlinkAssetsForCompletedContent = useCallback(
-    async (contentItemId: string) => {
-      const res = await fetch(`/api/assets?linkedContentItemId=${contentItemId}`);
-      if (!res.ok) throw new Error('Could not load linked content assets.');
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) return;
-      for (const raw of data) {
-        const asset = normalizeLinkedAsset(raw);
-        if (!asset) continue;
-        await unlinkAssetFromEntity(asset._id, 'contentItem');
-      }
-      setContentAssetsRefreshToken((n) => n + 1);
-      await loadLinkedAssets();
-    },
-    [loadLinkedAssets, unlinkAssetFromEntity]
-  );
-
   const closePreviewAssetSheet = () => {
     setPreviewSheetMode('view');
     setPreviewAsset(null);
@@ -953,7 +893,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         throw new Error(typeof data.error === 'string' ? data.error : 'Could not update content status.');
       }
       if (previousStatus !== 'published' && status === 'published') {
-        await unlinkAssetsForCompletedContent(id);
+        setContentAssetsRefreshToken((n) => n + 1);
+        await loadLinkedAssets();
       }
     } catch (error) {
       setProjectContentItems((prev) =>
@@ -1129,7 +1070,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         });
         const wasCompleted = existingTask.status === 'completed';
         if (!wasCompleted && savedStatus === 'completed') {
-          await unlinkAssetsForCompletedTask(taskId);
+          setTaskAssetsRefreshToken((n) => n + 1);
+          await loadLinkedAssets();
         }
       } catch (error) {
         console.error('Error updating task status:', error);
@@ -1164,8 +1106,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     try {
       await onUpdate({ tasks: tasksToSave });
       if (field === 'status' && previousStatus !== 'completed' && value === 'completed') {
-        const taskId = (updatedTasks[taskIndex] as { _id?: { toString?: () => string } })?._id?.toString?.();
-        await unlinkAssetsForCompletedTask(taskId);
+        setTaskAssetsRefreshToken((n) => n + 1);
+        await loadLinkedAssets();
       }
     } catch (error) {
       console.error('Error updating task:', error);

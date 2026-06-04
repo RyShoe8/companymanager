@@ -4,6 +4,8 @@ import Project, { TaskStatus } from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
+import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
+import { normalizeTaskStatus } from '@/lib/projects/projectCleanup';
 
 type TaskLike = {
   status?: TaskStatus;
@@ -105,8 +107,19 @@ export async function PATCH(
       );
     }
 
+    const previousStatus = normalizeTaskStatus(task.status);
+    const taskObjectId = (project.tasks as { _id?: { toString: () => string } }[])[index]?._id?.toString();
+
     (project.tasks as { status: TaskStatus }[])[index].status = status;
     await project.save();
+
+    if (previousStatus !== 'completed' && status === 'completed') {
+      await cleanupCompletedTaskMedia({
+        taskId: taskObjectId,
+        taskIndex: index,
+        projectId,
+      });
+    }
 
     return NextResponse.json({ success: true, task: project.tasks?.[index], status });
   } catch (error) {

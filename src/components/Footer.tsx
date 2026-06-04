@@ -9,16 +9,14 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
           {/* Brand */}
           <div className="lg:col-span-2">
-            <Link href="/" className="flex items-center gap-3 mb-4">
-              <span className="inline-flex rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-black/5">
-                <img
-                  src="/images/nucleas-logo-legacy.png?v=1"
-                  alt="Nucleas Logo"
-                  width={140}
-                  height={48}
-                  className="h-10 w-auto object-contain"
-                />
-              </span>
+            <Link href="/" className="inline-block mb-4">
+              <img
+                src="/images/nucleas-logo.png?v=5"
+                alt="Nucleas"
+                width={140}
+                height={48}
+                className="h-10 w-auto object-contain"
+              />
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-6">
               The operating system for planning, building, and running every project you own. One command center for your entire internet business.
