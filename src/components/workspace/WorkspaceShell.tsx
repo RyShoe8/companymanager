@@ -1365,6 +1365,7 @@ export default function WorkspaceShell({
                                                     setAddContentDefaultDate(defaultDate);
                                                     setShowContentCreateModal(true);
                                                 }}
+                                                onAddTask={handleAddTaskToProject}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
                                             />
                                         )}

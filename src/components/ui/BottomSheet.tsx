@@ -123,7 +123,7 @@ export default function BottomSheet({
   const surfaceClass =
     surface === 'chrome'
       ? 'bg-transparent shadow-none'
-      : 'bg-background-card rounded-t-2xl shadow-2xl';
+      : 'bg-white border-t border-gray-200 rounded-t-2xl shadow-2xl';
 
   const sheetBody = (
     <>
@@ -138,12 +138,12 @@ export default function BottomSheet({
         </div>
       )}
       {title && (
-        <div className="flex-shrink-0 px-4 py-2 border-b border-border flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           {!hideCloseButton && (
             <button
               onClick={onClose}
-              className="text-text-secondary hover:text-text-primary p-1 -mr-1 transition-colors"
+              className="text-gray-500 hover:text-gray-900 p-1 -mr-1 transition-colors"
               aria-label="Close"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,7 +229,7 @@ export default function BottomSheet({
 
 interface QuickActionProps { icon: ReactNode; label: string; onClick: () => void; variant?: 'default' | 'danger' | 'success' | 'warning'; disabled?: boolean; }
 export function QuickAction({ icon, label, onClick, variant = 'default', disabled = false }: QuickActionProps) {
-  const variantClasses = { default: 'text-text-primary hover:bg-background-elevated', danger: 'text-error hover:bg-error-light', success: 'text-success hover:bg-success-light', warning: 'text-warning hover:bg-warning-light' };
+  const variantClasses = { default: 'text-gray-900 hover:bg-gray-50', danger: 'text-red-600 hover:bg-red-50', success: 'text-emerald-700 hover:bg-emerald-50', warning: 'text-amber-700 hover:bg-amber-50' };
   return (<button onClick={onClick} disabled={disabled} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${variantClasses[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
     <span className="w-5 h-5 flex items-center justify-center">{icon}</span><span className="font-medium">{label}</span>
   </button>);

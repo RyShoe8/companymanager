@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 
 interface ModalProps {
   isOpen: boolean;
@@ -16,6 +18,40 @@ interface ModalProps {
   stackAboveOverlays?: boolean;
   /** Above image preview lightbox (z-[110]). */
   stackAboveLightbox?: boolean;
+  /** When false, body padding is omitted (content supplies its own). */
+  bodyPadding?: boolean;
+}
+
+const maxWidthClass = (maxWidth: ModalProps['maxWidth']) => {
+  switch (maxWidth) {
+    case 'sm':
+      return 'max-w-sm';
+    case 'md':
+      return 'max-w-md';
+    case 'lg':
+      return 'max-w-lg';
+    case 'xl':
+      return 'max-w-xl';
+    case '4xl':
+      return 'max-w-4xl';
+    case '2xl':
+    default:
+      return 'max-w-2xl';
+  }
+};
+
+function CloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      onClick={onClose}
+      className="text-gray-500 hover:text-gray-900 transition-colors p-1 -mr-1"
+      aria-label="Close"
+    >
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  );
 }
 
 export default function Modal({
@@ -29,7 +65,14 @@ export default function Modal({
   elevated = false,
   stackAboveOverlays = false,
   stackAboveLightbox = false,
+  bodyPadding = true,
 }: ModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -41,7 +84,7 @@ export default function Modal({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
   const zClass = stackAboveLightbox
     ? 'z-[120]'
@@ -51,82 +94,55 @@ export default function Modal({
         ? 'z-[70]'
         : 'z-50';
 
-  if (maxWidth === 'full') {
-    // Full-screen modal that stretches from navbar to bottom
-    return (
+  const panelClass =
+    'inspector-light bg-white border border-gray-200 shadow-xl overflow-hidden flex flex-col';
+
+  const header = title ? (
+    <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
+      <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{title}</h2>
+      <div className="flex items-center gap-2">
+        {headerActions}
+        {!hideCloseButton && <CloseButton onClose={onClose} />}
+      </div>
+    </div>
+  ) : null;
+
+  const bodyClass = bodyPadding
+    ? 'flex-1 min-h-0 overflow-y-auto p-4 sm:p-6'
+    : 'flex-1 min-h-0 overflow-y-auto';
+
+  const content =
+    maxWidth === 'full' ? (
       <div
-        className={`fixed inset-x-0 top-16 bottom-0 ${zClass} bg-black bg-opacity-50`}
+        className={`fixed inset-x-0 top-16 bottom-0 ${zClass} bg-black/50`}
         onClick={onClose}
         style={{ top: '4rem', height: 'calc(100vh - 4rem)' }}
       >
         <div
-          className="bg-background-card shadow-xl w-full h-full rounded-t-lg overflow-hidden flex flex-col max-w-full"
+          className={`${panelClass} w-full h-full rounded-t-lg max-w-full`}
           onClick={(e) => e.stopPropagation()}
         >
-          {title && (
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border flex-shrink-0">
-              <h2 className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>
-              <div className="flex items-center gap-2">
-                {headerActions}
-                {!hideCloseButton && (
-                  <button
-                    onClick={onClose}
-                    className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1"
-                    aria-label="Close"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          {header}
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
         </div>
       </div>
-    );
-  }
-
-  // Regular centered modal
-  return (
-    <div
-      className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black bg-opacity-50`}
-      onClick={onClose}
-    >
+    ) : (
       <div
-        className={`bg-background-card shadow-xl w-full mx-2 sm:mx-4 max-h-[90vh] rounded-lg overflow-hidden flex flex-col ${
-          maxWidth === 'sm' ? 'max-w-sm' :
-          maxWidth === 'md' ? 'max-w-md' :
-          maxWidth === 'lg' ? 'max-w-lg' :
-          maxWidth === 'xl' ? 'max-w-xl' :
-          maxWidth === '2xl' ? 'max-w-2xl' :
-          maxWidth === '4xl' ? 'max-w-4xl' :
-          'max-w-2xl'
-        }`}
-        onClick={(e) => e.stopPropagation()}
+        className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black/50 p-2 sm:p-4`}
+        onClick={onClose}
       >
-        {title && (
-          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border flex-shrink-0">
-            <h2 className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>
-            <div className="flex items-center gap-2">
-              {headerActions}
-              {!hideCloseButton && (
-                <button
-                  onClick={onClose}
-                  className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1"
-                  aria-label="Close"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-4 sm:p-6 overflow-y-auto">{children}</div>
+        <div
+          className={`${panelClass} w-full mx-auto max-h-[90vh] rounded-lg ${maxWidthClass(maxWidth)}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {header}
+          <div className={bodyClass}>{children}</div>
+        </div>
       </div>
-    </div>
+    );
+
+  return createPortal(
+    <InspectorLightProvider>{content}</InspectorLightProvider>,
+    document.body
   );
 }

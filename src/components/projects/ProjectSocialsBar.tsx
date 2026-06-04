@@ -3,7 +3,8 @@
 import { useState, useCallback } from 'react';
 import type { IProject, IProjectSocialLink } from '@/lib/models/Project';
 import Button from '@/components/ui/Button';
-import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
+import Modal from '@/components/ui/Modal';
+import ModalAction from '@/components/ui/ModalAction';
 import SocialIcon from '@/components/projects/SocialIcon';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import {
@@ -177,15 +178,18 @@ export default function ProjectSocialsBar({
       </div>
     )}
 
-    <BottomSheet
+    <Modal
       isOpen={selectedIndex !== null && !!selectedLink}
       onClose={() => setSelectedIndex(null)}
       title={selectedLink ? SOCIAL_NETWORK_LABELS[selectedLink.network] : 'Social link'}
+      maxWidth="sm"
       elevated
+      stackAboveOverlays
+      bodyPadding={false}
     >
       {selectedLink && selectedIndex !== null && (
-        <div className="p-2 pb-8">
-          <QuickAction
+        <div className="py-1">
+          <ModalAction
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -197,7 +201,7 @@ export default function ProjectSocialsBar({
               setSelectedIndex(null);
             }}
           />
-          <QuickAction
+          <ModalAction
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -207,7 +211,7 @@ export default function ProjectSocialsBar({
             onClick={() => void handleCopy(selectedLink.url)}
           />
           {isManagerOrAdmin && (
-            <QuickAction
+            <ModalAction
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -220,7 +224,7 @@ export default function ProjectSocialsBar({
           )}
         </div>
       )}
-    </BottomSheet>
+    </Modal>
   </>
   );
 }

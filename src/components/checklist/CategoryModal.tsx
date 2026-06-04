@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
+import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import SocialIcon from '@/components/projects/SocialIcon';
 import ScreenshotToolPanel from '@/components/shared/ScreenshotToolPanel';
 import RecordingToolPanel from '@/components/shared/RecordingToolPanel';
@@ -18,7 +19,7 @@ interface CatalogEntry {
   projectTypes?: string[];
 }
 
-type AddStep = 'type' | 'link' | 'email' | 'document' | 'figma' | 'wireframe' | 'more' | 'social' | 'screenshot' | 'recording';
+type AddStep = 'type' | 'link' | 'email' | 'document' | 'more' | 'social' | 'screenshot' | 'recording';
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
@@ -103,7 +104,6 @@ export default function CategoryModal({
   const [docName, setDocName] = useState('');
   const [docContent, setDocContent] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
-  const [showCustomLinkForm, setShowCustomLinkForm] = useState(false);
   const [emailAddr, setEmailAddr] = useState('');
   const [emailPassword, setEmailPassword] = useState('');
   const [emailLabel, setEmailLabel] = useState('');
@@ -178,8 +178,7 @@ export default function CategoryModal({
     return saveAsset(buildAssetPayload({ name: label.trim(), type: 'link', url: url.trim() }));
   };
 
-  const needsCatalog = step === 'figma' || step === 'wireframe' || step === 'more';
-  const catalogLinkType = step === 'figma' ? 'figma' : step === 'wireframe' ? 'wireframe' : null;
+  const needsCatalog = step === 'more';
 
   useEffect(() => {
     if (!needsCatalog) return;
@@ -187,7 +186,6 @@ export default function CategoryModal({
       setLoading(true);
       try {
         const params = new URLSearchParams({ phase, projectType: projectType || 'generic' });
-        if (catalogLinkType) params.set('linkType', catalogLinkType);
         if (query) params.set('q', query);
         const res = await fetch(`/api/referral-catalog?${params}`);
         if (res.ok) {
@@ -200,9 +198,9 @@ export default function CategoryModal({
         setLoading(false);
       }
     };
-    const t = setTimeout(fetchEntries, catalogLinkType ? 0 : 200);
+    const t = setTimeout(fetchEntries, 200);
     return () => clearTimeout(t);
-  }, [step, phase, projectType, catalogLinkType, query, needsCatalog]);
+  }, [step, phase, projectType, query, needsCatalog]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -304,8 +302,6 @@ export default function CategoryModal({
         { id: 'recording', label: 'Recording', desc: 'Record screen + voice or upload video' },
         { id: 'link', label: 'Link', desc: 'Any URL with a button label' },
         { id: 'email', label: 'Email', desc: 'Mailbox address; optional stored password' },
-        { id: 'figma', label: 'Figma', desc: 'Design link or suggested tools' },
-        { id: 'wireframe', label: 'Wireframe', desc: 'Wireframe link or suggested tools' },
         { id: 'more', label: 'More', desc: 'Other link types and tools' },
       ];
       if (socialsToolbarHidden && onAddSocial && !useAssetFlow) {
@@ -348,12 +344,12 @@ export default function CategoryModal({
           </div>
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Content (optional)</label>
-            <textarea
+            <AutoGrowTextarea
               value={docContent}
               onChange={(e) => setDocContent(e.target.value)}
               placeholder="Add content..."
-              rows={4}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-y"
+              minRows={2}
+              className="px-3 py-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm whitespace-pre-wrap"
             />
           </div>
           <div className="flex gap-2">
@@ -534,121 +530,6 @@ export default function CategoryModal({
       );
     }
 
-    if (step === 'figma' || step === 'wireframe') {
-      return (
-        <div className="space-y-3">
-          <Button variant="secondary" size="sm" onClick={() => { setStep('type'); setShowCustomLinkForm(false); setSelectedEntry(null); setQuery(''); }}>
-            Back
-          </Button>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Choose a suggested tool or add a custom link.
-          </p>
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search link types or tools..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          />
-          {selectedEntry ? (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Button name</label>
-                <input
-                  type="text"
-                  value={addLabel}
-                  onChange={(e) => setAddLabel(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">URL</label>
-                <input
-                  type="url"
-                  value={addUrl}
-                  onChange={(e) => setAddUrl(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
-                  {adding ? 'Adding...' : 'Add to project'}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => { setSelectedEntry(null); setAddLabel(''); setAddUrl(''); }}>
-                  Back
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="max-h-48 overflow-y-auto space-y-1">
-                {loading ? (
-                  <p className="text-sm text-gray-500">Loading...</p>
-                ) : entries.length === 0 ? (
-                  <p className="text-sm text-gray-500">No suggestions. Add a custom link below.</p>
-                ) : (
-                  entries.map((entry) => (
-                    <div
-                      key={entry._id}
-                      className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{entry.companyName}</span>
-                      {isManagerOrAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => handleAddClick(entry)}
-                          className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500"
-                        >
-                          Add
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                {!showCustomLinkForm ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomLinkForm(true)}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Or enter a custom link
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Button name"
-                      value={addLabel}
-                      onChange={(e) => setAddLabel(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                    />
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                      value={addUrl}
-                      onChange={(e) => setAddUrl(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
-                        Add to project
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={() => { setShowCustomLinkForm(false); setAddLabel(''); setAddUrl(''); }}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      );
-    }
-
     if (step === 'more') {
       return (
         <div className="space-y-3">
@@ -739,7 +620,7 @@ export default function CategoryModal({
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'recording' ? 'Recording' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : step === 'figma' ? 'Figma' : step === 'wireframe' ? 'Wireframe' : 'More'}
+            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'recording' ? 'Recording' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : 'More'}
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import BottomSheet from '@/components/ui/BottomSheet';
+import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
-import { formInputClass } from '@/components/ui/formClasses';
+import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
+
+const inspectorInputClass =
+  'block w-full rounded-lg border border-gray-200 bg-white text-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
 
 export type LinkedAssetDocument = {
   _id: string;
@@ -87,17 +90,19 @@ export default function LinkedAssetDocumentSheet({
   };
 
   return (
-    <BottomSheet
+    <Modal
       isOpen={isOpen}
       onClose={handleClose}
       title={mode === 'edit' ? 'Edit asset' : (asset?.name ?? 'Document')}
+      maxWidth="lg"
       elevated={!stackAboveLightbox}
       stackAboveLightbox={stackAboveLightbox}
+      stackAboveOverlays={!stackAboveLightbox}
     >
-      <div className="p-4 pb-8 space-y-4">
+      <div className="space-y-4">
         {mode === 'view' ? (
           <>
-            <pre className="text-sm whitespace-pre-wrap text-text-primary font-sans bg-background-elevated rounded-lg p-3 max-h-[50vh] overflow-y-auto">
+            <pre className="text-sm whitespace-pre-wrap text-gray-800 font-sans bg-gray-50 rounded-lg p-3 max-h-[50vh] overflow-y-auto border border-gray-200">
               {asset?.textContent?.trim() ? asset.textContent : 'No content yet.'}
             </pre>
             <div className="flex flex-wrap items-center gap-2">
@@ -115,7 +120,7 @@ export default function LinkedAssetDocumentSheet({
               {projectId ? (
                 <Link
                   href={`/assets?projectId=${projectId}`}
-                  className="text-xs text-text-secondary hover:text-text-primary underline"
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
                 >
                   More options on Assets
                 </Link>
@@ -125,23 +130,23 @@ export default function LinkedAssetDocumentSheet({
         ) : (
           <>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Name</label>
+              <label className="block text-xs text-gray-500 mb-1">Name</label>
               <input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className={formInputClass}
+                className={inspectorInputClass}
                 disabled={saving}
               />
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Content</label>
-              <textarea
+              <label className="block text-xs text-gray-500 mb-1">Content</label>
+              <AutoGrowTextarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                rows={12}
+                minRows={4}
                 disabled={saving}
-                className={`${formInputClass} resize-y min-h-[120px] max-h-[50vh]`}
+                className={`${inspectorInputClass} whitespace-pre-wrap max-h-[50vh]`}
                 placeholder="Document body…"
               />
             </div>
@@ -166,7 +171,7 @@ export default function LinkedAssetDocumentSheet({
             {projectId ? (
               <Link
                 href={`/assets?projectId=${projectId}`}
-                className="inline-block text-xs text-text-secondary hover:text-text-primary underline"
+                className="inline-block text-xs text-gray-500 hover:text-gray-700 underline"
               >
                 More options on Assets
               </Link>
@@ -174,6 +179,6 @@ export default function LinkedAssetDocumentSheet({
           </>
         )}
       </div>
-    </BottomSheet>
+    </Modal>
   );
 }

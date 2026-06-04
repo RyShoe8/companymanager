@@ -10,8 +10,12 @@ import EditableDate from '@/components/ui/EditableDate';
 import EditableNumber from '@/components/ui/EditableNumber';
 import EditableSelect from '@/components/ui/EditableSelect';
 import SwipeableCard from '@/components/ui/SwipeableCard';
-import BottomSheet, { QuickAction } from '@/components/ui/BottomSheet';
+import Modal from '@/components/ui/Modal';
+import ModalAction from '@/components/ui/ModalAction';
+import ConfirmModal from '@/components/shared/ConfirmModal';
+import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
 import Button from '@/components/ui/Button';
+import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import CommentThread from '@/components/comments/CommentThread';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
@@ -1999,28 +2003,107 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         )}
       </div>
 
-      {/* Task Actions Bottom Sheet */}
-      <BottomSheet isOpen={showTaskActions && selectedTaskIndex !== null} onClose={() => { setShowTaskActions(false); setSelectedTaskIndex(null); }} title={selectedTaskIndex !== null ? localProject.tasks?.[selectedTaskIndex]?.name : 'Task Actions'}>
-        <div className="py-2">
-          {selectedTaskIndex !== null && localProject.tasks?.[selectedTaskIndex] && (<>
-            {localProject.tasks[selectedTaskIndex].status === 'active' && <QuickAction icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>} label="Submit for Review" onClick={() => handleSubmitForReview(selectedTaskIndex)} variant="warning" />}
-            {localProject.tasks[selectedTaskIndex].status === 'in-review' && isManagerOrAdmin && (<><QuickAction icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>} label="Approve & Complete" onClick={() => handleCompleteTask(selectedTaskIndex)} variant="success" /><QuickAction icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>} label="Decline Review" onClick={() => handleDeclineReview(selectedTaskIndex)} variant="danger" /></>)}
-            {localProject.tasks[selectedTaskIndex].status !== 'completed' && <QuickAction icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>} label="Mark Complete" onClick={() => handleCompleteTask(selectedTaskIndex)} variant="success" />}
-            {isManagerOrAdmin && <QuickAction icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>} label="Delete Task" onClick={() => handleDeleteTask(selectedTaskIndex)} variant="danger" />}
-          </>)}
+      {/* Task Actions */}
+      <Modal
+        isOpen={showTaskActions && selectedTaskIndex !== null}
+        onClose={() => {
+          setShowTaskActions(false);
+          setSelectedTaskIndex(null);
+        }}
+        title={selectedTaskIndex !== null ? localProject.tasks?.[selectedTaskIndex]?.name : 'Task Actions'}
+        maxWidth="sm"
+        elevated
+        bodyPadding={false}
+      >
+        <div className="py-1">
+          {selectedTaskIndex !== null && localProject.tasks?.[selectedTaskIndex] && (
+            <>
+              {localProject.tasks[selectedTaskIndex].status === 'active' && (
+                <ModalAction
+                  icon={
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  }
+                  label="Submit for Review"
+                  onClick={() => handleSubmitForReview(selectedTaskIndex)}
+                  variant="warning"
+                />
+              )}
+              {localProject.tasks[selectedTaskIndex].status === 'in-review' && isManagerOrAdmin && (
+                <>
+                  <ModalAction
+                    icon={
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    }
+                    label="Approve & Complete"
+                    onClick={() => handleCompleteTask(selectedTaskIndex)}
+                    variant="success"
+                  />
+                  <ModalAction
+                    icon={
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    }
+                    label="Decline Review"
+                    onClick={() => handleDeclineReview(selectedTaskIndex)}
+                    variant="danger"
+                  />
+                </>
+              )}
+              {localProject.tasks[selectedTaskIndex].status !== 'completed' && (
+                <ModalAction
+                  icon={
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  }
+                  label="Mark Complete"
+                  onClick={() => handleCompleteTask(selectedTaskIndex)}
+                  variant="success"
+                />
+              )}
+              {isManagerOrAdmin && (
+                <ModalAction
+                  icon={
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  }
+                  label="Delete Task"
+                  onClick={() => handleDeleteTask(selectedTaskIndex)}
+                  variant="danger"
+                />
+              )}
+            </>
+          )}
         </div>
-      </BottomSheet>
+      </Modal>
 
-      {/* Delete Confirmation Bottom Sheet */}
-      <BottomSheet isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Delete Project?">
-        <div className="p-4">
-          <p className="text-gray-600 mb-4">Are you sure you want to delete &quot;{localProject.name}&quot;? This action cannot be undone.</p>
-          <div className="flex gap-2"><Button variant="secondary" onClick={() => setShowDeleteConfirm(false)} className="flex-1">Cancel</Button><Button variant="danger" onClick={() => { onDelete?.(); setShowDeleteConfirm(false); }} className="flex-1">Delete</Button></div>
-        </div>
-      </BottomSheet>
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Project?"
+        message={
+          <>
+            Are you sure you want to delete <strong className="text-gray-900">{localProject.name}</strong>?
+            This action cannot be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          onDelete?.();
+          setShowDeleteConfirm(false);
+        }}
+        elevated
+        stackAboveOverlays
+      />
 
       {/* Linked asset text/document preview */}
-      <BottomSheet
+      <Modal
         isOpen={previewAsset !== null}
         onClose={closePreviewAssetSheet}
         title={
@@ -2028,9 +2111,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             ? 'Edit asset'
             : (previewAsset?.name ?? 'Document')
         }
+        maxWidth="lg"
         elevated
+        stackAboveOverlays
       >
-        <div className="p-4 pb-8 space-y-4">
+        <div className="space-y-4">
           {previewSheetMode === 'view' ? (
             <>
               <pre className="text-sm whitespace-pre-wrap text-gray-800 font-sans bg-gray-50 rounded-lg p-3 max-h-[50vh] overflow-y-auto">
@@ -2070,12 +2155,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Content</label>
-                <textarea
+                <AutoGrowTextarea
                   value={previewEditContent}
                   onChange={(e) => setPreviewEditContent(e.target.value)}
-                  rows={12}
+                  minRows={4}
                   disabled={previewSaving}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm resize-y min-h-[120px] max-h-[50vh]"
+                  className="px-3 py-2 border-gray-200 bg-white text-gray-900 text-sm whitespace-pre-wrap max-h-[50vh]"
                   placeholder="Document body…"
                 />
               </div>
@@ -2110,61 +2195,33 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             </>
           )}
         </div>
-      </BottomSheet>
+      </Modal>
 
-      {/* Delete linked asset — confirmation required */}
-      <BottomSheet
+      <AssetDeleteConfirmModal
         isOpen={assetPendingDelete !== null}
-        onClose={() => {
+        assetName={assetPendingDelete?.name ?? ''}
+        assetTypeLabel={
+          assetPendingDelete ? formatLinkedAssetTypeLabel(assetPendingDelete.type) : undefined
+        }
+        deleting={deletingLinkedAsset}
+        onCancel={() => {
           if (!deletingLinkedAsset) setAssetPendingDelete(null);
         }}
-        title="Delete asset?"
-        elevated
-      >
-        <div className="p-4 pb-8 space-y-4">
-          {assetPendingDelete && (
-            <>
-              <p className="text-sm text-gray-600">
-                Are you sure you want to delete{' '}
-                <strong className="text-gray-900">{assetPendingDelete.name}</strong>
-                {' '}({formatLinkedAssetTypeLabel(assetPendingDelete.type)})?
-              </p>
-              <p className="text-sm text-gray-500">
-                This removes the asset for your organization everywhere it appears—not only from this project.
-              </p>
-            </>
-          )}
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              className="flex-1"
-              disabled={deletingLinkedAsset}
-              onClick={() => setAssetPendingDelete(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              className="flex-1"
-              disabled={deletingLinkedAsset}
-              onClick={() => void confirmDeleteLinkedAsset()}
-            >
-              {deletingLinkedAsset ? 'Deleting…' : 'Delete'}
-            </Button>
-          </div>
-        </div>
-      </BottomSheet>
+        onConfirm={() => void confirmDeleteLinkedAsset()}
+        stackAboveLightbox
+      />
 
       {/* Project color palette */}
-      <BottomSheet
+      <Modal
         isOpen={paletteSheetOpen}
         onClose={() => {
           if (!paletteSaving) setPaletteSheetOpen(false);
         }}
         title="Color palette"
         elevated
+        stackAboveOverlays
       >
-        <div className="p-4 pb-8 space-y-4">
+        <div className="space-y-4">
           <p className="text-sm text-gray-600">
             Primary is optional and is used on the map when set. Enter hex (#RGB or #RRGGBB) or rgb() / rgba(). Blank rows are omitted when you save. Clear palette removes all swatches but keeps your project color on the map.
           </p>
@@ -2252,18 +2309,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             </Button>
           </div>
         </div>
-      </BottomSheet>
+      </Modal>
 
       {/* Project font listing */}
-      <BottomSheet
+      <Modal
         isOpen={fontSheetOpen}
         onClose={() => {
           if (!fontSaving) setFontSheetOpen(false);
         }}
         title="Fonts"
         elevated
+        stackAboveOverlays
       >
-        <div className="p-4 pb-8 space-y-4">
+        <div className="space-y-4">
           <p className="text-sm text-gray-600">
             Brand typefaces for this project. Primary is required. Extra rows can be left blank and are omitted when you save.
           </p>
@@ -2346,10 +2404,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             </Button>
           </div>
         </div>
-      </BottomSheet>
+      </Modal>
 
       {/* Email smart button — mailbox password */}
-      <BottomSheet
+      <Modal
         isOpen={credentialSheet !== null}
         onClose={closeCredentialSheet}
         title={
@@ -2360,8 +2418,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               : 'Password'
         }
         elevated
+        stackAboveOverlays
       >
-        <div className="p-4 pb-8 space-y-4">
+        <div className="space-y-4">
           <p className="text-sm text-gray-600">
             Mailbox password for this project shortcut. Stored for your team only; use a dedicated mailbox password when possible.
           </p>
@@ -2506,7 +2565,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             </>
           )}
         </div>
-      </BottomSheet>
+      </Modal>
 
       <ImagePreviewModal
         isOpen={previewImage !== null}

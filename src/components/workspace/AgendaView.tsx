@@ -25,6 +25,7 @@ import { meetingsForAgendaDay } from '@/lib/scheduling/meetingHours';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
 import PeriodNavButton from '@/components/ui/PeriodNavButton';
 import { getPeriodViewTitle, shiftPeriodDate } from '@/lib/utils/periodNavigation';
+import { canUserContributeToProject } from '@/lib/utils/projectTeam';
 
 interface AgendaViewProps {
     projects: IProject[];
@@ -47,6 +48,7 @@ interface AgendaViewProps {
     isManagerOrAdmin: boolean;
     showOnlyMyAssignments: boolean;
     onAddContent: (project: IProject, defaultDate?: Date) => void;
+    onAddTask?: (project: IProject) => void;
     onContentItemClick: (item: IContentItem) => void;
 }
 
@@ -168,6 +170,7 @@ export default function AgendaView({
     isManagerOrAdmin,
     showOnlyMyAssignments,
     onAddContent,
+    onAddTask,
     onContentItemClick,
 }: AgendaViewProps) {
     const assignmentFilterOpts = useMemo(
@@ -568,17 +571,31 @@ export default function AgendaView({
                                     )
                                 )}
 
-                                {isManagerOrAdmin && (
-                                    <button
-                                        type="button"
-                                        className="ml-6 mt-1 text-xs text-text-muted hover:text-primary transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onAddContent(project, day.date);
-                                        }}
-                                    >
-                                        + Add content
-                                    </button>
+                                {canUserContributeToProject(project, currentUserEmployeeId, isManagerOrAdmin) && (
+                                    <div className="ml-6 mt-1 flex items-center gap-3">
+                                        {onAddTask && (
+                                            <button
+                                                type="button"
+                                                className="text-xs text-text-muted hover:text-primary transition-colors"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onAddTask(project);
+                                                }}
+                                            >
+                                                + Add task
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="text-xs text-text-muted hover:text-primary transition-colors"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAddContent(project, day.date);
+                                            }}
+                                        >
+                                            + Add content
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         ))}
