@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/middleware';
 import { estimateHoursWithOpenAI, type EstimateHoursKind } from '@/lib/ai/estimateHours';
+import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
 
 const MAX_TITLE_LEN = 500;
 const MAX_DESC_LEN = 2000;
 
 export async function POST(req: NextRequest) {
+  const limit = enforceRateLimit({
+    key: rateLimitKey(req, 'ai-estimate-hours'),
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (limit) return limit;
+
   const session = await requireAuth(req);
   if (session instanceof NextResponse) return session;
 

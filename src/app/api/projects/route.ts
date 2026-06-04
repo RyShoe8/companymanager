@@ -95,24 +95,9 @@ export async function GET(request: NextRequest) {
     }
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
-
-    // Migrate stages to tasks for backward compatibility and clean up launched projects
-    const migratedProjects = await Promise.all(projects.map(async (project: any) => {
-      // Migrate stages to tasks
-      const migratedProject = migrateProjectFields(migrateStagesToTasks(project));
-      if (migratedProject !== project) {
-        // Save migration if it occurred (async, don't wait)
-        Project.findByIdAndUpdate(project._id, {
-          tasks: migratedProject.tasks,
-          projectType: migratedProject.projectType,
-          category: migratedProject.category
-        }, { new: true }).catch(() => {
-          // Error saving migration
-        });
-      }
-
-      return migratedProject;
-    }));
+    const migratedProjects = projects.map((project: any) =>
+      migrateProjectFields(migrateStagesToTasks(project))
+    );
 
     return NextResponse.json(migratedProjects);
   } catch (error) {

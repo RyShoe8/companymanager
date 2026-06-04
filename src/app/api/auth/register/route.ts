@@ -5,14 +5,32 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import { createSession } from '@/lib/auth/session';
+import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
+import { isValidEmail } from '@/lib/utils/security';
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = enforceRateLimit({
+      key: rateLimitKey(request, 'auth-register'),
+      limit: 6,
+      windowMs: 60_000,
+    });
+    if (limit) return limit;
+
     const body = await request.json();
     const { email, password, name, invitationToken } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
+    if (!isValidEmail(String(email))) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+    if (String(password).length < 8 || String(password).length > 128) {
+      return NextResponse.json(
+        { error: 'Password must be between 8 and 128 characters' },
+        { status: 400 }
+      );
     }
 
     await connectDB();

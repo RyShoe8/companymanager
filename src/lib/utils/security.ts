@@ -61,6 +61,18 @@ export function sanitizeString(input: string, maxLength: number = 1000): string 
 }
 
 /**
+ * Validate URL scheme for outbound links
+ */
+export function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Validate file type by checking magic bytes
  */
 export async function validateImageFile(file: File): Promise<boolean> {

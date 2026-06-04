@@ -55,9 +55,6 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/invitations/') ||
     pathname.startsWith('/api/portal/') ||
-    pathname.startsWith('/api/organization') ||
-    pathname.startsWith('/api/profile') ||
-    pathname.startsWith('/api/admin') ||
     pathname.startsWith('/api/contact') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
+import { requireAuth } from '@/lib/auth/middleware';
 
 /**
  * One-time setup script to:
@@ -11,7 +12,25 @@ import User from '@/lib/models/User';
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAuth(request);
+    if (session instanceof NextResponse) return session;
+
+    const setupSecret = process.env.PLATFORM_SETUP_SECRET;
+    if (!setupSecret) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const providedSecret = request.headers.get('x-setup-secret');
+    if (providedSecret !== setupSecret) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await connectDB();
+
+    const caller = await User.findById(session.userId).select('isAdmin').lean();
+    if (!caller?.isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const adminEmails = ['ryanschumacher@themediashop.co', 'kellymcguire@themediashop.co'];
     

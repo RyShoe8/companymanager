@@ -23,7 +23,7 @@ import {
 } from '@/lib/utils/calendarPeriodNav';
 import CalendarPeriodHeader from '@/components/planning-map/CalendarPeriodHeader';
 import ProjectTimeframeItemsModal, { TimeframeTaskItem } from './ProjectTimeframeItemsModal';
-import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
+import { getTaskAssigneeEmployeeIds, isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { contentPassesAssignmentFilter } from '@/lib/utils/assigneeDisplay';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import {
@@ -31,6 +31,11 @@ import {
   getProjectLatestActivityMs,
 } from '@/lib/utils/projectLatestActivity';
 import ActionMenu from '@/components/ui/ActionMenu';
+import {
+  buildContentItemKey,
+  buildTaskItemKey,
+  observeItemsForUser,
+} from '@/lib/workspace/itemSeenState';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -73,6 +78,7 @@ interface CalendarViewProps {
   onDateChange?: (date: Date) => void;
   currentUserEmployeeName?: string | null;
   currentUserEmployeeId?: string | null;
+  currentUserId?: string | null;
   isManagerOrAdmin?: boolean;
   showOnlyMyAssignments?: boolean;
   onContentItemClick?: (item: IContentItem) => void;
@@ -98,6 +104,7 @@ export default function CalendarView({
   onDateChange,
   currentUserEmployeeName,
   currentUserEmployeeId,
+  currentUserId,
   isManagerOrAdmin = false,
   showOnlyMyAssignments = false,
   onContentItemClick,
@@ -109,12 +116,91 @@ export default function CalendarView({
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
+  const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
+  const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
   const prevActivityMsRef = useRef<Map<string, number>>(new Map());
   const hasInitializedActivityRef = useRef(false);
 
   const contentByProjectId = useMemo(
     () => buildContentItemsByProjectId(contentItems),
     [contentItems]
+  );
+
+  const taskKeyFor = useCallback(
+    (project: IProject, task: IProjectTask, idx: number) =>
+      buildTaskItemKey(
+        project._id.toString(),
+        (task as { _id?: { toString(): string } })._id?.toString() ?? null,
+        idx
+      ),
+    []
+  );
+
+  const contentKeyFor = useCallback(
+    (item: IContentItem) =>
+      buildContentItemKey(item.projectId?.toString() ?? 'none', item._id.toString()),
+    []
+  );
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const entries = [
+      ...projects.flatMap((project) =>
+        (project.tasks ?? []).map((task, idx) => ({
+          key: taskKeyFor(project, task, idx),
+          signature: JSON.stringify({
+            projectUpdatedAt: (project as { updatedAt?: Date | string }).updatedAt ?? '',
+            taskId: (task as { _id?: { toString(): string } })._id?.toString() ?? '',
+            name: task.name,
+            description: task.description ?? '',
+            startDate: task.startDate,
+            endDate: task.endDate,
+            estimatedHours: task.estimatedHours ?? null,
+            status: task.status ?? '',
+            assigned: getTaskAssigneeEmployeeIds(task).sort(),
+          }),
+          baseActivityMs: new Date(
+            (project as { updatedAt?: Date | string }).updatedAt ?? project.createdAt
+          ).getTime(),
+        }))
+      ),
+      ...contentItems.map((item) => ({
+        key: contentKeyFor(item),
+        signature: JSON.stringify({
+          updatedAt: item.updatedAt ?? '',
+          createdAt: item.createdAt ?? '',
+          title: item.title,
+          channel: item.channel,
+          status: item.status,
+          publishDate: item.publishDate ?? '',
+          assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
+          notes: item.notes ?? '',
+        }),
+        baseActivityMs: new Date(item.updatedAt ?? item.createdAt ?? new Date()).getTime(),
+      })),
+    ];
+    const observed = observeItemsForUser(currentUserId, entries);
+    setItemActivityByKey(observed.activityByKey);
+    setItemIsNewByKey(observed.isNewByKey);
+  }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor]);
+
+  const taskActivityMs = useCallback(
+    (project: IProject, task: IProjectTask, idx: number) =>
+      itemActivityByKey[taskKeyFor(project, task, idx)] ?? 0,
+    [itemActivityByKey, taskKeyFor]
+  );
+
+  const contentActivityMs = useCallback(
+    (item: IContentItem) => itemActivityByKey[contentKeyFor(item)] ?? 0,
+    [itemActivityByKey, contentKeyFor]
+  );
+
+  const projectBadgeEligible = useCallback(
+    (project: IProject): boolean =>
+      !!currentUserEmployeeId &&
+      !!isManagerOrAdmin &&
+      isEmployeeOnProjectTeam(project, currentUserEmployeeId),
+    [currentUserEmployeeId, isManagerOrAdmin]
   );
 
   // Load expanded projects from localStorage on mount
@@ -171,7 +257,7 @@ export default function CalendarView({
     [contentByProjectId, projectLatestComments]
   );
 
-  // Fetch latest comment timestamps for all projects
+  // Fetch latest project comment timestamps in one request
   useEffect(() => {
     if (projects.length === 0) {
       setProjectLatestComments(new Map());
@@ -180,40 +266,28 @@ export default function CalendarView({
 
     let cancelled = false;
 
-    const getAllCommentTimestamps = (commentList: { createdAt?: string; updatedAt?: string; replies?: unknown[] }[]): Date[] => {
-      const timestamps: Date[] = [];
-      commentList.forEach((comment) => {
-        if (comment.createdAt) timestamps.push(new Date(comment.createdAt));
-        if (comment.updatedAt) timestamps.push(new Date(comment.updatedAt));
-        if (comment.replies && comment.replies.length > 0) {
-          timestamps.push(...getAllCommentTimestamps(comment.replies as typeof commentList));
-        }
-      });
-      return timestamps;
-    };
-
     const fetchLatestComments = async () => {
-      const commentMap = new Map<string, Date>();
+      try {
+        const projectIds = projects.map((project) => project._id.toString()).join(',');
+        const response = await fetch(`/api/comments/activity?projectIds=${encodeURIComponent(projectIds)}`);
+        if (!response.ok) return;
 
-      const commentPromises = projects.map(async (project) => {
-        try {
-          const response = await fetch(`/api/comments?entityType=project&entityId=${project._id.toString()}`);
-          if (response.ok) {
-            const comments = await response.json();
-            const timestamps = getAllCommentTimestamps(comments);
-            if (timestamps.length > 0) {
-              const latestComment = new Date(Math.max(...timestamps.map((t) => t.getTime())));
-              commentMap.set(project._id.toString(), latestComment);
-            }
+        const payload = (await response.json()) as {
+          projectLatestComments?: Record<string, string>;
+        };
+        const commentMap = new Map<string, Date>();
+        for (const [projectId, value] of Object.entries(payload.projectLatestComments ?? {})) {
+          const timestamp = new Date(value);
+          if (!Number.isNaN(timestamp.getTime())) {
+            commentMap.set(projectId, timestamp);
           }
-        } catch {
-          // Error fetching comments for project
         }
-      });
 
-      await Promise.all(commentPromises);
-      if (!cancelled) {
-        setProjectLatestComments(commentMap);
+        if (!cancelled) {
+          setProjectLatestComments(commentMap);
+        }
+      } catch {
+        // Ignore activity fetch errors.
       }
     };
 
@@ -365,6 +439,25 @@ export default function CalendarView({
     return true;
   }
 
+  function shouldShowTaskNew(project: IProject, task: IProjectTask): boolean {
+    if (!currentUserEmployeeId) return false;
+    if (projectBadgeEligible(project)) {
+      const idx = resolveTaskIndexInProject(project, task);
+      return !!itemIsNewByKey[taskKeyFor(project, task, idx)];
+    }
+    if (!getTaskAssigneeEmployeeIds(task).includes(currentUserEmployeeId)) return false;
+    const idx = resolveTaskIndexInProject(project, task);
+    return !!itemIsNewByKey[taskKeyFor(project, task, idx)];
+  }
+
+  function shouldShowContentNew(project: IProject, item: IContentItem): boolean {
+    if (!currentUserEmployeeId) return false;
+    if (!projectBadgeEligible(project) && item.assignedToEmployeeId?.toString() !== currentUserEmployeeId) {
+      return false;
+    }
+    return !!itemIsNewByKey[contentKeyFor(item)];
+  }
+
   function getMergedItemsForProject(
     project: IProject,
     rangeStart: Date,
@@ -415,9 +508,15 @@ export default function CalendarView({
       merged.push({ type: 'content', content: c });
     });
     merged.sort((a, b) => {
-      const dateA = a.type === 'task' ? a.date.getTime() : new Date(a.content.publishDate!).getTime();
-      const dateB = b.type === 'task' ? b.date.getTime() : new Date(b.content.publishDate!).getTime();
-      if (dateA !== dateB) return dateA - dateB;
+      const activityA =
+        a.type === 'task'
+          ? taskActivityMs(project, a.task, resolveTaskIndexInProject(project, a.task))
+          : contentActivityMs(a.content);
+      const activityB =
+        b.type === 'task'
+          ? taskActivityMs(project, b.task, resolveTaskIndexInProject(project, b.task))
+          : contentActivityMs(b.content);
+      if (activityA !== activityB) return activityB - activityA;
       return a.type === 'task' ? -1 : 1;
     });
 
@@ -691,7 +790,10 @@ export default function CalendarView({
                                           }}
                                           className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
                                         >
-                                          <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>{task.name}</div>
+                                          <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                            {shouldShowTaskNew(project, task) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                            {task.name}
+                                          </div>
                                           {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
                                           <div className="flex gap-4 mt-2 text-xs text-text-secondary">
                                             {(task as any).estimatedHours && <span>{(task as any).estimatedHours}h</span>}
@@ -711,7 +813,10 @@ export default function CalendarView({
                                       >
                                         <button type="button" onClick={() => onContentItemClick?.(c)} className="text-left w-full">
                                           <span className="mr-2" aria-hidden>📝</span>
-                                          <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>{c.title}</span>
+                                          <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>
+                                            {shouldShowContentNew(project, c) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                            {c.title}
+                                          </span>
                                           <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">{c.channel}</span>
                                         </button>
                                       </div>
@@ -743,6 +848,7 @@ export default function CalendarView({
                                           className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
                                           title={item.task.name}
                                         >
+                                          {shouldShowTaskNew(project, item.task) ? <span className="text-blue-600 mr-1">●</span> : null}
                                           {item.task.name}
                                         </button>
                                       );
@@ -750,6 +856,7 @@ export default function CalendarView({
                                     return (
                                       <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
                                         <span className="mr-1" aria-hidden>📝</span>
+                                        {shouldShowContentNew(project, item.content) ? <span className="text-blue-600 mr-1">●</span> : null}
                                         {item.content.title}
                                         <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
                                       </div>
@@ -1164,6 +1271,7 @@ export default function CalendarView({
                                             className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                                             title={task.name}
                                           >
+                                            {shouldShowTaskNew(project, task) ? <span className="text-blue-600 mr-1">●</span> : null}
                                             {task.name}
                                           </div>
                                           {task.description && (
@@ -1201,6 +1309,7 @@ export default function CalendarView({
                                           <span
                                             className={`font-medium text-text-primary break-words ${c.status === 'published' ? 'line-through' : ''}`}
                                           >
+                                            {shouldShowContentNew(project, c) ? <span className="text-blue-600 mr-1">●</span> : null}
                                             {c.title}
                                           </span>
                                           <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">

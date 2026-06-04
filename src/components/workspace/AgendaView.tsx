@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
@@ -25,7 +25,16 @@ import { meetingsForAgendaDay } from '@/lib/scheduling/meetingHours';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
 import PeriodNavButton from '@/components/ui/PeriodNavButton';
 import { getPeriodViewTitle, shiftPeriodDate } from '@/lib/utils/periodNavigation';
-import { canUserContributeToProject } from '@/lib/utils/projectTeam';
+import {
+    canUserContributeToProject,
+    getTaskAssigneeEmployeeIds,
+    isEmployeeOnProjectTeam,
+} from '@/lib/utils/projectTeam';
+import {
+    buildContentItemKey,
+    buildTaskItemKey,
+    observeItemsForUser,
+} from '@/lib/workspace/itemSeenState';
 
 interface AgendaViewProps {
     projects: IProject[];
@@ -111,6 +120,7 @@ function renderAgendaContentRow(
     currentUserEmployeeId: string | null,
     currentUserEmployeeName: string | null,
     onContentItemClick: (item: IContentItem) => void,
+    showNewIndicator = false,
     className = 'px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap',
     stopPropagation = false
 ) {
@@ -133,7 +143,10 @@ function renderAgendaContentRow(
             <span className="flex-shrink-0" aria-hidden>
                 {channelIcons[item.channel] || '📎'}
             </span>
-            <span className="text-text-primary">{item.title}</span>
+            <span className="text-text-primary">
+                {showNewIndicator ? <span className="text-blue-600 mr-1">●</span> : null}
+                {item.title}
+            </span>
             <span
                 className="px-1.5 py-0.5 rounded text-xs font-medium"
                 style={{
@@ -173,6 +186,9 @@ export default function AgendaView({
     onAddTask,
     onContentItemClick,
 }: AgendaViewProps) {
+    const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
+    const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
+
     const assignmentFilterOpts = useMemo(
         () => ({
             showOnlyMyAssignments,
@@ -188,6 +204,83 @@ export default function AgendaView({
             currentUserEmployeeName,
             currentUserRole,
         ]
+    );
+
+    const taskKeyFor = useCallback(
+        (project: IProject, task: IProjectTask, idx: number) =>
+            buildTaskItemKey(
+                project._id.toString(),
+                (task as { _id?: { toString(): string } })._id?.toString() ?? null,
+                idx
+            ),
+        []
+    );
+
+    const contentKeyFor = useCallback(
+        (item: IContentItem) => buildContentItemKey(item.projectId?.toString() ?? 'none', item._id.toString()),
+        []
+    );
+
+    useEffect(() => {
+        if (!currentUserId) return;
+        const entries = [
+            ...projects.flatMap((project) =>
+                (project.tasks ?? []).map((task, idx) => ({
+                    key: taskKeyFor(project, task, idx),
+                    signature: JSON.stringify({
+                        projectUpdatedAt: (project as { updatedAt?: Date | string }).updatedAt ?? '',
+                        taskId: (task as { _id?: { toString(): string } })._id?.toString() ?? '',
+                        name: task.name,
+                        description: task.description ?? '',
+                        startDate: task.startDate,
+                        endDate: task.endDate,
+                        estimatedHours: task.estimatedHours ?? null,
+                        status: task.status ?? '',
+                        assigned: getTaskAssigneeEmployeeIds(task).sort(),
+                    }),
+                    baseActivityMs: new Date(
+                        (project as { updatedAt?: Date | string }).updatedAt ?? project.createdAt
+                    ).getTime(),
+                }))
+            ),
+            ...contentItems.map((item) => ({
+                key: contentKeyFor(item),
+                signature: JSON.stringify({
+                    updatedAt: item.updatedAt ?? '',
+                    createdAt: item.createdAt ?? '',
+                    title: item.title,
+                    channel: item.channel,
+                    status: item.status,
+                    publishDate: item.publishDate ?? '',
+                    estimatedHours: item.estimatedHours ?? null,
+                    assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
+                    notes: item.notes ?? '',
+                }),
+                baseActivityMs: new Date(item.updatedAt ?? item.createdAt ?? new Date()).getTime(),
+            })),
+        ];
+        const observed = observeItemsForUser(currentUserId, entries);
+        setItemActivityByKey(observed.activityByKey);
+        setItemIsNewByKey(observed.isNewByKey);
+    }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor]);
+
+    const taskActivityMs = useCallback(
+        (project: IProject, task: IProjectTask, idx: number) =>
+            itemActivityByKey[taskKeyFor(project, task, idx)] ?? 0,
+        [itemActivityByKey, taskKeyFor]
+    );
+
+    const contentActivityMs = useCallback(
+        (item: IContentItem) => itemActivityByKey[contentKeyFor(item)] ?? 0,
+        [itemActivityByKey, contentKeyFor]
+    );
+
+    const projectBadgeEligible = useCallback(
+        (project: IProject): boolean =>
+            !!currentUserEmployeeId &&
+            !!isManagerOrAdmin &&
+            isEmployeeOnProjectTeam(project, currentUserEmployeeId),
+        [currentUserEmployeeId, isManagerOrAdmin]
     );
 
     const agendaDays = useMemo(() => {
@@ -217,6 +310,11 @@ export default function AgendaView({
                         if (!taskPassesAssignmentFilter(task, assignmentFilterOpts)) return;
                         tasksOnDay.push(task);
                     });
+                    tasksOnDay.sort((a, b) => {
+                        const aIdx = resolveTaskIndexInProject(project, a);
+                        const bIdx = resolveTaskIndexInProject(project, b);
+                        return taskActivityMs(project, b, bIdx) - taskActivityMs(project, a, aIdx);
+                    });
                 }
 
                 const contentOnDay: IContentItem[] = [];
@@ -233,6 +331,7 @@ export default function AgendaView({
                             return publishDateOnViewDay(dayStart, d);
                         })
                         .forEach((item) => contentOnDay.push(item));
+                    contentOnDay.sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
                 }
 
                 if (tasksOnDay.length > 0 || contentOnDay.length > 0) {
@@ -257,6 +356,21 @@ export default function AgendaView({
                     );
                 })
                 : [];
+            orphanContent.sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
+
+            dayProjects.sort((a, b) => {
+                const aTop = Math.max(
+                    ...a.tasks.map((task) => taskActivityMs(a.project, task, resolveTaskIndexInProject(a.project, task))),
+                    ...a.content.map((item) => contentActivityMs(item)),
+                    0
+                );
+                const bTop = Math.max(
+                    ...b.tasks.map((task) => taskActivityMs(b.project, task, resolveTaskIndexInProject(b.project, task))),
+                    ...b.content.map((item) => contentActivityMs(item)),
+                    0
+                );
+                return bTop - aTop;
+            });
 
             if (dayProjects.length > 0 || orphanContent.length > 0 || (showMeetings && meetings.length > 0)) {
                 const dayMeetings = showMeetings
@@ -298,9 +412,8 @@ export default function AgendaView({
         timeframe,
         currentDate,
         assignmentFilterOpts,
-        showOnlyMyAssignments,
-        currentUserEmployeeId,
-        currentUserId,
+        taskActivityMs,
+        contentActivityMs,
     ]);
 
     const undatedContent = useMemo(() => {
@@ -309,8 +422,8 @@ export default function AgendaView({
             if (item.publishDate) return false;
             if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
             return contentPassesAssignmentFilter(item, assignmentFilterOpts);
-        });
-    }, [contentItems, showContent, contentChannelFilter, assignmentFilterOpts]);
+        }).sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
+    }, [contentItems, showContent, contentChannelFilter, assignmentFilterOpts, contentActivityMs]);
 
     const undatedContentGroups = useMemo((): UndatedContentGroup[] => {
         const byProjectId = new Map<string, UndatedContentGroup>();
@@ -411,6 +524,10 @@ export default function AgendaView({
                                         currentUserEmployeeId,
                                         currentUserEmployeeName,
                                         onContentItemClick,
+                                        (!!currentUserEmployeeId &&
+                                            ((group.project && projectBadgeEligible(group.project)) ||
+                                                item.assignedToEmployeeId?.toString() === currentUserEmployeeId) &&
+                                            !!itemIsNewByKey[contentKeyFor(item)]),
                                         group.project
                                             ? 'ml-6 px-4 py-2 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap'
                                             : 'px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap'
@@ -535,6 +652,11 @@ export default function AgendaView({
                                         currentUserEmployeeName,
                                         task
                                     );
+                                    const showNewTask =
+                                        !!currentUserEmployeeId &&
+                                        (projectBadgeEligible(project) ||
+                                            getTaskAssigneeEmployeeIds(task).includes(currentUserEmployeeId)) &&
+                                        !!itemIsNewByKey[taskKeyFor(project, task, tIdx)];
                                     return (
                                         <button
                                             key={task._id?.toString() || task.name}
@@ -549,6 +671,7 @@ export default function AgendaView({
                                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'completed' ? 'bg-green-500' : task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'
                                                 }`} />
                                             <span className={`text-text-primary ${task.status === 'completed' ? 'line-through text-text-muted' : ''}`}>
+                                                {showNewTask ? <span className="text-blue-600 mr-1">●</span> : null}
                                                 {task.name}
                                             </span>
                                             {task.estimatedHours ? (
@@ -566,6 +689,10 @@ export default function AgendaView({
                                         currentUserEmployeeId,
                                         currentUserEmployeeName,
                                         onContentItemClick,
+                                        (!!currentUserEmployeeId &&
+                                            (projectBadgeEligible(project) ||
+                                                item.assignedToEmployeeId?.toString() === currentUserEmployeeId) &&
+                                            !!itemIsNewByKey[contentKeyFor(item)]),
                                         'ml-6 py-1.5 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated rounded px-1 -mx-1 flex-wrap',
                                         true
                                     )
@@ -606,7 +733,10 @@ export default function AgendaView({
                                 employees,
                                 currentUserEmployeeId,
                                 currentUserEmployeeName,
-                                onContentItemClick
+                                onContentItemClick,
+                                (!!currentUserEmployeeId &&
+                                    item.assignedToEmployeeId?.toString() === currentUserEmployeeId &&
+                                    !!itemIsNewByKey[contentKeyFor(item)])
                             )
                         )}
                     </div>

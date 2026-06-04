@@ -61,7 +61,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    return NextResponse.json({ tasks, contentItems: contentItemsMap });
+    return NextResponse.json(
+      { tasks, contentItems: contentItemsMap },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

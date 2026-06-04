@@ -8,6 +8,7 @@ import {
 } from '@/lib/recordings/recordingAccess';
 import { transcribeAudioFromUrl } from '@/lib/ai/transcribeAudio';
 import { summarizeRecording } from '@/lib/ai/summarizeRecording';
+import { assertTrustedRecordingUrl } from '@/lib/recordings/recordingUrlPolicy';
 
 export const maxDuration = 300;
 
@@ -51,6 +52,10 @@ export async function POST(
 
     try {
       const audioSource = recording.audioUrl || recording.videoUrl;
+      assertTrustedRecordingUrl(audioSource, {
+        requestOrigin: new URL(request.url).origin,
+        allowRelativeUploads: true,
+      });
       const transcript = await transcribeAudioFromUrl(audioSource, apiKey);
 
       let projectName: string | undefined;

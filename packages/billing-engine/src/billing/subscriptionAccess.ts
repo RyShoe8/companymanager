@@ -19,7 +19,7 @@ export function isOrganizationPaid(
   org: { subscriptionStatus?: string | null } | null | undefined
 ): boolean {
   if (!org) return false;
-  if (!stripeBillingEnabled()) return true;
+  if (!stripeBillingEnabled()) return process.env.NODE_ENV !== 'production';
   return isActiveSubscriptionStatus(org.subscriptionStatus);
 }
 

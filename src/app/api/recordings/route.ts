@@ -12,6 +12,8 @@ import {
   assertProjectRecordingAccess,
   getRecordingSessionContext,
 } from '@/lib/recordings/recordingAccess';
+import { isTrustedRecordingUrl } from '@/lib/recordings/recordingUrlPolicy';
+import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
 
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
@@ -118,6 +120,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = enforceRateLimit({
+      key: rateLimitKey(request, 'recordings-create'),
+      limit: 12,
+      windowMs: 60_000,
+    });
+    if (limit) return limit;
+
     const session = await requireAuth(request);
     if (session instanceof NextResponse) return session;
 
@@ -137,6 +146,16 @@ export async function POST(request: NextRequest) {
 
       if (!title || !videoUrl) {
         return NextResponse.json({ error: 'Title and videoUrl are required' }, { status: 400 });
+      }
+      const origin = new URL(request.url).origin;
+      if (!isTrustedRecordingUrl(videoUrl, { requestOrigin: origin, allowRelativeUploads: true })) {
+        return NextResponse.json({ error: 'videoUrl host is not allowed' }, { status: 400 });
+      }
+      if (
+        audioUrl &&
+        !isTrustedRecordingUrl(audioUrl, { requestOrigin: origin, allowRelativeUploads: true })
+      ) {
+        return NextResponse.json({ error: 'audioUrl host is not allowed' }, { status: 400 });
       }
 
       const projectError = await assertProjectRecordingAccess(ctx, links.projectId);

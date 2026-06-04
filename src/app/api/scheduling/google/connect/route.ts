@@ -4,6 +4,7 @@ import {
   getCalendarOAuthRedirectUri,
   getCalendarOAuthScopes,
 } from '@/lib/scheduling/googleCalendar';
+import { createCalendarOAuthState } from '@/lib/scheduling/oauthState';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const redirectUri = getCalendarOAuthRedirectUri(new URL(request.url).origin);
 
-    const state = Buffer.from(JSON.stringify({ userId: session.userId })).toString('base64url');
+    const state = await createCalendarOAuthState(session.userId);
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', clientId);

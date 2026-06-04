@@ -74,6 +74,6 @@ export function shouldAutoExpandCommentThread(
   if (latestActivityMs <= 0) return false;
   if (isCommentThreadManuallyCollapsed(threadKey)) return false;
   const lastSeen = getCommentLastSeenMs(threadKey);
-  if (lastSeen == null) return false;
+  if (lastSeen == null) return true;
   return latestActivityMs > lastSeen;
 }

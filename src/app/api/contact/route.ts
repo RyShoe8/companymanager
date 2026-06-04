@@ -3,9 +3,17 @@ import { sendEmail } from '@/lib/services/email';
 import { escapeHtml, isValidEmail, sanitizeString } from '@/lib/utils/security';
 import connectDB from '@/lib/db/mongodb';
 import FeedbackSubmission from '@/lib/models/FeedbackSubmission';
+import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = enforceRateLimit({
+      key: rateLimitKey(request, 'contact-form'),
+      limit: 5,
+      windowMs: 60_000,
+    });
+    if (limit) return limit;
+
     const body = await request.json();
     let { type, name, email, subject, message } = body;
 

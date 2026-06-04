@@ -26,6 +26,17 @@ interface PortalData {
   }>;
 }
 
+function safeExternalHref(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return raw;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ClientPortalPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -91,7 +102,7 @@ export default function ClientPortalPage() {
               {data.urls.map((url, i) => (
                 <a
                   key={i}
-                  href={url}
+                  href={safeExternalHref(url) ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block px-4 py-3 rounded-lg bg-white border border-gray-200 hover:border-primary hover:bg-primary/5 text-primary font-medium"
@@ -116,7 +127,7 @@ export default function ClientPortalPage() {
                   <span className="text-xs text-gray-500 ml-2 capitalize">({asset.type})</span>
                   {asset.url && (
                     <a
-                      href={asset.url}
+                      href={safeExternalHref(asset.url) ?? '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block mt-1 text-sm text-primary hover:underline"
@@ -126,7 +137,7 @@ export default function ClientPortalPage() {
                   )}
                   {asset.fileUrl && (
                     <a
-                      href={asset.fileUrl}
+                      href={safeExternalHref(asset.fileUrl) ?? '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block mt-1 text-sm text-primary hover:underline"

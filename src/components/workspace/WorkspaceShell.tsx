@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
@@ -168,10 +168,21 @@ export default function WorkspaceShell({
         return activePhase && scheduleView;
     }, [ws.phase, ws.lens]);
 
-    const refreshProjectActivity = useCallback(() => {
-        void ws.loadData({ silent: true });
-        void ws.fetchContentItems();
-    }, [ws.loadData, ws.fetchContentItems]);
+    const workspaceActivityTokenRef = useRef<string | null>(null);
+    const refreshProjectActivity = useCallback(async () => {
+        try {
+            const res = await fetch('/api/workspace/activity', { cache: 'no-store' });
+            if (!res.ok) return;
+            const payload = (await res.json()) as { token?: string };
+            const nextToken = payload.token ?? null;
+            if (!nextToken) return;
+            if (workspaceActivityTokenRef.current === nextToken) return;
+            workspaceActivityTokenRef.current = nextToken;
+            await ws.loadData({ silent: true });
+        } catch {
+            // Ignore background activity polling errors.
+        }
+    }, [ws.loadData]);
 
     useEffect(() => {
         if (!shouldPollProjectActivity) return;
@@ -1327,6 +1338,7 @@ export default function WorkspaceShell({
                                                 onDateChange={ws.setCurrentDate}
                                                 currentUserEmployeeName={ws.currentUserEmployeeName}
                                                 currentUserEmployeeId={ws.currentUserEmployeeId}
+                                                currentUserId={ws.currentUserId}
                                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                                 showOnlyMyAssignments={ws.showOnlyMyAssignments}
                                                 onRefreshContent={ws.fetchContentItems}

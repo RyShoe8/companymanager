@@ -18,6 +18,7 @@ interface ScheduleLensProps {
     onDateChange: (date: Date) => void;
     currentUserEmployeeName: string | null;
     currentUserEmployeeId: string | null;
+    currentUserId?: string | null;
     isManagerOrAdmin: boolean;
     showOnlyMyAssignments: boolean;
     onRefreshContent: () => void;
@@ -39,6 +40,7 @@ export default function ScheduleLens({
     onDateChange,
     currentUserEmployeeName,
     currentUserEmployeeId,
+    currentUserId,
     isManagerOrAdmin,
     showOnlyMyAssignments,
     onRefreshContent,
@@ -59,6 +61,7 @@ export default function ScheduleLens({
             onDateChange={onDateChange}
             currentUserEmployeeName={currentUserEmployeeName}
             currentUserEmployeeId={currentUserEmployeeId}
+            currentUserId={currentUserId}
             isManagerOrAdmin={isManagerOrAdmin}
             showOnlyMyAssignments={showOnlyMyAssignments}
             onRefreshContent={onRefreshContent}

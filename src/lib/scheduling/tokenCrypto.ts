@@ -3,8 +3,12 @@ import crypto from 'crypto';
 const ALGO = 'aes-256-gcm';
 
 function getKey(): Buffer {
+  const explicitSecret = process.env.CALENDAR_TOKEN_ENCRYPTION_KEY;
+  if (process.env.NODE_ENV === 'production' && !explicitSecret) {
+    throw new Error('CALENDAR_TOKEN_ENCRYPTION_KEY is required in production');
+  }
   const secret =
-    process.env.CALENDAR_TOKEN_ENCRYPTION_KEY ||
+    explicitSecret ||
     process.env.GOOGLE_CLIENT_SECRET ||
     'nucleas-calendar-dev-key';
   return crypto.createHash('sha256').update(secret).digest();

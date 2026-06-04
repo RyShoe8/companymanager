@@ -6,6 +6,7 @@ import {
 } from '@/lib/scheduling/googleCalendar';
 import { upsertGoogleConnection } from '@/lib/scheduling/calendarConnection';
 import { Types } from 'mongoose';
+import { verifyCalendarOAuthState } from '@/lib/scheduling/oauthState';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,13 +27,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${workspaceUrl}&calendar_error=no_code`);
     }
 
-    let userId: string;
-    try {
-      const parsed = JSON.parse(Buffer.from(stateRaw, 'base64url').toString('utf8'));
-      userId = parsed.userId;
-    } catch {
+    const state = await verifyCalendarOAuthState(stateRaw);
+    if (!state || !Types.ObjectId.isValid(state.userId)) {
       return NextResponse.redirect(`${workspaceUrl}&calendar_error=invalid_state`);
     }
+    const userId = state.userId;
 
     const redirectUri = getCalendarOAuthRedirectUri(baseUrl);
 

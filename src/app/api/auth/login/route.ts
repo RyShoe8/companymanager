@@ -5,9 +5,17 @@ import User, { isAdminEmail } from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { createSession } from '@/lib/auth/session';
 import { isValidEmail, sanitizeString } from '@/lib/utils/security';
+import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = enforceRateLimit({
+      key: rateLimitKey(request, 'auth-login'),
+      limit: 10,
+      windowMs: 60_000,
+    });
+    if (limit) return limit;
+
     const body = await request.json();
     let { email, password } = body;
 

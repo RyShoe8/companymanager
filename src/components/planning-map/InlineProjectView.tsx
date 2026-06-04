@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { IProject, TaskStatus } from '@/lib/models/Project';
+import { IProject, IProjectTask, TaskStatus } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, type ContentStatus } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
@@ -36,6 +36,7 @@ import {
   getTaskAssigneeEmployeeIds,
   canUserContributeToProject,
   filterEmployeesForTaskAssignment,
+  isEmployeeOnProjectTeam,
   isTaskAssigneeOnProjectTeam,
   sanitizeTaskAssigneesForProjectTeam,
 } from '@/lib/utils/projectTeam';
@@ -64,6 +65,13 @@ import {
   setCommentThreadManuallyCollapsed,
   shouldAutoExpandCommentThread,
 } from '@/lib/comments/commentReadState';
+import {
+  buildContentItemKey,
+  buildTaskItemKey,
+  markProjectItemsSeen,
+  observeItemsForUser,
+  readObservedItemsForUser,
+} from '@/lib/workspace/itemSeenState';
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -107,6 +115,8 @@ type LinkedAssetRow = {
   fileUrl?: string;
   textContent?: string;
   userId?: string;
+  linkedProjectTaskId?: string;
+  linkedContentItemId?: string;
 };
 
 function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
@@ -128,6 +138,20 @@ function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
     fileUrl: typeof o.fileUrl === 'string' ? o.fileUrl : undefined,
     textContent: typeof o.textContent === 'string' ? o.textContent : undefined,
     userId: normalizeAssetUserId(o.userId),
+    linkedProjectTaskId:
+      typeof o.linkedProjectTaskId === 'string'
+        ? o.linkedProjectTaskId
+        : o.linkedProjectTaskId &&
+            typeof (o.linkedProjectTaskId as { toString?: () => string }).toString === 'function'
+          ? (o.linkedProjectTaskId as { toString: () => string }).toString()
+          : undefined,
+    linkedContentItemId:
+      typeof o.linkedContentItemId === 'string'
+        ? o.linkedContentItemId
+        : o.linkedContentItemId &&
+            typeof (o.linkedContentItemId as { toString?: () => string }).toString === 'function'
+          ? (o.linkedContentItemId as { toString: () => string }).toString()
+          : undefined,
   };
 }
 
@@ -266,6 +290,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [taskAssetsRefreshToken, setTaskAssetsRefreshToken] = useState(0);
   const [contentAssetsRefreshToken, setContentAssetsRefreshToken] = useState(0);
+  const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
+  const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -334,6 +360,50 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     if (!linkedAssetTypeFilter) return linkedAssets;
     return linkedAssets.filter((a) => a.type === linkedAssetTypeFilter);
   }, [linkedAssets, linkedAssetTypeFilter]);
+
+  const taskAssets = useMemo(
+    () => linkedAssets.filter((asset) => Boolean(asset.linkedProjectTaskId)),
+    [linkedAssets]
+  );
+  const contentItemAssets = useMemo(
+    () => linkedAssets.filter((asset) => Boolean(asset.linkedContentItemId)),
+    [linkedAssets]
+  );
+
+  const projectIdStr = localProject._id.toString();
+  const projectBadgeEligible =
+    !!currentUserEmployeeId &&
+    isManagerOrAdmin &&
+    isEmployeeOnProjectTeam(localProject, currentUserEmployeeId);
+
+  const taskItemKeyFor = useCallback(
+    (task: IProjectTask, idx: number) =>
+      buildTaskItemKey(projectIdStr, (task as { _id?: { toString(): string } })._id?.toString() ?? null, idx),
+    [projectIdStr]
+  );
+
+  const contentItemKeyFor = useCallback(
+    (item: IContentItem) => buildContentItemKey(projectIdStr, item._id.toString()),
+    [projectIdStr]
+  );
+
+  const canShowTaskNewIndicator = useCallback(
+    (task: IProjectTask): boolean => {
+      if (!currentUserEmployeeId) return false;
+      if (projectBadgeEligible) return true;
+      return getTaskAssigneeEmployeeIds(task).includes(currentUserEmployeeId);
+    },
+    [currentUserEmployeeId, projectBadgeEligible]
+  );
+
+  const canShowContentNewIndicator = useCallback(
+    (item: IContentItem): boolean => {
+      if (!currentUserEmployeeId) return false;
+      if (projectBadgeEligible) return true;
+      return item.assignedToEmployeeId?.toString() === currentUserEmployeeId;
+    },
+    [currentUserEmployeeId, projectBadgeEligible]
+  );
 
   const paletteChipSwatches = useMemo(() => {
     const pal = localProject.colorPalette;
@@ -576,6 +646,119 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [currentUserId, expandedContentComments]
   );
 
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const taskEntries = (localProject.tasks ?? []).map((task, idx) => {
+      const summary = getTaskSummaryForIndex(idx);
+      const taskId = (task as { _id?: { toString(): string } })._id?.toString() ?? '';
+      const signature = JSON.stringify({
+        projectUpdatedAt: (localProject as { updatedAt?: Date | string }).updatedAt ?? '',
+        taskId,
+        name: task.name,
+        description: task.description ?? '',
+        startDate: task.startDate,
+        endDate: task.endDate,
+        estimatedHours: task.estimatedHours ?? null,
+        status: task.status ?? '',
+        assigned: getTaskAssigneeEmployeeIds(task).sort(),
+        recurrenceSeriesId: task.recurrenceSeriesId ?? '',
+        commentActivityMs: summary.latestActivityMs ?? 0,
+      });
+      return {
+        key: taskItemKeyFor(task, idx),
+        signature,
+        baseActivityMs: Math.max(
+          new Date((localProject as { updatedAt?: Date | string }).updatedAt ?? localProject.createdAt).getTime(),
+          summary.latestActivityMs ?? 0
+        ),
+      };
+    });
+
+    const contentEntries = projectContentItems.map((item) => {
+      const itemId = item._id.toString();
+      const summary = commentSummaries.contentItems[itemId];
+      const signature = JSON.stringify({
+        updatedAt: item.updatedAt ?? '',
+        createdAt: item.createdAt ?? '',
+        title: item.title,
+        channel: item.channel,
+        status: item.status,
+        publishDate: item.publishDate ?? '',
+        estimatedHours: item.estimatedHours ?? null,
+        assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
+        notes: item.notes ?? '',
+        commentActivityMs: summary?.latestActivityMs ?? 0,
+      });
+      return {
+        key: contentItemKeyFor(item),
+        signature,
+        baseActivityMs: Math.max(
+          new Date(item.updatedAt ?? item.createdAt ?? localProject.createdAt).getTime(),
+          summary?.latestActivityMs ?? 0
+        ),
+      };
+    });
+
+    const observed = observeItemsForUser(currentUserId, [...taskEntries, ...contentEntries]);
+    setItemActivityByKey(observed.activityByKey);
+    setItemIsNewByKey(observed.isNewByKey);
+  }, [
+    currentUserId,
+    localProject,
+    projectContentItems,
+    commentSummaries,
+    getTaskSummaryForIndex,
+    taskItemKeyFor,
+    contentItemKeyFor,
+  ]);
+
+  const taskActivityMs = useCallback(
+    (task: IProjectTask, idx: number): number => {
+      const key = taskItemKeyFor(task, idx);
+      return itemActivityByKey[key] ?? 0;
+    },
+    [itemActivityByKey, taskItemKeyFor]
+  );
+
+  const contentActivityMs = useCallback(
+    (item: IContentItem): number => {
+      const key = contentItemKeyFor(item);
+      return itemActivityByKey[key] ?? 0;
+    },
+    [itemActivityByKey, contentItemKeyFor]
+  );
+
+  const sortedTaskEntries = useMemo(
+    () =>
+      (localProject.tasks ?? [])
+        .map((task, idx) => ({ task, idx }))
+        .sort((a, b) => taskActivityMs(b.task, b.idx) - taskActivityMs(a.task, a.idx)),
+    [localProject.tasks, taskActivityMs]
+  );
+
+  const sortedContentItems = useMemo(
+    () =>
+      [...projectContentItems].sort((a, b) => contentActivityMs(b) - contentActivityMs(a)),
+    [projectContentItems, contentActivityMs]
+  );
+
+  const visibleTaskEntries = useMemo(
+    () =>
+      sortedTaskEntries.filter(({ task }) =>
+        taskTab === 'active' ? task.status !== 'completed' : task.status === 'completed'
+      ),
+    [sortedTaskEntries, taskTab]
+  );
+
+  const visibleContentItems = useMemo(
+    () =>
+      sortedContentItems.filter((contentItem) =>
+        contentTab === 'active' ? contentItem.status !== 'published' : contentItem.status === 'published'
+      ),
+    [sortedContentItems, contentTab]
+  );
+
   const applyAutoExpandFromSummaries = useCallback(
     (data: { tasks: Record<string, CommentSummary>; contentItems: Record<string, CommentSummary> }) => {
       if (!currentUserId) return;
@@ -622,7 +805,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   const fetchCommentSummaries = useCallback(async () => {
     try {
-      const res = await fetch(`/api/projects/${localProject._id.toString()}/comments-summary`);
+      const res = await fetch(`/api/projects/${localProject._id.toString()}/comments-summary`, {
+        cache: 'no-store',
+      });
       if (!res.ok) return;
       const data = await res.json();
       const summaries = {
@@ -651,6 +836,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   }, [fetchCommentSummaries]);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void fetchCommentSummaries();
+      }
+    }, 15_000);
+    return () => window.clearInterval(intervalId);
+  }, [fetchCommentSummaries]);
+
+  useEffect(() => {
     applyAutoExpandFromSummaries(commentSummaries);
   }, [projectContentItems, commentSummaries, applyAutoExpandFromSummaries]);
 
@@ -670,6 +864,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       return project;
     });
   }, [project, localProject._id]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const changed = markProjectItemsSeen(currentUserId, localProject._id.toString());
+    if (!changed) return;
+    const keys = [
+      ...(localProject.tasks ?? []).map((task, idx) => taskItemKeyFor(task, idx)),
+      ...projectContentItems.map((item) => contentItemKeyFor(item)),
+    ];
+    const observed = readObservedItemsForUser(currentUserId, keys);
+    setItemActivityByKey(observed.activityByKey);
+    setItemIsNewByKey(observed.isNewByKey);
+  }, [currentUserId, localProject._id, localProject.tasks, projectContentItems, taskItemKeyFor, contentItemKeyFor]);
 
   useEffect(() => {
     if (initialOpenTaskIndex == null) {
@@ -1880,23 +2087,28 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         {viewTab === 'content' ? (
           <div className="p-4">
             <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
-              <button onClick={() => setContentTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({projectContentItems.filter(c => c.status !== 'published').length})</button>
-              <button onClick={() => setContentTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({projectContentItems.filter(c => c.status === 'published').length})</button>
+              <button onClick={() => setContentTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({sortedContentItems.filter(c => c.status !== 'published').length})</button>
+              <button onClick={() => setContentTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({sortedContentItems.filter(c => c.status === 'published').length})</button>
             </div>
-            {projectContentItems.filter(c => contentTab === 'active' ? c.status !== 'published' : c.status === 'published').length === 0 ? (
+            {visibleContentItems.length === 0 ? (
               <div className="text-center text-gray-500 py-6">No {contentTab} content yet. Add content from the calendar or here.</div>
             ) : (
               <div className="divide-y divide-gray-100 space-y-0">
-                {projectContentItems.filter(c => contentTab === 'active' ? c.status !== 'published' : c.status === 'published').map((item) => {
+                {visibleContentItems.map((item, visibleIndex) => {
                   const itemId = item._id.toString();
                   const distributionMethods = Array.isArray(item.distributionMethods) ? item.distributionMethods : [];
                   const visibleDistribution = distributionMethods.slice(0, 3);
                   const extraDistributionCount = Math.max(0, distributionMethods.length - 3);
+                  const contentKey = contentItemKeyFor(item);
+                  const showNewTag = canShowContentNewIndicator(item) && !!itemIsNewByKey[contentKey];
                   return (
                   <div key={itemId} id={`inspector-content-row-${itemId}`} className="p-4 scroll-mt-4">
                     <div className="flex items-start justify-between gap-2">
                       <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
-                        <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{item.title}</span>
+                        <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                          {showNewTag && <span className="text-blue-600 mr-1" title="New update">●</span>}
+                          {item.title}
+                        </span>
                       </button>
                       <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1 shrink-0">Delete</button>
                     </div>
@@ -1978,11 +2190,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     <ContentLinkedAssets
                       project={localProject}
                       contentItemId={itemId}
+                      prefetchedAssets={contentItemAssets}
                       isManagerOrAdmin={isManagerOrAdmin}
                       currentUserId={currentUserId}
                       currentUserEmployeeId={currentUserEmployeeId}
                       assignedToEmployeeId={item.assignedToEmployeeId?.toString()}
                       refreshToken={(contentRefreshTrigger ?? 0) + contentAssetsRefreshToken}
+                      showAddHintText={visibleIndex === 0}
+                      onAssetsChanged={() => {
+                        setContentAssetsRefreshToken((n) => n + 1);
+                        void loadLinkedAssets();
+                      }}
                     />
                   </div>
                   );
@@ -1993,17 +2211,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         ) : (
           <div className="border-t border-gray-100 p-4">
             <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
-              <button onClick={() => setTaskTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({(localProject.tasks || []).filter(t => t.status !== 'completed').length})</button>
-              <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({(localProject.tasks || []).filter(t => t.status === 'completed').length})</button>
+              <button onClick={() => setTaskTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({sortedTaskEntries.filter(({ task }) => task.status !== 'completed').length})</button>
+              <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({sortedTaskEntries.filter(({ task }) => task.status === 'completed').length})</button>
             </div>
-            {!(localProject.tasks || []).some(t => taskTab === 'active' ? t.status !== 'completed' : t.status === 'completed') ? (
+            {visibleTaskEntries.length === 0 ? (
               <div className="text-center text-gray-500 py-6">No {taskTab} tasks yet.</div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {(localProject.tasks || []).map((task, idx) => {
-                  const isActiveTab = taskTab === 'active';
-                  const isCompletedList = task.status === 'completed';
-                  if (isActiveTab === isCompletedList) return null; // hide
+                {visibleTaskEntries.map(({ task, idx }, visibleIndex) => {
+                  const taskKey = taskItemKeyFor(task, idx);
+                  const showNewTag = canShowTaskNewIndicator(task) && !!itemIsNewByKey[taskKey];
 
                   return (
                     <SwipeableCard key={idx} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
@@ -2023,6 +2240,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                                 if (autoEditTaskIndex === idx) setAutoEditTaskIndex(null);
                               }}
                             />
+                            {showNewTag && (
+                              <p className="text-xs text-blue-600 mt-1">● New update</p>
+                            )}
                             {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
                           </div>
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -2107,11 +2327,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           project={localProject}
                           taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
                           taskIndex={idx}
+                          prefetchedAssets={taskAssets}
                           isManagerOrAdmin={isManagerOrAdmin}
                           currentUserId={currentUserId}
                           currentUserEmployeeId={currentUserEmployeeId}
                           refreshToken={taskAssetsRefreshToken}
-                          onAssetsChanged={() => setTaskAssetsRefreshToken((n) => n + 1)}
+                          showAddHintText={visibleIndex === 0}
+                          onAssetsChanged={() => {
+                            setTaskAssetsRefreshToken((n) => n + 1);
+                            void loadLinkedAssets();
+                          }}
                         />
                       </div>
                     </SwipeableCard>

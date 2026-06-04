@@ -32,6 +32,7 @@ function formatLinkedAssetTypeLabel(type: string): string {
 interface ContentItemAssetsSectionProps {
   project: IProject;
   contentItemId?: string;
+  prefetchedAssets?: Array<LinkedAssetChip & { linkedContentItemId?: string }>;
   isManagerOrAdmin: boolean;
   currentUserId?: string;
   currentUserEmployeeId?: string | null;
@@ -44,11 +45,13 @@ interface ContentItemAssetsSectionProps {
   compact?: boolean;
   onAssetsChanged?: () => void;
   nestedInModal?: boolean;
+  showAddHintText?: boolean;
 }
 
 export default function ContentItemAssetsSection({
   project,
   contentItemId,
+  prefetchedAssets,
   isManagerOrAdmin,
   currentUserId,
   currentUserEmployeeId,
@@ -61,6 +64,7 @@ export default function ContentItemAssetsSection({
   compact = false,
   onAssetsChanged,
   nestedInModal = false,
+  showAddHintText = true,
 }: ContentItemAssetsSectionProps) {
   const light = useInspectorLight();
   const [assets, setAssets] = useState<LinkedAssetChip[]>([]);
@@ -86,6 +90,15 @@ export default function ContentItemAssetsSection({
       setAssets([]);
       return;
     }
+    if (prefetchedAssets) {
+      setAssets(
+        prefetchedAssets.filter(
+          (asset) => asset.linkedContentItemId?.toString() === contentItemId
+        )
+      );
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/assets?linkedContentItemId=${contentItemId}`);
@@ -104,7 +117,7 @@ export default function ContentItemAssetsSection({
     } finally {
       setLoading(false);
     }
-  }, [contentItemId, mode]);
+  }, [contentItemId, mode, prefetchedAssets]);
 
   useEffect(() => {
     void loadAssets();
@@ -122,7 +135,10 @@ export default function ContentItemAssetsSection({
         setPreviewDocument(null);
       }
       setAssetPendingDelete(null);
-      await loadAssets();
+      if (!prefetchedAssets) {
+        await loadAssets();
+      }
+      onAssetsChanged?.();
     } else {
       alert(result.error ?? 'Could not delete asset.');
     }
@@ -229,7 +245,9 @@ export default function ContentItemAssetsSection({
               }}
               onPendingAsset={onPendingAsset}
               onDocumentCreated={() => {
-                void loadAssets();
+                if (!prefetchedAssets) {
+                  void loadAssets();
+                }
                 onAssetsChanged?.();
               }}
               onAddButton={async () => {}}
@@ -261,7 +279,8 @@ export default function ContentItemAssetsSection({
         )}
         {mode === 'live' && !loading && assets.length === 0 && (
           <p className="text-xs text-text-secondary">
-            No assets linked yet.{canAddAssets ? ' Use Add to attach files or documents.' : ''}
+            No assets linked yet.
+            {canAddAssets && showAddHintText ? ' Use Add to attach files or documents.' : ''}
           </p>
         )}
         {mode === 'live' && assets.length > 0 && (

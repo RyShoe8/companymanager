@@ -106,9 +106,11 @@ export default function useWorkspaceData(
             setLoading(true);
         }
         try {
-            const [projectsRes, employeesRes] = await Promise.all([
+            const [projectsRes, employeesRes, userResponse, contentRes] = await Promise.all([
                 fetch('/api/projects'),
                 fetch('/api/employees'),
+                fetch('/api/auth/me'),
+                fetch('/api/content-items'),
             ]);
 
             if (projectsRes.status === 401 || employeesRes.status === 401) {
@@ -121,7 +123,6 @@ export default function useWorkspaceData(
 
             // Get current user's role and employee info
             try {
-                const userResponse = await fetch('/api/auth/me');
                 if (userResponse.ok) {
                     const userData = await userResponse.json();
                     if (userData && userData.id) {
@@ -157,7 +158,6 @@ export default function useWorkspaceData(
             setAllProjects(projectsData);
             setEmployees(employeesData);
 
-            const contentRes = await fetch('/api/content-items');
             if (contentRes.ok) {
                 const contentData = await contentRes.json();
                 setContentItems(contentData);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import { requireAuth } from '@/lib/auth/middleware';
-import { sanitizeString, isValidObjectId } from '@/lib/utils/security';
+import { sanitizeString, isValidObjectId, validateImageFile } from '@/lib/utils/security';
 
 // Dynamic import for sharp (optional - will fallback if not installed)
 let sharp: any = null;
@@ -37,6 +37,18 @@ export async function POST(request: NextRequest) {
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
       return NextResponse.json({ error: 'File size must be less than 10MB' }, { status: 400 });
+    }
+
+    const allowedMimeTypes = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'text/plain',
+    ]);
+    if (!allowedMimeTypes.has(file.type)) {
+      return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
     }
 
     // Sanitize inputs
@@ -81,6 +93,9 @@ export async function POST(request: NextRequest) {
     let finalType = assetType || 'file';
 
     const isImage = file.type.startsWith('image/');
+    if (isImage && !(await validateImageFile(file))) {
+      return NextResponse.json({ error: 'Invalid image file' }, { status: 400 });
+    }
     if (isImage && sharp) {
       try {
         // Compress and convert to WebP

@@ -32,22 +32,26 @@ interface TaskLinkedAssetsProps {
   project: IProject;
   taskId?: string;
   taskIndex?: number;
+  prefetchedAssets?: Array<LinkedAssetChip & { linkedProjectTaskId?: string }>;
   isManagerOrAdmin: boolean;
   currentUserId?: string;
   currentUserEmployeeId?: string | null;
   refreshToken?: number;
   onAssetsChanged?: () => void;
+  showAddHintText?: boolean;
 }
 
 export default function TaskLinkedAssets({
   project,
   taskId,
   taskIndex,
+  prefetchedAssets,
   isManagerOrAdmin,
   currentUserId,
   currentUserEmployeeId,
   refreshToken = 0,
   onAssetsChanged,
+  showAddHintText = true,
 }: TaskLinkedAssetsProps) {
   const light = useInspectorLight();
   const [assets, setAssets] = useState<LinkedAssetChip[]>([]);
@@ -82,6 +86,13 @@ export default function TaskLinkedAssets({
       setAssets([]);
       return;
     }
+    if (prefetchedAssets) {
+      setAssets(
+        prefetchedAssets.filter((asset) => asset.linkedProjectTaskId?.toString() === taskId)
+      );
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/assets?linkedProjectTaskId=${taskId}`);
@@ -100,7 +111,7 @@ export default function TaskLinkedAssets({
     } finally {
       setLoading(false);
     }
-  }, [taskId]);
+  }, [taskId, prefetchedAssets]);
 
   useEffect(() => {
     void loadAssets();
@@ -118,7 +129,9 @@ export default function TaskLinkedAssets({
         setPreviewDocument(null);
       }
       setAssetPendingDelete(null);
-      await loadAssets();
+      if (!prefetchedAssets) {
+        await loadAssets();
+      }
       onAssetsChanged?.();
     } else {
       alert(result.error ?? 'Could not delete asset.');
@@ -226,7 +239,9 @@ export default function TaskLinkedAssets({
                     linkedProjectTaskId: taskId,
                   }}
                   onDocumentCreated={() => {
-                    void loadAssets();
+                    if (!prefetchedAssets) {
+                      void loadAssets();
+                    }
                     onAssetsChanged?.();
                   }}
                   onAddButton={async () => {}}
@@ -236,7 +251,8 @@ export default function TaskLinkedAssets({
             {loading && <p className="text-xs text-text-secondary">Loading assets…</p>}
             {!loading && assets.length === 0 && (
               <p className="text-xs text-text-secondary">
-                No assets linked yet.{canAddAssets ? ' Use Add to attach files or documents.' : ''}
+                No assets linked yet.
+                {canAddAssets && showAddHintText ? ' Use Add to attach files or documents.' : ''}
               </p>
             )}
             {!loading && assets.length > 0 && (
