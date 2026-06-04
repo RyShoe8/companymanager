@@ -6,6 +6,7 @@ import {
   RecordingCaptureError,
   recordingAudioWarning,
   MAX_RECORDING_SECONDS,
+  STABILIZATION_SECONDS,
   type RecordingAudioSource,
   type RecordingSession,
 } from '@/lib/captureRecording';
@@ -24,11 +25,20 @@ import {
   postRecordingPopoutMessage,
   subscribeRecordingPopoutMessages,
 } from '@/lib/recordings/recordingPopoutSync';
-import { transcodeAudioToMp4, transcodeRecordingToMp4 } from '@/lib/transcodeRecording';
+import {
+  isAlreadyMp4,
+  preloadFfmpeg,
+  transcodeAudioToMp4,
+  transcodeDebugInfo,
+  transcodeFallbackWarning,
+  transcodeRecordingToMp4,
+  type TranscodeResult,
+} from '@/lib/transcodeRecording';
 
 export type RecordingUploadStatus =
   | 'idle'
   | 'preparing'
+  | 'stabilizing'
   | 'armed'
   | 'recording'
   | 'converting'
@@ -49,8 +59,12 @@ function formatElapsed(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function postPopoutState(phase: 'armed' | 'recording', elapsedSeconds: number): void {
-  postRecordingPopoutMessage({ type: 'state', phase, elapsedSeconds });
+function postPopoutState(
+  phase: 'stabilizing' | 'armed' | 'recording',
+  elapsedSeconds: number,
+  stabilizeSeconds?: number
+): void {
+  postRecordingPopoutMessage({ type: 'state', phase, elapsedSeconds, stabilizeSeconds });
 }
 
 export function useRecordingUpload(
@@ -65,6 +79,8 @@ export function useRecordingUpload(
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [micWarning, setMicWarning] = useState<string | null>(null);
+  const [transcodeDebug, setTranscodeDebug] = useState<string | null>(null);
+  const [stabilizeSecondsRemaining, setStabilizeSecondsRemaining] = useState(STABILIZATION_SECONDS);
   const [controlsInPopout, setControlsInPopout] = useState(false);
 
   const sessionRef = useRef<RecordingSession | null>(null);
@@ -78,8 +94,10 @@ export function useRecordingUpload(
   const statusRef = useRef<RecordingUploadStatus>('idle');
   const elapsedSecondsRef = useRef(0);
   const stopInFlightRef = useRef(false);
+  const stabilizeTimerRef = useRef<number | null>(null);
   const stopRecordingRef = useRef<() => Promise<void>>(async () => {});
   const beginRecordingRef = useRef<() => void>(() => {});
+  const finishStabilizationRef = useRef<() => void>(() => {});
   const resetRef = useRef<() => void>(() => {});
 
   statusRef.current = status;
@@ -106,6 +124,13 @@ export function useRecordingUpload(
     }
   }, []);
 
+  const clearStabilizeTimer = useCallback(() => {
+    if (stabilizeTimerRef.current != null) {
+      window.clearInterval(stabilizeTimerRef.current);
+      stabilizeTimerRef.current = null;
+    }
+  }, []);
+
   const clearSuccessTimer = useCallback(() => {
     if (successTimerRef.current != null) {
       window.clearTimeout(successTimerRef.current);
@@ -116,16 +141,18 @@ export function useRecordingUpload(
   useEffect(
     () => () => {
       clearTimer();
+      clearStabilizeTimer();
       clearSuccessTimer();
       revokePreviewUrl();
       sessionRef.current?.cancel();
       closePopout();
     },
-    [clearTimer, clearSuccessTimer, revokePreviewUrl, closePopout]
+    [clearTimer, clearStabilizeTimer, clearSuccessTimer, revokePreviewUrl, closePopout]
   );
 
   const reset = useCallback(() => {
     clearTimer();
+    clearStabilizeTimer();
     clearSuccessTimer();
     revokePreviewUrl();
     sessionRef.current?.cancel();
@@ -134,12 +161,14 @@ export function useRecordingUpload(
     pendingAudioRef.current = null;
     pendingDurationRef.current = 0;
     setElapsedSeconds(0);
+    setStabilizeSecondsRemaining(STABILIZATION_SECONDS);
     setMicWarning(null);
+    setTranscodeDebug(null);
     setStatus('idle');
     setStatusMessage(null);
     setErrorMessage(null);
     closePopout();
-  }, [clearTimer, clearSuccessTimer, revokePreviewUrl, closePopout]);
+  }, [clearTimer, clearStabilizeTimer, clearSuccessTimer, revokePreviewUrl, closePopout]);
 
   resetRef.current = reset;
 
@@ -156,12 +185,19 @@ export function useRecordingUpload(
       setStatusMessage('Preparing video…');
 
       try {
-        const videoResult = await transcodeRecordingToMp4(videoFile, (progress) => {
-          setStatusMessage(progress.message);
-        });
+        let videoResult: TranscodeResult;
+
+        if (isAlreadyMp4(videoFile)) {
+          videoResult = { file: videoFile, usedFallback: false };
+          setStatusMessage('Video ready');
+        } else {
+          videoResult = await transcodeRecordingToMp4(videoFile, (progress) => {
+            setStatusMessage(progress.message);
+          });
+        }
 
         let finalAudio = audioFile;
-        if (audioFile) {
+        if (audioFile && !isAlreadyMp4(audioFile)) {
           const mp4Audio = await transcodeAudioToMp4(audioFile);
           if (mp4Audio) finalAudio = mp4Audio;
         }
@@ -179,9 +215,10 @@ export function useRecordingUpload(
         const audioWarning = recordingAudioWarning(audioSource, audioIncluded);
         if (audioWarning) warnings.push(audioWarning);
         if (videoResult.usedFallback) {
-          warnings.push(
-            'MP4 conversion failed — your file was saved as WebM. It will play in Chrome and Edge; for Windows Media Player, try downloading again or contact support if this keeps happening.'
-          );
+          warnings.push(transcodeFallbackWarning(videoResult));
+          setTranscodeDebug(transcodeDebugInfo(videoResult));
+        } else {
+          setTranscodeDebug(null);
         }
         setMicWarning(warnings.length > 0 ? warnings.join(' ') : null);
 
@@ -205,9 +242,14 @@ export function useRecordingUpload(
         const warnings: string[] = [];
         const audioWarning = recordingAudioWarning(audioSource, audioIncluded);
         if (audioWarning) warnings.push(audioWarning);
-        warnings.push(
-          'MP4 conversion failed — your file was saved as WebM. It will play in Chrome and Edge; for Windows Media Player, try downloading again or contact support if this keeps happening.'
-        );
+        const fallbackResult: TranscodeResult = {
+          file: videoFile,
+          usedFallback: true,
+          failureStage: 'exec',
+          failureReason: error instanceof Error ? error.message : String(error),
+        };
+        warnings.push(transcodeFallbackWarning(fallbackResult));
+        setTranscodeDebug(transcodeDebugInfo(fallbackResult));
         setMicWarning(warnings.join(' '));
 
         setStatus('naming');
@@ -297,19 +339,60 @@ export function useRecordingUpload(
 
   beginRecordingRef.current = beginRecording;
 
+  const finishStabilization = useCallback(() => {
+    clearStabilizeTimer();
+    setStabilizeSecondsRemaining(0);
+    setStatus('armed');
+    setStatusMessage(null);
+    postPopoutState('armed', 0);
+  }, [clearStabilizeTimer]);
+
+  finishStabilizationRef.current = finishStabilization;
+
+  const skipStabilization = useCallback(() => {
+    if (statusRef.current !== 'stabilizing') return;
+    finishStabilization();
+  }, [finishStabilization]);
+
+  const startStabilizationCountdown = useCallback(() => {
+    clearStabilizeTimer();
+    setStabilizeSecondsRemaining(STABILIZATION_SECONDS);
+    postPopoutState('stabilizing', 0, STABILIZATION_SECONDS);
+
+    stabilizeTimerRef.current = window.setInterval(() => {
+      setStabilizeSecondsRemaining((prev) => {
+        if (prev <= 0) return 0;
+        const next = prev - 1;
+        if (popoutRef.current && !popoutRef.current.closed) {
+          postPopoutState('stabilizing', 0, next);
+        }
+        if (next <= 0) {
+          clearStabilizeTimer();
+          finishStabilizationRef.current();
+        }
+        return next;
+      });
+    }, 1000);
+  }, [clearStabilizeTimer]);
+
   useEffect(() => {
-    if (status !== 'armed' && status !== 'recording') return;
+    if (status !== 'stabilizing' && status !== 'armed' && status !== 'recording') return;
 
     const unsubscribe = subscribeRecordingPopoutMessages((message) => {
       if (message.type === 'start') {
         beginRecordingRef.current();
+      }
+      if (message.type === 'skip_stabilize') {
+        finishStabilizationRef.current();
       }
       if (message.type === 'stop') {
         void stopRecordingRef.current();
       }
       if (message.type === 'ready') {
         const currentStatus = statusRef.current;
-        if (currentStatus === 'armed') {
+        if (currentStatus === 'stabilizing') {
+          postPopoutState('stabilizing', 0, STABILIZATION_SECONDS);
+        } else if (currentStatus === 'armed') {
           postPopoutState('armed', 0);
         } else if (currentStatus === 'recording') {
           postPopoutState('recording', elapsedSecondsRef.current);
@@ -321,7 +404,7 @@ export function useRecordingUpload(
         if (stopInFlightRef.current) return;
 
         const currentStatus = statusRef.current;
-        if (currentStatus === 'armed') {
+        if (currentStatus === 'stabilizing' || currentStatus === 'armed') {
           sessionRef.current?.cancel();
           sessionRef.current = null;
           resetRef.current();
@@ -351,15 +434,18 @@ export function useRecordingUpload(
           },
         });
         sessionRef.current = session;
+        preloadFfmpeg();
 
         const popup = openRecordingControlsPopout();
         popoutRef.current = popup;
         const usingPopout = popup != null && !popup.closed;
         setControlsInPopout(usingPopout);
 
-        setStatus('armed');
-        setStatusMessage(null);
-        postPopoutState('armed', 0);
+        setStatus('stabilizing');
+        setStatusMessage(
+          'Let the shared window reach full quality before recording (streaming video often dips briefly after share).'
+        );
+        startStabilizationCountdown();
         onPrepared?.();
       } catch (error) {
         closePopout();
@@ -379,7 +465,7 @@ export function useRecordingUpload(
         setStatus('idle');
       }
     },
-    [closePopout, reset, onPrepared]
+    [closePopout, reset, onPrepared, startStabilizationCountdown]
   );
 
   const stageForNaming = useCallback(
@@ -490,6 +576,7 @@ export function useRecordingUpload(
 
   const isBusy =
     status === 'preparing' ||
+    status === 'stabilizing' ||
     status === 'armed' ||
     status === 'recording' ||
     status === 'converting' ||
@@ -501,8 +588,10 @@ export function useRecordingUpload(
     statusMessage,
     errorMessage,
     micWarning,
+    transcodeDebug,
     isBusy,
     isPreparing: status === 'preparing',
+    isStabilizing: status === 'stabilizing',
     isArmed: status === 'armed',
     isRecording: status === 'recording',
     isConverting: status === 'converting',
@@ -511,8 +600,10 @@ export function useRecordingUpload(
     suggestedName,
     previewUrl,
     elapsedSeconds,
+    stabilizeSecondsRemaining,
     elapsedLabel: formatElapsed(elapsedSeconds),
     prepareRecording,
+    skipStabilization,
     beginRecording,
     stopRecording,
     uploadFromFiles,

@@ -54,6 +54,7 @@ function RecordingToolPanelInner({
     micWarning,
     isBusy,
     isPreparing,
+    isStabilizing,
     isArmed,
     isRecording,
     isConverting,
@@ -62,17 +63,26 @@ function RecordingToolPanelInner({
     suggestedName,
     previewUrl,
     elapsedLabel,
+    stabilizeSecondsRemaining,
     prepareRecording,
+    skipStabilization,
     beginRecording,
     stopRecording,
     uploadFromFiles,
     confirmSave,
     downloadByName,
     cancelNaming,
+    transcodeDebug,
   } = control;
 
   const showSetup =
-    captureSupported && !uploadOnly && !isPreparing && !isArmed && !isRecording && !isConverting;
+    captureSupported &&
+    !uploadOnly &&
+    !isPreparing &&
+    !isStabilizing &&
+    !isArmed &&
+    !isRecording &&
+    !isConverting;
 
   const handleShareScreen = () => {
     if (!audioSource || isBusy) return;
@@ -81,12 +91,14 @@ function RecordingToolPanelInner({
 
   return (
     <>
-      {!controlsInPopout && (isArmed || isRecording) && (
+      {!controlsInPopout && (isStabilizing || isArmed || isRecording) && (
         <RecordingOverlay
-          phase={isRecording ? 'recording' : 'armed'}
+          phase={isRecording ? 'recording' : isStabilizing ? 'stabilizing' : 'armed'}
           elapsedLabel={elapsedLabel}
+          stabilizeSecondsRemaining={stabilizeSecondsRemaining}
           onStart={beginRecording}
           onStop={() => void stopRecording()}
+          onSkipStabilization={skipStabilization}
         />
       )}
 
@@ -139,6 +151,13 @@ function RecordingToolPanelInner({
 
         {isPreparing && (
           <p className="text-xs text-text-muted">{statusMessage ?? 'Select a screen to share…'}</p>
+        )}
+
+        {isStabilizing && !controlsInPopout && (
+          <p className="text-xs text-text-muted">
+            {statusMessage ??
+              'Wait until streaming video looks sharp, then press Ready to record or Start when the countdown finishes.'}
+          </p>
         )}
 
         <input
@@ -198,6 +217,7 @@ function RecordingToolPanelInner({
             previewUrl={previewUrl}
             projects={projects}
             micWarning={micWarning}
+            transcodeDebug={transcodeDebug}
             saving={status === 'uploading'}
             processing={status === 'processing'}
             statusMessage={statusMessage}

@@ -20,6 +20,7 @@ function RecordingControlsContent() {
   const isPopout = searchParams?.get('popout') === '1';
   const [phase, setPhase] = useState<RecordingPopoutPhase>('armed');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [stabilizeSeconds, setStabilizeSeconds] = useState(0);
   const [finalizing, setFinalizing] = useState(false);
 
   useEffect(() => {
@@ -31,6 +32,7 @@ function RecordingControlsContent() {
       if (message.type === 'state') {
         setPhase(message.phase);
         setElapsedSeconds(message.elapsedSeconds);
+        setStabilizeSeconds(message.stabilizeSeconds ?? 0);
       }
     });
 
@@ -48,10 +50,16 @@ function RecordingControlsContent() {
   const handlePrimaryAction = () => {
     if (finalizing) return;
 
+    if (phase === 'stabilizing') {
+      postRecordingPopoutMessage({ type: 'skip_stabilize' });
+      return;
+    }
+
     if (phase === 'armed') {
       postRecordingPopoutMessage({ type: 'start' });
       return;
     }
+
     setFinalizing(true);
     postRecordingPopoutMessage({ type: 'stop' });
   };
@@ -65,27 +73,43 @@ function RecordingControlsContent() {
   }
 
   const isRecording = phase === 'recording';
+  const isStabilizing = phase === 'stabilizing';
+
+  const primaryLabel = finalizing
+    ? 'Finalizing…'
+    : isStabilizing
+      ? 'Ready to record'
+      : isRecording
+        ? 'Stop'
+        : 'Start';
+
+  const statusLabel = finalizing
+    ? 'Finalizing…'
+    : isStabilizing
+      ? `Stabilizing… ${stabilizeSeconds}s`
+      : isRecording
+        ? 'Recording'
+        : 'Ready';
 
   return (
     <div className="h-dvh overflow-hidden bg-white flex items-center justify-center px-3">
       <div className="flex items-center gap-3 w-full max-w-[320px]">
         <span className="flex items-center gap-2 text-sm font-medium text-gray-900 shrink-0">
-          {finalizing ? (
-            'Finalizing…'
-          ) : (
-            <>
-              {isRecording && (
-                <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" aria-hidden />
-              )}
-              {isRecording ? 'Recording' : 'Ready'}
-            </>
+          {isRecording && (
+            <span
+              className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500"
+              aria-hidden
+            />
           )}
+          {statusLabel}
         </span>
-        <span className="font-mono text-sm text-gray-600 tabular-nums flex-1 text-center">
-          {formatElapsed(elapsedSeconds)}
-        </span>
+        {!isStabilizing && (
+          <span className="font-mono text-sm text-gray-600 tabular-nums flex-1 text-center">
+            {formatElapsed(elapsedSeconds)}
+          </span>
+        )}
         <Button type="button" size="sm" onClick={handlePrimaryAction} disabled={finalizing}>
-          {finalizing ? 'Finalizing…' : isRecording ? 'Stop' : 'Start'}
+          {primaryLabel}
         </Button>
       </div>
     </div>

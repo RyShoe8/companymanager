@@ -7,6 +7,7 @@ export type TranscodeResult = {
   file: File;
   usedFallback: boolean;
   failureStage?: 'load' | 'exec' | 'read';
+  failureReason?: string;
 };
 
 type FfmpegInstance = {
@@ -19,14 +20,18 @@ type FfmpegInstance = {
   readFile: (name: string) => Promise<Uint8Array | string>;
   deleteFile: (name: string) => Promise<void>;
   exec: (args: string[]) => Promise<number>;
-  on: (event: 'progress', callback: (data: { progress: number }) => void) => void;
+  on: (
+    event: 'progress' | 'log',
+    callback: (data: { progress?: number; message?: string }) => void
+  ) => void;
 };
 
 const LOAD_TIMEOUT_MS = 30_000;
-const EXEC_TIMEOUT_MS = 120_000;
+const EXEC_TIMEOUT_MS = 180_000;
 const AUDIO_EXEC_TIMEOUT_MS = 30_000;
 
 let ffmpegLoadPromise: Promise<FfmpegInstance | null> | null = null;
+let lastFfmpegLog = '';
 
 function resetFfmpegLoadCache(): void {
   ffmpegLoadPromise = null;
@@ -55,6 +60,11 @@ function execTimeoutMs(file: File): number {
   return Math.min(EXEC_TIMEOUT_MS, Math.max(60_000, Math.round(mb * 20_000)));
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 async function loadFfmpeg(onProgress?: (message: string) => void): Promise<FfmpegInstance | null> {
   if (typeof window === 'undefined') return null;
 
@@ -66,6 +76,10 @@ async function loadFfmpeg(onProgress?: (message: string) => void): Promise<Ffmpe
         const { toBlobURL } = await import('@ffmpeg/util');
 
         const ffmpeg = new FFmpeg();
+        ffmpeg.on('log', ({ message }) => {
+          if (message) lastFfmpegLog = message;
+        });
+
         const base = `${window.location.origin}/ffmpeg`;
         await withTimeout(
           ffmpeg.load({
@@ -90,31 +104,73 @@ async function loadFfmpeg(onProgress?: (message: string) => void): Promise<Ffmpe
   return ffmpegLoadPromise;
 }
 
+/** Warm ffmpeg.wasm during capture so stop-time conversion starts faster. */
+export function preloadFfmpeg(): void {
+  if (typeof window === 'undefined') return;
+  void loadFfmpeg();
+}
+
+export function isAlreadyMp4(file: File): boolean {
+  return file.type === 'video/mp4' || /\.mp4$/i.test(file.name);
+}
+
+export function transcodeFallbackWarning(result: TranscodeResult): string {
+  const playbackNote =
+    'It will play in Chrome and Edge; for Windows Media Player, try downloading again or contact support if this keeps happening.';
+
+  switch (result.failureStage) {
+    case 'load':
+      return `MP4 converter failed to load — your file was saved as WebM. ${playbackNote}`;
+    case 'read':
+      return `MP4 conversion finished but output could not be read — your file was saved as WebM. ${playbackNote}`;
+    case 'exec':
+      if (result.failureReason?.includes('timed out')) {
+        return `MP4 conversion timed out — your file was saved as WebM. ${playbackNote}`;
+      }
+      return `MP4 conversion failed — your file was saved as WebM. ${playbackNote}`;
+    default:
+      return `MP4 conversion failed — your file was saved as WebM. ${playbackNote}`;
+  }
+}
+
+export function transcodeDebugInfo(result: TranscodeResult): string {
+  return JSON.stringify(
+    {
+      usedFallback: result.usedFallback,
+      failureStage: result.failureStage ?? null,
+      failureReason: result.failureReason ?? null,
+      lastFfmpegLog: lastFfmpegLog || null,
+    },
+    null,
+    2
+  );
+}
+
 function webmInputName(file: File): string {
   return file.name.endsWith('.webm') ? file.name : 'input.webm';
 }
+
+type TranscodeExecOptions = {
+  includeAudio: boolean;
+  scaleFilter?: string;
+};
 
 async function runTranscodeExec(
   ffmpeg: FfmpegInstance,
   inputName: string,
   outputName: string,
-  includeAudio: boolean,
+  options: TranscodeExecOptions,
   timeoutMs: number
 ): Promise<void> {
-  const args = [
-    '-i',
-    inputName,
-    '-c:v',
-    'libx264',
-    '-preset',
-    'fast',
-    '-crf',
-    '20',
-    '-pix_fmt',
-    'yuv420p',
-  ];
+  const args = ['-f', 'webm', '-i', inputName, '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '20'];
 
-  if (includeAudio) {
+  if (options.scaleFilter) {
+    args.push('-vf', options.scaleFilter);
+  }
+
+  args.push('-pix_fmt', 'yuv420p', '-fps_mode', 'cfr', '-r', '30');
+
+  if (options.includeAudio) {
     args.push('-c:a', 'aac', '-b:a', '192k');
   } else {
     args.push('-an');
@@ -127,13 +183,14 @@ async function runTranscodeExec(
 function webmFallback(
   webmFile: File,
   failureStage: TranscodeResult['failureStage'],
+  failureReason: string,
   onProgress?: (progress: TranscodeProgress) => void
 ): TranscodeResult {
   onProgress?.({
     ratio: 1,
     message: 'Saving as WebM (conversion unavailable)…',
   });
-  return { file: webmFile, usedFallback: true, failureStage };
+  return { file: webmFile, usedFallback: true, failureStage, failureReason };
 }
 
 /**
@@ -151,7 +208,7 @@ export async function transcodeRecordingToMp4(
   });
 
   if (!ffmpeg) {
-    return webmFallback(webmFile, 'load', onProgress);
+    return webmFallback(webmFile, 'load', 'ffmpeg.wasm failed to load', onProgress);
   }
 
   const inputName = webmInputName(webmFile);
@@ -165,19 +222,47 @@ export async function transcodeRecordingToMp4(
     await ffmpeg.writeFile(inputName, await fetchFile(webmFile));
 
     ffmpeg.on('progress', ({ progress }) => {
-      const ratio = Number.isFinite(progress) ? Math.min(0.95, Math.max(0.1, progress)) : 0.5;
+      const ratio = Number.isFinite(progress) ? Math.min(0.95, Math.max(0.1, progress ?? 0.5)) : 0.5;
       onProgress?.({ ratio, message: 'Converting to MP4…' });
     });
 
-    try {
-      await runTranscodeExec(ffmpeg, inputName, outputName, true, execTimeout);
-    } catch {
-      await runTranscodeExec(ffmpeg, inputName, outputName, false, execTimeout);
+    const attempts: TranscodeExecOptions[] = [
+      { includeAudio: true },
+      { includeAudio: false },
+      { includeAudio: false, scaleFilter: 'scale=-2:720' },
+    ];
+
+    let lastError: unknown = null;
+    for (let i = 0; i < attempts.length; i += 1) {
+      try {
+        await runTranscodeExec(ffmpeg, inputName, outputName, attempts[i], execTimeout);
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        try {
+          await ffmpeg.deleteFile(outputName);
+        } catch {
+          // ignore partial output cleanup
+        }
+        if (i === attempts.length - 1) {
+          throw error;
+        }
+      }
     }
 
-    const data = await withTimeout(ffmpeg.readFile(outputName), 15_000, 'ffmpeg readFile');
-    const bytes =
-      data instanceof Uint8Array ? data : new TextEncoder().encode(String(data));
+    if (lastError) {
+      throw lastError;
+    }
+
+    let data: Uint8Array | string;
+    try {
+      data = await withTimeout(ffmpeg.readFile(outputName), 15_000, 'ffmpeg readFile');
+    } catch (error) {
+      return webmFallback(webmFile, 'read', errorMessage(error), onProgress);
+    }
+
+    const bytes = data instanceof Uint8Array ? data : new TextEncoder().encode(String(data));
 
     onProgress?.({ ratio: 1, message: 'Video ready' });
 
@@ -187,7 +272,7 @@ export async function transcodeRecordingToMp4(
     if (process.env.NODE_ENV === 'development') {
       console.warn('[transcodeRecording] transcode failed', error);
     }
-    return webmFallback(webmFile, 'exec', onProgress);
+    return webmFallback(webmFile, 'exec', errorMessage(error), onProgress);
   } finally {
     try {
       await ffmpeg.deleteFile(inputName);

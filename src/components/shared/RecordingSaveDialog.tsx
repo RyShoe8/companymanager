@@ -15,6 +15,7 @@ interface RecordingSaveDialogProps {
   previewUrl: string | null;
   projects: IProject[];
   micWarning?: string | null;
+  transcodeDebug?: string | null;
   onSave: (name: string, target: MediaUploadTarget | null) => void;
   onDownload: (name: string) => void;
   onCancel: () => void;
@@ -29,6 +30,7 @@ export default function RecordingSaveDialog({
   previewUrl,
   projects,
   micWarning,
+  transcodeDebug,
   onSave,
   onDownload,
   onCancel,
@@ -119,6 +121,17 @@ export default function RecordingSaveDialog({
         )}
         {micWarning && (
           <p className="text-xs text-warning">{micWarning}</p>
+        )}
+        {transcodeDebug && process.env.NODE_ENV === 'development' && (
+          <button
+            type="button"
+            className="text-xs text-text-muted underline hover:text-text-secondary"
+            onClick={() => {
+              void navigator.clipboard.writeText(transcodeDebug);
+            }}
+          >
+            Copy transcode debug info
+          </button>
         )}
         {statusMessage && busy && (
           <p className="text-xs text-text-muted">{statusMessage}</p>

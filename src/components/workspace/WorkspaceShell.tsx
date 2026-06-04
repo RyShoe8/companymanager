@@ -1465,13 +1465,23 @@ export default function WorkspaceShell({
                         recordingControl={createRecording}
                     />
 
-                    {(createRecording.isArmed || createRecording.isRecording) &&
+                    {(createRecording.isStabilizing ||
+                        createRecording.isArmed ||
+                        createRecording.isRecording) &&
                         !createRecording.controlsInPopout && (
                         <RecordingOverlay
-                            phase={createRecording.isRecording ? 'recording' : 'armed'}
+                            phase={
+                                createRecording.isRecording
+                                    ? 'recording'
+                                    : createRecording.isStabilizing
+                                      ? 'stabilizing'
+                                      : 'armed'
+                            }
                             elapsedLabel={createRecording.elapsedLabel}
+                            stabilizeSecondsRemaining={createRecording.stabilizeSecondsRemaining}
                             onStart={createRecording.beginRecording}
                             onStop={() => void createRecording.stopRecording()}
+                            onSkipStabilization={createRecording.skipStabilization}
                         />
                     )}
 
@@ -1507,6 +1517,7 @@ export default function WorkspaceShell({
                         previewUrl={createRecording.previewUrl}
                         projects={ws.allProjects}
                         micWarning={createRecording.micWarning}
+                        transcodeDebug={createRecording.transcodeDebug}
                         saving={createRecording.status === 'uploading'}
                         processing={createRecording.status === 'processing'}
                         statusMessage={createRecording.statusMessage}

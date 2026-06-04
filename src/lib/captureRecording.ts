@@ -31,6 +31,7 @@ export type RecordingSession = {
 };
 
 export const MAX_RECORDING_SECONDS = 20 * 60;
+export const STABILIZATION_SECONDS = 5;
 
 type CaptureStartFocusBehavior = 'focus-capturing-application' | 'focus-captured-surface' | 'no-focus-change';
 
@@ -97,16 +98,43 @@ function mapCaptureError(error: unknown): RecordingCaptureError {
   return new RecordingCaptureError('Failed to start recording.', 'capture_failed');
 }
 
+function isLowEndDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const cores = navigator.hardwareConcurrency ?? 8;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (cores <= 4) return true;
+  if (memory != null && memory <= 4) return true;
+  return false;
+}
+
 function pickVideoMimeType(): string {
-  const candidates = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm',
+  const mp4Candidates = [
+    'video/mp4;codecs="avc1.42E01E, mp4a.40.2"',
+    'video/mp4;codecs=avc1,mp4a',
+    'video/mp4',
   ];
-  for (const type of candidates) {
+  for (const type of mp4Candidates) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+
+  const lowEnd = isLowEndDevice();
+  const webmCandidates = lowEnd
+    ? ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm']
+    : ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+
+  for (const type of webmCandidates) {
     if (MediaRecorder.isTypeSupported(type)) return type;
   }
   return 'video/webm';
+}
+
+function recordingFileExtension(mimeType: string): string {
+  if (mimeType.startsWith('video/mp4')) return 'mp4';
+  return 'webm';
+}
+
+export function isMp4RecordingMimeType(mimeType: string): boolean {
+  return mimeType.startsWith('video/mp4');
 }
 
 function pickAudioMimeType(): string {
@@ -227,7 +255,7 @@ export async function prepareRecordingSession(
       video: {
         width: { ideal: 1920 },
         height: { ideal: 1080 },
-        frameRate: { ideal: 30 },
+        frameRate: { ideal: 30, max: 30 },
       },
       audio: audioSource === 'system',
       preferCurrentTab: false,
@@ -242,7 +270,7 @@ export async function prepareRecordingSession(
     const videoTrack = displayStream.getVideoTracks()[0];
     if (videoTrack) {
       try {
-        videoTrack.contentHint = 'detail';
+        videoTrack.contentHint = 'motion';
       } catch {
         // unsupported in some browsers
       }
@@ -363,10 +391,11 @@ export async function prepareRecordingSession(
             cleanup();
             const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const extension = recordingFileExtension(videoMimeType);
             const videoFile = chunksToFile(
               videoChunks,
               videoMimeType,
-              `recording-${timestamp}.webm`
+              `recording-${timestamp}.${extension}`
             );
             const audioFile =
               audioChunks.length > 0
