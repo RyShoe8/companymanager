@@ -20,6 +20,7 @@ function RecordingControlsContent() {
   const isPopout = searchParams?.get('popout') === '1';
   const [phase, setPhase] = useState<RecordingPopoutPhase>('armed');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [finalizing, setFinalizing] = useState(false);
 
   useEffect(() => {
     if (!isPopout) return;
@@ -45,12 +46,14 @@ function RecordingControlsContent() {
   }, [isPopout]);
 
   const handlePrimaryAction = () => {
+    if (finalizing) return;
+
     if (phase === 'armed') {
       postRecordingPopoutMessage({ type: 'start' });
       return;
     }
+    setFinalizing(true);
     postRecordingPopoutMessage({ type: 'stop' });
-    window.close();
   };
 
   if (!isPopout) {
@@ -67,16 +70,22 @@ function RecordingControlsContent() {
     <div className="h-dvh overflow-hidden bg-white flex items-center justify-center px-3">
       <div className="flex items-center gap-3 w-full max-w-[320px]">
         <span className="flex items-center gap-2 text-sm font-medium text-gray-900 shrink-0">
-          {isRecording && (
-            <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" aria-hidden />
+          {finalizing ? (
+            'Finalizing…'
+          ) : (
+            <>
+              {isRecording && (
+                <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" aria-hidden />
+              )}
+              {isRecording ? 'Recording' : 'Ready'}
+            </>
           )}
-          {isRecording ? 'Recording' : 'Ready'}
         </span>
         <span className="font-mono text-sm text-gray-600 tabular-nums flex-1 text-center">
           {formatElapsed(elapsedSeconds)}
         </span>
-        <Button type="button" size="sm" onClick={handlePrimaryAction}>
-          {isRecording ? 'Stop' : 'Start'}
+        <Button type="button" size="sm" onClick={handlePrimaryAction} disabled={finalizing}>
+          {finalizing ? 'Finalizing…' : isRecording ? 'Stop' : 'Start'}
         </Button>
       </div>
     </div>

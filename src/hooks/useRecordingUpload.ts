@@ -75,9 +75,15 @@ export function useRecordingUpload(
   const timerRef = useRef<number | null>(null);
   const successTimerRef = useRef<number | null>(null);
   const popoutRef = useRef<Window | null>(null);
+  const statusRef = useRef<RecordingUploadStatus>('idle');
+  const elapsedSecondsRef = useRef(0);
+  const stopInFlightRef = useRef(false);
   const stopRecordingRef = useRef<() => Promise<void>>(async () => {});
   const beginRecordingRef = useRef<() => void>(() => {});
   const resetRef = useRef<() => void>(() => {});
+
+  statusRef.current = status;
+  elapsedSecondsRef.current = elapsedSeconds;
 
   const closePopout = useCallback(() => {
     closeRecordingControlsPopout(popoutRef.current);
@@ -186,10 +192,15 @@ export function useRecordingUpload(
   );
 
   const stopRecording = useCallback(async () => {
+    if (stopInFlightRef.current) return;
+
     const session = sessionRef.current;
     if (!session) return;
 
+    const wasRecording = statusRef.current === 'recording';
+    stopInFlightRef.current = true;
     clearTimer();
+    closePopout();
     setStatusMessage('Finalizing recording...');
 
     try {
@@ -204,7 +215,15 @@ export function useRecordingUpload(
       );
     } catch (error) {
       if (error instanceof RecordingCaptureError && error.code === 'canceled') {
-        reset();
+        if (wasRecording) {
+          setStatus('error');
+          setErrorMessage(
+            error.message || 'Recording could not be finalized. Try recording again.'
+          );
+          setStatusMessage(null);
+        } else {
+          reset();
+        }
         return;
       }
       setStatus('error');
@@ -217,6 +236,8 @@ export function useRecordingUpload(
       );
       setStatusMessage(null);
       closePopout();
+    } finally {
+      stopInFlightRef.current = false;
     }
   }, [clearTimer, reset, finalizeCapture, closePopout]);
 
@@ -260,25 +281,31 @@ export function useRecordingUpload(
         void stopRecordingRef.current();
       }
       if (message.type === 'ready') {
-        if (status === 'armed') {
+        const currentStatus = statusRef.current;
+        if (currentStatus === 'armed') {
           postPopoutState('armed', 0);
-        } else if (status === 'recording') {
-          postPopoutState('recording', elapsedSeconds);
+        } else if (currentStatus === 'recording') {
+          postPopoutState('recording', elapsedSecondsRef.current);
         }
       }
       if (message.type === 'closed') {
         popoutRef.current = null;
         setControlsInPopout(false);
-        if (status === 'armed') {
+        if (stopInFlightRef.current) return;
+
+        const currentStatus = statusRef.current;
+        if (currentStatus === 'armed') {
           sessionRef.current?.cancel();
           sessionRef.current = null;
           resetRef.current();
+        } else if (currentStatus === 'recording') {
+          void stopRecordingRef.current();
         }
       }
     });
 
     return unsubscribe;
-  }, [status, elapsedSeconds]);
+  }, [status]);
 
   const prepareRecording = useCallback(
     async (audioSource: RecordingAudioSource) => {

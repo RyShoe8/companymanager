@@ -22,6 +22,7 @@ import ScreenshotSaveDialog from '@/components/shared/ScreenshotSaveDialog';
 import RecordingToolModal from '@/components/shared/RecordingToolModal';
 import RecordingSaveDialog from '@/components/shared/RecordingSaveDialog';
 import RecordingOverlay from '@/components/shared/RecordingOverlay';
+import RecordingStatusBanner from '@/components/shared/RecordingStatusBanner';
 import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
 import { isRecordingCaptureSupported } from '@/lib/captureRecording';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
@@ -1471,6 +1472,21 @@ export default function WorkspaceShell({
                             elapsedLabel={createRecording.elapsedLabel}
                             onStart={createRecording.beginRecording}
                             onStop={() => void createRecording.stopRecording()}
+                        />
+                    )}
+
+                    {createRecording.isConverting && (
+                        <RecordingStatusBanner
+                            variant="progress"
+                            message={createRecording.statusMessage ?? 'Preparing video…'}
+                        />
+                    )}
+
+                    {createRecording.status === 'error' && createRecording.errorMessage && (
+                        <RecordingStatusBanner
+                            variant="error"
+                            message={createRecording.errorMessage}
+                            onDismiss={createRecording.reset}
                         />
                     )}
 
