@@ -1,0 +1,47 @@
+const RECORDING_CONTROLS_WINDOW_NAME = 'nucleas-recording-controls';
+
+export function buildRecordingControlsPopoutUrl(): string {
+  const path = '/recording/controls?popout=1';
+  if (typeof window === 'undefined') return path;
+  return `${window.location.origin}${path}`;
+}
+
+/**
+ * Opens recording controls in a small movable popup.
+ * @returns the popup window, or null if blocked
+ */
+export function openRecordingControlsPopout(): Window | null {
+  if (typeof window === 'undefined') return null;
+
+  const url = buildRecordingControlsPopoutUrl();
+  const width = 340;
+  const height = 120;
+  const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+  const top = Math.max(0, Math.round(window.screenY + window.outerHeight - height - 48));
+
+  const features = [
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    'popup=yes',
+    'menubar=no',
+    'toolbar=no',
+    'location=no',
+    'status=no',
+    'scrollbars=no',
+    'resizable=yes',
+  ].join(',');
+
+  const popup = window.open(url, RECORDING_CONTROLS_WINDOW_NAME, features);
+  return popup;
+}
+
+export function closeRecordingControlsPopout(popup: Window | null): void {
+  if (!popup || popup.closed) return;
+  try {
+    popup.close();
+  } catch {
+    // ignore
+  }
+}

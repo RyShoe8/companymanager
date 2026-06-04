@@ -53,7 +53,7 @@ export default function CreateMenu({
         ...(canCreateTaskOrContent ? [{ label: 'Content', onClick: onCreateContent }] : []),
         { label: 'Meeting', onClick: onCreateMeeting },
         { label: 'Screenshot', onClick: onCreateScreenshot },
-        { label: 'Record', onClick: onCreateRecord },
+        { label: 'Recording', onClick: onCreateRecord },
         ...(currentUserRole === 'Administrator'
             ? [{ label: 'Employee (Coming Soon)', disabled: true }]
             : []),

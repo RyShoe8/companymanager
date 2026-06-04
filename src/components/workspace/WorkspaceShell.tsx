@@ -1463,7 +1463,7 @@ export default function WorkspaceShell({
                         uploadOnly
                     />
 
-                    {createRecording.isRecording && (
+                    {createRecording.isRecording && !createRecording.controlsInPopout && (
                         <RecordingOverlay
                             elapsedLabel={createRecording.elapsedLabel}
                             onStop={() => void createRecording.stopRecording()}

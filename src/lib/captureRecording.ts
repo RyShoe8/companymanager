@@ -116,6 +116,17 @@ function chunksToFile(chunks: Blob[], mimeType: string, fileName: string): File 
   return new File([blob], fileName, { type: mimeType.split(';')[0] || mimeType });
 }
 
+const MIN_VIDEO_BITRATE = 2_500_000;
+const MAX_VIDEO_BITRATE = 8_000_000;
+const DEFAULT_VIDEO_BITRATE = 6_000_000;
+const MIC_AUDIO_BITRATE = 192_000;
+
+function computeVideoBitrate(width: number, height: number): number {
+  const pixels = Math.max(1, width * height);
+  const computed = Math.round(pixels * 0.004);
+  return Math.min(MAX_VIDEO_BITRATE, Math.max(MIN_VIDEO_BITRATE, computed || DEFAULT_VIDEO_BITRATE));
+}
+
 export function isRecordingCaptureSupported(): boolean {
   return (
     typeof navigator !== 'undefined' &&
@@ -171,8 +182,8 @@ export async function startRecordingSession(): Promise<RecordingSession> {
 
     const displayMediaOptions: DisplayMediaOptionsWithController = {
       video: {
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
+        width: { ideal: 1920, max: 1920 },
+        height: { ideal: 1080, max: 1080 },
         frameRate: { ideal: 30, max: 30 },
       },
       audio: false,
@@ -202,13 +213,18 @@ export async function startRecordingSession(): Promise<RecordingSession> {
     const audioTracks = micStream?.getAudioTracks() ?? [];
     combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
 
+    const videoSettings = videoTracks[0]?.getSettings();
+    const videoWidth = videoSettings?.width ?? 1920;
+    const videoHeight = videoSettings?.height ?? 1080;
+    const videoBitsPerSecond = computeVideoBitrate(videoWidth, videoHeight);
+
     const videoMimeType = pickVideoMimeType();
     const audioMimeType = pickAudioMimeType();
 
     videoRecorder = new MediaRecorder(combinedStream, {
       mimeType: videoMimeType,
-      videoBitsPerSecond: 1_500_000,
-      audioBitsPerSecond: micIncluded ? 128_000 : undefined,
+      videoBitsPerSecond,
+      audioBitsPerSecond: micIncluded ? MIC_AUDIO_BITRATE : undefined,
     });
 
     videoRecorder.ondataavailable = (event) => {
@@ -218,7 +234,7 @@ export async function startRecordingSession(): Promise<RecordingSession> {
     if (micStream && micStream.getAudioTracks().length > 0) {
       audioRecorder = new MediaRecorder(micStream, {
         mimeType: audioMimeType,
-        audioBitsPerSecond: 128_000,
+        audioBitsPerSecond: MIC_AUDIO_BITRATE,
       });
       audioRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) audioChunks.push(event.data);

@@ -108,8 +108,8 @@ export default function Modal({
   ) : null;
 
   const bodyClass = bodyPadding
-    ? 'flex-1 min-h-0 overflow-y-auto p-4 sm:p-6'
-    : 'flex-1 min-h-0 overflow-y-auto';
+    ? 'inspector-light flex-1 min-h-0 overflow-y-auto p-4 sm:p-6'
+    : 'inspector-light flex-1 min-h-0 overflow-y-auto';
 
   const content =
     maxWidth === 'full' ? (
@@ -123,7 +123,7 @@ export default function Modal({
           onClick={(e) => e.stopPropagation()}
         >
           {header}
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
+          <div className="inspector-light flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
         </div>
       </div>
     ) : (

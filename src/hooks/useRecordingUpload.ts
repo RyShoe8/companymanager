@@ -14,6 +14,14 @@ import {
   pollRecordingUntilSettled,
   triggerRecordingProcess,
 } from '@/lib/uploadRecording';
+import {
+  closeRecordingControlsPopout,
+  openRecordingControlsPopout,
+} from '@/lib/recordings/openRecordingControlsPopout';
+import {
+  postRecordingPopoutMessage,
+  subscribeRecordingPopoutMessages,
+} from '@/lib/recordings/recordingPopoutSync';
 
 export type RecordingUploadStatus =
   | 'idle'
@@ -46,6 +54,7 @@ export function useRecordingUpload(
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [micWarning, setMicWarning] = useState<string | null>(null);
+  const [controlsInPopout, setControlsInPopout] = useState(false);
 
   const sessionRef = useRef<RecordingSession | null>(null);
   const pendingVideoRef = useRef<File | null>(null);
@@ -54,6 +63,14 @@ export function useRecordingUpload(
   const previewUrlRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
   const successTimerRef = useRef<number | null>(null);
+  const popoutRef = useRef<Window | null>(null);
+  const stopRecordingRef = useRef<() => Promise<void>>(async () => {});
+
+  const closePopout = useCallback(() => {
+    closeRecordingControlsPopout(popoutRef.current);
+    popoutRef.current = null;
+    setControlsInPopout(false);
+  }, []);
 
   const revokePreviewUrl = useCallback(() => {
     if (previewUrlRef.current) {
@@ -83,8 +100,9 @@ export function useRecordingUpload(
       clearSuccessTimer();
       revokePreviewUrl();
       sessionRef.current?.cancel();
+      closePopout();
     },
-    [clearTimer, clearSuccessTimer, revokePreviewUrl]
+    [clearTimer, clearSuccessTimer, revokePreviewUrl, closePopout]
   );
 
   const reset = useCallback(() => {
@@ -101,10 +119,12 @@ export function useRecordingUpload(
     setStatus('idle');
     setStatusMessage(null);
     setErrorMessage(null);
-  }, [clearTimer, clearSuccessTimer, revokePreviewUrl]);
+    closePopout();
+  }, [clearTimer, clearSuccessTimer, revokePreviewUrl, closePopout]);
 
   const stageForNaming = useCallback(
     (videoFile: File, audioFile: File | null, durationSeconds: number, micIncluded: boolean) => {
+      closePopout();
       revokePreviewUrl();
       const url = URL.createObjectURL(videoFile);
       previewUrlRef.current = url;
@@ -122,44 +142,8 @@ export function useRecordingUpload(
       setStatusMessage(null);
       setErrorMessage(null);
     },
-    [revokePreviewUrl]
+    [revokePreviewUrl, closePopout]
   );
-
-  const startRecording = useCallback(async () => {
-    setStatus('recording');
-    setStatusMessage('Starting recording...');
-    setErrorMessage(null);
-    setElapsedSeconds(0);
-
-    try {
-      const session = await startRecordingSession();
-      sessionRef.current = session;
-      setStatusMessage('Recording');
-      clearTimer();
-      timerRef.current = window.setInterval(() => {
-        setElapsedSeconds((prev) => {
-          if (prev + 1 >= MAX_RECORDING_SECONDS) {
-            clearTimer();
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    } catch (error) {
-      if (error instanceof RecordingCaptureError && error.code === 'canceled') {
-        reset();
-        return;
-      }
-      setStatus('error');
-      setErrorMessage(
-        error instanceof RecordingCaptureError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Failed to start recording.'
-      );
-      setStatusMessage(null);
-    }
-  }, [clearTimer, reset]);
 
   const stopRecording = useCallback(async () => {
     const session = sessionRef.current;
@@ -186,8 +170,78 @@ export function useRecordingUpload(
             : 'Failed to stop recording.'
       );
       setStatusMessage(null);
+      closePopout();
     }
-  }, [clearTimer, reset, stageForNaming]);
+  }, [clearTimer, reset, stageForNaming, closePopout]);
+
+  stopRecordingRef.current = stopRecording;
+
+  useEffect(() => {
+    if (status !== 'recording') return;
+
+    const unsubscribe = subscribeRecordingPopoutMessages((message) => {
+      if (message.type === 'stop') {
+        void stopRecordingRef.current();
+      }
+      if (message.type === 'closed') {
+        popoutRef.current = null;
+        setControlsInPopout(false);
+      }
+    });
+
+    return unsubscribe;
+  }, [status]);
+
+  const startRecording = useCallback(async () => {
+    setStatus('recording');
+    setStatusMessage('Starting recording...');
+    setErrorMessage(null);
+    setElapsedSeconds(0);
+    setControlsInPopout(false);
+
+    try {
+      const session = await startRecordingSession();
+      sessionRef.current = session;
+      setStatusMessage('Recording');
+
+      const popup = openRecordingControlsPopout();
+      popoutRef.current = popup;
+      const usingPopout = popup != null && !popup.closed;
+      setControlsInPopout(usingPopout);
+      if (usingPopout) {
+        postRecordingPopoutMessage({ type: 'tick', elapsedSeconds: 0 });
+      }
+
+      clearTimer();
+      timerRef.current = window.setInterval(() => {
+        setElapsedSeconds((prev) => {
+          const next = prev + 1;
+          if (next >= MAX_RECORDING_SECONDS) {
+            clearTimer();
+          }
+          if (popoutRef.current && !popoutRef.current.closed) {
+            postRecordingPopoutMessage({ type: 'tick', elapsedSeconds: next });
+          }
+          return next;
+        });
+      }, 1000);
+    } catch (error) {
+      closePopout();
+      if (error instanceof RecordingCaptureError && error.code === 'canceled') {
+        reset();
+        return;
+      }
+      setStatus('error');
+      setErrorMessage(
+        error instanceof RecordingCaptureError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to start recording.'
+      );
+      setStatusMessage(null);
+    }
+  }, [clearTimer, reset, closePopout]);
 
   const uploadAndProcess = useCallback(
     async (name: string, uploadTarget?: MediaUploadTarget | null) => {
@@ -288,6 +342,7 @@ export function useRecordingUpload(
     isBusy,
     isRecording: status === 'recording',
     isNaming: status === 'naming',
+    controlsInPopout,
     suggestedName,
     previewUrl,
     elapsedSeconds,

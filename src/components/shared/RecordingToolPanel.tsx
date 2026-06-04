@@ -43,6 +43,7 @@ export default function RecordingToolPanel({
     isBusy,
     isRecording,
     isNaming,
+    controlsInPopout,
     suggestedName,
     previewUrl,
     elapsedLabel,
@@ -56,7 +57,7 @@ export default function RecordingToolPanel({
 
   return (
     <>
-      {isRecording && (
+      {isRecording && !controlsInPopout && (
         <RecordingOverlay elapsedLabel={elapsedLabel} onStop={() => void stopRecording()} />
       )}
 

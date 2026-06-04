@@ -101,3 +101,62 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
 }
+
+/* Light surfaces (modals, inspector) — override dark-site tokens for descendants */
+.inspector-light {
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --background-card: #ffffff;
+  --background-elevated: #f9fafb;
+  --border: #e5e7eb;
+  --border-dark: #d1d5db;
+  --foreground: #111827;
+  color-scheme: light;
+  color: var(--text-primary);
+}
+
+.inspector-light input,
+.inspector-light textarea,
+.inspector-light select {
+  background: var(--background-card);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.inspector-light select option {
+  background-color: var(--background-card);
+  color: var(--text-primary);
+}
+
+.inspector-light input[type='date'],
+.inspector-light input[type='datetime-local'] {
+  color-scheme: light;
+  background-color: var(--background-card);
+  color: var(--text-primary);
+}
+
+.inspector-light input[type='date']:focus,
+.inspector-light input[type='date']:focus-visible,
+.inspector-light input[type='datetime-local']:focus,
+.inspector-light input[type='datetime-local']:focus-visible {
+  background-color: var(--background-card);
+  color: var(--text-primary);
+}
+
+.inspector-light input[type='date']::-webkit-datetime-edit,
+.inspector-light input[type='date']::-webkit-datetime-edit-fields-wrapper,
+.inspector-light input[type='date']::-webkit-datetime-edit-text,
+.inspector-light input[type='date']::-webkit-datetime-edit-month-field,
+.inspector-light input[type='date']::-webkit-datetime-edit-day-field,
+.inspector-light input[type='date']::-webkit-datetime-edit-year-field,
+.inspector-light input[type='datetime-local']::-webkit-datetime-edit,
+.inspector-light input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
+  color: var(--text-primary);
+}
+
+.inspector-light input[type='date']::-webkit-calendar-picker-indicator,
+.inspector-light input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  filter: none;
+  cursor: pointer;
+}
