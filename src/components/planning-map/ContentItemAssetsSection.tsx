@@ -277,10 +277,10 @@ export default function ContentItemAssetsSection({
         {mode === 'live' && loading && (
           <p className="text-xs text-text-secondary">Loading assets…</p>
         )}
-        {mode === 'live' && !loading && assets.length === 0 && (
+        {mode === 'live' && !loading && assets.length === 0 && showAddHintText && (
           <p className="text-xs text-text-secondary">
             No assets linked yet.
-            {canAddAssets && showAddHintText ? ' Use Add to attach files or documents.' : ''}
+            {canAddAssets ? ' Use Add to attach files or documents.' : ''}
           </p>
         )}
         {mode === 'live' && assets.length > 0 && (

@@ -249,10 +249,10 @@ export default function TaskLinkedAssets({
               </div>
             )}
             {loading && <p className="text-xs text-text-secondary">Loading assets…</p>}
-            {!loading && assets.length === 0 && (
+            {!loading && assets.length === 0 && showAddHintText && (
               <p className="text-xs text-text-secondary">
                 No assets linked yet.
-                {canAddAssets && showAddHintText ? ' Use Add to attach files or documents.' : ''}
+                {canAddAssets ? ' Use Add to attach files or documents.' : ''}
               </p>
             )}
             {!loading && assets.length > 0 && (
