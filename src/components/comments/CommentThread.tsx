@@ -192,6 +192,13 @@ export default function CommentThread({
   const renderComment = (comment: CommentWithReplies, depth: number = 0) => {
     const isAuthor = currentUserId && comment.authorId.toString() === currentUserId;
     const maxDepth = 3;
+    const commentId = comment._id.toString();
+    const isEditingThisComment = editingCommentId === commentId;
+    const startEditingComment = () => {
+      if (!isAuthor || isEditingThisComment) return;
+      setEditingCommentId(commentId);
+      setEditContent(comment.content);
+    };
 
     return (
       <div key={comment._id.toString()} className={`${depth > 0 ? lightSurface('ml-6 mt-3 border-l-2 border-gray-200 pl-4', 'dark:border-gray-700', light) : ''}`}>
@@ -207,29 +214,19 @@ export default function CommentThread({
                 </span>
               </div>
             </div>
-            {isAuthor && editingCommentId !== comment._id.toString() && (
+            {isAuthor && !isEditingThisComment && (
               <div className="flex gap-1">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setEditingCommentId(comment._id.toString());
-                    setEditContent(comment.content);
-                  }}
-                >
-                  Edit
-                </Button>
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => handleDeleteComment(comment._id.toString())}
+                  onClick={() => handleDeleteComment(commentId)}
                 >
                   Delete
                 </Button>
               </div>
             )}
           </div>
-          {editingCommentId === comment._id.toString() ? (
+          {isEditingThisComment ? (
             <div className="space-y-2">
               <Input
                 value={editContent}
@@ -248,7 +245,7 @@ export default function CommentThread({
                 }}
               />
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleEditComment(comment._id.toString())}>
+                <Button size="sm" onClick={() => handleEditComment(commentId)}>
                   Save
                 </Button>
                 <Button
@@ -264,7 +261,15 @@ export default function CommentThread({
               </div>
             </div>
           ) : (
-            <p className={lightSurface('text-sm text-gray-700 whitespace-pre-wrap', 'dark:text-gray-300', light)}>
+            <p
+              className={lightSurface(
+                `text-sm whitespace-pre-wrap ${isAuthor ? 'cursor-text hover:opacity-85 transition-opacity' : ''} text-gray-700`,
+                `dark:text-gray-300 ${isAuthor ? 'dark:hover:opacity-85' : ''}`,
+                light
+              )}
+              onClick={startEditingComment}
+              title={isAuthor ? 'Click to edit comment' : undefined}
+            >
               {comment.content}
             </p>
           )}
