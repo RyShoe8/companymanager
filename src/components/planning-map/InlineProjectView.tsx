@@ -21,7 +21,7 @@ import CommentsCollapsibleSection from '@/components/comments/CommentsCollapsibl
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import ProjectLogo from '@/components/projects/ProjectLogo';
-import { formatDate, type TimeframeType } from '@/lib/utils/dateUtils';
+import { formatDate, parseDateSafe, type TimeframeType } from '@/lib/utils/dateUtils';
 import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
@@ -290,7 +290,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [taskAssetsRefreshToken, setTaskAssetsRefreshToken] = useState(0);
   const [contentAssetsRefreshToken, setContentAssetsRefreshToken] = useState(0);
-  const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
   const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -701,7 +700,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     });
 
     const observed = observeItemsForUser(currentUserId, [...taskEntries, ...contentEntries]);
-    setItemActivityByKey(observed.activityByKey);
     setItemIsNewByKey(observed.isNewByKey);
   }, [
     currentUserId,
@@ -713,34 +711,31 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     contentItemKeyFor,
   ]);
 
-  const taskActivityMs = useCallback(
-    (task: IProjectTask, idx: number): number => {
-      const key = taskItemKeyFor(task, idx);
-      return itemActivityByKey[key] ?? 0;
-    },
-    [itemActivityByKey, taskItemKeyFor]
-  );
-
-  const contentActivityMs = useCallback(
-    (item: IContentItem): number => {
-      const key = contentItemKeyFor(item);
-      return itemActivityByKey[key] ?? 0;
-    },
-    [itemActivityByKey, contentItemKeyFor]
-  );
-
   const sortedTaskEntries = useMemo(
     () =>
       (localProject.tasks ?? [])
         .map((task, idx) => ({ task, idx }))
-        .sort((a, b) => taskActivityMs(b.task, b.idx) - taskActivityMs(a.task, a.idx)),
-    [localProject.tasks, taskActivityMs]
+        .sort((a, b) => {
+          const aDue = parseDateSafe(a.task.endDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          const bDue = parseDateSafe(b.task.endDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          if (aDue !== bDue) return aDue - bDue;
+          return a.idx - b.idx;
+        }),
+    [localProject.tasks]
   );
 
   const sortedContentItems = useMemo(
     () =>
-      [...projectContentItems].sort((a, b) => contentActivityMs(b) - contentActivityMs(a)),
-    [projectContentItems, contentActivityMs]
+      [...projectContentItems].sort((a, b) => {
+        const aDue = parseDateSafe(a.publishDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const bDue = parseDateSafe(b.publishDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        if (aDue !== bDue) return aDue - bDue;
+        const aCreated = parseDateSafe(a.createdAt)?.getTime() ?? 0;
+        const bCreated = parseDateSafe(b.createdAt)?.getTime() ?? 0;
+        if (aCreated !== bCreated) return aCreated - bCreated;
+        return a._id.toString().localeCompare(b._id.toString());
+      }),
+    [projectContentItems]
   );
 
   const visibleTaskEntries = useMemo(
@@ -874,7 +869,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       ...projectContentItems.map((item) => contentItemKeyFor(item)),
     ];
     const observed = readObservedItemsForUser(currentUserId, keys);
-    setItemActivityByKey(observed.activityByKey);
     setItemIsNewByKey(observed.isNewByKey);
   }, [currentUserId, localProject._id, localProject.tasks, projectContentItems, taskItemKeyFor, contentItemKeyFor]);
 
@@ -1362,7 +1356,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const timer = setTimeout(async () => {
       timers.delete(taskIndex);
       const trimmed = title.trim();
-      if (!trimmed || trimmed === 'New Task') return;
+      if (!trimmed) return;
 
       const proj = localProjectRef.current;
       const task = (proj.tasks || [])[taskIndex];
@@ -2234,7 +2228,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                               placeholder="Task name"
                               autoMultilineAfter={100}
                               disabled={!isManagerOrAdmin}
-                              clearValuesOnEdit={['New Task']}
                               autoEditOnMount={autoEditTaskIndex === idx}
                               onAutoEditMount={() => {
                                 if (autoEditTaskIndex === idx) setAutoEditTaskIndex(null);

@@ -49,7 +49,7 @@ async function buildTaskDocument(task: IncomingTask, organizationId: string) {
   }
 
   const taskData: Record<string, unknown> = {
-    name: task.name || 'Untitled Task',
+    name: typeof task.name === 'string' ? task.name.trim() : '',
     description: task.description || undefined,
     startDate,
     endDate,

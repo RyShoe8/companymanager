@@ -387,7 +387,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
           // Build taskData explicitly - don't rely on spread operator for status
           const taskData: any = {
-            name: task.name || 'Untitled Task',
+            name: typeof task.name === 'string' ? task.name.trim() : '',
             description: task.description || undefined,
             startDate,
             endDate,

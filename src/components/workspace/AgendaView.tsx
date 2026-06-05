@@ -33,6 +33,7 @@ import {
 import {
     buildContentItemKey,
     buildTaskItemKey,
+    type ItemSeenStatus,
     observeItemsForUser,
 } from '@/lib/workspace/itemSeenState';
 
@@ -120,7 +121,7 @@ function renderAgendaContentRow(
     currentUserEmployeeId: string | null,
     currentUserEmployeeName: string | null,
     onContentItemClick: (item: IContentItem) => void,
-    showNewIndicator = false,
+    seenStatus: ItemSeenStatus = 'none',
     className = 'px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap',
     stopPropagation = false
 ) {
@@ -144,7 +145,11 @@ function renderAgendaContentRow(
                 {channelIcons[item.channel] || '📎'}
             </span>
             <span className="text-text-primary">
-                {showNewIndicator ? <span className="text-blue-600 mr-1">●</span> : null}
+                {seenStatus !== 'none' ? (
+                    <span className="mr-1 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                        {seenStatus === 'new' ? 'New' : 'Updated'}
+                    </span>
+                ) : null}
                 {item.title}
             </span>
             <span
@@ -187,7 +192,7 @@ export default function AgendaView({
     onContentItemClick,
 }: AgendaViewProps) {
     const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
-    const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
+    const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
 
     const assignmentFilterOpts = useMemo(
         () => ({
@@ -261,7 +266,7 @@ export default function AgendaView({
         ];
         const observed = observeItemsForUser(currentUserId, entries);
         setItemActivityByKey(observed.activityByKey);
-        setItemIsNewByKey(observed.isNewByKey);
+        setItemStatusByKey(observed.statusByKey);
     }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor]);
 
     const taskActivityMs = useCallback(
@@ -527,7 +532,8 @@ export default function AgendaView({
                                         (!!currentUserEmployeeId &&
                                             ((group.project && projectBadgeEligible(group.project)) ||
                                                 item.assignedToEmployeeId?.toString() === currentUserEmployeeId) &&
-                                            !!itemIsNewByKey[contentKeyFor(item)]),
+                                            (itemStatusByKey[contentKeyFor(item)] ?? 'none')) ||
+                                            'none',
                                         group.project
                                             ? 'ml-6 px-4 py-2 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap'
                                             : 'px-4 py-3 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated transition-colors flex-wrap'
@@ -656,7 +662,7 @@ export default function AgendaView({
                                         !!currentUserEmployeeId &&
                                         (projectBadgeEligible(project) ||
                                             getTaskAssigneeEmployeeIds(task).includes(currentUserEmployeeId)) &&
-                                        !!itemIsNewByKey[taskKeyFor(project, task, tIdx)];
+                                        (itemStatusByKey[taskKeyFor(project, task, tIdx)] ?? 'none');
                                     return (
                                         <button
                                             key={task._id?.toString() || task.name}
@@ -671,7 +677,11 @@ export default function AgendaView({
                                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'completed' ? 'bg-green-500' : task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'
                                                 }`} />
                                             <span className={`text-text-primary ${task.status === 'completed' ? 'line-through text-text-muted' : ''}`}>
-                                                {showNewTask ? <span className="text-blue-600 mr-1">●</span> : null}
+                                                {showNewTask && showNewTask !== 'none' ? (
+                                                    <span className="mr-1 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                                                        {showNewTask === 'new' ? 'New' : 'Updated'}
+                                                    </span>
+                                                ) : null}
                                                 {task.name}
                                             </span>
                                             {task.estimatedHours ? (
@@ -692,7 +702,8 @@ export default function AgendaView({
                                         (!!currentUserEmployeeId &&
                                             (projectBadgeEligible(project) ||
                                                 item.assignedToEmployeeId?.toString() === currentUserEmployeeId) &&
-                                            !!itemIsNewByKey[contentKeyFor(item)]),
+                                            (itemStatusByKey[contentKeyFor(item)] ?? 'none')) ||
+                                            'none',
                                         'ml-6 py-1.5 flex items-center gap-2 text-sm cursor-pointer hover:bg-background-elevated rounded px-1 -mx-1 flex-wrap',
                                         true
                                     )
@@ -736,7 +747,8 @@ export default function AgendaView({
                                 onContentItemClick,
                                 (!!currentUserEmployeeId &&
                                     item.assignedToEmployeeId?.toString() === currentUserEmployeeId &&
-                                    !!itemIsNewByKey[contentKeyFor(item)])
+                                    (itemStatusByKey[contentKeyFor(item)] ?? 'none')) ||
+                                    'none'
                             )
                         )}
                     </div>

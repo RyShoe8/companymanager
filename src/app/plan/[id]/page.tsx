@@ -106,7 +106,7 @@ export default function PlanDetailPage() {
 
     const defaultDates = getDefaultTaskDates();
     const newTask = {
-      name: 'New Task',
+      name: '',
       description: '',
       startDate: new Date(defaultDates.startDate),
       endDate: new Date(defaultDates.endDate),

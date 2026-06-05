@@ -152,7 +152,7 @@ export default function BuildDetailPage() {
 
     const defaultDates = getDefaultTaskDates();
     const newTask = {
-      name: 'New Task',
+      name: '',
       description: '',
       startDate: new Date(defaultDates.startDate),
       endDate: new Date(defaultDates.endDate),

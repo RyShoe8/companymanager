@@ -34,6 +34,7 @@ import ActionMenu from '@/components/ui/ActionMenu';
 import {
   buildContentItemKey,
   buildTaskItemKey,
+  type ItemSeenStatus,
   observeItemsForUser,
 } from '@/lib/workspace/itemSeenState';
 
@@ -117,7 +118,7 @@ export default function CalendarView({
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
   const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
-  const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
+  const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
   const prevActivityMsRef = useRef<Map<string, number>>(new Map());
   const hasInitializedActivityRef = useRef(false);
 
@@ -181,7 +182,7 @@ export default function CalendarView({
     ];
     const observed = observeItemsForUser(currentUserId, entries);
     setItemActivityByKey(observed.activityByKey);
-    setItemIsNewByKey(observed.isNewByKey);
+    setItemStatusByKey(observed.statusByKey);
   }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor]);
 
   const taskActivityMs = useCallback(
@@ -439,23 +440,32 @@ export default function CalendarView({
     return true;
   }
 
-  function shouldShowTaskNew(project: IProject, task: IProjectTask): boolean {
-    if (!currentUserEmployeeId) return false;
+  function taskSeenStatus(project: IProject, task: IProjectTask): ItemSeenStatus {
+    if (!currentUserEmployeeId) return 'none';
     if (projectBadgeEligible(project)) {
       const idx = resolveTaskIndexInProject(project, task);
-      return !!itemIsNewByKey[taskKeyFor(project, task, idx)];
+      return itemStatusByKey[taskKeyFor(project, task, idx)] ?? 'none';
     }
-    if (!getTaskAssigneeEmployeeIds(task).includes(currentUserEmployeeId)) return false;
+    if (!getTaskAssigneeEmployeeIds(task).includes(currentUserEmployeeId)) return 'none';
     const idx = resolveTaskIndexInProject(project, task);
-    return !!itemIsNewByKey[taskKeyFor(project, task, idx)];
+    return itemStatusByKey[taskKeyFor(project, task, idx)] ?? 'none';
   }
 
-  function shouldShowContentNew(project: IProject, item: IContentItem): boolean {
-    if (!currentUserEmployeeId) return false;
+  function contentSeenStatus(project: IProject, item: IContentItem): ItemSeenStatus {
+    if (!currentUserEmployeeId) return 'none';
     if (!projectBadgeEligible(project) && item.assignedToEmployeeId?.toString() !== currentUserEmployeeId) {
-      return false;
+      return 'none';
     }
-    return !!itemIsNewByKey[contentKeyFor(item)];
+    return itemStatusByKey[contentKeyFor(item)] ?? 'none';
+  }
+
+  function renderSeenTag(status: ItemSeenStatus) {
+    if (status === 'none') return null;
+    return (
+      <span className="mr-1 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+        {status === 'new' ? 'New' : 'Updated'}
+      </span>
+    );
   }
 
   function getMergedItemsForProject(
@@ -791,7 +801,7 @@ export default function CalendarView({
                                           className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
                                         >
                                           <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                                            {shouldShowTaskNew(project, task) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                            {renderSeenTag(taskSeenStatus(project, task))}
                                             {task.name}
                                           </div>
                                           {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
@@ -814,7 +824,7 @@ export default function CalendarView({
                                         <button type="button" onClick={() => onContentItemClick?.(c)} className="text-left w-full">
                                           <span className="mr-2" aria-hidden>📝</span>
                                           <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>
-                                            {shouldShowContentNew(project, c) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                            {renderSeenTag(contentSeenStatus(project, c))}
                                             {c.title}
                                           </span>
                                           <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">{c.channel}</span>
@@ -848,7 +858,7 @@ export default function CalendarView({
                                           className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
                                           title={item.task.name}
                                         >
-                                          {shouldShowTaskNew(project, item.task) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                          {renderSeenTag(taskSeenStatus(project, item.task))}
                                           {item.task.name}
                                         </button>
                                       );
@@ -856,7 +866,7 @@ export default function CalendarView({
                                     return (
                                       <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
                                         <span className="mr-1" aria-hidden>📝</span>
-                                        {shouldShowContentNew(project, item.content) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                        {renderSeenTag(contentSeenStatus(project, item.content))}
                                         {item.content.title}
                                         <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
                                       </div>
@@ -1271,7 +1281,7 @@ export default function CalendarView({
                                             className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                                             title={task.name}
                                           >
-                                            {shouldShowTaskNew(project, task) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                            {renderSeenTag(taskSeenStatus(project, task))}
                                             {task.name}
                                           </div>
                                           {task.description && (
@@ -1309,7 +1319,7 @@ export default function CalendarView({
                                           <span
                                             className={`font-medium text-text-primary break-words ${c.status === 'published' ? 'line-through' : ''}`}
                                           >
-                                            {shouldShowContentNew(project, c) ? <span className="text-blue-600 mr-1">●</span> : null}
+                                            {renderSeenTag(contentSeenStatus(project, c))}
                                             {c.title}
                                           </span>
                                           <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">
