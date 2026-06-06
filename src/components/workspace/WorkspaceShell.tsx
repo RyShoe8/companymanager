@@ -56,6 +56,7 @@ import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
 import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
+import { markProjectItemsSeen } from '@/lib/workspace/itemSeenState';
 
 interface WorkspaceShellProps {
     initialPhase?: PhaseType;
@@ -96,6 +97,7 @@ export default function WorkspaceShell({
     const [showMeetingModal, setShowMeetingModal] = useState(false);
     const [meetingRefreshKey, setMeetingRefreshKey] = useState(0);
     const [contentRefreshTrigger, setContentRefreshTrigger] = useState(0);
+    const [itemSeenRefreshTrigger, setItemSeenRefreshTrigger] = useState(0);
     const [scheduleSyncRefreshKey, setScheduleSyncRefreshKey] = useState(0);
     const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
     const [showScreenshotModal, setShowScreenshotModal] = useState(false);
@@ -245,11 +247,15 @@ export default function WorkspaceShell({
     };
 
     const closeInspector = useCallback(() => {
+        if (inspectorFocus?.startsWith('project:') && ws.currentUserId) {
+            markProjectItemsSeen(ws.currentUserId, inspectorFocus.slice('project:'.length));
+        }
+        setItemSeenRefreshTrigger((t) => t + 1);
         setInspectorFocus(null);
         setInspectorOpenTaskIndex(null);
         setInspectorOpenContentId(null);
         setInspectorAutoAddTask(false);
-    }, []);
+    }, [inspectorFocus, ws.currentUserId]);
 
     const handleContentItemClickFromProject = useCallback((item: IContentItem) => {
         setEditingContentItemId(item._id.toString());
@@ -1350,6 +1356,7 @@ export default function WorkspaceShell({
                                                 }}
                                                 onAddTask={handleAddTaskToProject}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
+                                                itemSeenRefreshTrigger={itemSeenRefreshTrigger}
                                             />
                                         ) : (
                                             <AgendaView
@@ -1380,6 +1387,7 @@ export default function WorkspaceShell({
                                                 }}
                                                 onAddTask={handleAddTaskToProject}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
+                                                itemSeenRefreshTrigger={itemSeenRefreshTrigger}
                                             />
                                         )}
                                     </div>

@@ -49,7 +49,10 @@ function taskOverlapsWeek(
   return taskOverlapsViewRange(weekStartDay, weekEndDay, taskStart, taskEnd);
 }
 
-const WEEKLY_MORE_ITEMS_BUTTON_HEIGHT = 36;
+const RANGE_ITEM_ROW_HEIGHT = 140;
+const UNSEEN_COLLAPSED_ROW_HEIGHT = 28;
+const UNSEEN_SECTION_PADDING = 12;
+const MONTHLY_EXPANDED_LIST_MAX_HEIGHT = 400;
 
 function projectOverlapsDateRange(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
   let pStart: Date;
@@ -87,6 +90,7 @@ interface CalendarViewProps {
   onAddTask?: (project: IProject) => void;
   onRefreshContent?: () => void;
   onTaskClick?: (project: IProject, taskIndex: number) => void;
+  itemSeenRefreshTrigger?: number;
 }
 
 export type MergedCalendarItem =
@@ -113,6 +117,7 @@ export default function CalendarView({
   onAddTask,
   onRefreshContent,
   onTaskClick,
+  itemSeenRefreshTrigger,
 }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -183,7 +188,7 @@ export default function CalendarView({
     const observed = observeItemsForUser(currentUserId, entries);
     setItemActivityByKey(observed.activityByKey);
     setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor]);
+  }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor, itemSeenRefreshTrigger]);
 
   const taskActivityMs = useCallback(
     (project: IProject, task: IProjectTask, idx: number) =>
@@ -465,6 +470,154 @@ export default function CalendarView({
       <span className="mr-1 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
         {status === 'new' ? 'New' : 'Updated'}
       </span>
+    );
+  }
+
+  function itemSeenStatus(project: IProject, item: MergedCalendarItem): ItemSeenStatus {
+    if (item.type === 'task') return taskSeenStatus(project, item.task);
+    return contentSeenStatus(project, item.content);
+  }
+
+  function filterUnseenItems(project: IProject, displayList: MergedCalendarItem[]): MergedCalendarItem[] {
+    return displayList.filter((item) => itemSeenStatus(project, item) !== 'none');
+  }
+
+  function collapsedUnseenRowsHeight(unseenCount: number): number {
+    if (unseenCount <= 0) return 0;
+    return (
+      UNSEEN_SECTION_PADDING +
+      unseenCount * UNSEEN_COLLAPSED_ROW_HEIGHT +
+      Math.max(0, unseenCount - 1) * 4
+    );
+  }
+
+  function renderCollapsedUnseenRows(
+    project: IProject,
+    unseenItems: MergedCalendarItem[],
+    textClass: string,
+    keyPrefix: string
+  ) {
+    if (unseenItems.length === 0) return null;
+    return (
+      <div className={`space-y-1 px-6 pb-4 ${textClass}`}>
+        {unseenItems.map((item, idx) => {
+          if (item.type === 'task') {
+            const tIdx = resolveTaskIndexInProject(project, item.task);
+            return (
+              <button
+                key={`${keyPrefix}-unseen-t-${idx}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (tIdx >= 0) onTaskClick?.(project, tIdx);
+                }}
+                className={`text-sm text-left w-full min-w-0 break-words hover:underline ${item.task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                title={item.task.name}
+              >
+                {renderSeenTag(taskSeenStatus(project, item.task))}
+                {item.task.name}
+              </button>
+            );
+          }
+          return (
+            <button
+              key={`${keyPrefix}-unseen-c-${item.content._id.toString()}`}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onContentItemClick?.(item.content);
+              }}
+              className={`text-sm text-left w-full min-w-0 break-words hover:underline ${item.content.status === 'published' ? 'opacity-60' : ''}`}
+            >
+              <span className="mr-1" aria-hidden>
+                📝
+              </span>
+              {renderSeenTag(contentSeenStatus(project, item.content))}
+              {item.content.title}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderExpandedRangeItems(
+    project: IProject,
+    displayList: MergedCalendarItem[],
+    keyPrefix: string
+  ) {
+    if (displayList.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        {displayList.map((item, idx) => {
+          if (item.type === 'task') {
+            const task = item.task;
+            const tIdx = resolveTaskIndexInProject(project, task);
+            return (
+              <button
+                key={`${keyPrefix}-task-${idx}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (tIdx >= 0) onTaskClick?.(project, tIdx);
+                }}
+                className="w-full min-w-0 text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
+                style={{ minHeight: RANGE_ITEM_ROW_HEIGHT }}
+              >
+                <div
+                  className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                  title={task.name}
+                >
+                  {renderSeenTag(taskSeenStatus(project, task))}
+                  {task.name}
+                </div>
+                {task.description && (
+                  <p className="text-sm text-text-secondary mt-1 max-h-10 overflow-hidden">
+                    {task.description}
+                  </p>
+                )}
+                <div className="flex gap-4 mt-2 text-xs text-text-secondary">
+                  {task.estimatedHours && <span>{task.estimatedHours}h</span>}
+                  {formatTaskAssigneeLabel(task) && (
+                    <span>Assigned: {formatTaskAssigneeLabel(task)}</span>
+                  )}
+                  <span className="capitalize">{task.status}</span>
+                </div>
+              </button>
+            );
+          }
+          const c = item.content;
+          return (
+            <div
+              key={c._id.toString()}
+              className={`p-3 rounded border border-dashed border-border bg-background-card ${c.status === 'published' ? 'opacity-60' : ''}`}
+              style={{ minHeight: RANGE_ITEM_ROW_HEIGHT }}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onContentItemClick?.(c);
+                }}
+                className="text-left w-full"
+              >
+                <span className="mr-2" aria-hidden>
+                  📝
+                </span>
+                <span
+                  className={`font-medium text-text-primary break-words ${c.status === 'published' ? 'line-through' : ''}`}
+                >
+                  {renderSeenTag(contentSeenStatus(project, c))}
+                  {c.title}
+                </span>
+                <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">
+                  {c.channel}
+                </span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
     );
   }
 
@@ -1042,39 +1195,40 @@ export default function CalendarView({
                   const topPadding = 16; // py-4 top padding
                   const headerHeight = 42; // Single-row title + status + inline summary
                   const bottomPadding = 16; // py-4 bottom padding
-
-                  if (!isExpanded) {
-                    return topPadding + headerHeight + bottomPadding;
-                  }
-
-                  // Expanded height calculation must match rendered weekly content.
                   const weekStart = new Date(days[0]);
                   weekStart.setHours(0, 0, 0, 0);
                   const weekEnd = new Date(days[6]);
                   weekEnd.setHours(23, 59, 59, 999);
-                  const { displayList: expandedDisplayList } = getWeeklyCollapsedSummary(
+                  const { displayList: rangeDisplayList } = getWeeklyCollapsedSummary(
                     project,
                     weekStart,
                     weekEnd
                   );
-                  const displayedCount = Math.min(expandedDisplayList.length, 3);
-                  const moreItemsCount = Math.max(0, expandedDisplayList.length - displayedCount);
-                  const hasMoreItems = moreItemsCount > 0;
+                  const unseenCount = filterUnseenItems(project, rangeDisplayList).length;
+
+                  if (!isExpanded) {
+                    return (
+                      topPadding +
+                      headerHeight +
+                      collapsedUnseenRowsHeight(unseenCount) +
+                      bottomPadding
+                    );
+                  }
+
+                  // Expanded height calculation must match rendered weekly content.
+                  const displayedCount = rangeDisplayList.length;
                   const descriptionHeight = project.description ? 40 : 0; // project description block
                   const tasksSectionPadding = 16; // mt-4
                   const tasksHeaderHeight = 24; // label + margin
-                  const taskCardHeight = 112; // fixed weekly task card height (see rendered min-h below)
                   const taskGapHeight = displayedCount > 0 ? (displayedCount - 1) * 8 : 0; // space-y-2
-                  const moreIndicatorHeight = hasMoreItems ? WEEKLY_MORE_ITEMS_BUTTON_HEIGHT : 0;
                   return (
                     topPadding +
                     headerHeight +
                     descriptionHeight +
                     tasksSectionPadding +
                     tasksHeaderHeight +
-                    displayedCount * taskCardHeight +
+                    displayedCount * RANGE_ITEM_ROW_HEIGHT +
                     taskGapHeight +
-                    moreIndicatorHeight +
                     bottomPadding
                   );
                 });
@@ -1149,11 +1303,14 @@ export default function CalendarView({
                           !isExpanded &&
                           !summary.showWeekMetrics &&
                           (project.tasks?.length ?? 0) > 0;
+                        const unseenItems = !isExpanded
+                          ? filterUnseenItems(project, summary.displayList)
+                          : [];
 
                         return (
                           <>
                             <div
-                              className="flex items-center justify-between gap-2 min-w-0 cursor-pointer px-6 py-4"
+                              className="flex items-center justify-between gap-2 min-w-0 cursor-pointer px-6 py-4 shrink-0"
                               onClick={() => onProjectClick(pos.project!)}
                             >
                               <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
@@ -1216,6 +1373,12 @@ export default function CalendarView({
                                 </button>
                               </div>
                             </div>
+                            {renderCollapsedUnseenRows(
+                              project,
+                              unseenItems,
+                              headerTextClass,
+                              `${projectId}-weekly`
+                            )}
                           </>
                         );
                       })()}
@@ -1233,17 +1396,15 @@ export default function CalendarView({
                         const visibleTasks = hasTasks
                           ? project.tasks!.filter((task) => taskOverlapsWeek(task, days[0], days[6]))
                           : [];
-                        const displayed = weekSummary.displayList.slice(0, 3);
-                        const moreItemsCount = Math.max(0, weekSummary.displayList.length - displayed.length);
 
                         return (
-                          <>
+                          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                             {project.description && (
-                              <p className="text-white opacity-90 mb-3 mt-3 px-6">{project.description}</p>
+                              <p className="text-white opacity-90 mb-3 mt-3 px-6 shrink-0">{project.description}</p>
                             )}
 
                             {visibleTasks.length === 0 && hasTasks && project.tasks!.length > 0 ? (
-                              <div className="mt-4 px-6 pb-6">
+                              <div className="mt-4 px-6 pb-6 shrink-0">
                                 <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
                                 <p className="text-sm text-text-secondary mb-2">No tasks scheduled this week.</p>
                                 <button
@@ -1257,94 +1418,21 @@ export default function CalendarView({
                                   View all
                                 </button>
                               </div>
-                            ) : displayed.length > 0 ? (
-                              <div className="mt-4 px-6 pb-6 flex flex-col min-h-0">
-                                <p className="text-sm font-semibold text-text-primary mb-2">
+                            ) : weekSummary.displayList.length > 0 ? (
+                              <div className="mt-4 px-6 pb-6 flex flex-col flex-1 min-h-0">
+                                <p className="text-sm font-semibold text-text-primary mb-2 shrink-0">
                                   {hasTasks ? 'Tasks:' : 'Tasks & Content:'}
                                 </p>
-                                <div className="space-y-2">
-                                  {displayed.map((item, idx) => {
-                                    if (item.type === 'task') {
-                                      const task = item.task;
-                                      const tIdx = resolveTaskIndexInProject(project, task);
-                                      return (
-                                        <button
-                                          key={`${projectId}-task-${idx}`}
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (tIdx >= 0) onTaskClick?.(project, tIdx);
-                                          }}
-                                          className="w-full min-w-0 text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer min-h-[112px]"
-                                        >
-                                          <div
-                                            className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
-                                            title={task.name}
-                                          >
-                                            {renderSeenTag(taskSeenStatus(project, task))}
-                                            {task.name}
-                                          </div>
-                                          {task.description && (
-                                            <p className="text-sm text-text-secondary mt-1 max-h-10 overflow-hidden">
-                                              {task.description}
-                                            </p>
-                                          )}
-                                          <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                                            {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                                            {formatTaskAssigneeLabel(task) && (
-                                              <span>Assigned: {formatTaskAssigneeLabel(task)}</span>
-                                            )}
-                                            <span className="capitalize">{task.status}</span>
-                                          </div>
-                                        </button>
-                                      );
-                                    }
-                                    const c = item.content;
-                                    return (
-                                      <div
-                                        key={c._id.toString()}
-                                        className={`p-3 rounded border border-dashed border-border bg-background-card min-h-[112px] ${c.status === 'published' ? 'opacity-60' : ''}`}
-                                      >
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onContentItemClick?.(c);
-                                          }}
-                                          className="text-left w-full"
-                                        >
-                                          <span className="mr-2" aria-hidden>
-                                            📝
-                                          </span>
-                                          <span
-                                            className={`font-medium text-text-primary break-words ${c.status === 'published' ? 'line-through' : ''}`}
-                                          >
-                                            {renderSeenTag(contentSeenStatus(project, c))}
-                                            {c.title}
-                                          </span>
-                                          <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">
-                                            {c.channel}
-                                          </span>
-                                        </button>
-                                      </div>
-                                    );
-                                  })}
-                                  {moreItemsCount > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                      }}
-                                      className="text-sm text-text-primary underline hover:opacity-90 pt-1 pb-0.5 text-left w-full shrink-0"
-                                    >
-                                      +{moreItemsCount} more items
-                                    </button>
+                                <div className="flex-1 min-h-0 overflow-y-auto">
+                                  {renderExpandedRangeItems(
+                                    project,
+                                    weekSummary.displayList,
+                                    `${projectId}-weekly`
                                   )}
                                 </div>
                               </div>
                             ) : null}
-                          </>
+                          </div>
                         );
                       })()}
                     </div>
@@ -1422,20 +1510,123 @@ export default function CalendarView({
                     <p className="text-sm text-text-secondary">No projects this week</p>
                   ) : (
                     weekProjects.map((project) => {
+                      const projectId = project._id.toString();
                       const projectColor =
                         project.status === 'in-review' ? '#ef4444' : project.color;
+                      const isExpanded = expandedProjects.has(projectId);
+                      const summary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
+                      const headerTextClass = getProjectCardHeaderTextClass(projectColor);
+                      const hasTasks = (project.tasks?.length ?? 0) > 0;
+                      const unseenItems = !isExpanded
+                        ? filterUnseenItems(project, summary.displayList)
+                        : [];
+                      const visibleTasks = hasTasks
+                        ? project.tasks!.filter((task) => taskOverlapsWeek(task, week[0], week[6]))
+                        : [];
+
                       return (
                         <div
-                          key={project._id.toString()}
-                          onClick={() => onProjectClick(project)}
-                          className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          key={projectId}
+                          className={`rounded-lg border-2 border-border overflow-hidden ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
                           style={{
-                            backgroundColor: projectColor,
-                            color: 'white',
+                            backgroundColor: projectColor + 'F0',
+                            borderColor: projectColor,
                           }}
-                          title={project.name}
                         >
-                          <div className="font-medium truncate">{project.name}</div>
+                          <div
+                            className="flex items-center justify-between gap-2 min-w-0 cursor-pointer p-2"
+                            onClick={() => onProjectClick(project)}
+                          >
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <div className={`font-medium truncate ${headerTextClass}`}>
+                                {project.name}
+                              </div>
+                              {!isExpanded && summary.showWeekMetrics ? (
+                                <p className={`text-xs truncate min-w-0 ${headerTextClass} opacity-90`}>
+                                  <span>
+                                    Tasks {summary.openTasks}/{summary.totalTasks}
+                                  </span>
+                                  <span className="mx-1 opacity-60" aria-hidden>
+                                    ·
+                                  </span>
+                                  <span>Content ({summary.contentCount})</span>
+                                  <span className="mx-1 opacity-60" aria-hidden>
+                                    ·
+                                  </span>
+                                  <span>{summary.hours}h</span>
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span
+                                className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                                style={{ backgroundColor: projectColor }}
+                              >
+                                {getProjectStatusDisplayLabel(project.status)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleProjectExpanded(projectId);
+                                }}
+                                className={`${headerTextClass} opacity-80 hover:opacity-100 transition-opacity px-1`}
+                                aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                              >
+                                {isExpanded ? '▼' : '▶'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {renderCollapsedUnseenRows(
+                            project,
+                            unseenItems,
+                            headerTextClass,
+                            `${projectId}-month-${weekIdx}`
+                          )}
+
+                          {isExpanded ? (
+                            <div className="px-2 pb-2">
+                              {project.description ? (
+                                <p className={`text-xs mb-2 ${headerTextClass} opacity-90`}>
+                                  {project.description}
+                                </p>
+                              ) : null}
+
+                              {visibleTasks.length === 0 && hasTasks && project.tasks!.length > 0 ? (
+                                <div className="mb-2">
+                                  <p className="text-xs font-semibold text-text-primary mb-1">Tasks:</p>
+                                  <p className="text-xs text-text-secondary mb-1">
+                                    No tasks scheduled this week.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
+                                    }}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    View all
+                                  </button>
+                                </div>
+                              ) : summary.displayList.length > 0 ? (
+                                <div
+                                  className="overflow-y-auto"
+                                  style={{ maxHeight: MONTHLY_EXPANDED_LIST_MAX_HEIGHT }}
+                                >
+                                  <p className="text-xs font-semibold text-text-primary mb-1">
+                                    {hasTasks ? 'Tasks:' : 'Tasks & Content:'}
+                                  </p>
+                                  {renderExpandedRangeItems(
+                                    project,
+                                    summary.displayList,
+                                    `${projectId}-month-${weekIdx}`
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })

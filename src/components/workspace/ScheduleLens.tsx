@@ -25,6 +25,7 @@ interface ScheduleLensProps {
     onAddContent: (project: IProject, defaultDate?: Date) => void;
     onAddTask?: (project: IProject) => void;
     onContentItemClick: (item: IContentItem) => void;
+    itemSeenRefreshTrigger?: number;
 }
 
 export default function ScheduleLens({
@@ -47,6 +48,7 @@ export default function ScheduleLens({
     onAddContent,
     onAddTask,
     onContentItemClick,
+    itemSeenRefreshTrigger,
 }: ScheduleLensProps) {
     return (
         <CalendarView
@@ -69,6 +71,7 @@ export default function ScheduleLens({
             onAddTask={onAddTask}
             onContentItemClick={onContentItemClick}
             onTaskClick={onTaskClick}
+            itemSeenRefreshTrigger={itemSeenRefreshTrigger}
         />
     );
 }

@@ -60,6 +60,7 @@ interface AgendaViewProps {
     onAddContent: (project: IProject, defaultDate?: Date) => void;
     onAddTask?: (project: IProject) => void;
     onContentItemClick: (item: IContentItem) => void;
+    itemSeenRefreshTrigger?: number;
 }
 
 interface AgendaDay {
@@ -190,6 +191,7 @@ export default function AgendaView({
     onAddContent,
     onAddTask,
     onContentItemClick,
+    itemSeenRefreshTrigger,
 }: AgendaViewProps) {
     const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
     const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
@@ -267,7 +269,7 @@ export default function AgendaView({
         const observed = observeItemsForUser(currentUserId, entries);
         setItemActivityByKey(observed.activityByKey);
         setItemStatusByKey(observed.statusByKey);
-    }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor]);
+    }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor, itemSeenRefreshTrigger]);
 
     const taskActivityMs = useCallback(
         (project: IProject, task: IProjectTask, idx: number) =>
