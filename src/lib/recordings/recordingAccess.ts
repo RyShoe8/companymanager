@@ -25,10 +25,16 @@ export async function getRecordingSessionContext(
     return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
   }
 
-  const currentUserEmployee = await Employee.findOne({
+  let currentUserEmployee = await Employee.findOne({
     userId,
     organizationId: user.organizationId,
   });
+  if (!currentUserEmployee && user.email) {
+    currentUserEmployee = await Employee.findOne({
+      organizationId: user.organizationId,
+      email: user.email.toLowerCase(),
+    });
+  }
   const isManagerOrAdmin =
     currentUserEmployee?.role === 'Manager' || currentUserEmployee?.role === 'Administrator';
   const orgUserIds = await getOrganizationUserIds(userId, user.organizationId);

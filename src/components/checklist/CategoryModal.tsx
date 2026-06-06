@@ -33,6 +33,7 @@ export type PendingAssetPayload = {
   linkedProjectId: string;
   linkedContentItemId?: string;
   linkedProjectTaskId?: string;
+  linkedProjectTaskIndex?: number;
   tags?: string[];
 };
 
@@ -40,6 +41,7 @@ export type AssetLinkContext = {
   linkedProjectId: string;
   linkedContentItemId?: string;
   linkedProjectTaskId?: string;
+  linkedProjectTaskIndex?: number;
 };
 
 async function readApiErrorMessage(res: Response, fallback: string): Promise<string> {
@@ -114,11 +116,15 @@ export default function CategoryModal({
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
 
   const screenshotTarget = useMemo<MediaUploadTarget | null>(() => {
-    if (linkContext?.linkedProjectTaskId) {
+    if (
+      linkContext?.linkedProjectTaskId ||
+      linkContext?.linkedProjectTaskIndex != null
+    ) {
       return {
         entityType: 'projectTask',
         entityId: linkContext.linkedProjectId ?? projectId,
         taskId: linkContext.linkedProjectTaskId,
+        taskIndex: linkContext.linkedProjectTaskIndex,
       };
     }
     if (linkContext?.linkedContentItemId) {
@@ -134,18 +140,24 @@ export default function CategoryModal({
     return null;
   }, [linkContext, projectId]);
 
-  const isEntityContext = !!(linkContext?.linkedContentItemId || linkContext?.linkedProjectTaskId);
+  const isEntityContext = !!(
+    linkContext?.linkedContentItemId ||
+    linkContext?.linkedProjectTaskId ||
+    linkContext?.linkedProjectTaskIndex != null
+  );
   const useAssetFlow = isEntityContext || mode === 'draft';
-  const entitySubmitLabel = linkContext?.linkedProjectTaskId
-    ? 'Add'
-    : isEntityContext
-      ? 'Add asset'
-      : 'Add to project';
+  const entitySubmitLabel =
+    linkContext?.linkedProjectTaskId || linkContext?.linkedProjectTaskIndex != null
+      ? 'Add'
+      : isEntityContext
+        ? 'Add asset'
+        : 'Add to project';
 
   const buildAssetPayload = (partial: Omit<PendingAssetPayload, 'linkedProjectId'>): PendingAssetPayload => ({
     linkedProjectId: effectiveProjectId,
     linkedContentItemId: linkContext?.linkedContentItemId,
     linkedProjectTaskId: linkContext?.linkedProjectTaskId,
+    linkedProjectTaskIndex: linkContext?.linkedProjectTaskIndex,
     tags: [],
     ...partial,
   });

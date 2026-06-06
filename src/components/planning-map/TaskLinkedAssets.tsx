@@ -237,6 +237,7 @@ export default function TaskLinkedAssets({
                   linkContext={{
                     linkedProjectId: projectId,
                     linkedProjectTaskId: taskId,
+                    linkedProjectTaskIndex: taskIndex,
                   }}
                   onDocumentCreated={() => {
                     if (!prefetchedAssets) {

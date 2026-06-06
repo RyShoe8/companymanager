@@ -203,6 +203,47 @@ export function applyAssetAccessFilter(
   };
 }
 
+async function canLinkToTaskLive(
+  ctx: RecordingSessionContext,
+  links: AssetLinkFields
+): Promise<boolean> {
+  if (!ctx.employeeId) return false;
+
+  const projectId = idStr(links.linkedProjectId);
+  if (!projectId) return false;
+
+  const project = await Project.findOne({
+    _id: projectId,
+    userId: { $in: ctx.orgUserIds },
+  })
+    .select('tasks')
+    .lean();
+  if (!project) return false;
+
+  const employee = await Employee.findById(ctx.employeeId).lean();
+  if (!employee) return false;
+
+  const taskId = idStr(links.linkedProjectTaskId);
+  let task:
+    | {
+        assignedTo?: string;
+        assignedToEmployeeIds?: unknown[];
+        assignedToEmployeeId?: unknown;
+      }
+    | undefined;
+
+  if (taskId) {
+    task = (project.tasks ?? []).find(
+      (entry) => (entry as { _id?: { toString(): string } })._id?.toString() === taskId
+    );
+  } else if (links.linkedProjectTaskIndex != null && links.linkedProjectTaskIndex !== undefined) {
+    task = project.tasks?.[links.linkedProjectTaskIndex];
+  }
+
+  if (!task) return false;
+  return isTaskAssignedToEmployee(task, employee);
+}
+
 export async function assertCanLinkAsset(
   ctx: RecordingSessionContext,
   links: AssetLinkFields,
@@ -225,7 +266,10 @@ export async function assertCanLinkAsset(
 
   const taskId = idStr(links.linkedProjectTaskId);
   if (taskId) {
-    if (!builtScope.accessibleTaskIds.includes(taskId)) {
+    if (
+      !builtScope.accessibleTaskIds.includes(taskId) &&
+      !(await canLinkToTaskLive(ctx, links))
+    ) {
       return NextResponse.json(
         { error: 'You do not have permission to link assets to this task' },
         { status: 403 }
@@ -244,7 +288,7 @@ export async function assertCanLinkAsset(
       (entry) =>
         entry.projectId === projectId && entry.taskIndex === links.linkedProjectTaskIndex
     );
-    if (!legacyOk) {
+    if (!legacyOk && !(await canLinkToTaskLive(ctx, links))) {
       return NextResponse.json(
         { error: 'You do not have permission to link assets to this task' },
         { status: 403 }

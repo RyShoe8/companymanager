@@ -13,7 +13,8 @@ function appendTargetToFormData(formData: FormData, target: ScreenshotUploadTarg
     if (target.entityType === 'projectTask') {
       if (target.taskId) {
         formData.append('linkedProjectTaskId', target.taskId);
-      } else if (target.taskIndex !== undefined) {
+      }
+      if (target.taskIndex !== undefined) {
         formData.append('linkedProjectTaskIndex', target.taskIndex.toString());
       }
     }

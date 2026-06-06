@@ -16,15 +16,38 @@ export function defaultScreenshotName(): string {
   return `Screenshot ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
+const UPLOADABLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
 function needsCompression(file: File): boolean {
   return file.type !== 'image/webp' && file.type !== 'image/jpeg';
+}
+
+function unsupportedImageMessage(): string {
+  return 'Could not process this image. Try saving as JPEG or PNG, then upload again.';
 }
 
 async function compressOrFallback(file: File): Promise<File> {
   try {
     return await compressImageFile(file);
   } catch {
+    if (UPLOADABLE_IMAGE_TYPES.has(file.type)) {
+      return file;
+    }
+    throw new Error(unsupportedImageMessage());
+  }
+}
+
+async function prepareFileForUpload(file: File): Promise<File> {
+  if (!needsCompression(file)) {
     return file;
+  }
+  try {
+    return await compressImageFile(file);
+  } catch {
+    if (UPLOADABLE_IMAGE_TYPES.has(file.type)) {
+      return file;
+    }
+    throw new Error(unsupportedImageMessage());
   }
 }
 
@@ -81,7 +104,7 @@ export function useScreenshotUpload(
       try {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          const compressed = needsCompression(file) ? await compressImageFile(file) : file;
+          const compressed = await prepareFileForUpload(file);
           const assetName = files.length > 1 ? `${name} (${i + 1})` : name;
           await uploadScreenshotAsset(compressed, resolvedTarget, { name: assetName });
         }
@@ -113,17 +136,26 @@ export function useScreenshotUpload(
     if (files.length === 0) return;
     revokePreviewUrl();
     setStatusMessage('Compressing screenshot...');
-
-    const compressed = await Promise.all(files.map(compressOrFallback));
-
-    const url = URL.createObjectURL(compressed[0]);
-    previewUrlRef.current = url;
-    setPreviewUrl(url);
-    setPendingFiles(compressed);
-    setSuggestedName(defaultScreenshotName());
-    setStatus('naming');
-    setStatusMessage(null);
     setErrorMessage(null);
+
+    try {
+      const compressed = await Promise.all(files.map(compressOrFallback));
+
+      const url = URL.createObjectURL(compressed[0]);
+      previewUrlRef.current = url;
+      setPreviewUrl(url);
+      setPendingFiles(compressed);
+      setSuggestedName(defaultScreenshotName());
+      setStatus('naming');
+      setStatusMessage(null);
+    } catch (error) {
+      setStatus('error');
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Failed to prepare screenshot for upload.'
+      );
+      setStatusMessage(null);
+      setPendingFiles([]);
+    }
   }, [revokePreviewUrl]);
 
   const confirmName = useCallback(
