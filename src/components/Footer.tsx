@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <Link href="/" className="inline-block mb-4">
               <img
-                src="/images/nucleas-logo.png?v=5"
+                src="/images/nucleas-logo.png?v=6"
                 alt="Nucleas"
                 width={140}
                 height={48}
