@@ -225,6 +225,8 @@ export default function CategoryModal({
         await onAddButton({ kind: 'link', label: addLabel.trim(), url: addUrl.trim() });
         onClose();
       }
+    } catch {
+      alert('Could not add to project. Please try again.');
     } finally {
       setAdding(false);
     }
@@ -247,6 +249,8 @@ export default function CategoryModal({
         });
         onClose();
       }
+    } catch {
+      alert('Could not add to project. Please try again.');
     } finally {
       setAddingEmail(false);
     }

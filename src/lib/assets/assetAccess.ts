@@ -1,0 +1,267 @@
+import { NextResponse } from 'next/server';
+import { Types } from 'mongoose';
+import Project from '@/lib/models/Project';
+import ContentItem from '@/lib/models/ContentItem';
+import Employee from '@/lib/models/Employee';
+import {
+  getRecordingSessionContext,
+  type RecordingSessionContext,
+} from '@/lib/recordings/recordingAccess';
+import {
+  canUserContributeToProject,
+  isTaskAssignedToEmployee,
+} from '@/lib/utils/projectTeam';
+
+export type AssetAccessScope = {
+  accessibleProjectIds: string[];
+  accessibleTaskIds: string[];
+  accessibleContentItemIds: string[];
+  accessibleLegacyTasks: { projectId: string; taskIndex: number }[];
+};
+
+export type AssetLinkFields = {
+  linkedProjectId?: string | Types.ObjectId | null;
+  linkedProjectTaskId?: string | Types.ObjectId | null;
+  linkedProjectTaskIndex?: number | null;
+  linkedContentItemId?: string | Types.ObjectId | null;
+};
+
+export type AssetAccessRecord = AssetLinkFields & {
+  userId?: string | Types.ObjectId;
+};
+
+function idStr(value: string | Types.ObjectId | null | undefined): string | null {
+  if (value == null || value === '') return null;
+  return typeof value === 'string' ? value : value.toString();
+}
+
+function isProjectLevelAsset(asset: AssetLinkFields): boolean {
+  if (!idStr(asset.linkedProjectId)) return false;
+  if (idStr(asset.linkedContentItemId)) return false;
+  if (idStr(asset.linkedProjectTaskId)) return false;
+  if (asset.linkedProjectTaskIndex != null && asset.linkedProjectTaskIndex !== undefined) {
+    return false;
+  }
+  return true;
+}
+
+export async function getAssetSessionContext(
+  userId: string
+): Promise<RecordingSessionContext | NextResponse> {
+  return getRecordingSessionContext(userId);
+}
+
+export async function buildAssetAccessScope(
+  ctx: RecordingSessionContext
+): Promise<AssetAccessScope> {
+  const accessibleProjectIds: string[] = [];
+  const accessibleTaskIds: string[] = [];
+  const accessibleLegacyTasks: { projectId: string; taskIndex: number }[] = [];
+
+  if (!ctx.employeeId) {
+    return {
+      accessibleProjectIds,
+      accessibleTaskIds,
+      accessibleContentItemIds: [],
+      accessibleLegacyTasks,
+    };
+  }
+
+  const employee = await Employee.findById(ctx.employeeId).lean();
+  if (!employee) {
+    return {
+      accessibleProjectIds,
+      accessibleTaskIds,
+      accessibleContentItemIds: [],
+      accessibleLegacyTasks,
+    };
+  }
+
+  const projects = await Project.find({ userId: { $in: ctx.orgUserIds } })
+    .select('assignedToEmployeeIds assignedToEmployeeId tasks userId')
+    .lean();
+
+  for (const project of projects) {
+    if (!canUserContributeToProject(project, ctx.employeeId, false)) continue;
+    accessibleProjectIds.push(project._id.toString());
+
+    (project.tasks ?? []).forEach((task, idx) => {
+      if (!isTaskAssignedToEmployee(task, employee)) return;
+      const taskId = (task as { _id?: { toString(): string } })._id?.toString();
+      if (taskId) {
+        accessibleTaskIds.push(taskId);
+      } else {
+        accessibleLegacyTasks.push({ projectId: project._id.toString(), taskIndex: idx });
+      }
+    });
+  }
+
+  const contentItems = await ContentItem.find({
+    userId: { $in: ctx.orgUserIds },
+    assignedToEmployeeId: new Types.ObjectId(ctx.employeeId),
+  })
+    .select('_id')
+    .lean();
+
+  return {
+    accessibleProjectIds,
+    accessibleTaskIds,
+    accessibleContentItemIds: contentItems.map((item) => item._id.toString()),
+    accessibleLegacyTasks,
+  };
+}
+
+export function canAccessAsset(
+  ctx: RecordingSessionContext,
+  asset: AssetAccessRecord,
+  scope: AssetAccessScope
+): boolean {
+  if (ctx.isManagerOrAdmin) return true;
+
+  const ownerId = idStr(asset.userId);
+  if (ownerId && ownerId === ctx.userId) return true;
+
+  const contentId = idStr(asset.linkedContentItemId);
+  if (contentId && scope.accessibleContentItemIds.includes(contentId)) return true;
+
+  const taskId = idStr(asset.linkedProjectTaskId);
+  if (taskId && scope.accessibleTaskIds.includes(taskId)) return true;
+
+  const projectId = idStr(asset.linkedProjectId);
+  if (
+    projectId &&
+    asset.linkedProjectTaskIndex != null &&
+    asset.linkedProjectTaskIndex !== undefined &&
+    !taskId
+  ) {
+    const legacyOk = scope.accessibleLegacyTasks.some(
+      (entry) =>
+        entry.projectId === projectId && entry.taskIndex === asset.linkedProjectTaskIndex
+    );
+    if (legacyOk) return true;
+  }
+
+  if (isProjectLevelAsset(asset)) {
+    return projectId != null && scope.accessibleProjectIds.includes(projectId);
+  }
+
+  return false;
+}
+
+export function applyAssetAccessFilter(
+  baseQuery: Record<string, unknown>,
+  ctx: RecordingSessionContext,
+  scope: AssetAccessScope
+): Record<string, unknown> {
+  if (ctx.isManagerOrAdmin) return baseQuery;
+
+  const orConditions: Record<string, unknown>[] = [{ userId: new Types.ObjectId(ctx.userId) }];
+
+  if (scope.accessibleProjectIds.length > 0) {
+    orConditions.push({
+      linkedProjectId: { $in: scope.accessibleProjectIds.map((id) => new Types.ObjectId(id)) },
+      $and: [
+        { $or: [{ linkedProjectTaskId: { $exists: false } }, { linkedProjectTaskId: null }] },
+        { $or: [{ linkedContentItemId: { $exists: false } }, { linkedContentItemId: null }] },
+        {
+          $or: [
+            { linkedProjectTaskIndex: { $exists: false } },
+            { linkedProjectTaskIndex: null },
+          ],
+        },
+      ],
+    });
+  }
+
+  if (scope.accessibleTaskIds.length > 0) {
+    orConditions.push({
+      linkedProjectTaskId: {
+        $in: scope.accessibleTaskIds.map((id) => new Types.ObjectId(id)),
+      },
+    });
+  }
+
+  for (const legacy of scope.accessibleLegacyTasks) {
+    orConditions.push({
+      linkedProjectId: new Types.ObjectId(legacy.projectId),
+      linkedProjectTaskIndex: legacy.taskIndex,
+      $or: [{ linkedProjectTaskId: { $exists: false } }, { linkedProjectTaskId: null }],
+    });
+  }
+
+  if (scope.accessibleContentItemIds.length > 0) {
+    orConditions.push({
+      linkedContentItemId: {
+        $in: scope.accessibleContentItemIds.map((id) => new Types.ObjectId(id)),
+      },
+    });
+  }
+
+  return {
+    ...baseQuery,
+    $and: [...(Array.isArray(baseQuery.$and) ? baseQuery.$and : []), { $or: orConditions }],
+  };
+}
+
+export async function assertCanLinkAsset(
+  ctx: RecordingSessionContext,
+  links: AssetLinkFields,
+  scope?: AssetAccessScope
+): Promise<NextResponse | null> {
+  if (ctx.isManagerOrAdmin) return null;
+
+  const builtScope = scope ?? (await buildAssetAccessScope(ctx));
+
+  const contentId = idStr(links.linkedContentItemId);
+  if (contentId) {
+    if (!builtScope.accessibleContentItemIds.includes(contentId)) {
+      return NextResponse.json(
+        { error: 'You do not have permission to link assets to this content item' },
+        { status: 403 }
+      );
+    }
+    return null;
+  }
+
+  const taskId = idStr(links.linkedProjectTaskId);
+  if (taskId) {
+    if (!builtScope.accessibleTaskIds.includes(taskId)) {
+      return NextResponse.json(
+        { error: 'You do not have permission to link assets to this task' },
+        { status: 403 }
+      );
+    }
+    return null;
+  }
+
+  const projectId = idStr(links.linkedProjectId);
+  if (
+    projectId &&
+    links.linkedProjectTaskIndex != null &&
+    links.linkedProjectTaskIndex !== undefined
+  ) {
+    const legacyOk = builtScope.accessibleLegacyTasks.some(
+      (entry) =>
+        entry.projectId === projectId && entry.taskIndex === links.linkedProjectTaskIndex
+    );
+    if (!legacyOk) {
+      return NextResponse.json(
+        { error: 'You do not have permission to link assets to this task' },
+        { status: 403 }
+      );
+    }
+    return null;
+  }
+
+  if (projectId) {
+    if (!builtScope.accessibleProjectIds.includes(projectId)) {
+      return NextResponse.json(
+        { error: 'You do not have permission to link assets to this project' },
+        { status: 403 }
+      );
+    }
+    return null;
+  }
+
+  return null;
+}

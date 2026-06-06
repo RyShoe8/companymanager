@@ -4,6 +4,13 @@ import Asset, { AssetType } from '@/lib/models/Asset';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import {
+  assertCanLinkAsset,
+  buildAssetAccessScope,
+  canAccessAsset,
+  getAssetSessionContext,
+} from '@/lib/assets/assetAccess';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -13,29 +20,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     const { id } = await params;
 
-    // Validate ObjectId format
     if (!isValidObjectId(id)) {
       return NextResponse.json({ error: 'Invalid asset ID' }, { status: 400 });
     }
 
-    // Get user's organizationId
+    const ctx = await getAssetSessionContext(session.userId);
+    if (ctx instanceof NextResponse) return ctx;
+
     const user = await User.findById(session.userId);
     if (!user || !user.organizationId) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
-    // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
-    const asset = await Asset.findOne({ _id: id, userId: { $in: orgUserIds } });
+    const asset = await Asset.findOne({ _id: id, userId: { $in: orgUserIds } }).lean();
     if (!asset) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
+    if (!ctx.isManagerOrAdmin) {
+      const scope = await buildAssetAccessScope(ctx);
+      if (!canAccessAsset(ctx, asset, scope)) {
+        return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+      }
+    }
+
     return NextResponse.json(asset);
   } catch (error) {
-    // Get asset error
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -78,13 +90,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
-    // Find all users in the same organization
-    const orgUsers = await User.find({ organizationId: user.organizationId });
-    const orgUserIds = orgUsers.map(u => u._id);
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
+
+    const ctx = await getAssetSessionContext(session.userId);
+    if (ctx instanceof NextResponse) return ctx;
 
     const asset = await Asset.findOne({ _id: id, userId: { $in: orgUserIds } });
     if (!asset) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+
+    if (!ctx.isManagerOrAdmin) {
+      const scope = await buildAssetAccessScope(ctx);
+      if (!canAccessAsset(ctx, asset.toObject(), scope)) {
+        return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+      }
     }
 
     // Sanitize string inputs
@@ -124,6 +144,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       asset.linkedContentItemId = linkedContentItemId === null || linkedContentItemId === '' ? undefined : linkedContentItemId;
     }
     if (clientAccessible !== undefined) asset.clientAccessible = !!clientAccessible;
+
+    if (!ctx.isManagerOrAdmin) {
+      const scope = await buildAssetAccessScope(ctx);
+      const linkDenied = await assertCanLinkAsset(
+        ctx,
+        {
+          linkedProjectId: asset.linkedProjectId,
+          linkedProjectTaskId: asset.linkedProjectTaskId,
+          linkedProjectTaskIndex: asset.linkedProjectTaskIndex,
+          linkedContentItemId: asset.linkedContentItemId,
+        },
+        scope
+      );
+      if (linkDenied) return linkDenied;
+    }
 
     await asset.save();
 

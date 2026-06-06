@@ -3,6 +3,11 @@ import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import { requireAuth } from '@/lib/auth/middleware';
 import { sanitizeString, isValidObjectId, validateImageFile } from '@/lib/utils/security';
+import {
+  assertCanLinkAsset,
+  buildAssetAccessScope,
+  getAssetSessionContext,
+} from '@/lib/assets/assetAccess';
 
 // Dynamic import for sharp (optional - will fallback if not installed)
 let sharp: any = null;
@@ -87,6 +92,22 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
+
+    const ctx = await getAssetSessionContext(session.userId);
+    if (ctx instanceof NextResponse) return ctx;
+
+    const scope = ctx.isManagerOrAdmin ? null : await buildAssetAccessScope(ctx);
+    const linkDenied = await assertCanLinkAsset(
+      ctx,
+      {
+        linkedProjectId: linkedProjectId || undefined,
+        linkedProjectTaskId: linkedTaskId,
+        linkedProjectTaskIndex: taskIndex,
+        linkedContentItemId: linkedContentItemId || undefined,
+      },
+      scope ?? undefined
+    );
+    if (linkDenied) return linkDenied;
 
     // Process image files (screenshots) with compression
     let fileUrl: string;

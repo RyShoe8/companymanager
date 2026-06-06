@@ -3,6 +3,12 @@ import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import {
+  applyAssetAccessFilter,
+  assertCanLinkAsset,
+  buildAssetAccessScope,
+  getAssetSessionContext,
+} from '@/lib/assets/assetAccess';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,15 +17,17 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    // Get user's organizationId
+    const ctx = await getAssetSessionContext(session.userId);
+    if (ctx instanceof NextResponse) return ctx;
+
     const User = (await import('@/lib/models/User')).default;
     const user = await User.findById(session.userId);
     if (!user || !user.organizationId) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
-    // Find all users in the same organization
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
+    const scope = ctx.isManagerOrAdmin ? null : await buildAssetAccessScope(ctx);
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
@@ -29,7 +37,7 @@ export async function GET(request: NextRequest) {
     const linkedProjectTaskId = searchParams.get('linkedProjectTaskId');
     const linkedContentItemId = searchParams.get('linkedContentItemId');
 
-    const query: any = { userId: { $in: orgUserIds } };
+    const query: Record<string, unknown> = { userId: { $in: orgUserIds } };
     if (type) {
       query.type = type;
     }
@@ -54,7 +62,10 @@ export async function GET(request: NextRequest) {
       query.linkedContentItemId = linkedContentItemId;
     }
 
-    const assets = await Asset.find(query).sort({ createdAt: -1 }).lean();
+    const filteredQuery =
+      scope != null ? applyAssetAccessFilter(query, ctx, scope) : query;
+
+    const assets = await Asset.find(filteredQuery).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json(assets);
   } catch (error) {
@@ -77,8 +88,23 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Prefer stable taskId; do not set taskIndex when taskId is provided
-    const assetData: any = {
+    const ctx = await getAssetSessionContext(session.userId);
+    if (ctx instanceof NextResponse) return ctx;
+
+    const scope = ctx.isManagerOrAdmin ? null : await buildAssetAccessScope(ctx);
+    const linkDenied = await assertCanLinkAsset(
+      ctx,
+      {
+        linkedProjectId,
+        linkedProjectTaskId,
+        linkedProjectTaskIndex,
+        linkedContentItemId,
+      },
+      scope ?? undefined
+    );
+    if (linkDenied) return linkDenied;
+
+    const assetData: Record<string, unknown> = {
       name,
       type,
       url,

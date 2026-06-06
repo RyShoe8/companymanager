@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { IComment } from '@/lib/models/Comment';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -51,6 +51,16 @@ export default function CommentThread({
   const [loading, setLoading] = useState(true);
   const [fetchedUserId, setFetchedUserId] = useState<string | undefined>();
   const currentUserId = currentUserIdProp ?? fetchedUserId;
+  const onMetaChangeRef = useRef(onMetaChange);
+  const lastReportedMetaRef = useRef<{ count: number; latestActivityMs: number } | null>(null);
+
+  useEffect(() => {
+    onMetaChangeRef.current = onMetaChange;
+  }, [onMetaChange]);
+
+  useEffect(() => {
+    lastReportedMetaRef.current = null;
+  }, [entityType, entityId, taskIndex, taskId]);
 
   useEffect(() => {
     if (currentUserIdProp == null) {
@@ -76,15 +86,25 @@ export default function CommentThread({
       const response = await fetch(`/api/comments?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setComments(data);
-        onMetaChange?.(getCommentTreeMeta(data));
+        const serialized = JSON.stringify(data);
+        setComments((prev) => (JSON.stringify(prev) === serialized ? prev : data));
+        const meta = getCommentTreeMeta(data);
+        const last = lastReportedMetaRef.current;
+        if (
+          !last ||
+          last.count !== meta.count ||
+          last.latestActivityMs !== meta.latestActivityMs
+        ) {
+          lastReportedMetaRef.current = meta;
+          onMetaChangeRef.current?.(meta);
+        }
       }
     } catch {
       // Error loading comments
     } finally {
       setLoading(false);
     }
-  }, [entityType, entityId, taskIndex, taskId, onMetaChange]);
+  }, [entityType, entityId, taskIndex, taskId]);
 
   useEffect(() => {
     loadComments();

@@ -614,10 +614,20 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         (localProject.tasks?.[taskIdx] as { _id?: { toString: () => string } })?._id?.toString(),
         taskIdx
       );
-      setCommentSummaries((prev) => ({
-        ...prev,
-        tasks: { ...prev.tasks, [key]: meta },
-      }));
+      setCommentSummaries((prev) => {
+        const existing = prev.tasks[key];
+        if (
+          existing &&
+          existing.count === meta.count &&
+          existing.latestActivityMs === meta.latestActivityMs
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          tasks: { ...prev.tasks, [key]: meta },
+        };
+      });
       if (expandedTaskComments.has(taskIdx) && currentUserId && meta.latestActivityMs > 0) {
         const threadKey = buildCommentThreadKey(
           currentUserId,
@@ -633,10 +643,20 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   const handleContentCommentMetaChange = useCallback(
     (contentItemId: string, meta: CommentSummary) => {
-      setCommentSummaries((prev) => ({
-        ...prev,
-        contentItems: { ...prev.contentItems, [contentItemId]: meta },
-      }));
+      setCommentSummaries((prev) => {
+        const existing = prev.contentItems[contentItemId];
+        if (
+          existing &&
+          existing.count === meta.count &&
+          existing.latestActivityMs === meta.latestActivityMs
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          contentItems: { ...prev.contentItems, [contentItemId]: meta },
+        };
+      });
       if (expandedContentComments.has(contentItemId) && currentUserId && meta.latestActivityMs > 0) {
         const threadKey = buildCommentThreadKey(currentUserId, 'contentItem', contentItemId);
         setCommentLastSeenMs(threadKey, meta.latestActivityMs);
