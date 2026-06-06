@@ -52,6 +52,9 @@ function taskOverlapsWeek(
 const RANGE_ITEM_ROW_HEIGHT = 140;
 const UNSEEN_COLLAPSED_ROW_HEIGHT = 28;
 const UNSEEN_SECTION_PADDING = 12;
+const WEEKLY_EXPANDED_LIST_MAX_HEIGHT = 360;
+const WEEKLY_HEADER_HEIGHT = 72;
+const WEEKLY_BOTTOM_PADDING = 24;
 const MONTHLY_EXPANDED_LIST_MAX_HEIGHT = 400;
 
 function projectOverlapsDateRange(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
@@ -511,7 +514,7 @@ export default function CalendarView({
                   e.stopPropagation();
                   if (tIdx >= 0) onTaskClick?.(project, tIdx);
                 }}
-                className={`text-sm text-left w-full min-w-0 break-words hover:underline ${item.task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                className={`text-sm text-left w-full min-w-0 truncate hover:underline ${item.task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                 title={item.task.name}
               >
                 {renderSeenTag(taskSeenStatus(project, item.task))}
@@ -527,7 +530,8 @@ export default function CalendarView({
                 e.stopPropagation();
                 onContentItemClick?.(item.content);
               }}
-              className={`text-sm text-left w-full min-w-0 break-words hover:underline ${item.content.status === 'published' ? 'opacity-60' : ''}`}
+              className={`text-sm text-left w-full min-w-0 truncate hover:underline ${item.content.status === 'published' ? 'opacity-60' : ''}`}
+              title={item.content.title}
             >
               <span className="mr-1" aria-hidden>
                 📝
@@ -561,11 +565,11 @@ export default function CalendarView({
                   e.stopPropagation();
                   if (tIdx >= 0) onTaskClick?.(project, tIdx);
                 }}
-                className="w-full min-w-0 text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
-                style={{ minHeight: RANGE_ITEM_ROW_HEIGHT }}
+                className="w-full min-w-0 text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer overflow-hidden"
+                style={{ height: RANGE_ITEM_ROW_HEIGHT }}
               >
                 <div
-                  className={`font-medium text-text-primary break-words ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                  className={`font-medium text-text-primary line-clamp-2 ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                   title={task.name}
                 >
                   {renderSeenTag(taskSeenStatus(project, task))}
@@ -590,8 +594,8 @@ export default function CalendarView({
           return (
             <div
               key={c._id.toString()}
-              className={`p-3 rounded border border-dashed border-border bg-background-card ${c.status === 'published' ? 'opacity-60' : ''}`}
-              style={{ minHeight: RANGE_ITEM_ROW_HEIGHT }}
+              className={`p-3 rounded border border-dashed border-border bg-background-card overflow-hidden ${c.status === 'published' ? 'opacity-60' : ''}`}
+              style={{ height: RANGE_ITEM_ROW_HEIGHT }}
             >
               <button
                 type="button"
@@ -599,13 +603,14 @@ export default function CalendarView({
                   e.stopPropagation();
                   onContentItemClick?.(c);
                 }}
-                className="text-left w-full"
+                className="text-left w-full h-full"
               >
                 <span className="mr-2" aria-hidden>
                   📝
                 </span>
                 <span
-                  className={`font-medium text-text-primary break-words ${c.status === 'published' ? 'line-through' : ''}`}
+                  className={`font-medium text-text-primary line-clamp-2 ${c.status === 'published' ? 'line-through' : ''}`}
+                  title={c.title}
                 >
                   {renderSeenTag(contentSeenStatus(project, c))}
                   {c.title}
@@ -1192,9 +1197,6 @@ export default function CalendarView({
                   const projectId = pos.project!._id.toString();
                   const isExpanded = expandedProjects.has(projectId);
 
-                  const topPadding = 16; // py-4 top padding
-                  const headerHeight = 42; // Single-row title + status + inline summary
-                  const bottomPadding = 16; // py-4 bottom padding
                   const weekStart = new Date(days[0]);
                   weekStart.setHours(0, 0, 0, 0);
                   const weekEnd = new Date(days[6]);
@@ -1208,28 +1210,29 @@ export default function CalendarView({
 
                   if (!isExpanded) {
                     return (
-                      topPadding +
-                      headerHeight +
+                      WEEKLY_HEADER_HEIGHT +
                       collapsedUnseenRowsHeight(unseenCount) +
-                      bottomPadding
+                      16
                     );
                   }
 
                   // Expanded height calculation must match rendered weekly content.
                   const displayedCount = rangeDisplayList.length;
-                  const descriptionHeight = project.description ? 40 : 0; // project description block
+                  const descriptionHeight = project.description ? 40 : 0;
                   const tasksSectionPadding = 16; // mt-4
                   const tasksHeaderHeight = 24; // label + margin
                   const taskGapHeight = displayedCount > 0 ? (displayedCount - 1) * 8 : 0; // space-y-2
+                  const listHeight = Math.min(
+                    displayedCount * RANGE_ITEM_ROW_HEIGHT + taskGapHeight,
+                    WEEKLY_EXPANDED_LIST_MAX_HEIGHT
+                  );
                   return (
-                    topPadding +
-                    headerHeight +
+                    WEEKLY_HEADER_HEIGHT +
                     descriptionHeight +
                     tasksSectionPadding +
                     tasksHeaderHeight +
-                    displayedCount * RANGE_ITEM_ROW_HEIGHT +
-                    taskGapHeight +
-                    bottomPadding
+                    listHeight +
+                    WEEKLY_BOTTOM_PADDING
                   );
                 });
 
@@ -1423,7 +1426,10 @@ export default function CalendarView({
                                 <p className="text-sm font-semibold text-text-primary mb-2 shrink-0">
                                   {hasTasks ? 'Tasks:' : 'Tasks & Content:'}
                                 </p>
-                                <div className="flex-1 min-h-0 overflow-y-auto">
+                                <div
+                                  className="overflow-y-auto"
+                                  style={{ maxHeight: WEEKLY_EXPANDED_LIST_MAX_HEIGHT }}
+                                >
                                   {renderExpandedRangeItems(
                                     project,
                                     weekSummary.displayList,
