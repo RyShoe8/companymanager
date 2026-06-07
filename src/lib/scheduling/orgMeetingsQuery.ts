@@ -4,6 +4,8 @@ import User from '@/lib/models/User';
 import { meetingPassesAssignmentFilter as meetingPassesAssignmentFilterShared } from '@/lib/scheduling/meetingHours';
 import { Types } from 'mongoose';
 
+import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
+
 export type OrgMeetingRecord = {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
@@ -17,7 +19,9 @@ export type OrgMeetingRecord = {
   agendaToken: string;
   linkedProjectIds?: Types.ObjectId[];
   attendeeEmployeeIds?: Types.ObjectId[];
-  externalAttendeeEmails?: string[];
+  joinUrl?: string;
+  joinPlatform?: MeetingJoinPlatform;
+  createdInNucleas?: boolean;
 };
 
 export type OrgMeetingsViewer = {

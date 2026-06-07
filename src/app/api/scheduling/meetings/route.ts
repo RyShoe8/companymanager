@@ -35,6 +35,7 @@ import {
 import { resolveMeetingInvitees } from '@/lib/scheduling/meetingAttendees';
 import { getOrgMeetingsViewer, listOrgMeetingsInRange } from '@/lib/scheduling/orgMeetingsQuery';
 import { upsertMeetingSeriesSettings } from '@/lib/scheduling/seriesProjectLinks';
+import { normalizeVideoConferenceInput } from '@/lib/scheduling/meetingVideoConference';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -109,6 +110,8 @@ export async function POST(request: NextRequest) {
       attendeeEmployeeIds,
       externalAttendeeEmails,
       timeZone: bodyTimeZone,
+      videoMode,
+      joinUrl: bodyJoinUrl,
     } = body;
     if (!title || !start || !end) {
       return NextResponse.json({ error: 'title, start, and end are required' }, { status: 400 });
@@ -169,6 +172,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const videoNormalized = normalizeVideoConferenceInput(videoMode ?? 'none', bodyJoinUrl);
+    if (!videoNormalized.ok) {
+      return NextResponse.json({ error: videoNormalized.error }, { status: 400 });
+    }
+    const video = videoNormalized.value;
+    if (video.videoMode === 'google_meet' && syncToGoogle === false) {
+      return NextResponse.json(
+        { error: 'Google Meet links require Google Calendar sync.' },
+        { status: 400 }
+      );
+    }
+
     const orgUserIds = await getOrganizationUserIds(session.userId, ctx.organizationId);
     const projects = await Project.find({
       _id: { $in: projectIds },
@@ -201,6 +216,8 @@ export async function POST(request: NextRequest) {
       start: startDate.toISOString(),
       end: endDate.toISOString(),
       timeZone: schedulingTimeZone,
+      addGoogleMeet: video.videoMode === 'google_meet',
+      ...(video.videoMode === 'manual' && video.joinUrl ? { location: video.joinUrl } : {}),
       ...(hasInvitees
         ? { attendees: invitees.googleAttendees, sendUpdates: 'all' as const }
         : {}),
@@ -319,6 +336,9 @@ export async function POST(request: NextRequest) {
         if (join) {
           joinUrl = join.joinUrl;
           joinPlatform = join.joinPlatform;
+        } else if (video.videoMode === 'manual' && video.joinUrl) {
+          joinUrl = video.joinUrl;
+          joinPlatform = video.joinPlatform;
         }
 
         if (hasInvitees) {
@@ -356,7 +376,9 @@ export async function POST(request: NextRequest) {
       externalAttendeeEmails: invitees.externalAttendeeEmails,
       createdInNucleas: true,
       description: description || undefined,
-      ...(joinUrl ? { joinUrl, joinPlatform } : {}),
+      ...(joinUrl ? { joinUrl, joinPlatform } : video.videoMode === 'manual' && video.joinUrl
+        ? { joinUrl: video.joinUrl, joinPlatform: video.joinPlatform }
+        : {}),
     });
 
     return NextResponse.json(

@@ -128,6 +128,7 @@ export async function GET(
         joinUrl: meeting.joinUrl,
         joinPlatform: meeting.joinPlatform,
       },
+      canManage: meeting.userId?.toString() === session.userId,
       agenda: payload,
       detail,
     });

@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
+import {
+  openMeetingPopout,
+  MEETING_POPUP_BLOCKED_MESSAGE,
+} from '@/lib/scheduling/openMeetingPopout';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IEmployee } from '@/lib/models/Employee';
@@ -195,6 +198,7 @@ export default function AgendaView({
 }: AgendaViewProps) {
     const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
     const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
+    const [popoutMessage, setPopoutMessage] = useState<string | null>(null);
 
     const assignmentFilterOpts = useMemo(
         () => ({
@@ -559,6 +563,19 @@ export default function AgendaView({
 
     return (
         <div className="space-y-4">
+            {popoutMessage && (
+                <div className="rounded-lg border border-border bg-background-card px-4 py-2 text-sm text-text-primary flex items-center justify-between gap-2">
+                    <span>{popoutMessage}</span>
+                    <button
+                        type="button"
+                        className="text-text-muted hover:text-text-primary text-xs shrink-0"
+                        onClick={() => setPopoutMessage(null)}
+                        aria-label="Dismiss message"
+                    >
+                        Dismiss
+                    </button>
+                </div>
+            )}
             {periodHeader}
             {undatedSection}
             <div className="space-y-6">
@@ -625,7 +642,12 @@ export default function AgendaView({
                                             size="sm"
                                             variant="secondary"
                                             className="shrink-0"
-                                            onClick={() => openMeetingPopout(meeting.agendaToken)}
+                                            onClick={() => {
+                                                const result = openMeetingPopout(meeting.agendaToken);
+                                                if (result.blocked) {
+                                                    setPopoutMessage(MEETING_POPUP_BLOCKED_MESSAGE);
+                                                }
+                                            }}
                                         >
                                             Open Meeting
                                         </Button>

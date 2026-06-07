@@ -1297,6 +1297,7 @@ export default function WorkspaceShell({
                                             projects={ws.allProjects}
                                             employees={ws.employees}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
+                                            currentUserId={ws.currentUserId}
                                             meetings={workspaceMeetings}
                                             loadingMeetings={loadingMeetings}
                                             meetingRefreshKey={meetingRefreshKey}

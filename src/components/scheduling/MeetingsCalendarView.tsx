@@ -16,6 +16,7 @@ import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
 function toMeetingRow(meeting: IMeeting): MeetingRow {
   return {
     _id: meeting._id.toString(),
+    userId: meeting.userId?.toString(),
     title: meeting.title,
     start: new Date(meeting.start).toISOString(),
     end: new Date(meeting.end).toISOString(),
@@ -24,6 +25,8 @@ function toMeetingRow(meeting: IMeeting): MeetingRow {
     attendeeEmployeeIds: meeting.attendeeEmployeeIds?.map((id) => id.toString()),
     externalAttendeeEmails: meeting.externalAttendeeEmails,
     googleRecurringEventId: meeting.googleRecurringEventId,
+    joinUrl: meeting.joinUrl,
+    joinPlatform: meeting.joinPlatform,
   };
 }
 
@@ -70,6 +73,10 @@ interface MeetingsCalendarViewProps {
   onStartEdit: (meetingId: string, linkedProjectIds: string[]) => void;
   onSaveLinks: (meetingId: string) => void;
   onNewMeeting: () => void;
+  currentUserId?: string | null;
+  onEditMeeting?: (meeting: MeetingRow) => void;
+  onDeleteMeeting?: (meeting: MeetingRow) => void;
+  onPopoutBlocked?: () => void;
 }
 
 export default function MeetingsCalendarView({
@@ -85,6 +92,10 @@ export default function MeetingsCalendarView({
   onStartEdit,
   onSaveLinks,
   onNewMeeting,
+  currentUserId,
+  onEditMeeting,
+  onDeleteMeeting,
+  onPopoutBlocked,
 }: MeetingsCalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
 
@@ -129,11 +140,15 @@ export default function MeetingsCalendarView({
               meeting={row}
               employees={employees}
               projects={projects}
+              currentUserId={currentUserId}
               isEditing={editingId === row._id}
               editProjectIds={editProjectIds}
               onToggleProject={onToggleProject}
               onStartEdit={() => onStartEdit(row._id, row.linkedProjectIds || [])}
               onSaveLinks={() => onSaveLinks(row._id)}
+              onEditMeeting={onEditMeeting ? () => onEditMeeting(row) : undefined}
+              onDeleteMeeting={onDeleteMeeting ? () => onDeleteMeeting(row) : undefined}
+              onPopoutBlocked={onPopoutBlocked}
               variant={variant}
             />
           );

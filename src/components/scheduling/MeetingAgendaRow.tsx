@@ -1,12 +1,17 @@
 'use client';
 
 import Button from '@/components/ui/Button';
-import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
+import {
+  openMeetingPopout,
+  MEETING_POPUP_BLOCKED_MESSAGE,
+} from '@/lib/scheduling/openMeetingPopout';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
+import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 
 export type MeetingRow = {
   _id: string;
+  userId?: string;
   title: string;
   start: string;
   end: string;
@@ -15,6 +20,8 @@ export type MeetingRow = {
   attendeeEmployeeIds?: string[];
   externalAttendeeEmails?: string[];
   googleRecurringEventId?: string;
+  joinUrl?: string;
+  joinPlatform?: MeetingJoinPlatform;
 };
 
 function formatMeetingInvitees(m: MeetingRow, employees: IEmployee[]): string | null {
@@ -42,11 +49,15 @@ interface MeetingAgendaRowProps {
   meeting: MeetingRow;
   employees: IEmployee[];
   projects: IProject[];
+  currentUserId?: string | null;
   isEditing: boolean;
   editProjectIds: string[];
   onToggleProject: (id: string) => void;
   onStartEdit: () => void;
   onSaveLinks: () => void;
+  onEditMeeting?: () => void;
+  onDeleteMeeting?: () => void;
+  onPopoutBlocked?: () => void;
   variant?: 'default' | 'weekColumn';
 }
 
@@ -54,11 +65,15 @@ export default function MeetingAgendaRow({
   meeting,
   employees,
   projects,
+  currentUserId,
   isEditing,
   editProjectIds,
   onToggleProject,
   onStartEdit,
   onSaveLinks,
+  onEditMeeting,
+  onDeleteMeeting,
+  onPopoutBlocked,
   variant = 'default',
 }: MeetingAgendaRowProps) {
   const start = new Date(meeting.start);
@@ -66,6 +81,61 @@ export default function MeetingAgendaRow({
   const inviteeLine = formatMeetingInvitees(meeting, employees);
   const linkedCount = meeting.linkedProjectIds?.length || 0;
   const timeRange = formatMeetingTimeRange(start, end);
+  const canManage = !!currentUserId && meeting.userId === currentUserId;
+
+  const handleOpenMeeting = () => {
+    const result = openMeetingPopout(meeting.agendaToken);
+    if (result.blocked) {
+      onPopoutBlocked?.();
+    }
+  };
+
+  const actionButtons = (
+    <>
+      {meeting.agendaToken && (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className={variant === 'weekColumn' ? 'w-full justify-center text-xs' : undefined}
+          onClick={handleOpenMeeting}
+        >
+          Open Meeting
+        </Button>
+      )}
+      {canManage && onEditMeeting && (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className={variant === 'weekColumn' ? 'w-full justify-center text-xs' : undefined}
+          onClick={onEditMeeting}
+        >
+          Edit
+        </Button>
+      )}
+      {canManage && onDeleteMeeting && (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className={variant === 'weekColumn' ? 'w-full justify-center text-xs' : undefined}
+          onClick={onDeleteMeeting}
+        >
+          Delete
+        </Button>
+      )}
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className={variant === 'weekColumn' ? 'w-full justify-center text-xs' : undefined}
+        onClick={onStartEdit}
+      >
+        Link projects
+      </Button>
+    </>
+  );
 
   if (variant === 'weekColumn') {
     const metaLine = [inviteeLine, linkedCount > 0 && !isEditing ? `${linkedCount} linked` : null]
@@ -75,67 +145,46 @@ export default function MeetingAgendaRow({
     return (
       <div className="rounded-lg border border-border bg-background-card shadow-sm overflow-hidden min-w-0">
         <div className="p-3 text-sm min-w-0">
-        <p className="text-xs font-medium text-text-primary truncate" title={timeRange}>
-          {timeRange}
-        </p>
-        <p className="font-medium text-text-primary truncate mt-0.5" title={meeting.title}>
-          {meeting.title}
-        </p>
-        {meeting.googleRecurringEventId && (
-          <span className="inline-block mt-0.5 text-[10px] text-text-muted border border-border rounded px-1 py-px">
-            Recurring
-          </span>
-        )}
-        {metaLine ? (
-          <p className="text-[11px] text-text-muted truncate mt-0.5" title={metaLine}>
-            {metaLine}
+          <p className="text-xs font-medium text-text-primary truncate" title={timeRange}>
+            {timeRange}
           </p>
-        ) : null}
-        <div className="flex flex-col gap-1 mt-1.5 w-full min-w-0">
-          {meeting.agendaToken && (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="w-full justify-center text-xs"
-              onClick={() => openMeetingPopout(meeting.agendaToken)}
-            >
-              Open Meeting
-            </Button>
+          <p className="font-medium text-text-primary truncate mt-0.5" title={meeting.title}>
+            {meeting.title}
+          </p>
+          {meeting.googleRecurringEventId && (
+            <span className="inline-block mt-0.5 text-[10px] text-text-muted border border-border rounded px-1 py-px">
+              Recurring
+            </span>
           )}
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={onStartEdit}
-            className="w-full justify-center text-xs"
-          >
-            Link projects
-          </Button>
-        </div>
-        {isEditing && (
-          <div className="mt-2 pt-2 border-t border-border">
-            <div className="flex flex-col gap-1.5 mb-2 max-h-28 overflow-y-auto">
-              {projects.map((p) => (
-                <label
-                  key={p._id.toString()}
-                  className="flex items-center gap-1 text-xs text-text-secondary cursor-pointer min-w-0"
-                >
-                  <input
-                    type="checkbox"
-                    checked={editProjectIds.includes(p._id.toString())}
-                    onChange={() => onToggleProject(p._id.toString())}
-                    className="rounded border-border shrink-0"
-                  />
-                  <span className="truncate">{p.name}</span>
-                </label>
-              ))}
+          {metaLine ? (
+            <p className="text-[11px] text-text-muted truncate mt-0.5" title={metaLine}>
+              {metaLine}
+            </p>
+          ) : null}
+          <div className="flex flex-col gap-1 mt-1.5 w-full min-w-0">{actionButtons}</div>
+          {isEditing && (
+            <div className="mt-2 pt-2 border-t border-border">
+              <div className="flex flex-col gap-1.5 mb-2 max-h-28 overflow-y-auto">
+                {projects.map((p) => (
+                  <label
+                    key={p._id.toString()}
+                    className="flex items-center gap-1 text-xs text-text-secondary cursor-pointer min-w-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editProjectIds.includes(p._id.toString())}
+                      onChange={() => onToggleProject(p._id.toString())}
+                      className="rounded border-border shrink-0"
+                    />
+                    <span className="truncate">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+              <Button type="button" size="sm" onClick={onSaveLinks} className="w-full justify-center">
+                Save links
+              </Button>
             </div>
-            <Button type="button" size="sm" onClick={onSaveLinks} className="w-full justify-center">
-              Save links
-            </Button>
-          </div>
-        )}
+          )}
         </div>
       </div>
     );
@@ -171,21 +220,7 @@ export default function MeetingAgendaRow({
             </p>
           )}
         </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
-          {meeting.agendaToken && (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => openMeetingPopout(meeting.agendaToken)}
-            >
-              Open Meeting
-            </Button>
-          )}
-          <Button type="button" size="sm" variant="secondary" onClick={onStartEdit}>
-            Link projects
-          </Button>
-        </div>
+        <div className="flex flex-wrap gap-2 shrink-0">{actionButtons}</div>
       </div>
       {isEditing && (
         <div className="mt-3 pt-3 border-t border-border ml-9">
@@ -213,3 +248,5 @@ export default function MeetingAgendaRow({
     </div>
   );
 }
+
+export { MEETING_POPUP_BLOCKED_MESSAGE };

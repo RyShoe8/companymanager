@@ -5,13 +5,20 @@ import type { IMeeting } from '@/lib/models/Meeting';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import CreateMeetingModal, { type MeetingCreateSuccessInfo } from '@/components/scheduling/CreateMeetingModal';
+import MeetingFormModal, { type MeetingFormMeeting } from '@/components/scheduling/MeetingFormModal';
 import MeetingsCalendarView from '@/components/scheduling/MeetingsCalendarView';
+import type { MeetingRow } from '@/components/scheduling/MeetingAgendaRow';
+import { MEETING_POPUP_BLOCKED_MESSAGE } from '@/lib/scheduling/openMeetingPopout';
+import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
+import type { MeetingUpdateScope } from '@/components/scheduling/MeetingFormModal';
 
 interface SchedulingPanelProps {
   projects: IProject[];
   employees?: IEmployee[];
   currentUserEmployeeId?: string | null;
+  currentUserId?: string | null;
   meetings: IMeeting[];
   loadingMeetings?: boolean;
   meetingRefreshKey?: number;
@@ -25,10 +32,26 @@ interface SchedulingPanelProps {
   onSetMessage?: (message: string) => void;
 }
 
+function meetingRowToFormMeeting(row: MeetingRow): MeetingFormMeeting {
+  return {
+    _id: row._id,
+    title: row.title,
+    start: row.start,
+    end: row.end,
+    linkedProjectIds: row.linkedProjectIds,
+    attendeeEmployeeIds: row.attendeeEmployeeIds,
+    externalAttendeeEmails: row.externalAttendeeEmails,
+    googleRecurringEventId: row.googleRecurringEventId,
+    joinUrl: row.joinUrl,
+    joinPlatform: row.joinPlatform,
+  };
+}
+
 export default function SchedulingPanel({
   projects,
   employees = [],
   currentUserEmployeeId,
+  currentUserId,
   meetings,
   loadingMeetings = false,
   meetingRefreshKey = 0,
@@ -43,21 +66,28 @@ export default function SchedulingPanel({
 }: SchedulingPanelProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState<MeetingFormMeeting | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MeetingRow | null>(null);
+  const [deleteScope, setDeleteScope] = useState<MeetingUpdateScope>('instance');
+  const [deleting, setDeleting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editProjectIds, setEditProjectIds] = useState<string[]>([]);
 
   const displayMessage = externalMessage ?? message;
 
+  const setPanelMessage = (msg: string | null) => {
+    setMessage(msg);
+    if (msg) onSetMessage?.(msg);
+  };
+
   useEffect(() => {
     if (meetingRefreshKey > 0) {
-      const msg = 'Meeting created.';
-      setMessage(msg);
-      onSetMessage?.(msg);
+      setPanelMessage('Meeting created.');
     }
   }, [meetingRefreshKey, onSetMessage]);
 
   const handleSaveMeetingProjects = async (meetingId: string) => {
-    const editingMeeting = meetings.find((m) => m._id.toString() === meetingId);
+    const editingMeetingRow = meetings.find((m) => m._id.toString() === meetingId);
     const res = await fetch(`/api/scheduling/meetings/${meetingId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -72,19 +102,16 @@ export default function SchedulingPanel({
       const calendars =
         typeof data.calendarsPatchedCount === 'number' ? data.calendarsPatchedCount : 0;
       let msg = 'Meeting projects updated.';
-      if (editingMeeting?.googleRecurringEventId && participants > 1) {
+      if (editingMeetingRow?.googleRecurringEventId && participants > 1) {
         msg = `Projects linked across ${participants} meeting records${calendars > 0 ? `; ${calendars} Google Calendar${calendars === 1 ? '' : 's'} updated with agenda` : ''}.`;
       } else if (participants > 1) {
         msg = `Projects linked for ${participants} team members${calendars > 0 ? `; ${calendars} calendar${calendars === 1 ? '' : 's'} updated` : ' in Nucleas'}.`;
       } else if (calendars > 0) {
         msg = 'Meeting projects updated; agenda refreshed in your Google Calendar.';
       }
-      setMessage(msg);
-      onSetMessage?.(msg);
+      setPanelMessage(msg);
     } else {
-      const err = data.error || 'Failed to update meeting.';
-      setMessage(err);
-      onSetMessage?.(err);
+      setPanelMessage(data.error || 'Failed to update meeting.');
     }
   };
 
@@ -103,8 +130,42 @@ export default function SchedulingPanel({
     if (info?.skippedAttendees?.length) {
       msg += ` ${info.skippedAttendees.length} could not be invited (missing email).`;
     }
-    setMessage(msg);
-    onSetMessage?.(msg);
+    setPanelMessage(msg);
+  };
+
+  const handleMeetingUpdated = () => {
+    onRefreshMeetings();
+    setPanelMessage('Meeting updated.');
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const params = deleteTarget.googleRecurringEventId
+        ? `?scope=${deleteScope}`
+        : '';
+      const res = await fetch(`/api/scheduling/meetings/${deleteTarget._id}${params}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setDeleteTarget(null);
+        onRefreshMeetings();
+        const count = typeof data.deletedCount === 'number' ? data.deletedCount : 1;
+        setPanelMessage(
+          deleteScope === 'series' && count > 1
+            ? `Deleted ${count} meetings in the series.`
+            : 'Meeting deleted.'
+        );
+      } else {
+        setPanelMessage(typeof data.error === 'string' ? data.error : 'Failed to delete meeting.');
+      }
+    } catch {
+      setPanelMessage('Failed to delete meeting.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (loadingMeetings) {
@@ -140,6 +201,66 @@ export default function SchedulingPanel({
         onSuccess={handleMeetingCreated}
       />
 
+      <MeetingFormModal
+        mode="edit"
+        isOpen={!!editingMeeting}
+        onClose={() => setEditingMeeting(null)}
+        meeting={editingMeeting}
+        projects={projects}
+        employees={employees}
+        currentUserEmployeeId={currentUserEmployeeId}
+        schedulingTimeZone={schedulingTimeZone}
+        onSuccess={handleMeetingUpdated}
+      />
+
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        title="Delete meeting"
+        maxWidth="sm"
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-text-secondary">
+            Delete &ldquo;{deleteTarget?.title}&rdquo;? This cannot be undone.
+          </p>
+          {deleteTarget?.googleRecurringEventId && (
+            <div className="space-y-2 rounded-lg border border-border p-3 bg-background-card">
+              <label className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+                <input
+                  type="radio"
+                  name="deleteScope"
+                  checked={deleteScope === 'instance'}
+                  onChange={() => setDeleteScope('instance')}
+                />
+                This occurrence only
+              </label>
+              <label className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+                <input
+                  type="radio"
+                  name="deleteScope"
+                  checked={deleteScope === 'series'}
+                  onChange={() => setDeleteScope('series')}
+                />
+                Entire series
+              </label>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void handleConfirmDelete()} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <MeetingsCalendarView
         meetings={meetings}
         timeframe={timeframe}
@@ -156,6 +277,13 @@ export default function SchedulingPanel({
         }}
         onSaveLinks={(meetingId) => void handleSaveMeetingProjects(meetingId)}
         onNewMeeting={() => setShowMeetingModal(true)}
+        currentUserId={currentUserId}
+        onEditMeeting={(row) => setEditingMeeting(meetingRowToFormMeeting(row))}
+        onDeleteMeeting={(row) => {
+          setDeleteTarget(row);
+          setDeleteScope('instance');
+        }}
+        onPopoutBlocked={() => setPanelMessage(MEETING_POPUP_BLOCKED_MESSAGE)}
       />
     </div>
   );

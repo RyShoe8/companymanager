@@ -221,6 +221,7 @@ export async function insertCalendarEvent(
   event: {
     summary: string;
     description?: string;
+    location?: string;
     start: string;
     end: string;
     timeZone: string;
@@ -232,7 +233,7 @@ export async function insertCalendarEvent(
 ): Promise<GoogleCalendarEvent> {
   const sendUpdates =
     event.sendUpdates ?? (event.attendees?.length ? 'all' : undefined);
-  const addGoogleMeet = event.addGoogleMeet !== false;
+  const addGoogleMeet = event.addGoogleMeet === true;
 
   const body: Record<string, unknown> = {
     summary: event.summary,
@@ -240,6 +241,9 @@ export async function insertCalendarEvent(
     start: { dateTime: event.start, timeZone: event.timeZone },
     end: { dateTime: event.end, timeZone: event.timeZone },
   };
+  if (event.location) {
+    body.location = event.location;
+  }
   if (event.recurrence?.length) {
     body.recurrence = event.recurrence;
   }
@@ -273,17 +277,92 @@ export async function patchCalendarEventDescription(
   eventId: string,
   description: string
 ): Promise<void> {
-  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
-  const res = await fetch(url, {
+  await updateCalendarEvent(accessToken, calendarId, eventId, { description });
+}
+
+export async function updateCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+  event: {
+    summary?: string;
+    description?: string;
+    location?: string | null;
+    start?: string;
+    end?: string;
+    timeZone?: string;
+    attendees?: { email: string }[];
+    sendUpdates?: 'all' | 'externalOnly' | 'none';
+    addGoogleMeet?: boolean;
+  }
+): Promise<GoogleCalendarEvent> {
+  const body: Record<string, unknown> = {};
+  if (event.summary !== undefined) body.summary = event.summary;
+  if (event.description !== undefined) body.description = event.description;
+  if (event.location !== undefined) body.location = event.location || '';
+  if (event.start && event.timeZone) {
+    body.start = { dateTime: event.start, timeZone: event.timeZone };
+  }
+  if (event.end && event.timeZone) {
+    body.end = { dateTime: event.end, timeZone: event.timeZone };
+  }
+  if (event.attendees !== undefined) {
+    body.attendees = event.attendees;
+  }
+  const addGoogleMeet = event.addGoogleMeet === true;
+  if (addGoogleMeet) {
+    body.conferenceData = { createRequest: buildGoogleMeetCreateRequest() };
+  }
+
+  const url = new URL(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+  );
+  if (event.sendUpdates) {
+    url.searchParams.set('sendUpdates', event.sendUpdates);
+  }
+  if (addGoogleMeet) {
+    url.searchParams.set('conferenceDataVersion', '1');
+  }
+
+  const res = await fetch(url.toString(), {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ description }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error('Failed to update calendar event');
+    const err = await res.text();
+    throw new Error(`Failed to update calendar event: ${err}`);
+  }
+
+  let updated = (await res.json()) as GoogleCalendarEvent;
+  if (addGoogleMeet) {
+    updated = await resolveCalendarEventConference(accessToken, calendarId, updated);
+  }
+  return updated;
+}
+
+export async function deleteCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+  options?: { sendUpdates?: 'all' | 'externalOnly' | 'none' }
+): Promise<void> {
+  const url = new URL(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+  );
+  if (options?.sendUpdates) {
+    url.searchParams.set('sendUpdates', options.sendUpdates);
+  }
+
+  const res = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new Error('Failed to delete calendar event');
   }
 }
 

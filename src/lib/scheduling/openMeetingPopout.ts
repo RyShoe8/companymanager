@@ -1,5 +1,10 @@
 const MEETING_POPOUT_WINDOW_NAME = 'nucleas-meeting';
 
+export type MeetingPopoutResult = {
+  opened: boolean;
+  blocked: boolean;
+};
+
 export function buildMeetingPopoutUrl(agendaToken: string): string {
   const path = `/scheduling/meeting/${encodeURIComponent(agendaToken)}?popout=1`;
   if (typeof window === 'undefined') return path;
@@ -7,11 +12,10 @@ export function buildMeetingPopoutUrl(agendaToken: string): string {
 }
 
 /**
- * Opens meeting detail in a pop-out window. Falls back to same-tab navigation if blocked.
- * @returns true when a popup window was opened
+ * Opens meeting detail in a pop-out window. Never navigates the main window.
  */
-export function openMeetingPopout(agendaToken: string): boolean {
-  if (typeof window === 'undefined') return false;
+export function openMeetingPopout(agendaToken: string): MeetingPopoutResult {
+  if (typeof window === 'undefined') return { opened: false, blocked: false };
 
   const url = buildMeetingPopoutUrl(agendaToken);
   const width = 960;
@@ -36,8 +40,17 @@ export function openMeetingPopout(agendaToken: string): boolean {
 
   const popup = window.open(url, MEETING_POPOUT_WINDOW_NAME, features);
   if (!popup) {
-    window.location.href = url;
-    return false;
+    return { opened: false, blocked: true };
   }
-  return true;
+
+  try {
+    popup.focus();
+  } catch {
+    /* ignore cross-origin focus errors */
+  }
+
+  return { opened: true, blocked: false };
 }
+
+export const MEETING_POPUP_BLOCKED_MESSAGE =
+  'Allow pop-ups for this site to open the meeting window.';
