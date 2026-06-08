@@ -51,6 +51,22 @@ describe('itemSeenState', () => {
     expect(read.isNewByKey[NEW_TASK_KEY]).toBe(false);
   });
 
+  it('keeps new items labeled new when the signature changes during initial editing', () => {
+    observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-existing')]);
+    observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-new-empty', 2_000),
+    ]);
+
+    const edited = observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-new-named', 2_000),
+    ]);
+
+    expect(edited.statusByKey[NEW_TASK_KEY]).toBe('new');
+    expect(edited.isNewByKey[NEW_TASK_KEY]).toBe(true);
+  });
+
   it('marks signature changes as updated', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);

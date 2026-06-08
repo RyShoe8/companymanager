@@ -31,6 +31,7 @@ import {
   getProjectLatestActivityMs,
 } from '@/lib/utils/projectLatestActivity';
 import ActionMenu from '@/components/ui/ActionMenu';
+import ItemSeenTag from '@/components/workspace/ItemSeenTag';
 import {
   buildContentItemKey,
   buildTaskItemKey,
@@ -447,15 +448,6 @@ export default function CalendarView({
     return itemStatusByKey[contentKeyFor(item)] ?? 'none';
   }
 
-  function renderSeenTag(status: ItemSeenStatus) {
-    if (status === 'none') return null;
-    return (
-      <span className="mr-1 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
-        {status === 'new' ? 'New' : 'Updated'}
-      </span>
-    );
-  }
-
   function itemSeenStatus(project: IProject, item: MergedCalendarItem): ItemSeenStatus {
     if (item.type === 'task') return taskSeenStatus(project, item.task);
     return contentSeenStatus(project, item.content);
@@ -497,7 +489,7 @@ export default function CalendarView({
                 className={`text-sm text-left w-full min-w-0 truncate hover:underline ${item.task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                 title={item.task.name}
               >
-                {renderSeenTag(taskSeenStatus(project, item.task))}
+                <ItemSeenTag status={taskSeenStatus(project, item.task)} />
                 {item.task.name}
               </button>
             );
@@ -516,7 +508,7 @@ export default function CalendarView({
               <span className="mr-1" aria-hidden>
                 📝
               </span>
-              {renderSeenTag(contentSeenStatus(project, item.content))}
+              <ItemSeenTag status={contentSeenStatus(project, item.content)} />
               {item.content.title}
             </button>
           );
@@ -552,7 +544,7 @@ export default function CalendarView({
                   className={`font-medium text-text-primary line-clamp-2 ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                   title={task.name}
                 >
-                  {renderSeenTag(taskSeenStatus(project, task))}
+                  <ItemSeenTag status={taskSeenStatus(project, task)} />
                   {task.name}
                 </div>
                 {task.description && (
@@ -592,7 +584,7 @@ export default function CalendarView({
                   className={`font-medium text-text-primary line-clamp-2 ${c.status === 'published' ? 'line-through' : ''}`}
                   title={c.title}
                 >
-                  {renderSeenTag(contentSeenStatus(project, c))}
+                  <ItemSeenTag status={contentSeenStatus(project, c)} />
                   {c.title}
                 </span>
                 <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">
@@ -942,7 +934,7 @@ export default function CalendarView({
                                           className="w-full text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer"
                                         >
                                           <div className={`font-medium text-text-primary ${(task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                                            {renderSeenTag(taskSeenStatus(project, task))}
+                                            <ItemSeenTag status={taskSeenStatus(project, task)} />
                                             {task.name}
                                           </div>
                                           {task.description && <p className="text-sm text-text-secondary mt-1">{task.description}</p>}
@@ -965,7 +957,7 @@ export default function CalendarView({
                                         <button type="button" onClick={() => onContentItemClick?.(c)} className="text-left w-full">
                                           <span className="mr-2" aria-hidden>📝</span>
                                           <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>
-                                            {renderSeenTag(contentSeenStatus(project, c))}
+                                            <ItemSeenTag status={contentSeenStatus(project, c)} />
                                             {c.title}
                                           </span>
                                           <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">{c.channel}</span>
@@ -999,7 +991,7 @@ export default function CalendarView({
                                           className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${(item.task as any).status === 'completed' ? 'line-through opacity-60' : ''}`}
                                           title={item.task.name}
                                         >
-                                          {renderSeenTag(taskSeenStatus(project, item.task))}
+                                          <ItemSeenTag status={taskSeenStatus(project, item.task)} />
                                           {item.task.name}
                                         </button>
                                       );
@@ -1016,7 +1008,7 @@ export default function CalendarView({
                                         title={item.content.title}
                                       >
                                         <span className="mr-1" aria-hidden>📝</span>
-                                        {renderSeenTag(contentSeenStatus(project, item.content))}
+                                        <ItemSeenTag status={contentSeenStatus(project, item.content)} />
                                         {item.content.title}
                                         <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
                                       </button>

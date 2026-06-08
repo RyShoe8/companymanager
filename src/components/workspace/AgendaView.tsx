@@ -26,6 +26,7 @@ import {
 } from '@/lib/utils/assigneeDisplay';
 import { meetingsForAgendaDay } from '@/lib/scheduling/meetingHours';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
+import ItemSeenTag from '@/components/workspace/ItemSeenTag';
 import PeriodNavButton from '@/components/ui/PeriodNavButton';
 import { getPeriodViewTitle, shiftPeriodDate } from '@/lib/utils/periodNavigation';
 import {
@@ -151,11 +152,7 @@ function renderAgendaContentRow(
                 {channelIcons[item.channel] || '📎'}
             </span>
             <span className="text-text-primary">
-                {seenStatus !== 'none' ? (
-                    <span className="mr-1 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
-                        {seenStatus === 'new' ? 'New' : 'Updated'}
-                    </span>
-                ) : null}
+                <ItemSeenTag status={seenStatus} />
                 {item.title}
             </span>
             <span
@@ -683,11 +680,7 @@ export default function AgendaView({
                                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'completed' ? 'bg-green-500' : task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'
                                                 }`} />
                                             <span className={`text-text-primary ${task.status === 'completed' ? 'line-through text-text-muted' : ''}`}>
-                                                {showNewTask && showNewTask !== 'none' ? (
-                                                    <span className="mr-1 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
-                                                        {showNewTask === 'new' ? 'New' : 'Updated'}
-                                                    </span>
-                                                ) : null}
+                                                <ItemSeenTag status={showNewTask && showNewTask !== 'none' ? showNewTask : 'none'} />
                                                 {task.name}
                                             </span>
                                             {task.estimatedHours ? (

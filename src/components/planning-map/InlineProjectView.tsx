@@ -65,6 +65,7 @@ import {
   setCommentThreadManuallyCollapsed,
   shouldAutoExpandCommentThread,
 } from '@/lib/comments/commentReadState';
+import ItemSeenTag from '@/components/workspace/ItemSeenTag';
 import {
   buildContentItemKey,
   buildContentItemObservation,
@@ -73,6 +74,7 @@ import {
   markProjectItemsSeen,
   observeItemsForUser,
   readObservedItemsForUser,
+  type ItemSeenStatus,
 } from '@/lib/workspace/itemSeenState';
 
 interface InlineProjectViewProps {
@@ -297,7 +299,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [taskAssetsRefreshToken, setTaskAssetsRefreshToken] = useState(0);
   const [contentAssetsRefreshToken, setContentAssetsRefreshToken] = useState(0);
-  const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
+  const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
 
   const notifyContentListChanged = useCallback(() => {
     onContentListChanged?.();
@@ -700,9 +702,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     if (summariesFetchDoneRef.current && !commentSummaryMarkDoneRef.current) {
       commentSummaryMarkDoneRef.current = true;
       markProjectItemsSeen(currentUserId, localProject._id.toString());
-      setItemIsNewByKey(readObservedItemsForUser(currentUserId, keys).isNewByKey);
+      setItemStatusByKey(readObservedItemsForUser(currentUserId, keys).statusByKey);
     } else {
-      setItemIsNewByKey(observed.isNewByKey);
+      setItemStatusByKey(observed.statusByKey);
     }
   }, [
     currentUserId,
@@ -2104,14 +2106,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   const visibleDistribution = distributionMethods.slice(0, 3);
                   const extraDistributionCount = Math.max(0, distributionMethods.length - 3);
                   const contentKey = contentItemKeyFor(item);
-                  const showNewTag = canShowContentNewIndicator(item) && !!itemIsNewByKey[contentKey];
+                  const contentSeenStatus: ItemSeenStatus = canShowContentNewIndicator(item)
+                    ? (itemStatusByKey[contentKey] ?? 'none')
+                    : 'none';
                   return (
                   <div key={itemId} id={`inspector-content-row-${itemId}`} className="p-4 scroll-mt-4">
                     <div className="flex items-start justify-between gap-2">
                       <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
-                        <span className={`font-medium block truncate ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                          {showNewTag && <span className="text-blue-600 mr-1" title="New update">●</span>}
-                          {item.title}
+                        <span className={`font-medium flex flex-wrap items-center gap-1 truncate ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                          <ItemSeenTag status={contentSeenStatus} />
+                          <span className="truncate">{item.title}</span>
                         </span>
                       </button>
                       <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1 shrink-0">Delete</button>
@@ -2224,28 +2228,30 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <div className="divide-y divide-gray-100">
                 {visibleTaskEntries.map(({ task, idx }, visibleIndex) => {
                   const taskKey = taskItemKeyFor(task, idx);
-                  const showNewTag = canShowTaskNewIndicator(task) && !!itemIsNewByKey[taskKey];
+                  const taskSeenStatus: ItemSeenStatus = canShowTaskNewIndicator(task)
+                    ? (itemStatusByKey[taskKey] ?? 'none')
+                    : 'none';
 
                   return (
                     <SwipeableCard key={idx} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
                       <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                            <EditableText
-                              value={task.name}
-                              onSave={(v) => handleTaskNameSave(idx, v)}
-                              className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
-                              placeholder="Task name"
-                              autoMultilineAfter={100}
-                              disabled={!isManagerOrAdmin}
-                              autoEditOnMount={autoEditTaskIndex === idx}
-                              onAutoEditMount={() => {
-                                if (autoEditTaskIndex === idx) setAutoEditTaskIndex(null);
-                              }}
-                            />
-                            {showNewTag && (
-                              <p className="text-xs text-blue-600 mt-1">● New update</p>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1">
+                              <ItemSeenTag status={taskSeenStatus} />
+                              <EditableText
+                                value={task.name}
+                                onSave={(v) => handleTaskNameSave(idx, v)}
+                                className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                                placeholder="Task name"
+                                autoMultilineAfter={100}
+                                disabled={!isManagerOrAdmin}
+                                autoEditOnMount={autoEditTaskIndex === idx}
+                                onAutoEditMount={() => {
+                                  if (autoEditTaskIndex === idx) setAutoEditTaskIndex(null);
+                                }}
+                              />
+                            </div>
                             {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
                           </div>
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>

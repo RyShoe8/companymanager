@@ -180,7 +180,9 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
     if (priorSignature !== item.signature) {
       state.signatures[item.key] = item.signature;
       state.activityMs[item.key] = Math.max(item.baseActivityMs, now);
-      state.kindByKey[item.key] = 'updated';
+      if (state.kindByKey[item.key] !== 'new') {
+        state.kindByKey[item.key] = 'updated';
+      }
       changed = true;
     } else if (!(item.key in state.activityMs)) {
       state.activityMs[item.key] = Math.max(0, item.baseActivityMs);
