@@ -256,15 +256,12 @@ export default function WorkspaceShell({
     );
 
     const closeInspector = useCallback(() => {
-        if (inspectorFocus?.startsWith('project:') && ws.currentUserId) {
-            markProjectItemsSeen(ws.currentUserId, inspectorFocus.slice('project:'.length));
-        }
         setItemSeenRefreshTrigger((t) => t + 1);
         setInspectorFocus(null);
         setInspectorOpenTaskIndex(null);
         setInspectorOpenContentId(null);
         setInspectorAutoAddTask(false);
-    }, [inspectorFocus, ws.currentUserId]);
+    }, []);
 
     const handleContentItemClickFromProject = useCallback((item: IContentItem) => {
         setEditingContentItemId(item._id.toString());

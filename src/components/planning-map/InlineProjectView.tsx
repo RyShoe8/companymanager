@@ -71,9 +71,7 @@ import {
   buildContentItemObservation,
   buildTaskItemKey,
   buildTaskItemObservation,
-  markProjectItemsSeen,
   observeItemsForUser,
-  readObservedItemsForUser,
   type ItemSeenStatus,
 } from '@/lib/workspace/itemSeenState';
 
@@ -248,9 +246,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
   const initialContentAppliedKeyRef = useRef<string | null>(null);
   const autoAddTaskAppliedKeyRef = useRef<string | null>(null);
-  const openSessionProjectIdRef = useRef<string | null>(null);
-  const commentSummaryMarkDoneRef = useRef(false);
-  const summariesFetchDoneRef = useRef(false);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
   const [autoEditTaskIndex, setAutoEditTaskIndex] = useState<number | null>(null);
@@ -687,15 +682,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
     const contentEntries = projectContentItems.map((item) => buildContentItemObservation(item));
 
-    const keys = [...taskEntries, ...contentEntries].map((entry) => entry.key);
     const observed = observeItemsForUser(currentUserId, [...taskEntries, ...contentEntries]);
-    if (summariesFetchDoneRef.current && !commentSummaryMarkDoneRef.current) {
-      commentSummaryMarkDoneRef.current = true;
-      markProjectItemsSeen(currentUserId, localProject._id.toString());
-      setItemStatusByKey(readObservedItemsForUser(currentUserId, keys).statusByKey);
-    } else {
-      setItemStatusByKey(observed.statusByKey);
-    }
+    setItemStatusByKey(observed.statusByKey);
   }, [currentUserId, localProject, projectContentItems]);
 
   const sortedTaskEntries = useMemo(
@@ -798,7 +786,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       };
       setCommentSummaries(summaries);
       applyAutoExpandFromSummaries(summaries);
-      summariesFetchDoneRef.current = true;
     } catch {
       // ignore
     }
@@ -838,9 +825,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setViewTab('tasks');
       initialTaskAppliedKeyRef.current = null;
       autoAddTaskAppliedKeyRef.current = null;
-      openSessionProjectIdRef.current = null;
-      commentSummaryMarkDoneRef.current = false;
-      summariesFetchDoneRef.current = false;
       return;
     }
     setLocalProject((prev) => {
@@ -850,16 +834,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       return project;
     });
   }, [project, localProject._id]);
-
-  useEffect(() => {
-    if (!currentUserId) return;
-    const projectId = localProject._id.toString();
-    if (openSessionProjectIdRef.current === projectId) return;
-    openSessionProjectIdRef.current = projectId;
-    commentSummaryMarkDoneRef.current = false;
-    summariesFetchDoneRef.current = false;
-    markProjectItemsSeen(currentUserId, projectId);
-  }, [currentUserId, localProject._id]);
 
   useEffect(() => {
     if (initialOpenTaskIndex == null) {
