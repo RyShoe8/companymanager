@@ -57,15 +57,22 @@ import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 import { markProjectItemsSeen } from '@/lib/workspace/itemSeenState';
+import WorkspaceEmailDigestSelect from '@/components/workspace/WorkspaceEmailDigestSelect';
 
 interface WorkspaceShellProps {
     initialPhase?: PhaseType;
     initialLens?: LensType;
+    initialDeepLinkProjectId?: string | null;
+    initialDeepLinkTaskId?: string | null;
+    initialDeepLinkContentId?: string | null;
 }
 
 export default function WorkspaceShell({
     initialPhase = 'All',
     initialLens = 'schedule',
+    initialDeepLinkProjectId = null,
+    initialDeepLinkTaskId = null,
+    initialDeepLinkContentId = null,
 }: WorkspaceShellProps) {
     const isMobile = useIsMobile();
     const router = useRouter();
@@ -92,6 +99,7 @@ export default function WorkspaceShell({
     /** Content item id when opening inspector from schedule content click. */
     const [inspectorOpenContentId, setInspectorOpenContentId] = useState<string | null>(null);
     const [inspectorAutoAddTask, setInspectorAutoAddTask] = useState(false);
+    const deepLinkHandledRef = useRef(false);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -320,6 +328,40 @@ export default function WorkspaceShell({
         },
         [markOpenedProjectSeen]
     );
+
+    useEffect(() => {
+        if (deepLinkHandledRef.current || !initialDeepLinkProjectId || ws.allProjects.length === 0) return;
+
+        const project = ws.allProjects.find((p) => p._id.toString() === initialDeepLinkProjectId);
+        if (!project) return;
+
+        deepLinkHandledRef.current = true;
+
+        if (initialDeepLinkContentId) {
+            handleViewProjectContent(project, initialDeepLinkContentId);
+            return;
+        }
+
+        if (initialDeepLinkTaskId) {
+            const taskIndex = (project.tasks ?? []).findIndex(
+                (task) => (task as { _id?: { toString(): string } })._id?.toString() === initialDeepLinkTaskId
+            );
+            if (taskIndex >= 0) {
+                handleViewProjectTask(project, taskIndex);
+                return;
+            }
+        }
+
+        handleViewProject(project);
+    }, [
+        initialDeepLinkProjectId,
+        initialDeepLinkTaskId,
+        initialDeepLinkContentId,
+        ws.allProjects,
+        handleViewProject,
+        handleViewProjectTask,
+        handleViewProjectContent,
+    ]);
 
     const handleDeleteProject = async (id: string) => {
         try {
@@ -1274,13 +1316,16 @@ export default function WorkspaceShell({
                                 selected={ws.lens}
                                 onSelect={handleLensSelect}
                                 trailing={
-                                    ws.isManagerOrAdmin ? (
-                                        <Toggle
-                                            label="Show only my assignments"
-                                            checked={ws.showOnlyMyAssignments}
-                                            onChange={ws.setShowOnlyMyAssignments}
-                                        />
-                                    ) : undefined
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        {ws.isManagerOrAdmin ? (
+                                            <Toggle
+                                                label="Show only my assignments"
+                                                checked={ws.showOnlyMyAssignments}
+                                                onChange={ws.setShowOnlyMyAssignments}
+                                            />
+                                        ) : null}
+                                        <WorkspaceEmailDigestSelect />
+                                    </div>
                                 }
                             />
                             {(ws.lens === 'schedule' || ws.lens === 'agenda') && (

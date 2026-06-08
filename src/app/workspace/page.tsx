@@ -20,8 +20,19 @@ function WorkspaceContent() {
     const searchParams = useSearchParams();
     const phase = (searchParams.get('phase') as PhaseType) || 'All';
     const lens = resolveLens(searchParams.get('lens'));
+    const initialDeepLinkProjectId = searchParams.get('project');
+    const initialDeepLinkTaskId = searchParams.get('task');
+    const initialDeepLinkContentId = searchParams.get('content');
 
-    return <WorkspaceShell initialPhase={phase} initialLens={lens} />;
+    return (
+        <WorkspaceShell
+            initialPhase={phase}
+            initialLens={lens}
+            initialDeepLinkProjectId={initialDeepLinkProjectId}
+            initialDeepLinkTaskId={initialDeepLinkTaskId}
+            initialDeepLinkContentId={initialDeepLinkContentId}
+        />
+    );
 }
 
 export default function WorkspacePage() {

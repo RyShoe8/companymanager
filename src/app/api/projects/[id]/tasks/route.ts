@@ -170,6 +170,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await touchProjectActivity(id);
 
     const addedFromIndex = existingTasks.length;
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyTaskChange }) => {
+      const organizationId = user.organizationId!;
+      const actorUserId = session.userId;
+      const actorEmployeeId = employeeId;
+      const addedTasks = (project.tasks ?? []).slice(addedFromIndex);
+
+      for (const [offset, task] of addedTasks.entries()) {
+        void notifyTaskChange({
+          project,
+          task,
+          taskIndex: addedFromIndex + offset,
+          actorUserId,
+          actorEmployeeId,
+          organizationId,
+          isNew: true,
+          changeLabel: 'New task assigned',
+        }).catch((err) => console.error('[workspaceNotifications] task_new', err));
+      }
+    });
     return NextResponse.json({
       tasks: project.tasks,
       addedFromIndex,

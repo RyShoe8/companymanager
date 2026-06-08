@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import ContentItem from '@/lib/models/ContentItem';
+import ContentItem, { type IContentItem } from '@/lib/models/ContentItem';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
@@ -205,13 +205,31 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const created = [];
+    const created: IContentItem[] = [];
     for (const pd of publishDates) {
       const row = { ...doc, publishDate: pd };
       created.push(await ContentItem.create(row));
     }
 
     await touchProjectActivity(projectId);
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyContentChange }) => {
+      const organizationId = user.organizationId!;
+      const actorUserId = session.userId;
+      const actorEmployeeId = currentUserEmployee?._id?.toString() ?? null;
+
+      for (const content of created) {
+        void notifyContentChange({
+          project: project as { _id: typeof project._id; name: string },
+          content,
+          actorUserId,
+          actorEmployeeId,
+          organizationId,
+          isNew: true,
+          changeLabel: 'New content assigned',
+        }).catch((err) => console.error('[workspaceNotifications] content_new', err));
+      }
+    });
 
     if (created.length === 1) {
       return NextResponse.json(created[0], { status: 201 });

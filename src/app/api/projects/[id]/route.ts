@@ -134,6 +134,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const beforeProjectSnapshot = {
+      _id: project._id,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      assignedToEmployeeId: project.assignedToEmployeeId,
+      assignedToEmployeeIds: project.assignedToEmployeeIds,
+      tasks: (project.tasks ?? []).map((task) => ({
+        _id: task._id,
+        name: task.name,
+        description: task.description,
+        status: task.status,
+        startDate: task.startDate,
+        endDate: task.endDate,
+        estimatedHours: task.estimatedHours,
+        assignedTo: task.assignedTo,
+        assignedToEmployeeId: task.assignedToEmployeeId,
+        assignedToEmployeeIds: task.assignedToEmployeeIds,
+      })),
+    };
+
     let previousTasksSnapshot: Array<{ _id?: { toString: () => string }; status?: unknown }> = [];
 
     // Apply migration to the instance before modifying it
@@ -488,6 +509,36 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await touchProjectActivity(id);
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyProjectPutChanges }) => {
+      void notifyProjectPutChanges({
+        beforeProject: beforeProjectSnapshot,
+        afterProject: {
+          _id: project._id,
+          name: project.name,
+          description: project.description,
+          status: project.status,
+          assignedToEmployeeId: project.assignedToEmployeeId,
+          assignedToEmployeeIds: project.assignedToEmployeeIds,
+          tasks: (project.tasks ?? []).map((task, index) => ({
+            _id: task._id,
+            name: task.name,
+            description: task.description,
+            status: task.status,
+            startDate: task.startDate,
+            endDate: task.endDate,
+            estimatedHours: task.estimatedHours,
+            assignedTo: task.assignedTo,
+            assignedToEmployeeId: task.assignedToEmployeeId,
+            assignedToEmployeeIds: task.assignedToEmployeeIds,
+            index,
+          })),
+        },
+        actorUserId: session.userId,
+        actorEmployeeId: currentUserEmployee?._id?.toString() ?? null,
+        organizationId: user.organizationId!,
+      }).catch((err) => console.error('[workspaceNotifications] project_put', err));
+    });
 
     // Reload the project to ensure we return the latest data
     const savedProject = await Project.findById(id).lean();

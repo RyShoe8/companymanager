@@ -11,6 +11,7 @@ import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupPublishedContentMedia } from '@/lib/recordings/recordingCleanup';
+import { contentChanged, notifyContentChange } from '@/lib/workspace/workspaceNotifications';
 
 const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
 const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
@@ -71,11 +72,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await connectDB();
     const { id } = await params;
 
-    const { item, error } = await getContentItemWithAccess(id, session as any);
+    const access = await getContentItemWithAccess(id, session as any);
+    const { error, currentUserEmployee } = access;
     if (error) return NextResponse.json({ error: error.message }, { status: error.status });
 
     const doc = await ContentItem.findById(id);
     if (!doc) return NextResponse.json({ error: 'Content item not found' }, { status: 404 });
+
+    const beforeContent = {
+      _id: doc._id,
+      title: doc.title,
+      channel: doc.channel,
+      status: doc.status,
+      notes: doc.notes,
+      publishDate: doc.publishDate,
+      assignedToEmployeeId: doc.assignedToEmployeeId,
+      estimatedHours: doc.estimatedHours,
+    };
 
     const body = await request.json();
     const { title, channel, status, publishDate, notes, assignedToEmployeeId, keywords, internalLinks, externalUrl, distributionMethods, estimatedHours } = body;
@@ -128,6 +141,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       await cleanupPublishedContentMedia(id);
     }
     await touchProjectActivity(doc.projectId.toString());
+
+    const project = await Project.findById(doc.projectId).lean();
+    const user = await User.findById(session.userId);
+    const afterContent = {
+      _id: doc._id,
+      title: doc.title,
+      channel: doc.channel,
+      status: doc.status,
+      notes: doc.notes,
+      publishDate: doc.publishDate,
+      assignedToEmployeeId: doc.assignedToEmployeeId,
+      estimatedHours: doc.estimatedHours,
+    };
+
+    if (project && user?.organizationId && contentChanged(beforeContent, afterContent)) {
+      void notifyContentChange({
+        project: project as { _id: typeof project._id; name: string },
+        content: afterContent,
+        actorUserId: session.userId,
+        actorEmployeeId: currentUserEmployee?._id?.toString() ?? null,
+        organizationId: user.organizationId,
+        isNew: false,
+        changeLabel: 'Content updated',
+      }).catch((err) => console.error('[workspaceNotifications] content_update', err));
+    }
+
     const updated = await ContentItem.findById(id).lean();
     return NextResponse.json(updated);
   } catch (e) {

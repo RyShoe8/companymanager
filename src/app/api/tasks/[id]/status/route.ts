@@ -121,6 +121,20 @@ export async function PATCH(
       });
     }
 
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyTaskChange }) => {
+      if (!user?.organizationId) return;
+      void notifyTaskChange({
+        project,
+        task: project.tasks?.[index] as Parameters<typeof notifyTaskChange>[0]['task'],
+        taskIndex: index,
+        actorUserId: session.userId,
+        actorEmployeeId: employee._id.toString(),
+        organizationId: user.organizationId,
+        isNew: false,
+        changeLabel: 'Task status updated',
+      }).catch((err) => console.error('[workspaceNotifications] task_status', err));
+    });
+
     return NextResponse.json({ success: true, task: project.tasks?.[index], status });
   } catch (error) {
     console.error('PATCH /api/tasks/[id]/status error:', error);

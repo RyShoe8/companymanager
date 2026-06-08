@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-meetings",
       "schedule": "0 5 * * 0"
+    },
+    {
+      "path": "/api/cron/workspace-notifications",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
