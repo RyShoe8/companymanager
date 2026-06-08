@@ -1,3 +1,7 @@
+import type { IContentItem } from '@/lib/models/ContentItem';
+import type { IProject, IProjectTask } from '@/lib/models/Project';
+import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
+
 type ItemSeenState = {
   signatures: Record<string, string>;
   activityMs: Record<string, number>;
@@ -6,7 +10,7 @@ type ItemSeenState = {
   initializedAtMs: number;
 };
 
-type ItemObservation = {
+export type ItemObservation = {
   key: string;
   signature: string;
   baseActivityMs: number;
@@ -60,6 +64,90 @@ export function buildTaskItemKey(projectId: string, taskId: string | null, taskI
 
 export function buildContentItemKey(projectId: string, contentItemId: string): string {
   return `content:${projectId}:${contentItemId}`;
+}
+
+export function buildTaskItemSignature(
+  task: IProjectTask,
+  options?: { commentActivityMs?: number }
+): string {
+  const taskId = (task as { _id?: { toString(): string } })._id?.toString() ?? '';
+  return JSON.stringify({
+    taskId,
+    name: task.name,
+    description: task.description ?? '',
+    startDate: task.startDate,
+    endDate: task.endDate,
+    estimatedHours: task.estimatedHours ?? null,
+    status: task.status ?? '',
+    assigned: getTaskAssigneeEmployeeIds(task).sort(),
+    recurrenceSeriesId: task.recurrenceSeriesId ?? '',
+    commentActivityMs: options?.commentActivityMs ?? 0,
+  });
+}
+
+export function buildContentItemSignature(
+  item: IContentItem,
+  options?: { commentActivityMs?: number }
+): string {
+  return JSON.stringify({
+    updatedAt: item.updatedAt ?? '',
+    createdAt: item.createdAt ?? '',
+    title: item.title,
+    channel: item.channel,
+    status: item.status,
+    publishDate: item.publishDate ?? '',
+    estimatedHours: item.estimatedHours ?? null,
+    assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
+    notes: item.notes ?? '',
+    commentActivityMs: options?.commentActivityMs ?? 0,
+  });
+}
+
+export function buildTaskItemObservation(
+  project: IProject,
+  task: IProjectTask,
+  taskIndex: number,
+  options?: { commentActivityMs?: number }
+): ItemObservation {
+  const projectId = project._id.toString();
+  const taskId = (task as { _id?: { toString(): string } })._id?.toString() ?? null;
+  const commentActivityMs = options?.commentActivityMs ?? 0;
+  return {
+    key: buildTaskItemKey(projectId, taskId, taskIndex),
+    signature: buildTaskItemSignature(task, { commentActivityMs }),
+    baseActivityMs: Math.max(
+      new Date((project as { updatedAt?: Date | string }).updatedAt ?? project.createdAt).getTime(),
+      commentActivityMs
+    ),
+  };
+}
+
+export function buildContentItemObservation(
+  item: IContentItem,
+  options?: { commentActivityMs?: number; projectCreatedAt?: Date | string }
+): ItemObservation {
+  const projectId = item.projectId?.toString() ?? 'none';
+  const commentActivityMs = options?.commentActivityMs ?? 0;
+  const fallbackCreatedAt = options?.projectCreatedAt ?? item.createdAt ?? new Date();
+  return {
+    key: buildContentItemKey(projectId, item._id.toString()),
+    signature: buildContentItemSignature(item, { commentActivityMs }),
+    baseActivityMs: Math.max(
+      new Date(item.updatedAt ?? item.createdAt ?? fallbackCreatedAt).getTime(),
+      commentActivityMs
+    ),
+  };
+}
+
+export function collectWorkspaceItemObservations(
+  projects: IProject[],
+  contentItems: IContentItem[]
+): ItemObservation[] {
+  const taskEntries = projects.flatMap((project) =>
+    (project.tasks ?? []).map((task, idx) => buildTaskItemObservation(project, task, idx))
+  );
+  const contentEntries = contentItems.map((item) => buildContentItemObservation(item));
+  return [...taskEntries, ...contentEntries];
 }
 
 export function observeItemsForUser(userId: string, items: ItemObservation[]): ObservationResult {
@@ -121,13 +209,19 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
 export function markProjectItemsSeen(userId: string, projectId: string): boolean {
   const state = loadState(userId);
   let changed = false;
+  const now = Date.now();
   const taskPrefix = `task:${projectId}:`;
   const contentPrefix = `content:${projectId}:`;
 
   for (const [key, activityMs] of Object.entries(state.activityMs)) {
     if (!key.startsWith(taskPrefix) && !key.startsWith(contentPrefix)) continue;
-    if ((state.seenMs[key] ?? 0) < activityMs) {
-      state.seenMs[key] = activityMs;
+    const nextSeen = Math.max(state.seenMs[key] ?? 0, activityMs, now);
+    if (nextSeen !== (state.seenMs[key] ?? 0)) {
+      state.seenMs[key] = nextSeen;
+      changed = true;
+    }
+    if (key in state.kindByKey) {
+      delete state.kindByKey[key];
       changed = true;
     }
   }

@@ -88,6 +88,7 @@ export default function InspectorHost({
                         onAddContent={onAddContent}
                         onContentItemClick={onContentItemClick}
                         contentRefreshTrigger={contentRefreshTrigger}
+                        onContentListChanged={onContentListChanged}
                         initialOpenTaskIndex={initialOpenTaskIndex ?? null}
                         onInitialOpenTaskConsumed={onInitialOpenTaskConsumed}
                         initialOpenContentId={initialOpenContentId ?? null}

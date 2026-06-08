@@ -34,8 +34,10 @@ import ActionMenu from '@/components/ui/ActionMenu';
 import {
   buildContentItemKey,
   buildTaskItemKey,
+  collectWorkspaceItemObservations,
   type ItemSeenStatus,
   observeItemsForUser,
+  readObservedItemsForUser,
 } from '@/lib/workspace/itemSeenState';
 
 function taskOverlapsWeek(
@@ -151,47 +153,25 @@ export default function CalendarView({
     []
   );
 
+  const workspaceItemEntries = useMemo(
+    () => collectWorkspaceItemObservations(projects, contentItems),
+    [projects, contentItems]
+  );
+
   useEffect(() => {
     if (!currentUserId) return;
-    const entries = [
-      ...projects.flatMap((project) =>
-        (project.tasks ?? []).map((task, idx) => ({
-          key: taskKeyFor(project, task, idx),
-          signature: JSON.stringify({
-            projectUpdatedAt: (project as { updatedAt?: Date | string }).updatedAt ?? '',
-            taskId: (task as { _id?: { toString(): string } })._id?.toString() ?? '',
-            name: task.name,
-            description: task.description ?? '',
-            startDate: task.startDate,
-            endDate: task.endDate,
-            estimatedHours: task.estimatedHours ?? null,
-            status: task.status ?? '',
-            assigned: getTaskAssigneeEmployeeIds(task).sort(),
-          }),
-          baseActivityMs: new Date(
-            (project as { updatedAt?: Date | string }).updatedAt ?? project.createdAt
-          ).getTime(),
-        }))
-      ),
-      ...contentItems.map((item) => ({
-        key: contentKeyFor(item),
-        signature: JSON.stringify({
-          updatedAt: item.updatedAt ?? '',
-          createdAt: item.createdAt ?? '',
-          title: item.title,
-          channel: item.channel,
-          status: item.status,
-          publishDate: item.publishDate ?? '',
-          assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
-          notes: item.notes ?? '',
-        }),
-        baseActivityMs: new Date(item.updatedAt ?? item.createdAt ?? new Date()).getTime(),
-      })),
-    ];
-    const observed = observeItemsForUser(currentUserId, entries);
+    const observed = observeItemsForUser(currentUserId, workspaceItemEntries);
     setItemActivityByKey(observed.activityByKey);
     setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor, itemSeenRefreshTrigger]);
+  }, [currentUserId, workspaceItemEntries]);
+
+  useEffect(() => {
+    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
+    const keys = workspaceItemEntries.map((entry) => entry.key);
+    const observed = readObservedItemsForUser(currentUserId, keys);
+    setItemActivityByKey(observed.activityByKey);
+    setItemStatusByKey(observed.statusByKey);
+  }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
 
   const taskActivityMs = useCallback(
     (project: IProject, task: IProjectTask, idx: number) =>
@@ -1025,12 +1005,21 @@ export default function CalendarView({
                                       );
                                     }
                                     return (
-                                      <div key={item.content._id.toString()} className={`text-sm text-white ${item.content.status === 'published' ? 'opacity-60' : ''}`}>
+                                      <button
+                                        key={item.content._id.toString()}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onContentItemClick?.(item.content);
+                                        }}
+                                        className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${item.content.status === 'published' ? 'opacity-60' : ''}`}
+                                        title={item.content.title}
+                                      >
                                         <span className="mr-1" aria-hidden>📝</span>
                                         {renderSeenTag(contentSeenStatus(project, item.content))}
                                         {item.content.title}
                                         <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
-                                      </div>
+                                      </button>
                                     );
                                   })}
                                   {moreCount > 0 && (

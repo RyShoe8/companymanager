@@ -36,8 +36,10 @@ import {
 import {
     buildContentItemKey,
     buildTaskItemKey,
+    collectWorkspaceItemObservations,
     type ItemSeenStatus,
     observeItemsForUser,
+    readObservedItemsForUser,
 } from '@/lib/workspace/itemSeenState';
 
 interface AgendaViewProps {
@@ -232,48 +234,25 @@ export default function AgendaView({
         []
     );
 
+    const workspaceItemEntries = useMemo(
+        () => collectWorkspaceItemObservations(projects, contentItems),
+        [projects, contentItems]
+    );
+
     useEffect(() => {
         if (!currentUserId) return;
-        const entries = [
-            ...projects.flatMap((project) =>
-                (project.tasks ?? []).map((task, idx) => ({
-                    key: taskKeyFor(project, task, idx),
-                    signature: JSON.stringify({
-                        projectUpdatedAt: (project as { updatedAt?: Date | string }).updatedAt ?? '',
-                        taskId: (task as { _id?: { toString(): string } })._id?.toString() ?? '',
-                        name: task.name,
-                        description: task.description ?? '',
-                        startDate: task.startDate,
-                        endDate: task.endDate,
-                        estimatedHours: task.estimatedHours ?? null,
-                        status: task.status ?? '',
-                        assigned: getTaskAssigneeEmployeeIds(task).sort(),
-                    }),
-                    baseActivityMs: new Date(
-                        (project as { updatedAt?: Date | string }).updatedAt ?? project.createdAt
-                    ).getTime(),
-                }))
-            ),
-            ...contentItems.map((item) => ({
-                key: contentKeyFor(item),
-                signature: JSON.stringify({
-                    updatedAt: item.updatedAt ?? '',
-                    createdAt: item.createdAt ?? '',
-                    title: item.title,
-                    channel: item.channel,
-                    status: item.status,
-                    publishDate: item.publishDate ?? '',
-                    estimatedHours: item.estimatedHours ?? null,
-                    assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
-                    notes: item.notes ?? '',
-                }),
-                baseActivityMs: new Date(item.updatedAt ?? item.createdAt ?? new Date()).getTime(),
-            })),
-        ];
-        const observed = observeItemsForUser(currentUserId, entries);
+        const observed = observeItemsForUser(currentUserId, workspaceItemEntries);
         setItemActivityByKey(observed.activityByKey);
         setItemStatusByKey(observed.statusByKey);
-    }, [currentUserId, projects, contentItems, taskKeyFor, contentKeyFor, itemSeenRefreshTrigger]);
+    }, [currentUserId, workspaceItemEntries]);
+
+    useEffect(() => {
+        if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
+        const keys = workspaceItemEntries.map((entry) => entry.key);
+        const observed = readObservedItemsForUser(currentUserId, keys);
+        setItemActivityByKey(observed.activityByKey);
+        setItemStatusByKey(observed.statusByKey);
+    }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
 
     const taskActivityMs = useCallback(
         (project: IProject, task: IProjectTask, idx: number) =>

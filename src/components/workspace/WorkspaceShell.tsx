@@ -314,11 +314,15 @@ export default function WorkspaceShell({
         [ws.allProjects, handleViewProjectContent]
     );
 
-    const handleAddTaskToProject = useCallback((project: IProject) => {
-        setInspectorOpenTaskIndex(null);
-        setInspectorAutoAddTask(true);
-        setInspectorFocus(`project:${project._id}`);
-    }, []);
+    const handleAddTaskToProject = useCallback(
+        (project: IProject) => {
+            setInspectorOpenTaskIndex(null);
+            setInspectorAutoAddTask(true);
+            setInspectorFocus(`project:${project._id}`);
+            markOpenedProjectSeen(project._id.toString());
+        },
+        [markOpenedProjectSeen]
+    );
 
     const handleDeleteProject = async (id: string) => {
         try {
@@ -1631,7 +1635,10 @@ export default function WorkspaceShell({
                             }}
                             onContentItemClick={handleContentItemClickFromProject}
                             contentRefreshTrigger={contentRefreshTrigger}
-                            onContentListChanged={() => setContentRefreshTrigger((t) => t + 1)}
+                            onContentListChanged={() => {
+                                void ws.fetchContentItems();
+                                setContentRefreshTrigger((t) => t + 1);
+                            }}
                             timeframe={ws.timeframe}
                             referenceDate={ws.currentDate}
                         />

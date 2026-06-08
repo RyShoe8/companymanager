@@ -67,7 +67,9 @@ import {
 } from '@/lib/comments/commentReadState';
 import {
   buildContentItemKey,
+  buildContentItemObservation,
   buildTaskItemKey,
+  buildTaskItemObservation,
   markProjectItemsSeen,
   observeItemsForUser,
   readObservedItemsForUser,
@@ -90,6 +92,8 @@ interface InlineProjectViewProps {
   onContentItemClick?: (item: IContentItem) => void;
   /** When this changes, project content list is refetched (e.g. after detail modal save/delete). */
   contentRefreshTrigger?: number;
+  /** Notify workspace to refresh global content list after inspector content mutations. */
+  onContentListChanged?: () => void;
   /** Open Tasks tab and focus this row (e.g. deep-link from workspace schedule). Cleared by parent via onInitialOpenTaskConsumed. */
   initialOpenTaskIndex?: number | null;
   onInitialOpenTaskConsumed?: () => void;
@@ -226,7 +230,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return canUserContributeToProject(project, currentUserEmployeeId ?? null, isManagerOrAdmin);
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const localProjectRef = useRef(localProject);
   localProjectRef.current = localProject;
@@ -294,6 +298,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [taskAssetsRefreshToken, setTaskAssetsRefreshToken] = useState(0);
   const [contentAssetsRefreshToken, setContentAssetsRefreshToken] = useState(0);
   const [itemIsNewByKey, setItemIsNewByKey] = useState<Record<string, boolean>>({});
+
+  const notifyContentListChanged = useCallback(() => {
+    onContentListChanged?.();
+  }, [onContentListChanged]);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -673,53 +681,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
     const taskEntries = (localProject.tasks ?? []).map((task, idx) => {
       const summary = getTaskSummaryForIndex(idx);
-      const taskId = (task as { _id?: { toString(): string } })._id?.toString() ?? '';
-      const signature = JSON.stringify({
-        projectUpdatedAt: (localProject as { updatedAt?: Date | string }).updatedAt ?? '',
-        taskId,
-        name: task.name,
-        description: task.description ?? '',
-        startDate: task.startDate,
-        endDate: task.endDate,
-        estimatedHours: task.estimatedHours ?? null,
-        status: task.status ?? '',
-        assigned: getTaskAssigneeEmployeeIds(task).sort(),
-        recurrenceSeriesId: task.recurrenceSeriesId ?? '',
+      return buildTaskItemObservation(localProject, task, idx, {
         commentActivityMs: summary.latestActivityMs ?? 0,
       });
-      return {
-        key: taskItemKeyFor(task, idx),
-        signature,
-        baseActivityMs: Math.max(
-          new Date((localProject as { updatedAt?: Date | string }).updatedAt ?? localProject.createdAt).getTime(),
-          summary.latestActivityMs ?? 0
-        ),
-      };
     });
 
     const contentEntries = projectContentItems.map((item) => {
       const itemId = item._id.toString();
       const summary = commentSummaries.contentItems[itemId];
-      const signature = JSON.stringify({
-        updatedAt: item.updatedAt ?? '',
-        createdAt: item.createdAt ?? '',
-        title: item.title,
-        channel: item.channel,
-        status: item.status,
-        publishDate: item.publishDate ?? '',
-        estimatedHours: item.estimatedHours ?? null,
-        assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
-        notes: item.notes ?? '',
+      return buildContentItemObservation(item, {
         commentActivityMs: summary?.latestActivityMs ?? 0,
+        projectCreatedAt: localProject.createdAt,
       });
-      return {
-        key: contentItemKeyFor(item),
-        signature,
-        baseActivityMs: Math.max(
-          new Date(item.updatedAt ?? item.createdAt ?? localProject.createdAt).getTime(),
-          summary?.latestActivityMs ?? 0
-        ),
-      };
     });
 
     const keys = [...taskEntries, ...contentEntries].map((entry) => entry.key);
@@ -1011,6 +984,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       const res = await fetch(`/api/content-items/${item._id}`, { method: 'DELETE' });
       if (res.ok) {
         setProjectContentItems((prev) => prev.filter((c) => c._id.toString() !== item._id.toString()));
+        notifyContentListChanged();
         onRefresh();
       }
     } catch {
@@ -1033,6 +1007,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         body: JSON.stringify({ estimatedHours: hours ?? undefined }),
       });
       if (!res.ok) throw new Error('save failed');
+      notifyContentListChanged();
     } catch {
       setProjectContentItems((prev) =>
         prev.map((c) =>
@@ -1059,6 +1034,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         body: JSON.stringify({ publishDate: date ? date.toISOString() : undefined }),
       });
       if (!res.ok) throw new Error('save failed');
+      notifyContentListChanged();
     } catch {
       setProjectContentItems((prev) =>
         prev.map((c) =>
@@ -1087,6 +1063,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         body: JSON.stringify({ assignedToEmployeeId: employeeId || undefined }),
       });
       if (!res.ok) throw new Error('save failed');
+      notifyContentListChanged();
     } catch {
       setProjectContentItems((prev) =>
         prev.map((c) =>
@@ -1129,6 +1106,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         setContentAssetsRefreshToken((n) => n + 1);
         await loadLinkedAssets();
       }
+      notifyContentListChanged();
     } catch (error) {
       setProjectContentItems((prev) =>
         prev.map((c) =>
