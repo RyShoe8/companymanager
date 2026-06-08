@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   markProjectItemsSeen,
   observeItemsForUser,
@@ -10,6 +10,8 @@ const USER_ID = 'user-test';
 const PROJECT_ID = 'project-1';
 const EXISTING_TASK_KEY = `task:${PROJECT_ID}:task-existing`;
 const NEW_TASK_KEY = `task:${PROJECT_ID}:task-new`;
+const STORAGE_KEY = `nucleas-item-seen:v1:${USER_ID}`;
+const NEW_GRACE_PERIOD_MS = 30 * 60 * 1000;
 
 function observation(
   key: string,
@@ -20,8 +22,13 @@ function observation(
 }
 
 describe('itemSeenState', () => {
+  beforeEach(() => {
+    localStorage.removeItem(STORAGE_KEY);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
+    localStorage.removeItem(STORAGE_KEY);
   });
 
   it('marks first-time items as new after the global initialization pass', () => {
@@ -67,15 +74,73 @@ describe('itemSeenState', () => {
     expect(edited.isNewByKey[NEW_TASK_KEY]).toBe(true);
   });
 
-  it('marks signature changes as updated', () => {
+  it('marks signature changes as updated after the new grace period expires', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
 
     observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-v1', 500)]);
 
-    vi.setSystemTime(5_000);
+    vi.setSystemTime(1_000 + NEW_GRACE_PERIOD_MS + 1);
     const updated = observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-v2', 500)]);
     expect(updated.statusByKey[EXISTING_TASK_KEY]).toBe('updated');
     expect(updated.isNewByKey[EXISTING_TASK_KEY]).toBe(true);
+  });
+
+  it('keeps new items labeled new within the 30-minute grace period', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+
+    observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-existing')]);
+    observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-new-empty', 2_000),
+    ]);
+
+    vi.setSystemTime(1_000 + 15 * 60 * 1000);
+    const edited = observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-new-named', 2_000),
+    ]);
+
+    expect(edited.statusByKey[NEW_TASK_KEY]).toBe('new');
+    expect(edited.isNewByKey[NEW_TASK_KEY]).toBe(true);
+  });
+
+  it('marks new items as updated after the grace period when edited again', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+
+    observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-existing')]);
+    observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-new-empty', 2_000),
+    ]);
+
+    vi.setSystemTime(1_000 + NEW_GRACE_PERIOD_MS + 1);
+    const edited = observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-new-named', 2_000),
+    ]);
+
+    expect(edited.statusByKey[NEW_TASK_KEY]).toBe('updated');
+    expect(edited.isNewByKey[NEW_TASK_KEY]).toBe(true);
+  });
+
+  it('ignores signature drift after markProjectItemsSeen when base activity is unchanged', () => {
+    observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-existing')]);
+    observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-with-comments', 2_000),
+    ]);
+
+    markProjectItemsSeen(USER_ID, PROJECT_ID);
+
+    const drift = observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-existing'),
+      observation(NEW_TASK_KEY, 'sig-without-comments', 2_000),
+    ]);
+
+    expect(drift.statusByKey[NEW_TASK_KEY]).toBe('none');
+    expect(drift.isNewByKey[NEW_TASK_KEY]).toBe(false);
   });
 });

@@ -681,21 +681,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     if (!currentUserId) return;
 
-    const taskEntries = (localProject.tasks ?? []).map((task, idx) => {
-      const summary = getTaskSummaryForIndex(idx);
-      return buildTaskItemObservation(localProject, task, idx, {
-        commentActivityMs: summary.latestActivityMs ?? 0,
-      });
-    });
+    const taskEntries = (localProject.tasks ?? []).map((task, idx) =>
+      buildTaskItemObservation(localProject, task, idx)
+    );
 
-    const contentEntries = projectContentItems.map((item) => {
-      const itemId = item._id.toString();
-      const summary = commentSummaries.contentItems[itemId];
-      return buildContentItemObservation(item, {
-        commentActivityMs: summary?.latestActivityMs ?? 0,
-        projectCreatedAt: localProject.createdAt,
-      });
-    });
+    const contentEntries = projectContentItems.map((item) => buildContentItemObservation(item));
 
     const keys = [...taskEntries, ...contentEntries].map((entry) => entry.key);
     const observed = observeItemsForUser(currentUserId, [...taskEntries, ...contentEntries]);
@@ -706,15 +696,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     } else {
       setItemStatusByKey(observed.statusByKey);
     }
-  }, [
-    currentUserId,
-    localProject,
-    projectContentItems,
-    commentSummaries,
-    getTaskSummaryForIndex,
-    taskItemKeyFor,
-    contentItemKeyFor,
-  ]);
+  }, [currentUserId, localProject, projectContentItems]);
 
   const sortedTaskEntries = useMemo(
     () =>

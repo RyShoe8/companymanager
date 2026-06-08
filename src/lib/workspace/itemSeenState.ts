@@ -7,6 +7,7 @@ type ItemSeenState = {
   activityMs: Record<string, number>;
   seenMs: Record<string, number>;
   kindByKey: Record<string, 'new' | 'updated'>;
+  newGraceUntilMs: Record<string, number>;
   initializedAtMs: number;
 };
 
@@ -26,13 +27,21 @@ type ObservationResult = {
 export type ItemSeenStatus = 'new' | 'updated' | 'none';
 
 const PREFIX = 'nucleas-item-seen:v1:';
+const NEW_GRACE_PERIOD_MS = 30 * 60 * 1000;
 
 function storageKey(userId: string): string {
   return `${PREFIX}${userId}`;
 }
 
 function emptyState(): ItemSeenState {
-  return { signatures: {}, activityMs: {}, seenMs: {}, kindByKey: {}, initializedAtMs: 0 };
+  return {
+    signatures: {},
+    activityMs: {},
+    seenMs: {},
+    kindByKey: {},
+    newGraceUntilMs: {},
+    initializedAtMs: 0,
+  };
 }
 
 function loadState(userId: string): ItemSeenState {
@@ -46,6 +55,7 @@ function loadState(userId: string): ItemSeenState {
       activityMs: parsed.activityMs ?? {},
       seenMs: parsed.seenMs ?? {},
       kindByKey: parsed.kindByKey ?? {},
+      newGraceUntilMs: parsed.newGraceUntilMs ?? {},
       initializedAtMs: Number.isFinite(parsed.initializedAtMs) ? (parsed.initializedAtMs as number) : 0,
     };
   } catch {
@@ -172,17 +182,25 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
         state.seenMs[item.key] = activity;
       } else {
         state.kindByKey[item.key] = 'new';
+        state.newGraceUntilMs[item.key] = now + NEW_GRACE_PERIOD_MS;
       }
       changed = true;
       continue;
     }
 
     if (priorSignature !== item.signature) {
+      const priorActivity = state.activityMs[item.key] ?? 0;
+      const priorSeen = state.seenMs[item.key] ?? 0;
+      if (priorSeen > priorActivity && item.baseActivityMs <= priorSeen) {
+        state.signatures[item.key] = item.signature;
+        changed = true;
+        continue;
+      }
+
       state.signatures[item.key] = item.signature;
       state.activityMs[item.key] = Math.max(item.baseActivityMs, now);
-      if (state.kindByKey[item.key] !== 'new') {
-        state.kindByKey[item.key] = 'updated';
-      }
+      const graceUntil = state.newGraceUntilMs[item.key] ?? 0;
+      state.kindByKey[item.key] = now < graceUntil ? 'new' : 'updated';
       changed = true;
     } else if (!(item.key in state.activityMs)) {
       state.activityMs[item.key] = Math.max(0, item.baseActivityMs);
@@ -224,6 +242,10 @@ export function markProjectItemsSeen(userId: string, projectId: string): boolean
     }
     if (key in state.kindByKey) {
       delete state.kindByKey[key];
+      changed = true;
+    }
+    if (key in state.newGraceUntilMs) {
+      delete state.newGraceUntilMs[key];
       changed = true;
     }
   }
