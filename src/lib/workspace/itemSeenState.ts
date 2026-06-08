@@ -197,7 +197,7 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
   const statusByKey: Record<string, ItemSeenStatus> = {};
   for (const item of items) {
     const activity = state.activityMs[item.key] ?? 0;
-    const seen = state.seenMs[item.key] ?? activity;
+    const seen = state.seenMs[item.key] ?? 0;
     const unseen = activity > seen;
     activityByKey[item.key] = activity;
     isNewByKey[item.key] = unseen;
@@ -242,7 +242,7 @@ export function readObservedItemsForUser(
   const statusByKey: Record<string, ItemSeenStatus> = {};
   for (const key of keys) {
     const activity = state.activityMs[key] ?? 0;
-    const seen = state.seenMs[key] ?? activity;
+    const seen = state.seenMs[key] ?? 0;
     const unseen = activity > seen;
     activityByKey[key] = activity;
     isNewByKey[key] = unseen;
