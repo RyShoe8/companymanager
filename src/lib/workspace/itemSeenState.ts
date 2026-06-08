@@ -75,7 +75,9 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
   for (const item of items) {
     const priorSignature = state.signatures[item.key];
     if (priorSignature == null) {
-      const activity = Math.max(0, item.baseActivityMs);
+      const activity = firstObservation
+        ? Math.max(0, item.baseActivityMs)
+        : Math.max(item.baseActivityMs, now);
       state.signatures[item.key] = item.signature;
       state.activityMs[item.key] = activity;
       if (firstObservation) {

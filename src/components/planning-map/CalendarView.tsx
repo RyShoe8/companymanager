@@ -676,6 +676,9 @@ export default function CalendarView({
       merged.push({ type: 'content', content: c });
     });
     merged.sort((a, b) => {
+      const aDone = a.type === 'task' && a.task.status === 'completed';
+      const bDone = b.type === 'task' && b.task.status === 'completed';
+      if (aDone !== bDone) return aDone ? 1 : -1;
       const activityA =
         a.type === 'task'
           ? taskActivityMs(project, a.task, resolveTaskIndexInProject(project, a.task))

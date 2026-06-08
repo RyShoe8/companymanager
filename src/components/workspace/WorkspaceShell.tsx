@@ -246,6 +246,15 @@ export default function WorkspaceShell({
         setShowProjectForm(true);
     };
 
+    const markOpenedProjectSeen = useCallback(
+        (projectId: string) => {
+            if (!ws.currentUserId) return;
+            markProjectItemsSeen(ws.currentUserId, projectId);
+            setItemSeenRefreshTrigger((t) => t + 1);
+        },
+        [ws.currentUserId]
+    );
+
     const closeInspector = useCallback(() => {
         if (inspectorFocus?.startsWith('project:') && ws.currentUserId) {
             markProjectItemsSeen(ws.currentUserId, inspectorFocus.slice('project:'.length));
@@ -261,26 +270,38 @@ export default function WorkspaceShell({
         setEditingContentItemId(item._id.toString());
     }, []);
 
-    const handleViewProject = useCallback((project: IProject) => {
-        setInspectorAutoAddTask(false);
-        setInspectorOpenTaskIndex(null);
-        setInspectorOpenContentId(null);
-        setInspectorFocus(`project:${project._id}`);
-    }, []);
+    const handleViewProject = useCallback(
+        (project: IProject) => {
+            setInspectorAutoAddTask(false);
+            setInspectorOpenTaskIndex(null);
+            setInspectorOpenContentId(null);
+            setInspectorFocus(`project:${project._id}`);
+            markOpenedProjectSeen(project._id.toString());
+        },
+        [markOpenedProjectSeen]
+    );
 
-    const handleViewProjectTask = useCallback((project: IProject, taskIndex: number) => {
-        setInspectorAutoAddTask(false);
-        setInspectorOpenContentId(null);
-        setInspectorFocus(`project:${project._id}`);
-        setInspectorOpenTaskIndex(taskIndex);
-    }, []);
+    const handleViewProjectTask = useCallback(
+        (project: IProject, taskIndex: number) => {
+            setInspectorAutoAddTask(false);
+            setInspectorOpenContentId(null);
+            setInspectorFocus(`project:${project._id}`);
+            setInspectorOpenTaskIndex(taskIndex);
+            markOpenedProjectSeen(project._id.toString());
+        },
+        [markOpenedProjectSeen]
+    );
 
-    const handleViewProjectContent = useCallback((project: IProject, contentItemId: string) => {
-        setInspectorAutoAddTask(false);
-        setInspectorOpenTaskIndex(null);
-        setInspectorOpenContentId(contentItemId);
-        setInspectorFocus(`project:${project._id}`);
-    }, []);
+    const handleViewProjectContent = useCallback(
+        (project: IProject, contentItemId: string) => {
+            setInspectorAutoAddTask(false);
+            setInspectorOpenTaskIndex(null);
+            setInspectorOpenContentId(contentItemId);
+            setInspectorFocus(`project:${project._id}`);
+            markOpenedProjectSeen(project._id.toString());
+        },
+        [markOpenedProjectSeen]
+    );
 
     const handleContentItemClickFromSchedule = useCallback(
         (item: IContentItem) => {

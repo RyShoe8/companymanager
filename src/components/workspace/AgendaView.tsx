@@ -322,6 +322,9 @@ export default function AgendaView({
                         tasksOnDay.push(task);
                     });
                     tasksOnDay.sort((a, b) => {
+                        const aDone = a.status === 'completed';
+                        const bDone = b.status === 'completed';
+                        if (aDone !== bDone) return aDone ? 1 : -1;
                         const aIdx = resolveTaskIndexInProject(project, a);
                         const bIdx = resolveTaskIndexInProject(project, b);
                         return taskActivityMs(project, b, bIdx) - taskActivityMs(project, a, aIdx);
