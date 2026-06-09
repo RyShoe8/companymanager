@@ -75,6 +75,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Cron routes authenticate via CRON_SECRET in the route handler, not session cookies
+  if (pathname.startsWith('/api/cron/')) {
+    return NextResponse.next();
+  }
+
   // Check for session cookie
   const session = request.cookies.get('session');
 
