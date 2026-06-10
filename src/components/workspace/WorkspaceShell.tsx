@@ -172,10 +172,14 @@ export default function WorkspaceShell({
     }, [ws.lens, ws]);
 
     const shouldPollProjectActivity = useMemo(() => {
-        const activePhase = ws.phase === 'All' || ws.phase === 'Plan' || ws.phase === 'Build';
-        const scheduleView =
-            ws.phase !== 'Schedule' && (ws.lens === 'schedule' || ws.lens === 'projects');
-        return activePhase && scheduleView;
+        const pollablePhase =
+            ws.phase === 'All' ||
+            ws.phase === 'Plan' ||
+            ws.phase === 'Build' ||
+            ws.phase === 'Schedule';
+        const pollableLens =
+            ws.lens === 'schedule' || ws.lens === 'projects' || ws.lens === 'agenda';
+        return pollablePhase && pollableLens;
     }, [ws.phase, ws.lens]);
 
     const workspaceActivityTokenRef = useRef<string | null>(null);

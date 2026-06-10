@@ -5,6 +5,8 @@ import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
+import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
+import { notifyTaskChange } from '@/lib/workspace/workspaceNotifications';
 
 type TaskLike = {
   status: string;
@@ -79,6 +81,20 @@ export async function POST(
 
     (project.tasks as { status: string }[])[index].status = 'in-review';
     await project.save();
+    await touchProjectActivity(projectId);
+
+    if (user?.organizationId) {
+      void notifyTaskChange({
+        project,
+        task: project.tasks?.[index] ?? task,
+        taskIndex: index,
+        actorUserId: session.userId,
+        actorEmployeeId: employeeId ?? null,
+        organizationId: user.organizationId,
+        isNew: false,
+        changeLabel: 'Task submitted for review',
+      }).catch((err) => console.error('[workspaceNotifications] task_review_submit', err));
+    }
 
     return NextResponse.json({ success: true, task: project.tasks?.[index] ?? task });
   } catch (error) {
@@ -145,6 +161,7 @@ export async function PUT(
     const { task, index } = resolved;
     (project.tasks as { status: string }[])[index].status = approved ? 'completed' : 'active';
     await project.save();
+    await touchProjectActivity(projectId);
 
     if (approved) {
       const taskObjectId = (project.tasks as { _id?: { toString: () => string } }[])[index]?._id?.toString();
@@ -153,6 +170,19 @@ export async function PUT(
         taskIndex: index,
         projectId,
       });
+    }
+
+    if (user?.organizationId) {
+      void notifyTaskChange({
+        project,
+        task: project.tasks?.[index] ?? task,
+        taskIndex: index,
+        actorUserId: session.userId,
+        actorEmployeeId: employee._id.toString(),
+        organizationId: user.organizationId,
+        isNew: false,
+        changeLabel: approved ? 'Task review approved' : 'Task review declined',
+      }).catch((err) => console.error('[workspaceNotifications] task_review_decision', err));
     }
 
     return NextResponse.json({ success: true, task: project.tasks?.[index] ?? task });

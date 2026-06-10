@@ -149,6 +149,19 @@ export function buildContentItemObservation(
   };
 }
 
+function isCommentOnlySignatureDrift(priorSignature: string, nextSignature: string): boolean {
+  try {
+    const prior = JSON.parse(priorSignature) as { commentActivityMs?: number };
+    const next = JSON.parse(nextSignature) as { commentActivityMs?: number };
+    const { commentActivityMs: priorComment, ...priorRest } = prior;
+    const { commentActivityMs: nextComment, ...nextRest } = next;
+    if (JSON.stringify(priorRest) !== JSON.stringify(nextRest)) return false;
+    return priorComment !== nextComment;
+  } catch {
+    return false;
+  }
+}
+
 export function collectWorkspaceItemObservations(
   projects: IProject[],
   contentItems: IContentItem[]
@@ -191,7 +204,11 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
     if (priorSignature !== item.signature) {
       const priorActivity = state.activityMs[item.key] ?? 0;
       const priorSeen = state.seenMs[item.key] ?? 0;
-      if (priorSeen > priorActivity && item.baseActivityMs <= priorSeen) {
+      if (
+        priorSeen > priorActivity &&
+        item.baseActivityMs <= priorSeen &&
+        isCommentOnlySignatureDrift(priorSignature, item.signature)
+      ) {
         state.signatures[item.key] = item.signature;
         changed = true;
         continue;

@@ -6,6 +6,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
 import { normalizeTaskStatus } from '@/lib/projects/projectCleanup';
+import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 
 type TaskLike = {
   status?: TaskStatus;
@@ -112,6 +113,7 @@ export async function PATCH(
 
     (project.tasks as { status: TaskStatus }[])[index].status = status;
     await project.save();
+    await touchProjectActivity(projectId);
 
     if (previousStatus !== 'completed' && status === 'completed') {
       await cleanupCompletedTaskMedia({

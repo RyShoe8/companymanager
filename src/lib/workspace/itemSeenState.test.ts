@@ -126,18 +126,47 @@ describe('itemSeenState', () => {
     expect(edited.isNewByKey[NEW_TASK_KEY]).toBe(true);
   });
 
-  it('ignores signature drift after markProjectItemsSeen when base activity is unchanged', () => {
+  it('marks substantive signature changes as updated after markProjectItemsSeen when activity increases', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+
+    observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-active', 1_000)]);
+    markProjectItemsSeen(USER_ID, PROJECT_ID);
+
+    vi.setSystemTime(20_000);
+    const updated = observeItemsForUser(USER_ID, [
+      observation(EXISTING_TASK_KEY, 'sig-in-review', 15_000),
+    ]);
+
+    expect(updated.statusByKey[EXISTING_TASK_KEY]).toBe('updated');
+    expect(updated.isNewByKey[EXISTING_TASK_KEY]).toBe(true);
+  });
+
+  it('ignores comment-only signature drift after markProjectItemsSeen when base activity is unchanged', () => {
+    const sigWithComments = JSON.stringify({
+      taskId: 'task-new',
+      name: 'Draft',
+      status: 'active',
+      commentActivityMs: 5_000,
+    });
+    const sigWithoutComments = JSON.stringify({
+      taskId: 'task-new',
+      name: 'Draft',
+      status: 'active',
+      commentActivityMs: 0,
+    });
+
     observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-existing')]);
     observeItemsForUser(USER_ID, [
       observation(EXISTING_TASK_KEY, 'sig-existing'),
-      observation(NEW_TASK_KEY, 'sig-with-comments', 2_000),
+      observation(NEW_TASK_KEY, sigWithComments, 2_000),
     ]);
 
     markProjectItemsSeen(USER_ID, PROJECT_ID);
 
     const drift = observeItemsForUser(USER_ID, [
       observation(EXISTING_TASK_KEY, 'sig-existing'),
-      observation(NEW_TASK_KEY, 'sig-without-comments', 2_000),
+      observation(NEW_TASK_KEY, sigWithoutComments, 2_000),
     ]);
 
     expect(drift.statusByKey[NEW_TASK_KEY]).toBe('none');

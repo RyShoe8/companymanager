@@ -145,6 +145,17 @@ export function resolveTaskRecipientEmployeeIds(task: TaskLike): string[] {
   return getTaskAssigneeEmployeeIds(task as Parameters<typeof getTaskAssigneeEmployeeIds>[0]);
 }
 
+/** Task assignees plus managers/admins on the project team (for status/update notifications). */
+export function resolveTaskStatusNotificationEmployeeIds(
+  task: TaskLike,
+  project: ProjectLike,
+  employeesById: Map<string, Pick<IEmployee, 'role'>>
+): string[] {
+  const assignees = resolveTaskRecipientEmployeeIds(task);
+  const managers = resolveProjectRecipientEmployeeIds(project, employeesById);
+  return [...new Set([...assignees, ...managers])];
+}
+
 export function resolveContentRecipientEmployeeIds(content: ContentLike): string[] {
   const id = normalizeId(content.assignedToEmployeeId);
   return id ? [id] : [];
@@ -289,7 +300,7 @@ async function enqueueForEmployeeIds(options: {
 }
 
 export async function notifyTaskChange(options: {
-  project: Pick<IProject, '_id' | 'name'>;
+  project: ProjectLike & Pick<IProject, '_id' | 'name'>;
   task: TaskLike;
   taskIndex?: number;
   actorUserId: string;
@@ -302,7 +313,19 @@ export async function notifyTaskChange(options: {
   if (!projectId) return;
 
   const taskId = normalizeId(options.task._id) ?? undefined;
-  const recipients = resolveTaskRecipientEmployeeIds(options.task);
+  let recipients = resolveTaskRecipientEmployeeIds(options.task);
+
+  if (!options.isNew) {
+    await connectDB();
+    const teamIds = [...getProjectTeamEmployeeIds(options.project)];
+    const employees = await Employee.find({ _id: { $in: teamIds } });
+    const employeesById = new Map(employees.map((e) => [e._id.toString(), e]));
+    recipients = resolveTaskStatusNotificationEmployeeIds(
+      options.task,
+      options.project,
+      employeesById
+    );
+  }
 
   await enqueueForEmployeeIds({
     employeeIds: recipients,

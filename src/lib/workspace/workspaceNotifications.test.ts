@@ -9,6 +9,7 @@ import {
   resolveContentRecipientEmployeeIds,
   resolveProjectRecipientEmployeeIds,
   resolveTaskRecipientEmployeeIds,
+  resolveTaskStatusNotificationEmployeeIds,
   taskChanged,
 } from '@/lib/workspace/workspaceNotifications';
 import type { WorkspaceDigestInterval } from '@/lib/workspace/notificationTypes';
@@ -36,6 +37,34 @@ describe('workspaceNotifications', () => {
       employeesById
     );
     expect(recipients).toEqual(['mgr-1']);
+  });
+
+  it('resolves task status notification recipients as assignees plus managers on team', () => {
+    const employeesById = new Map([
+      ['mgr-1', { role: 'Manager' as const }],
+      ['usr-1', { role: 'User' as const }],
+      ['usr-2', { role: 'User' as const }],
+    ]);
+    const recipients = resolveTaskStatusNotificationEmployeeIds(
+      { assignedToEmployeeIds: ['usr-2'] },
+      { assignedToEmployeeIds: ['mgr-1', 'usr-1', 'usr-2'] },
+      employeesById
+    );
+    expect(recipients.sort()).toEqual(['mgr-1', 'usr-2']);
+  });
+
+  it('includes manager when sole assignee submits task for review', () => {
+    const employeesById = new Map([
+      ['mgr-1', { role: 'Administrator' as const }],
+      ['usr-2', { role: 'User' as const }],
+    ]);
+    const recipients = resolveTaskStatusNotificationEmployeeIds(
+      { assignedToEmployeeIds: ['usr-2'] },
+      { assignedToEmployeeIds: ['mgr-1', 'usr-2'] },
+      employeesById
+    );
+    expect(recipients).toContain('mgr-1');
+    expect(recipients).toContain('usr-2');
   });
 
   it('detects task and project field changes', () => {
