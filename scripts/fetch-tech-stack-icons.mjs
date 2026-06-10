@@ -1,10 +1,11 @@
 /**
- * One-off script: download Simple Icons SVGs for the tech stack catalog.
+ * Download colored Simple Icons SVGs for the tech stack catalog.
  * Usage: node scripts/fetch-tech-stack-icons.mjs
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fetchColoredIcon, isDarkBrandHex } from './lib/simpleIconColorize.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -64,34 +65,26 @@ const ICONS = {
   coinbase: 'coinbase',
 };
 
-const VERSIONS = ['16.23.0', '11.6.0'];
-/** slug overrides for simple-icons renames across versions */
 const SLUG_OVERRIDES = {
   nuxt: ['nuxt', 'nuxtdotjs'],
+  aws: ['amazonaws', 'aws'],
+  azure: ['microsoftazure', 'azure'],
+  dynamodb: ['amazondynamodb', 'dynamodb'],
+  awslambda: ['awslambda', 'amazonlambda'],
 };
-
-async function fetchIcon(slug) {
-  const slugs = SLUG_OVERRIDES[slug] ?? [slug];
-  for (const version of VERSIONS) {
-    for (const s of slugs) {
-      const url = `https://cdn.jsdelivr.net/npm/simple-icons@${version}/icons/${s}.svg`;
-      const res = await fetch(url);
-      if (res.ok) return res.text();
-    }
-  }
-  return null;
-}
 
 await mkdir(outDir, { recursive: true });
 
 let ok = 0;
 let fail = 0;
+const darkIds = [];
 
 for (const [id, slug] of Object.entries(ICONS)) {
   try {
-    const svg = await fetchIcon(slug);
-    if (!svg) throw new Error('not found in any version');
-    await writeFile(join(outDir, `${id}.svg`), svg, 'utf8');
+    const result = await fetchColoredIcon(slug, SLUG_OVERRIDES);
+    if (!result) throw new Error('not found in any version');
+    await writeFile(join(outDir, `${id}.svg`), result.svg, 'utf8');
+    if (isDarkBrandHex(result.hex)) darkIds.push(id);
     console.log(`OK  ${id}`);
     ok++;
   } catch (err) {
@@ -99,6 +92,9 @@ for (const [id, slug] of Object.entries(ICONS)) {
     fail++;
   }
 }
+
+await writeFile(join(outDir, '_dark.json'), JSON.stringify(darkIds.sort(), null, 2), 'utf8');
+console.log(`Dark-brand icons (${darkIds.length}): ${darkIds.join(', ') || 'none'}`);
 
 console.log(`\nDone: ${ok} ok, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

@@ -1,11 +1,16 @@
 /**
- * One-off script: download Simple Icons SVGs for the marketing stack catalog.
+ * Download colored Simple Icons SVGs for the marketing stack catalog.
  * Falls back to lettermark SVGs when a brand is not in Simple Icons.
  * Usage: node scripts/fetch-marketing-stack-icons.mjs
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  fetchColoredIcon,
+  isDarkBrandHex,
+  normalizeHex,
+} from './lib/simpleIconColorize.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -82,7 +87,6 @@ const FALLBACKS = {
   close: { letter: 'C', color: '#1B1B1B' },
 };
 
-const VERSIONS = ['16.23.0', '11.6.0'];
 const SLUG_OVERRIDES = {
   plausible: ['plausibleanalytics', 'plausible'],
 };
@@ -96,16 +100,10 @@ function lettermarkSvg(id) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img"><rect width="24" height="24" rx="5" fill="${fill}"/><text x="12" y="16.5" text-anchor="middle" fill="${text}" font-size="11" font-family="system-ui,-apple-system,sans-serif" font-weight="700">${letter}</text></svg>`;
 }
 
-async function fetchIcon(slug) {
-  const slugs = SLUG_OVERRIDES[slug] ?? [slug];
-  for (const version of VERSIONS) {
-    for (const s of slugs) {
-      const url = `https://cdn.jsdelivr.net/npm/simple-icons@${version}/icons/${s}.svg`;
-      const res = await fetch(url);
-      if (res.ok) return res.text();
-    }
-  }
-  return null;
+function fallbackBrandHex(id) {
+  const fb = FALLBACKS[id];
+  if (!fb?.color) return null;
+  return normalizeHex(fb.color);
 }
 
 await mkdir(outDir, { recursive: true });
@@ -113,17 +111,29 @@ await mkdir(outDir, { recursive: true });
 let ok = 0;
 let fallback = 0;
 let fail = 0;
+const darkIds = [];
 
 for (const [id, slug] of Object.entries(ICONS)) {
   try {
-    let svg = await fetchIcon(slug);
+    let svg = null;
+    let brandHex = null;
     let source = 'icon';
-    if (!svg) {
+
+    const colored = await fetchColoredIcon(slug, SLUG_OVERRIDES);
+    if (colored) {
+      svg = colored.svg;
+      brandHex = colored.hex;
+    } else {
       svg = lettermarkSvg(id);
+      brandHex = fallbackBrandHex(id);
       source = 'fallback';
     }
+
     if (!svg) throw new Error('not found');
+
     await writeFile(join(outDir, `${id}.svg`), svg, 'utf8');
+    if (brandHex && isDarkBrandHex(brandHex)) darkIds.push(id);
+
     console.log(`${source === 'icon' ? 'OK ' : 'FB '} ${id}`);
     if (source === 'icon') ok++;
     else fallback++;
@@ -132,6 +142,9 @@ for (const [id, slug] of Object.entries(ICONS)) {
     fail++;
   }
 }
+
+await writeFile(join(outDir, '_dark.json'), JSON.stringify(darkIds.sort(), null, 2), 'utf8');
+console.log(`Dark-brand icons (${darkIds.length}): ${darkIds.join(', ') || 'none'}`);
 
 console.log(`\nDone: ${ok} icons, ${fallback} fallbacks, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

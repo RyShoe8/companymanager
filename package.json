@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "icons:tech": "node scripts/fetch-tech-stack-icons.mjs",
+    "icons:marketing": "node scripts/fetch-marketing-stack-icons.mjs",
     "postinstall": "node scripts/copy-ffmpeg-core.mjs"
   },
   "dependencies": {
