@@ -22,6 +22,20 @@ export interface IProjectSocialLink {
   url: string;
 }
 
+export type TechStackCategory = 'hosting' | 'database' | 'api' | 'framework' | 'payments';
+
+export interface IProjectTechStackItem {
+  category: TechStackCategory;
+  technologyId: string;
+}
+
+export type MarketingStackCategory = 'email' | 'analytics' | 'social' | 'crm';
+
+export interface IProjectMarketingStackItem {
+  category: MarketingStackCategory;
+  toolId: string;
+}
+
 export interface IProjectTask {
   _id?: Types.ObjectId; // Mongoose adds by default; use for stable task references (project.tasks.id(taskId))
   name: string;
@@ -64,6 +78,10 @@ export interface IProject extends Document {
   socialLinks?: IProjectSocialLink[];
   /** When false, Socials toolbar button is hidden; add via smart button instead. */
   socialsToolbarVisible?: boolean;
+  /** Technologies used on this project (hosting, database, API, framework, payments). */
+  techStack?: IProjectTechStackItem[];
+  /** Marketing & analytics tools (email, analytics, social management, CRM). */
+  marketingStack?: IProjectMarketingStackItem[];
   projectType: ProjectType;
   category: ProjectCategory;
   color: string;
@@ -138,6 +156,32 @@ const ProjectSchema: Schema = new Schema(
     socialsToolbarVisible: {
       type: Boolean,
       default: true,
+    },
+    techStack: {
+      type: [
+        {
+          category: {
+            type: String,
+            enum: ['hosting', 'database', 'api', 'framework', 'payments'],
+            required: true,
+          },
+          technologyId: { type: String, trim: true, required: true },
+        },
+      ],
+      default: [],
+    },
+    marketingStack: {
+      type: [
+        {
+          category: {
+            type: String,
+            enum: ['email', 'analytics', 'social', 'crm'],
+            required: true,
+          },
+          toolId: { type: String, trim: true, required: true },
+        },
+      ],
+      default: [],
     },
     projectType: {
       type: String,
@@ -328,6 +372,8 @@ ProjectSchema.index({ assignedToEmployeeIds: 1 });
 ProjectSchema.index({ 'tasks.assignedToEmployeeId': 1 });
 ProjectSchema.index({ 'tasks.assignedToEmployeeIds': 1 });
 ProjectSchema.index({ 'socialLinks.network': 1 });
+ProjectSchema.index({ 'techStack.technologyId': 1 });
+ProjectSchema.index({ 'marketingStack.toolId': 1 });
 ProjectSchema.index({ createdAt: -1 });
 
 const Project: Model<IProject> = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);

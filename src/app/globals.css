@@ -163,5 +163,6 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 
 body.nucleas-minimal {
   min-height: 0;
+  height: 100dvh;
   overflow: hidden;
 }

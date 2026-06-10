@@ -93,7 +93,7 @@ export default function ProjectSocialsBar({
 
   return (
   <>
-    <div className="flex flex-wrap items-center gap-2 text-sm min-w-0 w-full basis-full">
+    <div className="flex flex-wrap items-center gap-2 text-sm min-w-0">
       {showToolbarButton && (
         <Button
           type="button"

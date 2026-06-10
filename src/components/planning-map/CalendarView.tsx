@@ -15,6 +15,10 @@ import {
   sumContentHoursInTimeframe,
   sumTaskHoursInTimeframe,
 } from '@/lib/utils/projectHours';
+import {
+  filterContentToSeriesRepresentatives,
+  filterTasksToSeriesRepresentatives,
+} from '@/lib/recurrence/filterSeriesRepresentatives';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import {
@@ -607,8 +611,24 @@ export default function CalendarView({
     const projectIdStr = project._id.toString();
 
     const taskItems: TimeframeTaskItem[] = [];
-    if (showTasks && project.tasks) {
-      project.tasks.forEach((task) => {
+    const displayTasks =
+      showTasks && project.tasks
+        ? filterTasksToSeriesRepresentatives(project.tasks, {
+            mode: 'active',
+            referenceDate: currentDate,
+          })
+        : [];
+    const projectContent = contentItems.filter(
+      (item) => item.projectId?.toString() === projectIdStr
+    );
+    const displayContent = showContent
+      ? filterContentToSeriesRepresentatives(projectContent, {
+          mode: 'active',
+          referenceDate: currentDate,
+        })
+      : [];
+    if (showTasks) {
+      displayTasks.forEach((task) => {
         const taskStart = parseDateSafe((task as { startDate?: Date | string }).startDate);
         const taskEnd = parseDateSafe((task as { endDate?: Date | string }).endDate);
         if (!taskStart || !taskEnd) return;
@@ -619,9 +639,8 @@ export default function CalendarView({
     }
 
     let contentInRange: IContentItem[] = [];
-    if (showContent && contentItems.length > 0) {
-      contentInRange = contentItems.filter((item) => {
-        if (item.projectId?.toString() !== projectIdStr) return false;
+    if (showContent && displayContent.length > 0) {
+      contentInRange = displayContent.filter((item) => {
         if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
         if (
           !contentPassesAssignmentFilter(item, {
@@ -730,7 +749,7 @@ export default function CalendarView({
   const { start: startDate, end: endDate } = getDateRange();
 
   const getProjectEstimatedHours = (project: IProject): number =>
-    computeProjectEstimatedHours(project, contentItems, timeframe, currentDate);
+    computeProjectEstimatedHours(project, contentItems);
 
   const navigatePeriod = (direction: 'prev' | 'next') => {
     handleDateChange(navigateCalendarPeriod(timeframe, viewDate, direction));
@@ -1171,9 +1190,10 @@ export default function CalendarView({
 
                   let taskCount = 0;
                   if (hasTasks) {
-                    taskCount = project.tasks!.filter((task) =>
-                      taskOverlapsWeek(task, days[0], days[6])
-                    ).length;
+                    taskCount = filterTasksToSeriesRepresentatives(project.tasks!, {
+                      mode: 'active',
+                      referenceDate: currentDate,
+                    }).filter((task) => taskOverlapsWeek(task, days[0], days[6])).length;
                   }
 
                   // Height calculation: header (project name + status badge) + padding + tasks
@@ -1381,7 +1401,10 @@ export default function CalendarView({
                         weekEnd.setHours(23, 59, 59, 999);
                         const weekSummary = getWeeklyCollapsedSummary(project, weekStart, weekEnd);
                         const visibleTasks = hasTasks
-                          ? project.tasks!.filter((task) => taskOverlapsWeek(task, days[0], days[6]))
+                          ? filterTasksToSeriesRepresentatives(project.tasks!, {
+                              mode: 'active',
+                              referenceDate: currentDate,
+                            }).filter((task) => taskOverlapsWeek(task, days[0], days[6]))
                           : [];
 
                         return (
@@ -1511,7 +1534,10 @@ export default function CalendarView({
                         ? filterUnseenItems(project, summary.displayList)
                         : [];
                       const visibleTasks = hasTasks
-                        ? project.tasks!.filter((task) => taskOverlapsWeek(task, week[0], week[6]))
+                        ? filterTasksToSeriesRepresentatives(project.tasks!, {
+                            mode: 'active',
+                            referenceDate: currentDate,
+                          }).filter((task) => taskOverlapsWeek(task, week[0], week[6]))
                         : [];
 
                       return (

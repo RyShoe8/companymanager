@@ -5,7 +5,12 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import CommentThread from '@/components/comments/CommentThread';
 import MeetingJoinCallButton from '@/components/scheduling/MeetingJoinCallButton';
-import type { MeetingDetailPayload } from '@/lib/scheduling/buildMeetingDetailPayload';
+import MeetingProjectInsights from '@/components/scheduling/MeetingProjectInsights';
+import type {
+  MeetingDetailContentItem,
+  MeetingDetailPayload,
+  MeetingDetailTaskItem,
+} from '@/lib/scheduling/buildMeetingDetailPayload';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 
 const COMMENT_POLL_MS = 15_000;
@@ -34,6 +39,20 @@ function formatMeetingRange(start: string, end: string): string {
   return `${s.toLocaleString()} – ${e.toLocaleString()}`;
 }
 
+type ProjectWorkTab = 'tasks' | 'content';
+
+function isTaskCompleted(status?: string): boolean {
+  return status === 'completed';
+}
+
+function isContentPublished(status?: string): boolean {
+  return status === 'published';
+}
+
+function orderWithCompletedLast<T>(items: T[], isDone: (item: T) => boolean): T[] {
+  return [...items.filter((item) => !isDone(item)), ...items.filter((item) => isDone(item))];
+}
+
 export default function MeetingDetailView({ token, popout = false }: MeetingDetailViewProps) {
   const [data, setData] = useState<AgendaApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +60,7 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
+  const [projectWorkTab, setProjectWorkTab] = useState<Record<string, ProjectWorkTab>>({});
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -103,7 +123,7 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
   }, [detail?.invitees]);
 
   const shellClass = popout
-    ? 'min-h-screen bg-background text-text-primary'
+    ? 'h-dvh overflow-y-auto overscroll-contain bg-background text-text-primary'
     : 'min-h-screen bg-gray-900 text-white';
 
   const cardClass = popout
@@ -260,46 +280,7 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
                     >
                       {popout ? (
                         <>
-                          {(resources.devUrl || resources.actionButtons.length > 0) && (
-                            <div className="flex flex-wrap gap-2 pt-3">
-                              {resources.devUrl && (
-                                <a href={resources.devUrl} target="_blank" rel="noopener noreferrer">
-                                  <Button type="button" size="sm" variant="secondary">
-                                    Dev
-                                  </Button>
-                                </a>
-                              )}
-                              {resources.actionButtons.map((btn) => (
-                                <a
-                                  key={`${btn.label}-${btn.url}`}
-                                  href={btn.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <Button type="button" size="sm" variant="secondary">
-                                    {btn.label}
-                                  </Button>
-                                </a>
-                              ))}
-                            </div>
-                          )}
-
-                          {resources.urls.length > 0 && (
-                            <ul className="text-xs space-y-1">
-                              {resources.urls.map((url) => (
-                                <li key={url}>
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-primary hover:text-primary-hover break-all"
-                                  >
-                                    {url}
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                          <MeetingProjectInsights resources={resources} />
 
                           <div>
                             <p className={`text-xs uppercase tracking-wide mb-2 ${mutedClass}`}>
@@ -313,105 +294,166 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
                             />
                           </div>
 
-                          {block.tasks.length > 0 && (
-                            <div>
-                              <p className={`text-xs uppercase tracking-wide mb-2 ${mutedClass}`}>
-                                Tasks
-                              </p>
-                              <ul className="space-y-2">
-                                {block.tasks.map((task) => {
-                                  const taskKey = `${block.projectId}-${task.taskId}`;
-                                  const open = expandedTasks.has(taskKey);
-                                  return (
-                                    <li
-                                      key={taskKey}
-                                      className={`rounded border ${
-                                        popout ? 'border-border bg-background-elevated/40' : 'border-gray-600 bg-gray-900/50'
-                                      }`}
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleTask(taskKey)}
-                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left"
-                                      >
-                                        <span>{task.name}</span>
-                                        <span className={`text-xs shrink-0 ${mutedClass}`}>
-                                          {task.status || 'active'} {open ? '▼' : '▶'}
-                                        </span>
-                                      </button>
-                                      {task.assets.length > 0 && (
-                                        <div className="px-3 pb-2">
-                                          <p className={`text-xs ${mutedClass}`}>Assets</p>
-                                          {renderAssetList(task.assets, mutedClass)}
-                                        </div>
-                                      )}
-                                      {open && (
-                                        <div className={`px-3 pb-3 border-t ${popout ? 'border-border' : 'border-gray-700'}`}>
-                                          <CommentThread
-                                            entityType="projectTask"
-                                            entityId={block.projectId}
-                                            taskIndex={task.taskIndex}
-                                            taskId={task.taskId}
-                                            showHeading={false}
-                                            pollIntervalMs={COMMENT_POLL_MS}
-                                          />
-                                        </div>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </div>
-                          )}
+                          {(() => {
+                            const activeTab = projectWorkTab[block.projectId] ?? 'tasks';
+                            const orderedTasks = orderWithCompletedLast<MeetingDetailTaskItem>(
+                              block.tasks,
+                              (task) => isTaskCompleted(task.status)
+                            );
+                            const orderedContent = orderWithCompletedLast<MeetingDetailContentItem>(
+                              block.contentItems,
+                              (item) => isContentPublished(item.status)
+                            );
 
-                          {block.contentItems.length > 0 && (
-                            <div>
-                              <p className={`text-xs uppercase tracking-wide mb-2 ${mutedClass}`}>
-                                Content
-                              </p>
-                              <ul className="space-y-2">
-                                {block.contentItems.map((item) => {
-                                  const contentKey = `${block.projectId}-${item.contentItemId}`;
-                                  const open = expandedContent.has(contentKey);
-                                  return (
-                                    <li
-                                      key={contentKey}
-                                      className={`rounded border ${
-                                        popout ? 'border-border bg-background-elevated/40' : 'border-gray-600 bg-gray-900/50'
-                                      }`}
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleContent(contentKey)}
-                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left"
-                                      >
-                                        <span>{item.title}</span>
-                                        <span className={`text-xs shrink-0 ${mutedClass}`}>
-                                          {item.channel || 'Content'} {open ? '▼' : '▶'}
-                                        </span>
-                                      </button>
-                                      {item.assets.length > 0 && (
-                                        <div className="px-3 pb-2">
-                                          <p className={`text-xs ${mutedClass}`}>Assets</p>
-                                          {renderAssetList(item.assets, mutedClass)}
-                                        </div>
-                                      )}
-                                      {open && (
-                                        <div className={`px-3 pb-3 border-t ${popout ? 'border-border' : 'border-gray-700'}`}>
-                                          <CommentThread
-                                            entityType="contentItem"
-                                            entityId={item.contentItemId}
-                                            showHeading={false}
-                                            pollIntervalMs={COMMENT_POLL_MS}
-                                          />
-                                        </div>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </div>
-                          )}
+                            const renderTaskRow = (task: MeetingDetailTaskItem) => {
+                              const taskKey = `${block.projectId}-${task.taskId}`;
+                              const open = expandedTasks.has(taskKey);
+                              const done = isTaskCompleted(task.status);
+                              return (
+                                <li
+                                  key={taskKey}
+                                  className={`rounded border border-border bg-background-elevated/40 ${
+                                    done ? 'opacity-60' : ''
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleTask(taskKey)}
+                                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left"
+                                  >
+                                    <span className={done ? 'line-through' : ''}>{task.name}</span>
+                                    <span className={`text-xs shrink-0 ${mutedClass}`}>
+                                      {task.status || 'active'} {open ? '▼' : '▶'}
+                                    </span>
+                                  </button>
+                                  {task.assets.length > 0 && (
+                                    <div className="px-3 pb-2">
+                                      <p className={`text-xs ${mutedClass}`}>Assets</p>
+                                      {renderAssetList(task.assets, mutedClass)}
+                                    </div>
+                                  )}
+                                  {open && (
+                                    <div className="px-3 pb-3 border-t border-border">
+                                      <CommentThread
+                                        entityType="projectTask"
+                                        entityId={block.projectId}
+                                        taskIndex={task.taskIndex}
+                                        taskId={task.taskId}
+                                        showHeading={false}
+                                        pollIntervalMs={COMMENT_POLL_MS}
+                                      />
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            };
+
+                            const renderContentRow = (item: MeetingDetailContentItem) => {
+                              const contentKey = `${block.projectId}-${item.contentItemId}`;
+                              const open = expandedContent.has(contentKey);
+                              const done = isContentPublished(item.status);
+                              return (
+                                <li
+                                  key={contentKey}
+                                  className={`rounded border border-border bg-background-elevated/40 ${
+                                    done ? 'opacity-60' : ''
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleContent(contentKey)}
+                                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left"
+                                  >
+                                    <span className={done ? 'line-through' : ''}>{item.title}</span>
+                                    <span className={`text-xs shrink-0 ${mutedClass}`}>
+                                      {item.channel || 'Content'} {open ? '▼' : '▶'}
+                                    </span>
+                                  </button>
+                                  {item.assets.length > 0 && (
+                                    <div className="px-3 pb-2">
+                                      <p className={`text-xs ${mutedClass}`}>Assets</p>
+                                      {renderAssetList(item.assets, mutedClass)}
+                                    </div>
+                                  )}
+                                  {open && (
+                                    <div className="px-3 pb-3 border-t border-border">
+                                      <CommentThread
+                                        entityType="contentItem"
+                                        entityId={item.contentItemId}
+                                        showHeading={false}
+                                        pollIntervalMs={COMMENT_POLL_MS}
+                                      />
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            };
+
+                            return (
+                              <div>
+                                <div className="flex gap-1 border-b border-border mb-3">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setProjectWorkTab((prev) => ({
+                                        ...prev,
+                                        [block.projectId]: 'tasks',
+                                      }))
+                                    }
+                                    className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                                      activeTab === 'tasks'
+                                        ? 'border-primary text-text-primary'
+                                        : 'border-transparent text-text-muted hover:text-text-secondary'
+                                    }`}
+                                  >
+                                    Tasks
+                                    {orderedTasks.length > 0 && (
+                                      <span className="ml-1.5 text-xs text-text-muted">
+                                        ({orderedTasks.length})
+                                      </span>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setProjectWorkTab((prev) => ({
+                                        ...prev,
+                                        [block.projectId]: 'content',
+                                      }))
+                                    }
+                                    className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                                      activeTab === 'content'
+                                        ? 'border-primary text-text-primary'
+                                        : 'border-transparent text-text-muted hover:text-text-secondary'
+                                    }`}
+                                  >
+                                    Content
+                                    {orderedContent.length > 0 && (
+                                      <span className="ml-1.5 text-xs text-text-muted">
+                                        ({orderedContent.length})
+                                      </span>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {activeTab === 'tasks' ? (
+                                  orderedTasks.length > 0 ? (
+                                    <ul className="space-y-2">{orderedTasks.map(renderTaskRow)}</ul>
+                                  ) : (
+                                    <p className={`text-sm ${mutedClass}`}>
+                                      No tasks in this meeting window.
+                                    </p>
+                                  )
+                                ) : orderedContent.length > 0 ? (
+                                  <ul className="space-y-2">{orderedContent.map(renderContentRow)}</ul>
+                                ) : (
+                                  <p className={`text-sm ${mutedClass}`}>
+                                    No content in this meeting window.
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {block.assets.length > 0 && (
                             <div>
@@ -421,14 +463,6 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
                               {renderAssetList(block.assets, mutedClass)}
                             </div>
                           )}
-
-                          {block.tasks.length === 0 &&
-                            block.contentItems.length === 0 &&
-                            block.assets.length === 0 && (
-                              <p className={`text-sm ${mutedClass}`}>
-                                No tasks or content in this meeting window.
-                              </p>
-                            )}
                         </>
                       ) : (
                         <>

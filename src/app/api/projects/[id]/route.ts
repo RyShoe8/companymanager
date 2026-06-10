@@ -14,6 +14,8 @@ import {
   sanitizeTaskAssigneesForProjectTeam,
 } from '@/lib/utils/projectTeam';
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
+import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
+import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupNewlyCompletedTasks, cleanupProjectMedia } from '@/lib/projects/projectCleanup';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
@@ -111,6 +113,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       dismissedChecklistIds,
       socialLinks,
       socialsToolbarVisible,
+      techStack,
+      marketingStack,
       allowBulkTaskExpand,
     } = body;
 
@@ -181,7 +185,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         projectType !== undefined || color !== undefined || colorPalette !== undefined || fontPalette !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
         assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined ||
         assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined ||
-        socialLinks !== undefined || socialsToolbarVisible !== undefined) {
+        socialLinks !== undefined || socialsToolbarVisible !== undefined ||
+        techStack !== undefined || marketingStack !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
       }
     }
@@ -207,6 +212,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     if (socialsToolbarVisible !== undefined) {
       project.socialsToolbarVisible = socialsToolbarVisible !== false;
+    }
+    if (techStack !== undefined) {
+      const techStackError = validateTechStackUpdate(techStack);
+      if (techStackError) {
+        return NextResponse.json({ error: techStackError }, { status: 400 });
+      }
+      project.techStack = sanitizeTechStack(techStack) ?? [];
+    }
+    if (marketingStack !== undefined) {
+      const marketingStackError = validateMarketingStackUpdate(marketingStack);
+      if (marketingStackError) {
+        return NextResponse.json({ error: marketingStackError }, { status: 400 });
+      }
+      project.marketingStack = sanitizeMarketingStack(marketingStack) ?? [];
     }
     if (category !== undefined) project.category = category;
     if (projectType !== undefined) {

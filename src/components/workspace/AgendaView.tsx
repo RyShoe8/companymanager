@@ -43,6 +43,10 @@ import {
     observeItemsForUser,
     readObservedItemsForUser,
 } from '@/lib/workspace/itemSeenState';
+import {
+    filterContentToSeriesRepresentatives,
+    filterTasksToSeriesRepresentatives,
+} from '@/lib/recurrence/filterSeriesRepresentatives';
 
 interface AgendaViewProps {
     projects: IProject[];
@@ -289,8 +293,23 @@ export default function AgendaView({
             const dayProjects: AgendaDayProject[] = [];
             projects.forEach((project) => {
                 const tasksOnDay: IProjectTask[] = [];
-                if (showTasks && project.tasks) {
-                    project.tasks.forEach((task) => {
+                const displayTasks = showTasks
+                    ? filterTasksToSeriesRepresentatives(project.tasks ?? [], {
+                          mode: 'active',
+                          referenceDate: currentDate,
+                      })
+                    : [];
+                const projectContent = contentItems.filter(
+                    (item) => item.projectId?.toString() === project._id.toString()
+                );
+                const displayContent = showContent
+                    ? filterContentToSeriesRepresentatives(projectContent, {
+                          mode: 'active',
+                          referenceDate: currentDate,
+                      })
+                    : [];
+                if (showTasks) {
+                    displayTasks.forEach((task) => {
                         const taskStart = parseDateSafe(task.startDate);
                         const taskEnd = parseDateSafe(task.endDate);
                         if (!taskStart || !taskEnd) return;
@@ -298,6 +317,8 @@ export default function AgendaView({
                         if (!taskPassesAssignmentFilter(task, assignmentFilterOpts)) return;
                         tasksOnDay.push(task);
                     });
+                }
+                if (tasksOnDay.length > 0) {
                     tasksOnDay.sort((a, b) => {
                         const aDone = a.status === 'completed';
                         const bDone = b.status === 'completed';
@@ -310,9 +331,8 @@ export default function AgendaView({
 
                 const contentOnDay: IContentItem[] = [];
                 if (showContent) {
-                    contentItems
+                    displayContent
                         .filter((item) => {
-                            if (item.projectId?.toString() !== project._id.toString()) return false;
                             if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                                 return false;
                             if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
@@ -334,8 +354,14 @@ export default function AgendaView({
                 }
             });
 
+            const displayAllContent = showContent
+                ? filterContentToSeriesRepresentatives(contentItems, {
+                      mode: 'active',
+                      referenceDate: currentDate,
+                  })
+                : [];
             const orphanContent = showContent
-                ? contentItems.filter((item) => {
+                ? displayAllContent.filter((item) => {
                     if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                         return false;
                     if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
@@ -409,12 +435,18 @@ export default function AgendaView({
 
     const undatedContent = useMemo(() => {
         if (!showContent) return [];
-        return contentItems.filter((item) => {
-            if (item.publishDate) return false;
-            if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
-            return contentPassesAssignmentFilter(item, assignmentFilterOpts);
-        }).sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
-    }, [contentItems, showContent, contentChannelFilter, assignmentFilterOpts, contentActivityMs]);
+        return filterContentToSeriesRepresentatives(contentItems, {
+            mode: 'active',
+            referenceDate: currentDate,
+        })
+            .filter((item) => {
+                if (item.publishDate) return false;
+                if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
+                    return false;
+                return contentPassesAssignmentFilter(item, assignmentFilterOpts);
+            })
+            .sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
+    }, [contentItems, showContent, contentChannelFilter, assignmentFilterOpts, contentActivityMs, currentDate]);
 
     useEffect(() => {
         if (timeframe === 'today') return;

@@ -52,14 +52,24 @@ import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import ContentLinkedAssets from '@/components/planning-map/ContentLinkedAssets';
 import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/lib/utils/linkedAssets';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
+import ProjectTechStackBar from '@/components/projects/ProjectTechStackBar';
+import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStackBar';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
-import type { IProjectSocialLink } from '@/lib/models/Project';
+import type { IProjectMarketingStackItem, IProjectSocialLink, IProjectTechStackItem } from '@/lib/models/Project';
 import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoContainer';
 import type { RefObject } from 'react';
 import { expandTaskInstances, expandTaskExtensionInstances } from '@/lib/recurrence/expandTaskInstances';
 import TaskRecurrenceInline, { type TaskRecurrenceValue } from '@/components/planning-map/TaskRecurrenceInline';
 import { expandExtensionDates, type ExtendUnit } from '@/lib/recurrence/recurrenceHorizons';
-import { getTaskSeriesPosition, getContentSeriesPosition } from '@/lib/recurrence/seriesDisplay';
+import {
+  getTaskSeriesPosition,
+  getContentSeriesPosition,
+  shouldShowExtendSeries,
+} from '@/lib/recurrence/seriesDisplay';
+import {
+  filterContentToSeriesRepresentatives,
+  filterTasksToSeriesRepresentatives,
+} from '@/lib/recurrence/filterSeriesRepresentatives';
 import SeriesPositionBadge from '@/components/shared/SeriesPositionBadge';
 import ExtendSeriesSelect from '@/components/shared/ExtendSeriesSelect';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
@@ -278,7 +288,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [projectContentItems, setProjectContentItems] = useState<IContentItem[]>([]);
   const [estimatingTaskIndices, setEstimatingTaskIndices] = useState<Set<number>>(() => new Set());
   const estimateTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
-  const hoursSyncRef = useRef(false);
   const taskSaveInFlightRef = useRef(0);
   const taskSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTaskSaveRef = useRef<{
@@ -727,21 +736,72 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [projectContentItems]
   );
 
-  const visibleTaskEntries = useMemo(
-    () =>
-      sortedTaskEntries.filter(({ task }) =>
-        taskTab === 'active' ? task.status !== 'completed' : task.status === 'completed'
-      ),
-    [sortedTaskEntries, taskTab]
-  );
+  const visibleTaskEntries = useMemo(() => {
+    const mode = taskTab === 'active' ? 'active' : 'completed';
+    const tabTasks = sortedTaskEntries
+      .filter(({ task }) =>
+        mode === 'active' ? task.status !== 'completed' : task.status === 'completed'
+      )
+      .map(({ task }) => task);
+    const representatives = filterTasksToSeriesRepresentatives(tabTasks, {
+      mode,
+      referenceDate,
+    });
+    const repIds = new Set(
+      representatives.map((t) => taskIdString(t)).filter((id): id is string => !!id)
+    );
+    return sortedTaskEntries.filter(({ task }) => {
+      if (mode === 'active' ? task.status === 'completed' : task.status !== 'completed') {
+        return false;
+      }
+      if (!task.recurrenceSeriesId) return true;
+      const id = taskIdString(task);
+      return id != null && repIds.has(id);
+    });
+  }, [sortedTaskEntries, taskTab, referenceDate]);
 
-  const visibleContentItems = useMemo(
-    () =>
-      sortedContentItems.filter((contentItem) =>
-        contentTab === 'active' ? contentItem.status !== 'published' : contentItem.status === 'published'
-      ),
-    [sortedContentItems, contentTab]
-  );
+  const visibleContentItems = useMemo(() => {
+    const mode = contentTab === 'active' ? 'active' : 'completed';
+    const tabItems = sortedContentItems.filter((item) =>
+      mode === 'active' ? item.status !== 'published' : item.status === 'published'
+    );
+    const representatives = filterContentToSeriesRepresentatives(tabItems, {
+      mode,
+      referenceDate,
+    });
+    const repIds = new Set(representatives.map((c) => c._id.toString()));
+    return sortedContentItems.filter((item) => {
+      if (mode === 'active' ? item.status === 'published' : item.status !== 'published') {
+        return false;
+      }
+      if (!item.recurrenceSeriesId) return true;
+      return repIds.has(item._id.toString());
+    });
+  }, [sortedContentItems, contentTab, referenceDate]);
+
+  const activeTaskDisplayCount = useMemo(() => {
+    const tasks = sortedTaskEntries
+      .filter(({ task }) => task.status !== 'completed')
+      .map(({ task }) => task);
+    return filterTasksToSeriesRepresentatives(tasks, { mode: 'active', referenceDate }).length;
+  }, [sortedTaskEntries, referenceDate]);
+
+  const completedTaskDisplayCount = useMemo(() => {
+    const tasks = sortedTaskEntries
+      .filter(({ task }) => task.status === 'completed')
+      .map(({ task }) => task);
+    return filterTasksToSeriesRepresentatives(tasks, { mode: 'completed', referenceDate }).length;
+  }, [sortedTaskEntries, referenceDate]);
+
+  const activeContentDisplayCount = useMemo(() => {
+    const items = sortedContentItems.filter((c) => c.status !== 'published');
+    return filterContentToSeriesRepresentatives(items, { mode: 'active', referenceDate }).length;
+  }, [sortedContentItems, referenceDate]);
+
+  const completedContentDisplayCount = useMemo(() => {
+    const items = sortedContentItems.filter((c) => c.status === 'published');
+    return filterContentToSeriesRepresentatives(items, { mode: 'completed', referenceDate }).length;
+  }, [sortedContentItems, referenceDate]);
 
   const applyAutoExpandFromSummaries = useCallback(
     (data: { tasks: Record<string, CommentSummary>; contentItems: Record<string, CommentSummary> }) => {
@@ -1452,24 +1512,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const computedProjectHours = useMemo(
-    () => computeProjectEstimatedHours(localProject, projectContentItems, timeframe, referenceDate),
-    [localProject, projectContentItems, timeframe, referenceDate]
+    () => computeProjectEstimatedHours(localProject, projectContentItems),
+    [localProject, projectContentItems]
   );
-
-  useEffect(() => {
-    if (hoursSyncRef.current) return;
-    const stored = localProject.estimatedHours ?? 0;
-    if (Math.abs(stored - computedProjectHours) < 0.005) return;
-    hoursSyncRef.current = true;
-    onUpdate({ estimatedHours: computedProjectHours })
-      .then(() => {
-        setLocalProject((prev) => ({ ...prev, estimatedHours: computedProjectHours } as IProject));
-      })
-      .catch(() => {})
-      .finally(() => {
-        hoursSyncRef.current = false;
-      });
-  }, [computedProjectHours, localProject.estimatedHours, onUpdate]);
 
   const handleSubmitForReview = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'in-review'); setShowTaskActions(false); };
   const handleCompleteTask = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'completed'); setShowTaskActions(false); };
@@ -1898,20 +1943,48 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <span className="text-gray-400">Not set</span>
             )}
           </div>
-          <ProjectSocialsBar
-            socialLinks={(localProject.socialLinks ?? []) as IProjectSocialLink[]}
-            socialsToolbarVisible={localProject.socialsToolbarVisible !== false}
-            isManagerOrAdmin={isManagerOrAdmin}
-            onUpdate={async (updates) => {
-              setLocalProject((prev) => ({ ...prev, ...updates } as IProject));
-              try {
-                await onUpdate(updates);
-              } catch (error) {
-                setLocalProject(project);
-                alert(error instanceof Error ? error.message : 'Failed to save');
-              }
-            }}
-          />
+          <div className="flex flex-wrap items-center gap-2 text-sm min-w-0 w-full basis-full">
+            <ProjectSocialsBar
+              socialLinks={(localProject.socialLinks ?? []) as IProjectSocialLink[]}
+              socialsToolbarVisible={localProject.socialsToolbarVisible !== false}
+              isManagerOrAdmin={isManagerOrAdmin}
+              onUpdate={async (updates) => {
+                setLocalProject((prev) => ({ ...prev, ...updates } as IProject));
+                try {
+                  await onUpdate(updates);
+                } catch (error) {
+                  setLocalProject(project);
+                  alert(error instanceof Error ? error.message : 'Failed to save');
+                }
+              }}
+            />
+            <ProjectTechStackBar
+              techStack={(localProject.techStack ?? []) as IProjectTechStackItem[]}
+              isManagerOrAdmin={isManagerOrAdmin}
+              onUpdate={async (updates) => {
+                setLocalProject((prev) => ({ ...prev, ...updates } as IProject));
+                try {
+                  await onUpdate(updates);
+                } catch (error) {
+                  setLocalProject(project);
+                  alert(error instanceof Error ? error.message : 'Failed to save');
+                }
+              }}
+            />
+            <ProjectMarketingStackBar
+              marketingStack={(localProject.marketingStack ?? []) as IProjectMarketingStackItem[]}
+              isManagerOrAdmin={isManagerOrAdmin}
+              onUpdate={async (updates) => {
+                setLocalProject((prev) => ({ ...prev, ...updates } as IProject));
+                try {
+                  await onUpdate(updates);
+                } catch (error) {
+                  setLocalProject(project);
+                  alert(error instanceof Error ? error.message : 'Failed to save');
+                }
+              }}
+            />
+          </div>
         </div>
         {isManagerOrAdmin && employees.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100">
@@ -2214,8 +2287,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         {viewTab === 'content' ? (
           <div className="p-4">
             <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
-              <button onClick={() => setContentTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({sortedContentItems.filter(c => c.status !== 'published').length})</button>
-              <button onClick={() => setContentTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({sortedContentItems.filter(c => c.status === 'published').length})</button>
+              <button onClick={() => setContentTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({activeContentDisplayCount})</button>
+              <button onClick={() => setContentTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedContentDisplayCount})</button>
             </div>
             {visibleContentItems.length === 0 ? (
               <div className="text-center text-gray-500 py-6">No {contentTab} content yet. Add content from the calendar or here.</div>
@@ -2239,7 +2312,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           <span className="truncate">{item.title}</span>
                         </span>
                       </button>
-                      <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1 shrink-0">Delete</button>
+                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <EditableSelect
+                          value={item.status}
+                          options={contentStatusOptions}
+                          onSave={(v) => handleContentItemStatusUpdate(item, v as ContentStatus)}
+                          disabled={!canEditContentItemStatus(item)}
+                          showColorDot
+                          className="text-xs text-gray-900"
+                        />
+                        <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
                       <span className="px-1.5 py-0.5 rounded bg-gray-100 shrink-0">{item.channel}</span>
@@ -2283,26 +2366,23 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           />
                         </div>
                       )}
-                      <EditableSelect
-                        value={item.status}
-                        options={contentStatusOptions}
-                        onSave={(v) => handleContentItemStatusUpdate(item, v as ContentStatus)}
-                        disabled={!canEditContentItemStatus(item)}
-                        showColorDot
-                        className="text-xs text-gray-900"
-                      />
                       {canContributeToProject && item.recurrenceSeriesId ? (
                         <>
                           {(() => {
                             const pos = getContentSeriesPosition(item, projectContentItems);
-                            return pos ? (
-                              <SeriesPositionBadge index={pos.index} total={pos.total} />
-                            ) : null;
+                            if (!pos) return null;
+                            return (
+                              <>
+                                <SeriesPositionBadge index={pos.index} total={pos.total} />
+                                {shouldShowExtendSeries(pos) && (
+                                  <ExtendSeriesSelect
+                                    disabled={!canContributeToProject}
+                                    onExtend={(unit) => void extendContentSeries(item.recurrenceSeriesId!, unit)}
+                                  />
+                                )}
+                              </>
+                            );
                           })()}
-                          <ExtendSeriesSelect
-                            disabled={!canContributeToProject}
-                            onExtend={(unit) => void extendContentSeries(item.recurrenceSeriesId!, unit)}
-                          />
                         </>
                       ) : canContributeToProject && !item.recurrenceSeriesId ? (
                         <TaskRecurrenceInline
@@ -2360,8 +2440,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         ) : (
           <div className="border-t border-gray-100 p-4">
             <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
-              <button onClick={() => setTaskTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({sortedTaskEntries.filter(({ task }) => task.status !== 'completed').length})</button>
-              <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({sortedTaskEntries.filter(({ task }) => task.status === 'completed').length})</button>
+              <button onClick={() => setTaskTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({activeTaskDisplayCount})</button>
+              <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedTaskDisplayCount})</button>
             </div>
             {visibleTaskEntries.length === 0 ? (
               <div className="text-center text-gray-500 py-6">No {taskTab} tasks yet.</div>
@@ -2417,14 +2497,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <>
                               {(() => {
                                 const pos = getTaskSeriesPosition(task, localProject.tasks ?? []);
-                                return pos ? (
-                                  <SeriesPositionBadge index={pos.index} total={pos.total} />
-                                ) : null;
+                                if (!pos) return null;
+                                return (
+                                  <>
+                                    <SeriesPositionBadge index={pos.index} total={pos.total} />
+                                    {shouldShowExtendSeries(pos) && (
+                                      <ExtendSeriesSelect
+                                        disabled={!canContributeToProject}
+                                        onExtend={(unit) => void applyExtendTaskSeries(task.recurrenceSeriesId!, unit)}
+                                      />
+                                    )}
+                                  </>
+                                );
                               })()}
-                              <ExtendSeriesSelect
-                                disabled={!canContributeToProject}
-                                onExtend={(unit) => void applyExtendTaskSeries(task.recurrenceSeriesId!, unit)}
-                              />
                             </>
                           ) : canContributeToProject ? (
                             <TaskRecurrenceInline

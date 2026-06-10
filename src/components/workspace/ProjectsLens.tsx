@@ -137,7 +137,7 @@ export default function ProjectsLens({
                         const colors = statusBadgeColors[project.status] || statusBadgeColors.planning;
                         const taskCount = project.tasks?.length || 0;
                         const completedTasks = project.tasks?.filter((t) => t.status === 'completed').length || 0;
-                        const estHours = computeProjectEstimatedHours(project, contentItems, timeframe, referenceDate);
+                        const estHours = computeProjectEstimatedHours(project, contentItems);
 
                         return (
                             <div

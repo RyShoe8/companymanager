@@ -364,7 +364,7 @@ export default function ContentItemDetailModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Edit Content"
-      maxWidth="md"
+      maxWidth="4xl"
       elevated
       stackAboveOverlays={stackAboveOverlays}
     >

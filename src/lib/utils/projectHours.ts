@@ -89,16 +89,29 @@ export function sumContentHoursInTimeframe(
   return total;
 }
 
+/** Sum estimated hours for non-completed tasks plus in-flight content on a project (display only; not used for utilization). */
+export function computeProjectAssignedHours(
+  project: IProject,
+  contentItems: IContentItem[]
+): number {
+  const pid = projectIdStr(project);
+  let total = 0;
+  for (const task of project.tasks || []) {
+    if (task.status === 'completed') continue;
+    total += parseHours(task.estimatedHours);
+  }
+  for (const item of contentItems) {
+    if (contentProjectIdStr(item) !== pid) continue;
+    if (item.status === 'published') continue;
+    total += parseHours(item.estimatedHours);
+  }
+  return Math.round(total * 100) / 100;
+}
+
+/** @deprecated Use computeProjectAssignedHours — kept as alias for existing imports. */
 export function computeProjectEstimatedHours(
   project: IProject,
-  contentItems: IContentItem[],
-  timeframe: TimeframeType,
-  referenceDate?: Date
+  contentItems: IContentItem[]
 ): number {
-  const range = getTimeframeRange(timeframe, referenceDate);
-  const pid = projectIdStr(project);
-  const total =
-    sumTaskHoursInTimeframe(project, range) +
-    sumContentHoursInTimeframe(pid, contentItems, timeframe, range);
-  return Math.round(total * 100) / 100;
+  return computeProjectAssignedHours(project, contentItems);
 }

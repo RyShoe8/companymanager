@@ -9,9 +9,6 @@ import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import MeetingJoinCallButton from '@/components/scheduling/MeetingJoinCallButton';
-import SeriesPositionBadge from '@/components/shared/SeriesPositionBadge';
-import ExtendSeriesSelect from '@/components/shared/ExtendSeriesSelect';
-import type { ExtendUnit } from '@/lib/recurrence/recurrenceHorizons';
 
 export type MeetingRow = {
   _id: string;
@@ -63,8 +60,6 @@ interface MeetingAgendaRowProps {
   onDeleteMeeting?: () => void;
   onPopoutBlocked?: () => void;
   variant?: 'default' | 'weekColumn';
-  seriesPosition?: { index: number; total: number } | null;
-  onExtendSeries?: (unit: ExtendUnit) => void;
 }
 
 export default function MeetingAgendaRow({
@@ -81,8 +76,6 @@ export default function MeetingAgendaRow({
   onDeleteMeeting,
   onPopoutBlocked,
   variant = 'default',
-  seriesPosition,
-  onExtendSeries,
 }: MeetingAgendaRowProps) {
   const start = new Date(meeting.start);
   const end = new Date(meeting.end);
@@ -91,19 +84,11 @@ export default function MeetingAgendaRow({
   const timeRange = formatMeetingTimeRange(start, end);
   const canManage = !!currentUserId && meeting.userId === currentUserId;
 
-  const seriesControls =
-    meeting.googleRecurringEventId && seriesPosition ? (
-      <>
-        <SeriesPositionBadge index={seriesPosition.index} total={seriesPosition.total} />
-        {canManage && onExtendSeries ? (
-          <ExtendSeriesSelect disabled={false} onExtend={onExtendSeries} />
-        ) : null}
-      </>
-    ) : meeting.googleRecurringEventId ? (
-      <span className="text-xs text-text-muted border border-border rounded px-1.5 py-0.5">
-        Recurring
-      </span>
-    ) : null;
+  const seriesControls = meeting.googleRecurringEventId ? (
+    <span className="text-xs text-text-muted border border-border rounded px-1.5 py-0.5">
+      Recurring
+    </span>
+  ) : null;
 
   const handleOpenMeeting = () => {
     const result = openMeetingPopout(meeting.agendaToken);

@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { IMeeting } from '@/lib/models/Meeting';
-import { getMeetingSeriesPosition } from '@/lib/scheduling/meetingSeriesDisplay';
-import type { ExtendUnit } from '@/lib/recurrence/recurrenceHorizons';
 import type { IProject } from '@/lib/models/Project';
 import type { IEmployee } from '@/lib/models/Employee';
 import Button from '@/components/ui/Button';
@@ -79,7 +77,6 @@ interface MeetingsCalendarViewProps {
   onEditMeeting?: (meeting: MeetingRow) => void;
   onDeleteMeeting?: (meeting: MeetingRow) => void;
   onPopoutBlocked?: () => void;
-  onExtendSeries?: (googleRecurringEventId: string, unit: ExtendUnit) => void;
 }
 
 export default function MeetingsCalendarView({
@@ -99,7 +96,6 @@ export default function MeetingsCalendarView({
   onEditMeeting,
   onDeleteMeeting,
   onPopoutBlocked,
-  onExtendSeries,
 }: MeetingsCalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
 
@@ -138,13 +134,6 @@ export default function MeetingsCalendarView({
       <div className={listClass}>
         {dayMeetings.map((m) => {
           const row = toMeetingRow(m);
-          const seriesPosition = m.googleRecurringEventId
-            ? getMeetingSeriesPosition(
-                m,
-                meetings,
-                (m as IMeeting & { seriesRecurrenceCount?: number }).seriesRecurrenceCount
-              )
-            : null;
           return (
             <MeetingAgendaRow
               key={row._id}
@@ -161,12 +150,6 @@ export default function MeetingsCalendarView({
               onDeleteMeeting={onDeleteMeeting ? () => onDeleteMeeting(row) : undefined}
               onPopoutBlocked={onPopoutBlocked}
               variant={variant}
-              seriesPosition={seriesPosition}
-              onExtendSeries={
-                m.googleRecurringEventId && onExtendSeries
-                  ? (unit) => onExtendSeries(m.googleRecurringEventId!, unit)
-                  : undefined
-              }
             />
           );
         })}

@@ -1,4 +1,10 @@
-import type { IProject, IProjectActionButton } from '@/lib/models/Project';
+import type {
+  IProject,
+  IProjectActionButton,
+  IProjectMarketingStackItem,
+  IProjectSocialLink,
+  IProjectTechStackItem,
+} from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import {
@@ -43,6 +49,15 @@ export type MeetingDetailProjectResources = {
   workspaceHref: string;
   assetsHref: string;
   actionButtons: MeetingDetailActionButton[];
+  socialLinks: IProjectSocialLink[];
+  colorPalette: string[];
+  fontPalette: string[];
+  projectColor?: string;
+  techStack: IProjectTechStackItem[];
+  marketingStack: IProjectMarketingStackItem[];
+  projectType?: string;
+  category?: string;
+  description?: string;
 };
 
 export type MeetingDetailTaskItem = AgendaTaskItem & {
@@ -97,6 +112,28 @@ function mapActionButtons(buttons: IProjectActionButton[] | undefined): MeetingD
   }));
 }
 
+function mapProjectResources(project: IProject, pid: string): MeetingDetailProjectResources {
+  const status = (project.status || 'planning') as BackendProjectStatus;
+  return {
+    devUrl: project.devUrl,
+    liveUrl: project.liveUrl,
+    urls: project.urls?.length ? project.urls : project.url ? [project.url] : [],
+    status,
+    workspaceHref: getProjectWorkspaceHref(pid, status),
+    assetsHref: `/assets?projectId=${pid}`,
+    actionButtons: mapActionButtons(project.actionButtons),
+    socialLinks: project.socialLinks ?? [],
+    colorPalette: project.colorPalette ?? [],
+    fontPalette: project.fontPalette ?? [],
+    projectColor: project.color,
+    techStack: project.techStack ?? [],
+    marketingStack: project.marketingStack ?? [],
+    projectType: project.projectType,
+    category: project.category,
+    description: project.description,
+  };
+}
+
 function isProjectLevelAsset(asset: ProjectAssetRow): boolean {
   return !asset.linkedProjectTaskId && !asset.linkedContentItemId;
 }
@@ -120,7 +157,6 @@ export function buildMeetingDetailPayload(
 
   const projectsWithResources: MeetingDetailProjectBlock[] = agenda.projects.map((block) => {
     const project = projectById.get(block.projectId);
-    const status = (project?.status || 'planning') as BackendProjectStatus;
     const pid = block.projectId;
     const projectAssets = assetsByProjectId.get(pid) || [];
 
@@ -161,15 +197,20 @@ export function buildMeetingDetailPayload(
       color: block.color,
       tasks,
       contentItems: contentItemsWithAssets,
-      resources: {
-        devUrl: project?.devUrl,
-        liveUrl: project?.liveUrl,
-        urls: project?.urls?.length ? project.urls : project?.url ? [project.url] : [],
-        status,
-        workspaceHref: getProjectWorkspaceHref(pid, status),
-        assetsHref: `/assets?projectId=${pid}`,
-        actionButtons: mapActionButtons(project?.actionButtons),
-      },
+      resources: project
+        ? mapProjectResources(project, pid)
+        : {
+            urls: [],
+            status: 'planning',
+            workspaceHref: getProjectWorkspaceHref(pid, 'planning'),
+            assetsHref: `/assets?projectId=${pid}`,
+            actionButtons: [],
+            socialLinks: [],
+            colorPalette: [],
+            fontPalette: [],
+            techStack: [],
+            marketingStack: [],
+          },
       assets: projectLevelAssets,
     };
   });
@@ -184,15 +225,7 @@ export function buildMeetingDetailPayload(
       color: project.color,
       tasks: [],
       contentItems: [],
-      resources: {
-        devUrl: project.devUrl,
-        liveUrl: project.liveUrl,
-        urls: project.urls?.length ? project.urls : project.url ? [project.url] : [],
-        status: project.status,
-        workspaceHref: getProjectWorkspaceHref(pid, project.status as BackendProjectStatus),
-        assetsHref: `/assets?projectId=${pid}`,
-        actionButtons: mapActionButtons(project.actionButtons),
-      },
+      resources: mapProjectResources(project, pid),
       assets: projectAssets.map(mapAsset),
     });
   }
