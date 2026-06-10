@@ -54,11 +54,17 @@ export function expandRecurrenceDates(options: ExpandRecurrenceOptions): Date[] 
   const err = validateRecurrenceInput(validationOpts);
   if (err) throw new Error(err);
 
+  if (end === 'never') {
+    throw new Error('Recurrence must end on a date or after a number of occurrences.');
+  }
+
   const dates: Date[] = [new Date(anchorDate)];
 
   let maxTotal = MAX_OCCURRENCES;
   if (end === 'after' && count != null) {
     maxTotal = Math.min(Math.floor(count), MAX_OCCURRENCES);
+  } else if (end === 'on') {
+    maxTotal = MAX_OCCURRENCES;
   }
 
   const untilMs =

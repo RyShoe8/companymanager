@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, type RefObject } from 'react';
+import { useMemo, useRef, useCallback, type RefObject } from 'react';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import { IProject } from '@/lib/models/Project';
@@ -75,6 +75,37 @@ export default function InspectorHost({
         return null;
     }, [type, id, projects]);
 
+    const focusedProjectId = focusedProject?._id.toString() ?? null;
+
+    const handleProjectUpdate = useCallback(
+        async (updates: Partial<IProject> & { allowBulkTaskExpand?: boolean }) => {
+            if (!focusedProjectId || !updates || Object.keys(updates).length === 0) return;
+            const res = await fetch(`/api/projects/${focusedProjectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            if (!res.ok) {
+                throw new Error(await projectSaveErrorMessage(res));
+            }
+            const data = await res.json().catch(() => null);
+            if (data && typeof data === 'object' && data._id && onProjectPatched) {
+                onProjectPatched(data as IProject);
+            } else {
+                onRefresh();
+            }
+        },
+        [focusedProjectId, onProjectPatched, onRefresh]
+    );
+
+    const handleProjectDelete = useCallback(async () => {
+        if (!focusedProjectId) return;
+        const res = await fetch(`/api/projects/${focusedProjectId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete project');
+        onRefresh();
+        onClose();
+    }, [focusedProjectId, onRefresh, onClose]);
+
     const renderInnerContent = () => {
         if (type === 'project' && focusedProject) {
             return (
@@ -99,29 +130,8 @@ export default function InspectorHost({
                         timeframe={timeframe}
                         referenceDate={referenceDate}
                         onProjectPatched={onProjectPatched}
-                        onUpdate={async (updates) => {
-                            if (!updates || Object.keys(updates).length === 0) return;
-                            const res = await fetch(`/api/projects/${focusedProject._id}`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(updates),
-                            });
-                            if (!res.ok) {
-                                throw new Error(await projectSaveErrorMessage(res));
-                            }
-                            const data = await res.json().catch(() => null);
-                            if (data && typeof data === 'object' && data._id && onProjectPatched) {
-                                onProjectPatched(data as IProject);
-                            } else {
-                                onRefresh();
-                            }
-                        }}
-                        onDelete={async () => {
-                            const res = await fetch(`/api/projects/${focusedProject._id}`, { method: 'DELETE' });
-                            if (!res.ok) throw new Error('Failed to delete project');
-                            onRefresh();
-                            onClose();
-                        }}
+                        onUpdate={handleProjectUpdate}
+                        onDelete={handleProjectDelete}
                         onClose={onClose}
                         onRefresh={onRefresh}
                     />

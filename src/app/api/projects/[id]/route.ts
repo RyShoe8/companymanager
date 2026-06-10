@@ -16,6 +16,7 @@ import {
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupNewlyCompletedTasks, cleanupProjectMedia } from '@/lib/projects/projectCleanup';
+import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -110,6 +111,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       dismissedChecklistIds,
       socialLinks,
       socialsToolbarVisible,
+      allowBulkTaskExpand,
     } = body;
 
     await connectDB();
@@ -364,6 +366,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             },
             { status: 400 }
           );
+        }
+
+        const previousCount = (project.tasks ?? []).length;
+        const taskGuardError = validateIncomingTaskArray({
+          previousCount,
+          incomingTasks: sanitizedTasks,
+          allowBulkTaskExpand: allowBulkTaskExpand === true,
+        });
+        if (taskGuardError) {
+          console.warn('[projects PUT] task array guard rejected', {
+            projectId: id,
+            previousCount,
+            incomingCount: sanitizedTasks.length,
+            userId: session.userId,
+            error: taskGuardError,
+          });
+          return NextResponse.json({ error: taskGuardError }, { status: 400 });
         }
 
         // Debug: Log received tasks to verify status is included

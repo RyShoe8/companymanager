@@ -1,20 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
+import { useState } from 'react';
+import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { countRecurrenceOccurrences } from '@/lib/recurrence/expandRecurrenceDates';
-import {
-  REPEAT_OPTIONS,
-  RECURRENCE_END_OPTIONS,
-} from '@/components/shared/RecurrenceFields';
+import { REPEAT_OPTIONS } from '@/components/shared/RecurrenceFields';
 import { formInputClassCompact } from '@/components/ui/formClasses';
+import {
+  buildTaskRecurrenceValue,
+  INLINE_RECURRENCE_END_OPTIONS,
+  isTaskRecurrenceApplyReady,
+  type TaskRecurrenceValue,
+} from '@/lib/recurrence/taskRecurrenceInlineLogic';
 
-export type TaskRecurrenceValue = {
-  preset: RecurrencePreset;
-  end: RecurrenceEnd;
-  until?: string;
-  count?: number;
-};
+export type { TaskRecurrenceValue };
 
 interface TaskRecurrenceInlineProps {
   anchorDate: Date;
@@ -28,34 +26,15 @@ export default function TaskRecurrenceInline({
   onRecurrenceChange,
 }: TaskRecurrenceInlineProps) {
   const [preset, setPreset] = useState<RecurrencePreset>('none');
-  const [end, setEnd] = useState<RecurrenceEnd>('never');
+  const [end, setEnd] = useState<'after' | 'on'>('after');
   const [until, setUntil] = useState('');
   const [count, setCount] = useState('10');
 
-  const emit = useCallback(
-    (next: {
-      preset: RecurrencePreset;
-      end: RecurrenceEnd;
-      until: string;
-      count: string;
-    }) => {
-      const countNum = next.end === 'after' ? parseInt(next.count, 10) : undefined;
-      onRecurrenceChange({
-        preset: next.preset,
-        end: next.end,
-        until: next.end === 'on' ? next.until : undefined,
-        count: Number.isFinite(countNum) ? countNum : undefined,
-      });
-    },
-    [onRecurrenceChange]
-  );
-
-  useEffect(() => {
-    emit({ preset, end, until, count });
-  }, [preset, end, until, count, emit]);
+  const currentValue = buildTaskRecurrenceValue({ preset, end, until, count });
+  const applyReady = isTaskRecurrenceApplyReady(currentValue);
 
   let preview: string | null = null;
-  if (preset !== 'none' && !isNaN(anchorDate.getTime())) {
+  if (preset !== 'none' && applyReady && !isNaN(anchorDate.getTime())) {
     try {
       const untilDate =
         end === 'on' && until ? new Date(`${until}T23:59:59`) : undefined;
@@ -73,12 +52,24 @@ export default function TaskRecurrenceInline({
     }
   }
 
+  const handlePresetChange = (next: RecurrencePreset) => {
+    setPreset(next);
+    if (next !== 'none') {
+      setEnd('after');
+    }
+  };
+
+  const handleApply = () => {
+    if (!applyReady) return;
+    onRecurrenceChange(currentValue);
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <select
         value={preset}
         disabled={disabled}
-        onChange={(e) => setPreset(e.target.value as RecurrencePreset)}
+        onChange={(e) => handlePresetChange(e.target.value as RecurrencePreset)}
         className={formInputClassCompact}
         aria-label="Repeat"
       >
@@ -93,11 +84,11 @@ export default function TaskRecurrenceInline({
           <select
             value={end}
             disabled={disabled}
-            onChange={(e) => setEnd(e.target.value as RecurrenceEnd)}
+            onChange={(e) => setEnd(e.target.value as 'after' | 'on')}
             className={formInputClassCompact}
             aria-label="Ends"
           >
-            {RECURRENCE_END_OPTIONS.map((opt) => (
+            {INLINE_RECURRENCE_END_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -126,6 +117,14 @@ export default function TaskRecurrenceInline({
             />
           )}
           {preview && <span className="text-xs text-gray-400 italic">{preview}</span>}
+          <button
+            type="button"
+            disabled={disabled || !applyReady}
+            onClick={handleApply}
+            className="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Apply repeat
+          </button>
         </>
       )}
     </div>

@@ -57,6 +57,7 @@ import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoCon
 import type { RefObject } from 'react';
 import { expandTaskInstances } from '@/lib/recurrence/expandTaskInstances';
 import TaskRecurrenceInline, { type TaskRecurrenceValue } from '@/components/planning-map/TaskRecurrenceInline';
+import { validateTaskRecurrenceApply } from '@/lib/recurrence/taskRecurrenceInlineLogic';
 import { taskCommentSummaryKey, type CommentSummary } from '@/lib/comments/commentUtils';
 import {
   buildCommentThreadKey,
@@ -80,7 +81,7 @@ interface InlineProjectViewProps {
   employees: IEmployee[];
   isManagerOrAdmin: boolean;
   currentUserEmployeeId?: string | null;
-  onUpdate: (updates: Partial<IProject>) => Promise<void>;
+  onUpdate: (updates: Partial<IProject> & { allowBulkTaskExpand?: boolean }) => Promise<void>;
   /** Merge logo and other inspector edits into workspace project list without full reload. */
   onProjectPatched?: (project: IProject) => void;
   onDelete?: () => void;
@@ -273,6 +274,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [estimatingTaskIndices, setEstimatingTaskIndices] = useState<Set<number>>(() => new Set());
   const estimateTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const hoursSyncRef = useRef(false);
+  const taskSaveInFlightRef = useRef(0);
+  const taskSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingTaskSaveRef = useRef<{
+    tasks: IProjectTask[];
+    allowBulkTaskExpand?: boolean;
+    onSuccess?: () => void | Promise<void>;
+  } | null>(null);
+  const recurrenceInFlightRef = useRef<Set<string>>(new Set());
   const [linkedAssets, setLinkedAssets] = useState<LinkedAssetRow[]>([]);
   const [linkedAssetsLoading, setLinkedAssetsLoading] = useState(true);
   const [linkedAssetTypeFilter, setLinkedAssetTypeFilter] = useState('');
@@ -827,6 +836,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       autoAddTaskAppliedKeyRef.current = null;
       return;
     }
+    if (taskSaveInFlightRef.current > 0) return;
     setLocalProject((prev) => {
       const pAt = (project as { updatedAt?: string | Date }).updatedAt;
       const prevAt = (prev as { updatedAt?: string | Date }).updatedAt;
@@ -1202,6 +1212,79 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
+  useEffect(() => () => {
+    estimateTimersRef.current.forEach((t) => clearTimeout(t));
+    if (taskSaveDebounceRef.current) clearTimeout(taskSaveDebounceRef.current);
+  }, []);
+
+  const persistProjectTasks = useCallback(
+    async (
+      tasks: IProjectTask[],
+      options?: { allowBulkTaskExpand?: boolean; onSuccess?: () => void | Promise<void> }
+    ) => {
+      taskSaveInFlightRef.current += 1;
+      try {
+        const payload: Partial<IProject> & { allowBulkTaskExpand?: boolean } = { tasks };
+        if (options?.allowBulkTaskExpand) payload.allowBulkTaskExpand = true;
+        await onUpdate(payload);
+        await options?.onSuccess?.();
+      } catch (error) {
+        console.error('Error saving tasks:', error);
+        setLocalProject(project);
+        alert(error instanceof Error ? error.message : 'Failed to save');
+        throw error;
+      } finally {
+        taskSaveInFlightRef.current -= 1;
+      }
+    },
+    [onUpdate, project]
+  );
+
+  const queueProjectTasksSave = useCallback(
+    (
+      tasks: IProjectTask[],
+      options?: {
+        allowBulkTaskExpand?: boolean;
+        immediate?: boolean;
+        onSuccess?: () => void | Promise<void>;
+      }
+    ) => {
+      pendingTaskSaveRef.current = {
+        tasks,
+        allowBulkTaskExpand: options?.allowBulkTaskExpand,
+        onSuccess: options?.onSuccess,
+      };
+      if (options?.immediate) {
+        if (taskSaveDebounceRef.current) {
+          clearTimeout(taskSaveDebounceRef.current);
+          taskSaveDebounceRef.current = null;
+        }
+        const pending = pendingTaskSaveRef.current;
+        pendingTaskSaveRef.current = null;
+        if (pending) {
+          void persistProjectTasks(pending.tasks, {
+            allowBulkTaskExpand: pending.allowBulkTaskExpand,
+            onSuccess: pending.onSuccess,
+          });
+        }
+        return;
+      }
+      if (taskSaveDebounceRef.current) clearTimeout(taskSaveDebounceRef.current);
+      taskSaveDebounceRef.current = setTimeout(() => {
+        taskSaveDebounceRef.current = null;
+        const pending = pendingTaskSaveRef.current;
+        pendingTaskSaveRef.current = null;
+        if (pending) {
+          void persistProjectTasks(pending.tasks, {
+            allowBulkTaskExpand: pending.allowBulkTaskExpand,
+            onSuccess: pending.onSuccess,
+          });
+        }
+      }, 300);
+    },
+    [persistProjectTasks]
+  );
+
   const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
     if (field === 'status' && !isManagerOrAdmin) {
       const previousTasks = [...(localProject.tasks || [])];
@@ -1272,17 +1355,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     updatedTasks[taskIndex] = updatedTask;
     const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, updatedTasks);
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
-    try {
-      await onUpdate({ tasks: tasksToSave });
-      if (field === 'status' && previousStatus !== 'completed' && value === 'completed') {
-        setTaskAssetsRefreshToken((n) => n + 1);
-        await loadLinkedAssets();
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-      setLocalProject(project);
-      alert(error instanceof Error ? error.message : 'Failed to save');
-    }
+    const onSuccess =
+      field === 'status' && previousStatus !== 'completed' && value === 'completed'
+        ? async () => {
+            setTaskAssetsRefreshToken((n) => n + 1);
+            await loadLinkedAssets();
+          }
+        : undefined;
+    queueProjectTasksSave(tasksToSave, { immediate: field === 'status', onSuccess });
   };
 
   const applyTaskEstimatedHours = useCallback(
@@ -1300,9 +1380,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(proj, updatedTasks);
       setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
       try {
-        await onUpdate({ tasks: tasksToSave });
+        await persistProjectTasks(tasksToSave);
       } catch (error) {
-        console.error('Error updating estimated hours:', error);
         setLocalProject((prev) => {
           const tasks = [...(prev.tasks || [])];
           if (tasks[taskIndex]) {
@@ -1313,7 +1392,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         throw error;
       }
     },
-    [onUpdate]
+    [persistProjectTasks]
   );
 
   const scheduleTaskHourEstimate = useCallback((taskIndex: number, title: string) => {
@@ -1362,10 +1441,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     scheduleTaskHourEstimate(taskIndex, name);
   };
 
-  useEffect(() => () => {
-    estimateTimersRef.current.forEach((t) => clearTimeout(t));
-  }, []);
-
   const computedProjectHours = useMemo(
     () => computeProjectEstimatedHours(localProject, projectContentItems, timeframe, referenceDate),
     [localProject, projectContentItems, timeframe, referenceDate]
@@ -1394,7 +1469,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       localProject,
       (localProject.tasks || []).filter((_, idx) => idx !== taskIndex)
     );
-    await onUpdate({ tasks: tasksToSave });
+    await persistProjectTasks(tasksToSave);
     setShowTaskActions(false);
     setSelectedTaskIndex(null);
   };
@@ -1447,7 +1522,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const addedIdx = tasksToSave.length - 1;
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
     try {
-      await onUpdate({ tasks: tasksToSave });
+      await persistProjectTasks(tasksToSave);
       setViewTab('tasks');
       setTaskTab('active');
       setAutoEditTaskIndex(addedIdx);
@@ -1466,9 +1541,20 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     async (taskIndex: number, recurrence: TaskRecurrenceValue) => {
       if (recurrence.preset === 'none') return;
 
+      const applyError = validateTaskRecurrenceApply(recurrence);
+      if (applyError) {
+        alert(applyError);
+        return;
+      }
+
       const tasks = localProjectRef.current.tasks || [];
       const task = tasks[taskIndex];
       if (!task || task.recurrenceSeriesId) return;
+
+      const flightKey =
+        (task as { _id?: { toString?: () => string } })._id?.toString?.() ?? `index:${taskIndex}`;
+      if (recurrenceInFlightRef.current.has(flightKey)) return;
+      recurrenceInFlightRef.current.add(flightKey);
 
       try {
         const until =
@@ -1491,16 +1577,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           nextTasks
         );
         setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
-        await onUpdate({ tasks: tasksToSave });
+        await persistProjectTasks(tasksToSave, { allowBulkTaskExpand: true });
         setViewTab('tasks');
         setTaskTab('active');
         setAutoEditTaskIndex(taskIndex);
         setPendingScrollToTaskIndex(taskIndex);
       } catch (err) {
         alert(err instanceof Error ? err.message : 'Invalid recurrence settings');
+      } finally {
+        recurrenceInFlightRef.current.delete(flightKey);
       }
     },
-    [onUpdate]
+    [persistProjectTasks]
   );
 
   const handleAddTask = async () => {
@@ -2187,9 +2275,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   const taskSeenStatus: ItemSeenStatus = canShowTaskNewIndicator(task)
                     ? (itemStatusByKey[taskKey] ?? 'none')
                     : 'none';
+                  const rowKey =
+                    (task as { _id?: { toString?: () => string } })._id?.toString?.() ?? `index:${idx}`;
 
                   return (
-                    <SwipeableCard key={idx} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
+                    <SwipeableCard key={rowKey} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
                       <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>

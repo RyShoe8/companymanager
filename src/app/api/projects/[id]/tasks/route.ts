@@ -13,6 +13,7 @@ import {
   sanitizeTaskAssigneesForProjectTeam,
 } from '@/lib/utils/projectTeam';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
+import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 
 type IncomingTask = {
   name?: string;
@@ -138,6 +139,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (incoming.length === 0) {
       return NextResponse.json({ error: 'At least one task is required' }, { status: 400 });
+    }
+
+    const appendGuardError = validateIncomingTaskArray({
+      previousCount: (project.tasks ?? []).length,
+      incomingTasks: incoming,
+      allowBulkTaskExpand: body.allowBulkTaskExpand === true,
+      isAppend: true,
+    });
+    if (appendGuardError) {
+      console.warn('[projects POST tasks] append guard rejected', {
+        projectId: id,
+        incomingCount: incoming.length,
+        userId: session.userId,
+        error: appendGuardError,
+      });
+      return NextResponse.json({ error: appendGuardError }, { status: 400 });
     }
 
     const built = await Promise.all(
