@@ -5,6 +5,10 @@ import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { isValidObjectId } from '@/lib/utils/security';
+import {
+  encryptActionButtonPassword,
+  serializeActionButtons,
+} from '@/lib/security/actionButtonCrypto';
 
 function isValidEmailFormat(email: string): boolean {
   const t = email.trim();
@@ -46,8 +50,11 @@ export async function GET(
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
-    const actionButtons = (project as { actionButtons?: { label: string; url: string; referralSourceId?: unknown }[] }).actionButtons || [];
-    return NextResponse.json(actionButtons);
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const canViewPasswords = employee?.role === 'Manager' || employee?.role === 'Administrator';
+    const actionButtons = (project as { actionButtons?: { label: string; url: string; kind?: string; password?: string; referralSourceId?: unknown }[] }).actionButtons || [];
+    return NextResponse.json(serializeActionButtons(actionButtons, canViewPasswords));
   } catch (error) {
     console.error('Error fetching project buttons:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -104,7 +111,9 @@ export async function POST(
         label: displayLabel,
         url: mailtoUrl,
         kind: 'email',
-        ...(passwordRaw.trim() ? { password: passwordRaw.trim() } : {}),
+        ...(passwordRaw.trim()
+          ? { password: encryptActionButtonPassword(passwordRaw.trim()) }
+          : {}),
       });
     } else {
       if (!label || !url) {
@@ -122,7 +131,7 @@ export async function POST(
     }
     project.actionButtons = actionButtons;
     await project.save();
-    return NextResponse.json(project.actionButtons, { status: 201 });
+    return NextResponse.json(serializeActionButtons(project.actionButtons, true), { status: 201 });
   } catch (error) {
     console.error('Error adding project button:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -167,7 +176,7 @@ export async function DELETE(
     actionButtons.splice(index, 1);
     project.actionButtons = actionButtons;
     await project.save();
-    return NextResponse.json(project.actionButtons);
+    return NextResponse.json(serializeActionButtons(project.actionButtons, true));
   } catch (error) {
     console.error('Error deleting project button:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -242,7 +251,7 @@ export async function PATCH(
 
     // Allow empty string to clear stored password (key icon hidden until set again).
     if ('password' in body && typeof password === 'string') {
-      entry.password = password;
+      entry.password = password ? encryptActionButtonPassword(password) : '';
       entry.kind = 'email';
     }
 
@@ -255,7 +264,7 @@ export async function PATCH(
     actionButtons[index] = updatedButton;
     project.actionButtons = actionButtons;
     await project.save();
-    return NextResponse.json(project.actionButtons);
+    return NextResponse.json(serializeActionButtons(project.actionButtons, true));
   } catch (error) {
     console.error('Error updating project button:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createLoginOAuthState } from '@/lib/auth/loginOauthState';
 
 /**
  * Initiate Google OAuth flow
@@ -19,12 +20,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const invitationToken = searchParams.get('invitation');
 
-    // Build state parameter (base64 encoded JSON) if invitation token exists
-    let state = '';
-    if (invitationToken) {
-      const stateData = { invitationToken };
-      state = Buffer.from(JSON.stringify(stateData)).toString('base64');
-    }
+    // Signed state token (CSRF protection); carries the invitation token if present
+    const state = await createLoginOAuthState(invitationToken ?? undefined);
 
     // Google OAuth authorization URL
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -34,10 +31,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('scope', 'openid email profile');
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
-    
-    if (state) {
-      authUrl.searchParams.set('state', state);
-    }
+    authUrl.searchParams.set('state', state);
 
     return NextResponse.redirect(authUrl.toString());
   } catch (error) {

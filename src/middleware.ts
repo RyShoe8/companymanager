@@ -59,7 +59,6 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname === '/setup-organization' ||
-    pathname === '/admin' ||
     pathname === '/about' ||
     pathname === '/contact' ||
     pathname === '/terms' ||
@@ -77,6 +76,11 @@ export function middleware(request: NextRequest) {
 
   // Cron routes authenticate via CRON_SECRET in the route handler, not session cookies
   if (pathname.startsWith('/api/cron/')) {
+    return NextResponse.next();
+  }
+
+  // Stripe webhooks authenticate via signature verification in the route handler
+  if (pathname.startsWith('/api/webhooks/')) {
     return NextResponse.next();
   }
 

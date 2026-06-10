@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { getDefaultTaskDates, parseDateSafe } from '@/lib/utils/dateUtils';
 import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
+import { stripActionButtonPasswords } from '@/lib/security/actionButtonCrypto';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
     const migratedProjects = projects.map((project: any) =>
-      migrateProjectFields(migrateStagesToTasks(project))
+      stripActionButtonPasswords(migrateProjectFields(migrateStagesToTasks(project)))
     );
 
     return NextResponse.json(migratedProjects);

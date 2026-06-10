@@ -7,10 +7,13 @@ function getKey(): Buffer {
   if (process.env.NODE_ENV === 'production' && !explicitSecret) {
     throw new Error('CALENDAR_TOKEN_ENCRYPTION_KEY is required in production');
   }
-  const secret =
-    explicitSecret ||
-    process.env.GOOGLE_CLIENT_SECRET ||
-    'nucleas-calendar-dev-key';
+  // Dev fallback: derive from existing secrets only — never a hardcoded literal.
+  const secret = explicitSecret || process.env.GOOGLE_CLIENT_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      'CALENDAR_TOKEN_ENCRYPTION_KEY (or GOOGLE_CLIENT_SECRET / NEXTAUTH_SECRET in development) is required'
+    );
+  }
   return crypto.createHash('sha256').update(secret).digest();
 }
 

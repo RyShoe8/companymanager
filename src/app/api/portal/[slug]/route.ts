@@ -32,7 +32,8 @@ export async function GET(
       return NextResponse.json({ error: 'Portal not found' }, { status: 404 });
     }
 
-    if (project.clientPortalToken && project.clientPortalToken !== token) {
+    // Token is always required: portals without a configured token are not accessible.
+    if (!project.clientPortalToken || project.clientPortalToken !== token) {
       return NextResponse.json({ error: 'Invalid or missing token' }, { status: 403 });
     }
 

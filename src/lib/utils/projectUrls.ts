@@ -1,8 +1,13 @@
-/** Normalize stored URL for use as `href` (add https when scheme omitted). */
+/**
+ * Normalize stored URL for use as `href` (add https when scheme omitted).
+ * Only http/https schemes are allowed; anything else (javascript:, data:, etc.) returns null.
+ */
 export function normalizeProjectUrlHref(raw: string): string | null {
   const t = raw.trim();
   if (!t) return null;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return t;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) {
+    return /^https?:/i.test(t) ? t : null;
+  }
   if (t.startsWith('//')) return `https:${t}`;
   return `https://${t}`;
 }

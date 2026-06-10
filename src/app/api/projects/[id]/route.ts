@@ -19,6 +19,7 @@ import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/util
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupNewlyCompletedTasks, cleanupProjectMedia } from '@/lib/projects/projectCleanup';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
+import { stripActionButtonPasswords } from '@/lib/security/actionButtonCrypto';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -37,7 +38,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Find all users in the same organization
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
-    const project = await Project.findOne({ _id: id, userId: { $in: orgUserIds } }).lean();
+    // Match the role-based filtering applied by GET /api/projects:
+    // Users may only read projects they're assigned to.
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const userRole = currentUserEmployee?.role || 'User';
+
+    const query: Record<string, unknown> = { _id: id, userId: { $in: orgUserIds } };
+    if (userRole !== 'Administrator' && userRole !== 'Manager') {
+      if (!currentUserEmployee) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+      const employeeId = currentUserEmployee._id;
+      query.$or = [
+        { assignedToEmployeeId: employeeId },
+        { assignedToEmployeeIds: employeeId },
+        { 'tasks.assignedToEmployeeId': employeeId },
+        { 'tasks.assignedToEmployeeIds': employeeId },
+        // Legacy support for name-based assignments
+        { assignedTo: currentUserEmployee.name },
+        { assignedToNames: currentUserEmployee.name },
+        { 'tasks.assignedTo': currentUserEmployee.name },
+        { 'stages.assignedTo': currentUserEmployee.name },
+      ];
+    }
+
+    const project = await Project.findOne(query).lean();
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -55,7 +81,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       });
     }
 
-    return NextResponse.json(migratedProject);
+    return NextResponse.json(stripActionButtonPasswords(migratedProject));
   } catch (error) {
     console.error('Error fetching project:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -599,7 +625,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       console.log('Final tasks being returned:', savedProject.tasks.length, 'tasks');
     }
 
-    return NextResponse.json(savedProject);
+    return NextResponse.json(stripActionButtonPasswords(savedProject));
   } catch (error) {
     // Update project error - log the actual error for debugging
     console.error('Error updating project:', error);

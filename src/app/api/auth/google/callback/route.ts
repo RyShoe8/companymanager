@@ -4,6 +4,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import { createSession } from '@/lib/auth/session';
+import { verifyLoginOAuthState } from '@/lib/auth/loginOauthState';
 
 /**
  * Handle Google OAuth callback
@@ -21,6 +22,12 @@ export async function GET(request: NextRequest) {
 
     if (!code) {
       return NextResponse.redirect(new URL('/login?error=no_code', request.url));
+    }
+
+    // Verify signed state (CSRF protection); the initiate route always sets it
+    const statePayload = state ? await verifyLoginOAuthState(state) : null;
+    if (!statePayload) {
+      return NextResponse.redirect(new URL('/login?error=invalid_state', request.url));
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -78,16 +85,8 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    // Parse state if present (for invitation tokens)
-    let invitationToken: string | null = null;
-    if (state) {
-      try {
-        const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-        invitationToken = stateData.invitationToken || null;
-      } catch (e) {
-        // State parsing failed, continue without invitation
-      }
-    }
+    // Invitation token travels inside the verified state payload
+    let invitationToken: string | null = statePayload.invitationToken ?? null;
 
     let organizationId: string | undefined;
     let employeeId: string | undefined;

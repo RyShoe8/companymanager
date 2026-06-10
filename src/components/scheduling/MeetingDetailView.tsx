@@ -11,6 +11,7 @@ import type {
   MeetingDetailPayload,
   MeetingDetailTaskItem,
 } from '@/lib/scheduling/buildMeetingDetailPayload';
+import { normalizeProjectUrlHref } from '@/lib/utils/projectUrls';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 
 const COMMENT_POLL_MS = 15_000;
@@ -472,15 +473,15 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
                                 Open in workspace
                               </Button>
                             </Link>
-                            {resources.devUrl && (
-                              <a href={resources.devUrl} target="_blank" rel="noopener noreferrer">
+                            {normalizeProjectUrlHref(resources.devUrl ?? '') && (
+                              <a href={normalizeProjectUrlHref(resources.devUrl ?? '')!} target="_blank" rel="noopener noreferrer">
                                 <Button type="button" size="sm" variant="secondary">
                                   Dev
                                 </Button>
                               </a>
                             )}
-                            {resources.liveUrl && (
-                              <a href={resources.liveUrl} target="_blank" rel="noopener noreferrer">
+                            {normalizeProjectUrlHref(resources.liveUrl ?? '') && (
+                              <a href={normalizeProjectUrlHref(resources.liveUrl ?? '')!} target="_blank" rel="noopener noreferrer">
                                 <Button type="button" size="sm" variant="secondary">
                                   Live
                                 </Button>
@@ -495,35 +496,43 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
 
                           {resources.urls.length > 0 && (
                             <ul className="text-xs space-y-1">
-                              {resources.urls.map((url) => (
-                                <li key={url}>
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-primary hover:text-primary-hover break-all"
-                                  >
-                                    {url}
-                                  </a>
-                                </li>
-                              ))}
+                              {resources.urls.map((url) => {
+                                const href = normalizeProjectUrlHref(url);
+                                if (!href) return null;
+                                return (
+                                  <li key={url}>
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:text-primary-hover break-all"
+                                    >
+                                      {url}
+                                    </a>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           )}
 
                           {resources.actionButtons.length > 0 && (
                             <div className="flex flex-wrap gap-2">
-                              {resources.actionButtons.map((btn) => (
-                                <a
-                                  key={`${btn.label}-${btn.url}`}
-                                  href={btn.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <Button type="button" size="sm" variant="secondary">
-                                    {btn.label}
-                                  </Button>
-                                </a>
-                              ))}
+                              {resources.actionButtons.map((btn) => {
+                                const href = normalizeProjectUrlHref(btn.url);
+                                if (!href) return null;
+                                return (
+                                  <a
+                                    key={`${btn.label}-${btn.url}`}
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Button type="button" size="sm" variant="secondary">
+                                      {btn.label}
+                                    </Button>
+                                  </a>
+                                );
+                              })}
                             </div>
                           )}
 

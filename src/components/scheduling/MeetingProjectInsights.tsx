@@ -245,8 +245,9 @@ export default function MeetingProjectInsights({ resources }: MeetingProjectInsi
           {resources.actionButtons.map((btn, idx) => {
             const isEmail = btn.kind === 'email';
             const emailLink = isEmail ? emailSmartButtonHref(btn.url) : null;
-            const linkHref = emailLink?.href ?? btn.url;
+            const linkHref = emailLink?.href ?? normalizeProjectUrlHref(btn.url);
             const openInNewTab = isEmail ? !!emailLink?.openInNewTab : true;
+            if (!linkHref) return null;
             return (
               <a
                 key={`${btn.label}-${btn.url}-${idx}`}

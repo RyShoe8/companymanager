@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Comment from '@/lib/models/Comment';
+import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { isValidObjectId } from '@/lib/utils/security';
 import { resolveProjectIdFromCommentEntity, touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { mergeCommentSummary } from '@/lib/comments/commentUtils';
+
+/** Verifies the comment entity resolves to a project within the caller's organization. */
+async function canAccessCommentEntity(
+  userId: string,
+  entityType: string,
+  entityId: string
+): Promise<boolean> {
+  if (!isValidObjectId(entityId)) return false;
+  const projectId = await resolveProjectIdFromCommentEntity(entityType, entityId);
+  if (!projectId) return false;
+  const user = await User.findById(userId).select('organizationId').lean();
+  if (!user?.organizationId) return false;
+  const orgUserIds = await getOrganizationUserIds(userId, user.organizationId);
+  const project = await Project.exists({ _id: projectId, userId: { $in: orgUserIds } });
+  return !!project;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,6 +41,10 @@ export async function GET(request: NextRequest) {
 
     if (!entityType || !entityId) {
       return NextResponse.json({ error: 'entityType and entityId are required' }, { status: 400 });
+    }
+
+    if (!(await canAccessCommentEntity(session.userId, entityType, entityId))) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     const query: any = {
@@ -102,6 +125,10 @@ export async function POST(request: NextRequest) {
     const user = await User.findById(session.userId);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (!(await canAccessCommentEntity(session.userId, entityType, entityId))) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     const commentData: any = {

@@ -2016,7 +2016,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               : 'text-indigo-500 hover:text-red-600';
 
             const emailLink = isEmail ? emailSmartButtonHref(btn.url) : null;
-            const linkHref = emailLink?.href ?? btn.url;
+            const linkHref = emailLink?.href ?? normalizeProjectUrlHref(btn.url) ?? '#';
             const openLinkInNewTab = isEmail ? !!emailLink?.openInNewTab : true;
 
             return (

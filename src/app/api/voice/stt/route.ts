@@ -1,12 +1,21 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth/middleware';
 
-export async function POST(req: Request) {
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25MB (Whisper API limit)
+
+export async function POST(req: NextRequest) {
     try {
+        const session = await requireAuth(req);
+        if (session instanceof NextResponse) return session;
+
         const formData = await req.formData();
         const file = formData.get('file');
 
-        if (!file) {
+        if (!file || !(file instanceof File)) {
             return NextResponse.json({ error: 'No audio file provided' }, { status: 400 });
+        }
+        if (file.size > MAX_AUDIO_BYTES) {
+            return NextResponse.json({ error: 'Audio file too large' }, { status: 413 });
         }
 
         // In a full implementation, you'd send this audio Blob to an STT service (e.g., OpenAI Whisper AWS Transcribe)
