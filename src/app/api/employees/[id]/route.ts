@@ -189,7 +189,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       emailError = inviteResult.emailError;
     }
 
-    // If name changed, update all assignments in projects and operations
+    // If name changed, update all assignments in projects and tasks
     // Now using employeeId, so we can precisely update only THIS employee's assignments
     if (newName && newName !== oldName) {
       const Project = (await import('@/lib/models/Project')).default;
@@ -307,7 +307,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       }
     }
 
-    // Clean up assignments in projects and operations using employeeId
+    // Clean up assignments in projects and tasks using employeeId
     const Project = (await import('@/lib/models/Project')).default;
     const employeeId = id;
 

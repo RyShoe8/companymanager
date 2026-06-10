@@ -11,7 +11,7 @@ import {
   publishDateOnViewDay,
 } from '@/lib/utils/dateUtils';
 import {
-  computeProjectEstimatedHours,
+  computeProjectAssignedHours,
   sumContentHoursInTimeframe,
   sumTaskHoursInTimeframe,
 } from '@/lib/utils/projectHours';
@@ -749,7 +749,7 @@ export default function CalendarView({
   const { start: startDate, end: endDate } = getDateRange();
 
   const getProjectEstimatedHours = (project: IProject): number =>
-    computeProjectEstimatedHours(project, contentItems);
+    computeProjectAssignedHours(project, contentItems);
 
   const navigatePeriod = (direction: 'prev' | 'next') => {
     handleDateChange(navigateCalendarPeriod(timeframe, viewDate, direction));
@@ -761,14 +761,14 @@ export default function CalendarView({
   };
 
   // Projects always exist in their stage view - they don't have dates themselves
-  // We also want to show projects with completed tasks/operations from previous weeks to see accomplished work
+  // We also want to show projects with completed tasks from previous weeks to see accomplished work
   const getProjectsForDay = (day: Date) => {
     const dayStart = new Date(day);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(day);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // Get the current view's date range to check for completed tasks/operations
+    // Get the current view's date range to check for completed tasks
     const viewRange = getDateRange();
     const viewStart = new Date(viewRange.start);
     viewStart.setHours(0, 0, 0, 0);
@@ -777,7 +777,7 @@ export default function CalendarView({
 
     return projects.filter(project => {
       // Projects always show in their stage view - they don't need dates
-      // But we also want to include projects that have completed tasks/operations within the view range
+      // But we also want to include projects that have completed tasks within the view range
       // to show accomplished work from previous timeframes
 
       // Check if project has tasks (including completed ones) that fall within the view range
@@ -791,8 +791,8 @@ export default function CalendarView({
         if (hasTaskInViewRange) return true;
       }
 
-      // Always show projects in their stage view, even if they have no tasks/operations
-      // or if their tasks/operations are outside the view range
+      // Always show projects in their stage view, even if they have no tasks
+      // or if their tasks are outside the view range
       return true;
     });
   };

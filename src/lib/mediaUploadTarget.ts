@@ -6,9 +6,6 @@ export type MediaUploadTarget = {
   taskIndex?: number;
 };
 
-/** @deprecated Use MediaUploadTarget */
-export type ScreenshotUploadTarget = MediaUploadTarget;
-
 export function mediaTargetToRecordingFields(target: MediaUploadTarget | null): {
   projectId?: string;
   taskId?: string;

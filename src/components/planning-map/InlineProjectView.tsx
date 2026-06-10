@@ -23,7 +23,7 @@ import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import ProjectLogo from '@/components/projects/ProjectLogo';
 import { formatDate, parseDateSafe, type TimeframeType } from '@/lib/utils/dateUtils';
-import { computeProjectEstimatedHours } from '@/lib/utils/projectHours';
+import { computeProjectAssignedHours } from '@/lib/utils/projectHours';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import ChecklistSection from '@/components/checklist/ChecklistSection';
@@ -1512,7 +1512,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const computedProjectHours = useMemo(
-    () => computeProjectEstimatedHours(localProject, projectContentItems),
+    () => computeProjectAssignedHours(localProject, projectContentItems),
     [localProject, projectContentItems]
   );
 

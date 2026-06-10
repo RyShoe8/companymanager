@@ -7,8 +7,6 @@
 export interface FeatureFlags {
   workspaceShellEnabled: boolean;
   agendaViewEnabled: boolean;
-  inspectorPanelEnabled: boolean;
-  commandPaletteEnabled: boolean;
   voiceEnabled: boolean;
 }
 
@@ -28,8 +26,6 @@ export function getFeatureFlags(): FeatureFlags {
   return {
     workspaceShellEnabled: envBool('NEXT_PUBLIC_FF_WORKSPACE_SHELL', true),
     agendaViewEnabled: envBool('NEXT_PUBLIC_FF_AGENDA_VIEW', true),
-    inspectorPanelEnabled: envBool('NEXT_PUBLIC_FF_INSPECTOR_PANEL', true),
-    commandPaletteEnabled: envBool('NEXT_PUBLIC_FF_COMMAND_PALETTE', true),
     voiceEnabled: envBool('NEXT_PUBLIC_FF_VOICE', true),
   };
 }

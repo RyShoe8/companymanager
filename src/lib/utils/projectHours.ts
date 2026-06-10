@@ -107,11 +107,3 @@ export function computeProjectAssignedHours(
   }
   return Math.round(total * 100) / 100;
 }
-
-/** @deprecated Use computeProjectAssignedHours — kept as alias for existing imports. */
-export function computeProjectEstimatedHours(
-  project: IProject,
-  contentItems: IContentItem[]
-): number {
-  return computeProjectAssignedHours(project, contentItems);
-}
