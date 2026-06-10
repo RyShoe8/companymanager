@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { expandTaskInstances } from '@/lib/recurrence/expandTaskInstances';
+import { findDuplicateTaskIds, taskIdString } from '@/lib/projects/taskArrayGuards';
 import type { IProjectTask } from '@/lib/models/Project';
 
 describe('task recurrence (preset-only)', () => {
@@ -26,5 +27,19 @@ describe('task recurrence (preset-only)', () => {
       occurrenceStarts: [new Date(baseTask.startDate)],
     });
     expect(instances).toHaveLength(1);
+  });
+
+  it('keeps _id only on the first instance to avoid duplicate task IDs', () => {
+    const taskId = '6a28f2e94de71a11d5ffc184';
+    const taskWithId: IProjectTask = {
+      ...baseTask,
+      _id: taskId as unknown as IProjectTask['_id'],
+    };
+    const instances = expandTaskInstances(taskWithId, { preset: 'monthly' });
+
+    expect(instances.length).toBeGreaterThan(1);
+    expect(findDuplicateTaskIds(instances)).toEqual([]);
+    expect(taskIdString(instances[0])).toBe(taskId);
+    expect(instances.slice(1).every((t) => taskIdString(t) == null)).toBe(true);
   });
 });

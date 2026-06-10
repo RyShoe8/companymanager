@@ -26,8 +26,9 @@ export function expandTaskInstances(
   const seriesId = options.seriesId ?? newRecurrenceSeriesId();
   const preset = options.preset;
 
-  return occurrenceStarts.map((occurrenceStart) => ({
+  return occurrenceStarts.map((occurrenceStart, index) => ({
     ...baseTask,
+    ...(index > 0 ? { _id: undefined } : {}),
     recurrenceSeriesId: seriesId,
     recurrencePreset: preset,
     startDate: occurrenceStart,
