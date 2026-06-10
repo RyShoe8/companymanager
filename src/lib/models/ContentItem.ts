@@ -63,6 +63,9 @@ const ContentItemSchema: Schema = new Schema(
 );
 
 ContentItemSchema.index({ projectId: 1, publishDate: 1 });
+// Org-scoped activity polling and per-assignee schedule queries
+ContentItemSchema.index({ userId: 1, updatedAt: -1 });
+ContentItemSchema.index({ assignedToEmployeeId: 1, publishDate: 1 });
 
 const ContentItem: Model<IContentItem> =
   mongoose.models.ContentItem ||

@@ -10,14 +10,15 @@ import { Types } from 'mongoose';
 export async function getOrganizationUserIds(userId: string | Types.ObjectId, organizationId: string | Types.ObjectId): Promise<Types.ObjectId[]> {
   // organizationId is stored as string in User model, so convert ObjectId to string if needed
   const orgId = typeof organizationId === 'string' ? organizationId : organizationId.toString();
-  const orgUsers = await User.find({ organizationId: orgId });
+  // Runs on nearly every authenticated request — only fetch _id, skip hydration
+  const orgUsers = await User.find({ organizationId: orgId }).select('_id').lean();
 
   // Ensure we return proper ObjectIds - convert string IDs to ObjectId if needed
   const userIds = orgUsers.map(u => {
     if (typeof u._id === 'string') {
       return new Types.ObjectId(u._id);
     }
-    return u._id;
+    return u._id as Types.ObjectId;
   });
 
   // Ensure the current user is included (in case of any edge cases)

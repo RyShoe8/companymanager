@@ -11,9 +11,10 @@ import { isValidObjectId } from '@/lib/utils/security';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { expandInitialSeriesDates, newRecurrenceSeriesId } from '@/lib/recurrence/recurrenceHorizons';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
-
-const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
-const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
+import {
+  CONTENT_CHANNELS as CHANNELS,
+  CONTENT_STATUSES as STATUSES,
+} from '@/lib/content/contentConstants';
 
 export async function GET(request: NextRequest) {
   try {

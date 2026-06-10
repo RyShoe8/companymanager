@@ -12,9 +12,10 @@ import { Types } from 'mongoose';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupPublishedContentMedia } from '@/lib/recordings/recordingCleanup';
 import { contentChanged, notifyContentChange } from '@/lib/workspace/workspaceNotifications';
-
-const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
-const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
+import {
+  CONTENT_CHANNELS as CHANNELS,
+  CONTENT_STATUSES as STATUSES,
+} from '@/lib/content/contentConstants';
 
 async function getContentItemWithAccess(id: string, session: { userId: string }) {
   if (!isValidObjectId(id)) return { item: null, error: { status: 400, message: 'Invalid ID' } };

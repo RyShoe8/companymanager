@@ -61,6 +61,8 @@ const CommentSchema: Schema = new Schema(
 // Compound index for efficient queries
 CommentSchema.index({ entityType: 1, entityId: 1, taskIndex: 1 });
 CommentSchema.index({ entityType: 1, entityId: 1, taskId: 1 });
+// Org-scoped activity polling (max updatedAt by author)
+CommentSchema.index({ authorId: 1, updatedAt: -1 });
 
 const Comment: Model<IComment> = mongoose.models.Comment || mongoose.model<IComment>('Comment', CommentSchema);
 

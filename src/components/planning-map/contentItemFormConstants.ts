@@ -1,25 +1,4 @@
-import { ContentChannel, ContentStatus } from '@/lib/models/ContentItem';
-
-export const CONTENT_CHANNELS: ContentChannel[] = [
-  'X',
-  'LinkedIn',
-  'Instagram',
-  'TikTok',
-  'Email',
-  'Article',
-  'Video',
-  'Reddit',
-  'Bluesky',
-  'Other',
-];
-
-export const CONTENT_STATUSES: ContentStatus[] = [
-  'idea',
-  'planned',
-  'in_progress',
-  'ready',
-  'published',
-];
+export { CONTENT_CHANNELS, CONTENT_STATUSES } from '@/lib/content/contentConstants';
 
 export function toContentInputDate(d: Date): string {
   const y = d.getFullYear();

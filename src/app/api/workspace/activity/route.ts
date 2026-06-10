@@ -7,17 +7,13 @@ import Project from '@/lib/models/Project';
 import ContentItem from '@/lib/models/ContentItem';
 import Comment from '@/lib/models/Comment';
 
-type LeanTimestamp = { updatedAt?: Date; createdAt?: Date };
+type ActivityAggRow = { count?: number; maxStamp?: Date | null };
 
-function latestMs(rows: LeanTimestamp[]): number {
-  let max = 0;
-  for (const row of rows) {
-    const stamp = row.updatedAt ?? row.createdAt;
-    if (!stamp) continue;
-    const ms = new Date(stamp).getTime();
-    if (Number.isFinite(ms)) max = Math.max(max, ms);
-  }
-  return max;
+function aggMs(rows: ActivityAggRow[]): number {
+  const stamp = rows[0]?.maxStamp;
+  if (!stamp) return 0;
+  const ms = new Date(stamp).getTime();
+  return Number.isFinite(ms) ? ms : 0;
 }
 
 export async function GET(request: NextRequest) {
@@ -34,31 +30,37 @@ export async function GET(request: NextRequest) {
 
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 
-    const [projects, contentItems, comments] = await Promise.all([
-      Project.find({ userId: { $in: orgUserIds } })
-        .select('_id updatedAt createdAt')
-        .lean(),
-      ContentItem.find({ userId: { $in: orgUserIds } })
-        .select('_id updatedAt createdAt')
-        .lean(),
-      Comment.find({ authorId: { $in: orgUserIds } })
-        .select('_id updatedAt createdAt')
-        .sort({ updatedAt: -1 })
-        .limit(250)
-        .lean(),
+    // 60s polling hot path: aggregate counts + max timestamps instead of loading full collections
+    const maxStampGroup = {
+      _id: null as null,
+      count: { $sum: 1 },
+      maxStamp: { $max: { $ifNull: ['$updatedAt', '$createdAt'] } },
+    };
+    const [projectAgg, contentAgg, commentAgg] = await Promise.all([
+      Project.aggregate<ActivityAggRow>([
+        { $match: { userId: { $in: orgUserIds } } },
+        { $group: maxStampGroup },
+      ]),
+      ContentItem.aggregate<ActivityAggRow>([
+        { $match: { userId: { $in: orgUserIds } } },
+        { $group: maxStampGroup },
+      ]),
+      Comment.aggregate<ActivityAggRow>([
+        { $match: { authorId: { $in: orgUserIds } } },
+        { $group: maxStampGroup },
+      ]),
     ]);
 
-    const projectMs = latestMs(projects);
-    const contentMs = latestMs(contentItems);
-    const commentMs = latestMs(comments);
-    const lastActivityMs = Math.max(projectMs, contentMs, commentMs);
+    const lastActivityMs = Math.max(aggMs(projectAgg), aggMs(contentAgg), aggMs(commentAgg));
+    const projectCount = projectAgg[0]?.count ?? 0;
+    const contentCount = contentAgg[0]?.count ?? 0;
 
     return NextResponse.json({
-      token: `${projects.length}:${contentItems.length}:${lastActivityMs}`,
+      token: `${projectCount}:${contentCount}:${lastActivityMs}`,
       lastActivityMs,
       counts: {
-        projects: projects.length,
-        contentItems: contentItems.length,
+        projects: projectCount,
+        contentItems: contentCount,
       },
     });
   } catch {
