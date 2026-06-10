@@ -9,8 +9,8 @@ import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
 import { isValidObjectId } from '@/lib/utils/security';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
-import { expandRecurrenceDates } from '@/lib/recurrence/expandRecurrenceDates';
-import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
+import { expandInitialSeriesDates, newRecurrenceSeriesId } from '@/lib/recurrence/recurrenceHorizons';
+import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 
 const CHANNELS = ['X', 'LinkedIn', 'Instagram', 'TikTok', 'Email', 'Article', 'Video', 'Reddit', 'Bluesky', 'Other'] as const;
 const STATUSES = ['idea', 'planned', 'in_progress', 'ready', 'published'] as const;
@@ -189,25 +189,22 @@ export async function POST(request: NextRequest) {
         : new Date();
 
     let publishDates: Date[] = [anchorDate];
-    const rec = recurrence as
-      | { preset?: RecurrencePreset; end?: RecurrenceEnd; until?: string; count?: number }
-      | undefined;
+    let seriesId: string | undefined;
+    let seriesPreset: RecurrencePreset | undefined;
+    const rec = recurrence as { preset?: RecurrencePreset } | undefined;
     if (rec?.preset && rec.preset !== 'none') {
-      const until =
-        rec.end === 'on' && rec.until ? new Date(`${String(rec.until).slice(0, 10)}T23:59:59`) : undefined;
-      const count = rec.end === 'after' && rec.count != null ? Number(rec.count) : undefined;
-      publishDates = expandRecurrenceDates({
-        anchorDate,
-        preset: rec.preset,
-        end: rec.end ?? 'never',
-        until,
-        count: Number.isFinite(count) ? count : undefined,
-      });
+      publishDates = expandInitialSeriesDates(anchorDate, rec.preset);
+      seriesId = newRecurrenceSeriesId();
+      seriesPreset = rec.preset;
     }
 
     const created: IContentItem[] = [];
     for (const pd of publishDates) {
-      const row = { ...doc, publishDate: pd };
+      const row: Record<string, unknown> = { ...doc, publishDate: pd };
+      if (seriesId) {
+        row.recurrenceSeriesId = seriesId;
+        row.recurrencePreset = seriesPreset;
+      }
       created.push(await ContentItem.create(row));
     }
 

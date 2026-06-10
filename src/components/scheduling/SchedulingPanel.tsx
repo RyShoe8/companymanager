@@ -13,6 +13,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
 import type { MeetingUpdateScope } from '@/components/scheduling/MeetingFormModal';
+import type { ExtendUnit } from '@/lib/recurrence/recurrenceHorizons';
 
 interface SchedulingPanelProps {
   projects: IProject[];
@@ -136,6 +137,30 @@ export default function SchedulingPanel({
   const handleMeetingUpdated = () => {
     onRefreshMeetings();
     setPanelMessage('Meeting updated.');
+  };
+
+  const handleExtendSeries = async (seriesId: string, unit: ExtendUnit) => {
+    try {
+      const res = await fetch('/api/scheduling/meetings/extend-series', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seriesId, unit }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPanelMessage(typeof data.error === 'string' ? data.error : 'Failed to extend series.');
+        return;
+      }
+      onRefreshMeetings();
+      const added = typeof data.addedCount === 'number' ? data.addedCount : 0;
+      setPanelMessage(
+        added > 0
+          ? `Added ${added} meeting${added === 1 ? '' : 's'} to the series.`
+          : 'Series is up to date.'
+      );
+    } catch {
+      setPanelMessage('Failed to extend series.');
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -284,6 +309,7 @@ export default function SchedulingPanel({
           setDeleteScope('instance');
         }}
         onPopoutBlocked={() => setPanelMessage(MEETING_POPUP_BLOCKED_MESSAGE)}
+        onExtendSeries={(seriesId, unit) => void handleExtendSeries(seriesId, unit)}
       />
     </div>
   );

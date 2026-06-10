@@ -35,6 +35,8 @@ export interface IProjectTask {
   status?: TaskStatus;
   /** Shared id when created as part of a recurring series (instance generation). */
   recurrenceSeriesId?: string;
+  /** Repeat interval for this series (daily, weekly, biweekly, monthly). */
+  recurrencePreset?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
 }
 
 export type ProjectActionButtonKind = 'link' | 'email';
@@ -277,6 +279,10 @@ const ProjectSchema: Schema = new Schema(
         recurrenceSeriesId: {
           type: String,
           trim: true,
+        },
+        recurrencePreset: {
+          type: String,
+          enum: ['daily', 'weekly', 'biweekly', 'monthly'],
         },
       },
     ],

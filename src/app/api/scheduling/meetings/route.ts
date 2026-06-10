@@ -22,18 +22,20 @@ import {
 import { extractMeetingJoinUrl, type MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import {
   buildRecurrenceRule,
-  getRecurrenceImportRangeEnd,
-  type RecurrenceEnd,
   type RecurrencePreset,
-  validateRecurrenceInput,
 } from '@/lib/scheduling/recurrence';
+import {
+  getInitialHorizonEnd,
+  getInitialRecurrenceCount,
+} from '@/lib/recurrence/recurrenceHorizons';
+import { upsertMeetingSeriesRecurrence } from '@/lib/scheduling/extendMeetingSeries';
 import {
   filterSeriesInstances,
   importMeetingsForInvitedUsers,
   upsertMeetingsFromGoogleEvents,
 } from '@/lib/scheduling/importGoogleMeetings';
 import { resolveMeetingInvitees } from '@/lib/scheduling/meetingAttendees';
-import { getOrgMeetingsViewer, listOrgMeetingsInRange } from '@/lib/scheduling/orgMeetingsQuery';
+import { getOrgMeetingsViewer, listOrgMeetingsInRange, attachSeriesRecurrenceCounts } from '@/lib/scheduling/orgMeetingsQuery';
 import { upsertMeetingSeriesSettings } from '@/lib/scheduling/seriesProjectLinks';
 import { normalizeVideoConferenceInput } from '@/lib/scheduling/meetingVideoConference';
 import { Types } from 'mongoose';
@@ -69,7 +71,8 @@ export async function GET(request: NextRequest) {
         new Date(start),
         new Date(end)
       );
-      return NextResponse.json(meetings);
+      const withCounts = await attachSeriesRecurrenceCounts(ctx.organizationId, meetings);
+      return NextResponse.json(withCounts);
     }
 
     const query: Record<string, unknown> = { userId: ctx.userId };
@@ -125,23 +128,6 @@ export async function POST(request: NextRequest) {
 
     const preset: RecurrencePreset =
       recurrence?.preset && recurrence.preset !== 'none' ? recurrence.preset : 'none';
-    const recurrenceEnd: RecurrenceEnd = recurrence?.end || 'never';
-    const untilDate = recurrence?.until ? new Date(recurrence.until) : undefined;
-    const recurrenceCount =
-      recurrence?.count != null ? Number(recurrence.count) : undefined;
-
-    if (preset !== 'none') {
-      const validationErr = validateRecurrenceInput({
-        preset,
-        start: startDate,
-        end: recurrenceEnd,
-        until: untilDate,
-        count: recurrenceCount,
-      });
-      if (validationErr) {
-        return NextResponse.json({ error: validationErr }, { status: 400 });
-      }
-    }
 
     const projectIds = Array.isArray(linkedProjectIds)
       ? linkedProjectIds.filter((id: string) => Types.ObjectId.isValid(id)).map((id: string) => new Types.ObjectId(id))
@@ -240,13 +226,13 @@ export async function POST(request: NextRequest) {
       }
 
       let recurrenceRules: string[];
+      const occurrenceCount = getInitialRecurrenceCount(preset, startDate);
       try {
         recurrenceRules = buildRecurrenceRule({
           preset,
           start: startDate,
-          end: recurrenceEnd,
-          until: untilDate,
-          count: recurrenceCount,
+          end: 'after',
+          count: occurrenceCount,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Invalid recurrence';
@@ -258,7 +244,7 @@ export async function POST(request: NextRequest) {
         recurrence: recurrenceRules,
       });
 
-      const importEnd = getRecurrenceImportRangeEnd(startDate, recurrenceEnd, untilDate);
+      const importEnd = getInitialHorizonEnd(startDate, preset);
       const events = await listCalendarEvents(
         google.accessToken,
         google.calendarId,
@@ -291,6 +277,15 @@ export async function POST(request: NextRequest) {
           externalAttendeeEmails: invitees.externalAttendeeEmails,
         });
       }
+
+      await upsertMeetingSeriesRecurrence({
+        organizationId: ctx.organizationId,
+        googleRecurringEventId: created.id,
+        iCalUID: created.iCalUID,
+        preset,
+        recurrenceCount: occurrenceCount,
+        agendaToken,
+      });
 
       const meetings = await Meeting.find({
         userId: ctx.userId,

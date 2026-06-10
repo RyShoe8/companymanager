@@ -87,9 +87,15 @@ export default function EditableText({
       inputRef.current.focus();
       if (multiline && inputRef.current instanceof HTMLTextAreaElement) {
         inputRef.current.select();
+      } else if (
+        autoEditOnMount &&
+        inputRef.current instanceof HTMLInputElement &&
+        editValue.length === 0
+      ) {
+        inputRef.current.setSelectionRange(0, 0);
       }
     }
-  }, [isEditing, multiline]);
+  }, [isEditing, multiline, autoEditOnMount, editValue.length]);
 
   useLayoutEffect(() => {
     if (!isEditing || !inputRef.current) return;

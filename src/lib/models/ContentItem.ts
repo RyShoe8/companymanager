@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 
 export type ContentChannel = 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Email' | 'Article' | 'Video' | 'Reddit' | 'Bluesky' | 'Other';
 export type ContentStatus = 'idea' | 'planned' | 'in_progress' | 'ready' | 'published';
@@ -18,6 +19,8 @@ export interface IContentItem extends Document {
   externalUrl?: string;
   distributionMethods?: DistributionMethod[];
   estimatedHours?: number;
+  recurrenceSeriesId?: string;
+  recurrencePreset?: RecurrencePreset;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +53,11 @@ const ContentItemSchema: Schema = new Schema(
       default: [],
     },
     estimatedHours: { type: Number, min: 0 },
+    recurrenceSeriesId: { type: String, trim: true },
+    recurrencePreset: {
+      type: String,
+      enum: ['daily', 'weekly', 'biweekly', 'monthly'],
+    },
   },
   { timestamps: true }
 );

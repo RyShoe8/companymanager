@@ -8,6 +8,8 @@ export interface IMeetingSeriesSettings extends Document {
   agendaToken: string;
   attendeeEmployeeIds: Types.ObjectId[];
   externalAttendeeEmails: string[];
+  recurrencePreset?: string;
+  recurrenceCount?: number;
   updatedAt: Date;
   createdAt: Date;
 }
@@ -21,6 +23,8 @@ const MeetingSeriesSettingsSchema = new Schema(
     agendaToken: { type: String, required: true },
     attendeeEmployeeIds: [{ type: Schema.Types.ObjectId, ref: 'Employee' }],
     externalAttendeeEmails: [{ type: String, trim: true, lowercase: true }],
+    recurrencePreset: { type: String, trim: true },
+    recurrenceCount: { type: Number, min: 1 },
   },
   { timestamps: true }
 );

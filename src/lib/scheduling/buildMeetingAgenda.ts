@@ -1,4 +1,6 @@
 import { IProject, IProjectTask } from '@/lib/models/Project';
+import type { IContentItem } from '@/lib/models/ContentItem';
+import { publishDateOnViewDay } from '@/lib/utils/dateUtils';
 
 export type AgendaTaskItem = {
   taskId: string;
@@ -9,11 +11,20 @@ export type AgendaTaskItem = {
   endDate: string;
 };
 
+export type AgendaContentItem = {
+  contentItemId: string;
+  title: string;
+  status?: string;
+  channel?: string;
+  publishDate?: string;
+};
+
 export type AgendaProjectBlock = {
   projectId: string;
   name: string;
   color?: string;
   tasks: AgendaTaskItem[];
+  contentItems: AgendaContentItem[];
 };
 
 export type MeetingAgendaPayload = {
@@ -35,9 +46,12 @@ function taskOverlapsWindow(task: IProjectTask, windowStart: Date, windowEnd: Da
 
 export function buildMeetingAgenda(
   meeting: { title: string; start: Date; end: Date; agendaUrl: string },
-  projects: IProject[]
+  projects: IProject[],
+  contentItems: IContentItem[] = []
 ): MeetingAgendaPayload {
   const projectsBlocks: AgendaProjectBlock[] = [];
+  const meetingDay = new Date(meeting.start);
+  meetingDay.setHours(0, 0, 0, 0);
 
   for (const project of projects) {
     const pid = project._id.toString();
@@ -54,12 +68,29 @@ export function buildMeetingAgenda(
         endDate: new Date(task.endDate).toISOString(),
       });
     });
-    if (tasks.length > 0 || projects.length <= 8) {
+
+    const projectContent: AgendaContentItem[] = [];
+    for (const item of contentItems) {
+      if (item.projectId?.toString() !== pid) continue;
+      if (!item.publishDate) continue;
+      const pub = new Date(item.publishDate);
+      if (isNaN(pub.getTime()) || !publishDateOnViewDay(meetingDay, pub)) continue;
+      projectContent.push({
+        contentItemId: item._id.toString(),
+        title: item.title,
+        status: item.status,
+        channel: item.channel,
+        publishDate: pub.toISOString(),
+      });
+    }
+
+    if (tasks.length > 0 || projectContent.length > 0 || projects.length <= 8) {
       projectsBlocks.push({
         projectId: pid,
         name: project.name,
         color: project.color,
         tasks,
+        contentItems: projectContent,
       });
     }
   }

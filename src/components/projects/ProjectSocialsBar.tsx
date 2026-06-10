@@ -64,19 +64,6 @@ export default function ProjectSocialsBar({
     [onUpdate, socialLinks]
   );
 
-  const handleRemoveToolbar = async () => {
-    if (!confirm('Remove the Socials button from the project header? You can still add socials via Add → Socials.')) return;
-    setSaving(true);
-    try {
-      await onUpdate({ socialsToolbarVisible: false });
-      setExpanded(false);
-    } catch {
-      alert('Failed to update project.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDeleteLink = async (index: number) => {
     const next = socialLinks.filter((_, i) => i !== index);
     setSaving(true);
@@ -169,11 +156,6 @@ export default function ProjectSocialsBar({
           <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => { setExpanded(false); setDraftUrl(''); }}>
             Cancel
           </Button>
-          {socialLinks.length > 0 && (
-            <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void handleRemoveToolbar()}>
-              Remove Socials button
-            </Button>
-          )}
         </div>
       </div>
     )}

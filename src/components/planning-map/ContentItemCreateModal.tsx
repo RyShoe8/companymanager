@@ -14,7 +14,7 @@ import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import { createPendingAssets } from '@/lib/utils/linkedAssets';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import RecurrenceFields from '@/components/shared/RecurrenceFields';
-import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
+import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { formInputClass } from '@/components/ui/formClasses';
 import { toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
 
@@ -80,9 +80,6 @@ export default function ContentItemCreateModal({
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
-  const [recurrenceEnd, setRecurrenceEnd] = useState<RecurrenceEnd>('never');
-  const [recurrenceUntil, setRecurrenceUntil] = useState('');
-  const [recurrenceCount, setRecurrenceCount] = useState('10');
 
   const assigneeOptions = project ? filterEmployeesForTaskAssignment(employees, project) : employees;
 
@@ -118,9 +115,6 @@ export default function ContentItemCreateModal({
     setPendingAssets([]);
     setShowAdvanced(false);
     setRepeatPreset('none');
-    setRecurrenceEnd('never');
-    setRecurrenceUntil('');
-    setRecurrenceCount('10');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -166,12 +160,7 @@ export default function ContentItemCreateModal({
         if (!isNaN(d.getTime())) body.publishDate = d.toISOString();
       }
       if (repeatPreset !== 'none') {
-        body.recurrence = {
-          preset: repeatPreset,
-          end: recurrenceEnd,
-          ...(recurrenceEnd === 'on' && recurrenceUntil ? { until: recurrenceUntil } : {}),
-          ...(recurrenceEnd === 'after' ? { count: parseInt(recurrenceCount, 10) } : {}),
-        };
+        body.recurrence = { preset: repeatPreset };
       }
       const res = await fetch('/api/content-items', {
         method: 'POST',
@@ -230,12 +219,6 @@ export default function ContentItemCreateModal({
         <RecurrenceFields
           repeatPreset={repeatPreset}
           onRepeatPresetChange={setRepeatPreset}
-          recurrenceEnd={recurrenceEnd}
-          onRecurrenceEndChange={setRecurrenceEnd}
-          recurrenceUntil={recurrenceUntil}
-          onRecurrenceUntilChange={setRecurrenceUntil}
-          recurrenceCount={recurrenceCount}
-          onRecurrenceCountChange={setRecurrenceCount}
           inputClass={formInputClass}
           anchorDate={publishDate ? new Date(publishDate) : new Date()}
           occurrenceLabel="content items"

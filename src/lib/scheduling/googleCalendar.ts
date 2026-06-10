@@ -84,6 +84,7 @@ export type GoogleCalendarEvent = {
   end?: { dateTime?: string; date?: string };
   htmlLink?: string;
   recurringEventId?: string;
+  recurrence?: string[];
   iCalUID?: string;
   attendees?: { email?: string; responseStatus?: string }[];
   conferenceData?: {
@@ -294,6 +295,7 @@ export async function updateCalendarEvent(
     attendees?: { email: string }[];
     sendUpdates?: 'all' | 'externalOnly' | 'none';
     addGoogleMeet?: boolean;
+    recurrence?: string[];
   }
 ): Promise<GoogleCalendarEvent> {
   const body: Record<string, unknown> = {};
@@ -308,6 +310,9 @@ export async function updateCalendarEvent(
   }
   if (event.attendees !== undefined) {
     body.attendees = event.attendees;
+  }
+  if (event.recurrence !== undefined) {
+    body.recurrence = event.recurrence;
   }
   const addGoogleMeet = event.addGoogleMeet === true;
   if (addGoogleMeet) {

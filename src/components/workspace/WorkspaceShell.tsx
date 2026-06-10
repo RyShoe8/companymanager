@@ -246,6 +246,9 @@ export default function WorkspaceShell({
             if (resolved === 'agenda' && !isFeatureEnabled('agendaViewEnabled')) {
                 resolved = 'schedule';
             }
+            if (resolved === 'agenda' && ws.timeframe !== 'today') {
+                ws.setCurrentDate(new Date());
+            }
             ws.setLens(resolved);
             syncWorkspaceUrl({ lens: resolved });
         },

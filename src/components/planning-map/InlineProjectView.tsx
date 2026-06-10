@@ -6,6 +6,7 @@ import { IProject, IProjectTask, TaskStatus } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, type ContentStatus } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
+import { taskIdString } from '@/lib/projects/taskArrayGuards';
 import EditableDate from '@/components/ui/EditableDate';
 import EditableNumber from '@/components/ui/EditableNumber';
 import EditableSelect from '@/components/ui/EditableSelect';
@@ -55,9 +56,13 @@ import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectSocialLink } from '@/lib/models/Project';
 import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoContainer';
 import type { RefObject } from 'react';
-import { expandTaskInstances } from '@/lib/recurrence/expandTaskInstances';
+import { expandTaskInstances, expandTaskExtensionInstances } from '@/lib/recurrence/expandTaskInstances';
 import TaskRecurrenceInline, { type TaskRecurrenceValue } from '@/components/planning-map/TaskRecurrenceInline';
-import { validateTaskRecurrenceApply } from '@/lib/recurrence/taskRecurrenceInlineLogic';
+import { expandExtensionDates, type ExtendUnit } from '@/lib/recurrence/recurrenceHorizons';
+import { getTaskSeriesPosition, getContentSeriesPosition } from '@/lib/recurrence/seriesDisplay';
+import SeriesPositionBadge from '@/components/shared/SeriesPositionBadge';
+import ExtendSeriesSelect from '@/components/shared/ExtendSeriesSelect';
+import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { taskCommentSummaryKey, type CommentSummary } from '@/lib/comments/commentUtils';
 import {
   buildCommentThreadKey,
@@ -249,7 +254,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const autoAddTaskAppliedKeyRef = useRef<string | null>(null);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
-  const [autoEditTaskIndex, setAutoEditTaskIndex] = useState<number | null>(null);
+  const [autoEditTaskId, setAutoEditTaskId] = useState<string | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
   const [credentialSheet, setCredentialSheet] = useState<{
     index: number;
@@ -906,12 +911,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const idx = pendingScrollToTaskIndex;
     const tasks = localProject.tasks || [];
     if (idx < 0 || idx >= tasks.length) return;
+    const taskId = taskIdString(tasks[idx]);
+    if (!taskId) return;
     setPendingScrollToTaskIndex(null);
     scrollElementIntoContainerAfterLayout(
       () => document.getElementById(`inspector-task-row-${idx}`),
       scrollContainerRef?.current ?? null,
       { block: 'center', behavior: 'smooth' }
     );
+    requestAnimationFrame(() => {
+      setAutoEditTaskId(taskId);
+    });
   }, [localProject.tasks, pendingScrollToTaskIndex, scrollContainerRef]);
 
   // Fetch project action buttons (smart buttons)
@@ -1504,14 +1514,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         onProjectPatched?.(nextProject);
         setViewTab('tasks');
         setTaskTab('active');
-        setAutoEditTaskIndex(data.addedFromIndex ?? newIdx);
         setPendingScrollToTaskIndex(data.addedFromIndex ?? newIdx);
         return;
       } catch (error) {
         console.error('Error adding task:', error);
         setLocalProject(project);
         setPendingScrollToTaskIndex(null);
-        setAutoEditTaskIndex(null);
+        setAutoEditTaskId(null);
         alert(error instanceof Error ? error.message : 'Failed to save');
         throw error;
       }
@@ -1525,13 +1534,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       await persistProjectTasks(tasksToSave);
       setViewTab('tasks');
       setTaskTab('active');
-      setAutoEditTaskIndex(addedIdx);
       setPendingScrollToTaskIndex(addedIdx);
     } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);
       setPendingScrollToTaskIndex(null);
-      setAutoEditTaskIndex(null);
+      setAutoEditTaskId(null);
       alert(error instanceof Error ? error.message : 'Failed to save');
       throw error;
     }
@@ -1540,12 +1548,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const applyTaskRecurrence = useCallback(
     async (taskIndex: number, recurrence: TaskRecurrenceValue) => {
       if (recurrence.preset === 'none') return;
-
-      const applyError = validateTaskRecurrenceApply(recurrence);
-      if (applyError) {
-        alert(applyError);
-        return;
-      }
 
       const tasks = localProjectRef.current.tasks || [];
       const task = tasks[taskIndex];
@@ -1557,15 +1559,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       recurrenceInFlightRef.current.add(flightKey);
 
       try {
-        const until =
-          recurrence.end === 'on' && recurrence.until
-            ? new Date(`${recurrence.until}T23:59:59`)
-            : undefined;
         const instances = expandTaskInstances(task, {
-          preset: recurrence.preset,
-          end: recurrence.end,
-          until,
-          count: recurrence.count,
+          preset: recurrence.preset as Exclude<RecurrencePreset, 'none'>,
         });
         const nextTasks = [
           ...tasks.slice(0, taskIndex),
@@ -1580,7 +1575,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         await persistProjectTasks(tasksToSave, { allowBulkTaskExpand: true });
         setViewTab('tasks');
         setTaskTab('active');
-        setAutoEditTaskIndex(taskIndex);
         setPendingScrollToTaskIndex(taskIndex);
       } catch (err) {
         alert(err instanceof Error ? err.message : 'Invalid recurrence settings');
@@ -1589,6 +1583,89 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       }
     },
     [persistProjectTasks]
+  );
+
+  const applyExtendTaskSeries = useCallback(
+    async (seriesId: string, unit: ExtendUnit) => {
+      const tasks = localProjectRef.current.tasks || [];
+      const seriesTasks = tasks.filter((t) => t.recurrenceSeriesId === seriesId);
+      if (seriesTasks.length === 0) return;
+
+      const sorted = [...seriesTasks].sort(
+        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+      );
+      const last = sorted[sorted.length - 1];
+      const preset = (last.recurrencePreset ?? 'weekly') as RecurrencePreset;
+      const extensionDates = expandExtensionDates(new Date(last.startDate), preset, unit);
+      if (extensionDates.length === 0) return;
+
+      const newInstances = expandTaskExtensionInstances(last, extensionDates);
+      const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
+        localProjectRef.current,
+        [...tasks, ...newInstances]
+      );
+      setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
+      try {
+        await persistProjectTasks(tasksToSave, { allowBulkTaskExpand: true });
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to extend series');
+      }
+    },
+    [persistProjectTasks]
+  );
+
+  const reloadProjectContent = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/content-items?projectId=${localProjectRef.current._id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProjectContentItems(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      // ignore
+    }
+    notifyContentListChanged();
+  }, [notifyContentListChanged]);
+
+  const applyContentRecurrence = useCallback(
+    async (item: IContentItem, preset: RecurrencePreset) => {
+      if (preset === 'none' || item.recurrenceSeriesId) return;
+      try {
+        const res = await fetch(`/api/content-items/${item._id}/recurrence`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preset }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(typeof data.error === 'string' ? data.error : 'Failed to apply repeat');
+        }
+        await reloadProjectContent();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to apply repeat');
+      }
+    },
+    [reloadProjectContent]
+  );
+
+  const extendContentSeries = useCallback(
+    async (seriesId: string, unit: ExtendUnit) => {
+      try {
+        const res = await fetch('/api/content-items/extend-series', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ seriesId, unit }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(typeof data.error === 'string' ? data.error : 'Failed to extend series');
+        }
+        await reloadProjectContent();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to extend series');
+      }
+    },
+    [reloadProjectContent]
   );
 
   const handleAddTask = async () => {
@@ -2214,6 +2291,26 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                         showColorDot
                         className="text-xs text-gray-900"
                       />
+                      {canContributeToProject && item.recurrenceSeriesId ? (
+                        <>
+                          {(() => {
+                            const pos = getContentSeriesPosition(item, projectContentItems);
+                            return pos ? (
+                              <SeriesPositionBadge index={pos.index} total={pos.total} />
+                            ) : null;
+                          })()}
+                          <ExtendSeriesSelect
+                            disabled={!canContributeToProject}
+                            onExtend={(unit) => void extendContentSeries(item.recurrenceSeriesId!, unit)}
+                          />
+                        </>
+                      ) : canContributeToProject && !item.recurrenceSeriesId ? (
+                        <TaskRecurrenceInline
+                          onRecurrenceChange={(value) =>
+                            void applyContentRecurrence(item, value.preset)
+                          }
+                        />
+                      ) : null}
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                       <CommentsCollapsibleSection
@@ -2277,6 +2374,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     : 'none';
                   const rowKey =
                     (task as { _id?: { toString?: () => string } })._id?.toString?.() ?? `index:${idx}`;
+                  const taskRowId = taskIdString(task);
 
                   return (
                     <SwipeableCard key={rowKey} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
@@ -2291,10 +2389,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                                 className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
                                 placeholder="Task name"
                                 autoMultilineAfter={100}
-                                disabled={!isManagerOrAdmin}
-                                autoEditOnMount={autoEditTaskIndex === idx}
+                                disabled={!canContributeToProject}
+                                autoEditOnMount={!!taskRowId && autoEditTaskId === taskRowId}
                                 onAutoEditMount={() => {
-                                  if (autoEditTaskIndex === idx) setAutoEditTaskIndex(null);
+                                  requestAnimationFrame(() => {
+                                    setAutoEditTaskId(null);
+                                  });
                                 }}
                               />
                             </div>
@@ -2313,11 +2413,21 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <span className="leading-none">→</span>
                             <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900 leading-none py-0" placeholder="End" disabled={!isManagerOrAdmin} />
                           </div>
-                          {isManagerOrAdmin && task.recurrenceSeriesId ? (
-                            <span className="text-xs text-gray-400 italic leading-none">Repeating series</span>
-                          ) : isManagerOrAdmin ? (
+                          {canContributeToProject && task.recurrenceSeriesId ? (
+                            <>
+                              {(() => {
+                                const pos = getTaskSeriesPosition(task, localProject.tasks ?? []);
+                                return pos ? (
+                                  <SeriesPositionBadge index={pos.index} total={pos.total} />
+                                ) : null;
+                              })()}
+                              <ExtendSeriesSelect
+                                disabled={!canContributeToProject}
+                                onExtend={(unit) => void applyExtendTaskSeries(task.recurrenceSeriesId!, unit)}
+                              />
+                            </>
+                          ) : canContributeToProject ? (
                             <TaskRecurrenceInline
-                              anchorDate={new Date(task.startDate)}
                               onRecurrenceChange={(value) => void applyTaskRecurrence(idx, value)}
                             />
                           ) : null}

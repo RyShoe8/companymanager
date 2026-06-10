@@ -1,14 +1,15 @@
 import type { IProject, IProjectActionButton } from '@/lib/models/Project';
+import type { IContentItem } from '@/lib/models/ContentItem';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import {
   buildMeetingAgenda,
+  type AgendaContentItem,
   type AgendaProjectBlock,
+  type AgendaTaskItem,
   type MeetingAgendaPayload,
 } from '@/lib/scheduling/buildMeetingAgenda';
 import { getProjectWorkspaceHref } from '@/lib/scheduling/getProjectWorkspaceHref';
 import type { BackendProjectStatus } from '@/lib/utils/statusMapping';
-
-const MAX_ASSETS_PER_PROJECT = 5;
 
 type ProjectAssetRow = {
   _id: { toString(): string };
@@ -17,6 +18,8 @@ type ProjectAssetRow = {
   url?: string;
   fileUrl?: string;
   linkedProjectId?: { toString(): string };
+  linkedProjectTaskId?: { toString(): string };
+  linkedContentItemId?: { toString(): string };
 };
 
 export type MeetingDetailAsset = {
@@ -42,9 +45,24 @@ export type MeetingDetailProjectResources = {
   actionButtons: MeetingDetailActionButton[];
 };
 
-export type MeetingDetailProjectBlock = AgendaProjectBlock & {
+export type MeetingDetailTaskItem = AgendaTaskItem & {
+  assets: MeetingDetailAsset[];
+};
+
+export type MeetingDetailContentItem = AgendaContentItem & {
+  assets: MeetingDetailAsset[];
+};
+
+export type MeetingDetailProjectBlock = Omit<AgendaProjectBlock, 'tasks' | 'contentItems'> & {
   resources: MeetingDetailProjectResources;
   assets: MeetingDetailAsset[];
+  tasks: MeetingDetailTaskItem[];
+  contentItems: MeetingDetailContentItem[];
+};
+
+export type MeetingDetailInvitees = {
+  employees: { id: string; name: string }[];
+  externalEmails: string[];
 };
 
 export type MeetingDetailPayload = {
@@ -52,6 +70,7 @@ export type MeetingDetailPayload = {
     joinUrl?: string;
     joinPlatform?: MeetingJoinPlatform;
   };
+  invitees: MeetingDetailInvitees;
   projects: MeetingDetailProjectBlock[];
 };
 
@@ -61,13 +80,13 @@ function assetHref(asset: ProjectAssetRow): string {
   return `/assets?projectId=${asset.linkedProjectId?.toString() ?? ''}`;
 }
 
-function mapAssets(assets: ProjectAssetRow[]): MeetingDetailAsset[] {
-  return assets.slice(0, MAX_ASSETS_PER_PROJECT).map((a) => ({
-    id: a._id.toString(),
-    name: a.name,
-    type: a.type,
-    href: assetHref(a),
-  }));
+function mapAsset(asset: ProjectAssetRow): MeetingDetailAsset {
+  return {
+    id: asset._id.toString(),
+    name: asset.name,
+    type: asset.type,
+    href: assetHref(asset),
+  };
 }
 
 function mapActionButtons(buttons: IProjectActionButton[] | undefined): MeetingDetailActionButton[] {
@@ -76,6 +95,10 @@ function mapActionButtons(buttons: IProjectActionButton[] | undefined): MeetingD
     url: b.url,
     kind: b.kind,
   }));
+}
+
+function isProjectLevelAsset(asset: ProjectAssetRow): boolean {
+  return !asset.linkedProjectTaskId && !asset.linkedContentItemId;
 }
 
 export function buildMeetingDetailPayload(
@@ -88,18 +111,56 @@ export function buildMeetingDetailPayload(
     joinPlatform?: MeetingJoinPlatform;
   },
   projects: IProject[],
-  assetsByProjectId: Map<string, ProjectAssetRow[]>
+  assetsByProjectId: Map<string, ProjectAssetRow[]>,
+  contentItems: IContentItem[] = [],
+  invitees: MeetingDetailInvitees = { employees: [], externalEmails: [] }
 ): MeetingDetailPayload {
-  const agenda = buildMeetingAgenda(meeting, projects);
+  const agenda = buildMeetingAgenda(meeting, projects, contentItems);
   const projectById = new Map(projects.map((p) => [p._id.toString(), p]));
 
   const projectsWithResources: MeetingDetailProjectBlock[] = agenda.projects.map((block) => {
     const project = projectById.get(block.projectId);
     const status = (project?.status || 'planning') as BackendProjectStatus;
     const pid = block.projectId;
+    const projectAssets = assetsByProjectId.get(pid) || [];
+
+    const assetsByTaskId = new Map<string, MeetingDetailAsset[]>();
+    const assetsByContentId = new Map<string, MeetingDetailAsset[]>();
+    const projectLevelAssets: MeetingDetailAsset[] = [];
+
+    for (const asset of projectAssets) {
+      const mapped = mapAsset(asset);
+      const taskId = asset.linkedProjectTaskId?.toString();
+      const contentId = asset.linkedContentItemId?.toString();
+      if (taskId) {
+        const list = assetsByTaskId.get(taskId) || [];
+        list.push(mapped);
+        assetsByTaskId.set(taskId, list);
+      } else if (contentId) {
+        const list = assetsByContentId.get(contentId) || [];
+        list.push(mapped);
+        assetsByContentId.set(contentId, list);
+      } else if (isProjectLevelAsset(asset)) {
+        projectLevelAssets.push(mapped);
+      }
+    }
+
+    const tasks: MeetingDetailTaskItem[] = block.tasks.map((task) => ({
+      ...task,
+      assets: assetsByTaskId.get(task.taskId) || [],
+    }));
+
+    const contentItemsWithAssets: MeetingDetailContentItem[] = block.contentItems.map((item) => ({
+      ...item,
+      assets: assetsByContentId.get(item.contentItemId) || [],
+    }));
 
     return {
-      ...block,
+      projectId: block.projectId,
+      name: block.name,
+      color: block.color,
+      tasks,
+      contentItems: contentItemsWithAssets,
       resources: {
         devUrl: project?.devUrl,
         liveUrl: project?.liveUrl,
@@ -109,18 +170,20 @@ export function buildMeetingDetailPayload(
         assetsHref: `/assets?projectId=${pid}`,
         actionButtons: mapActionButtons(project?.actionButtons),
       },
-      assets: mapAssets(assetsByProjectId.get(pid) || []),
+      assets: projectLevelAssets,
     };
   });
 
   for (const project of projects) {
     const pid = project._id.toString();
     if (projectsWithResources.some((b) => b.projectId === pid)) continue;
+    const projectAssets = (assetsByProjectId.get(pid) || []).filter(isProjectLevelAsset);
     projectsWithResources.push({
       projectId: pid,
       name: project.name,
       color: project.color,
       tasks: [],
+      contentItems: [],
       resources: {
         devUrl: project.devUrl,
         liveUrl: project.liveUrl,
@@ -130,7 +193,7 @@ export function buildMeetingDetailPayload(
         assetsHref: `/assets?projectId=${pid}`,
         actionButtons: mapActionButtons(project.actionButtons),
       },
-      assets: mapAssets(assetsByProjectId.get(pid) || []),
+      assets: projectAssets.map(mapAsset),
     });
   }
 
@@ -140,6 +203,7 @@ export function buildMeetingDetailPayload(
       joinUrl: meeting.joinUrl,
       joinPlatform: meeting.joinPlatform,
     },
+    invitees,
     projects: projectsWithResources,
   };
 }

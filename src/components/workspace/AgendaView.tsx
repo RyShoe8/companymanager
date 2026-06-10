@@ -7,6 +7,7 @@ import {
   openMeetingPopout,
   MEETING_POPUP_BLOCKED_MESSAGE,
 } from '@/lib/scheduling/openMeetingPopout';
+import MeetingJoinCallButton from '@/components/scheduling/MeetingJoinCallButton';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IEmployee } from '@/lib/models/Employee';
@@ -415,6 +416,16 @@ export default function AgendaView({
         }).sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
     }, [contentItems, showContent, contentChannelFilter, assignmentFilterOpts, contentActivityMs]);
 
+    useEffect(() => {
+        if (timeframe === 'today') return;
+        const el = document.getElementById('agenda-day-today');
+        if (!el) return;
+        const timer = window.setTimeout(() => {
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 100);
+        return () => window.clearTimeout(timer);
+    }, [timeframe, currentDate, agendaDays.length]);
+
     const undatedContentGroups = useMemo((): UndatedContentGroup[] => {
         const byProjectId = new Map<string, UndatedContentGroup>();
         const orphan: IContentItem[] = [];
@@ -559,7 +570,11 @@ export default function AgendaView({
             {undatedSection}
             <div className="space-y-6">
             {agendaDays.map((day) => (
-                <div key={day.date.toISOString()} className="border border-border rounded-lg overflow-hidden bg-background-card">
+                <div
+                    key={day.date.toISOString()}
+                    id={day.isToday ? 'agenda-day-today' : undefined}
+                    className="border border-border rounded-lg overflow-hidden bg-background-card"
+                >
                     <div
                         className={`px-4 py-3 flex items-center justify-between ${day.isToday ? 'bg-primary/20 border-b border-primary/30' : 'bg-background-elevated border-b border-border'
                             }`}
@@ -615,22 +630,29 @@ export default function AgendaView({
                                             </p>
                                         ) : null}
                                     </div>
-                                    {meeting.agendaToken ? (
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="secondary"
-                                            className="shrink-0"
-                                            onClick={() => {
-                                                const result = openMeetingPopout(meeting.agendaToken);
-                                                if (result.blocked) {
-                                                    setPopoutMessage(MEETING_POPUP_BLOCKED_MESSAGE);
-                                                }
-                                            }}
-                                        >
-                                            Open Meeting
-                                        </Button>
-                                    ) : null}
+                                    <div className="flex flex-wrap gap-2 shrink-0">
+                                        {meeting.joinUrl ? (
+                                            <MeetingJoinCallButton
+                                                joinUrl={meeting.joinUrl}
+                                                joinPlatform={meeting.joinPlatform}
+                                            />
+                                        ) : null}
+                                        {meeting.agendaToken ? (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                    const result = openMeetingPopout(meeting.agendaToken);
+                                                    if (result.blocked) {
+                                                        setPopoutMessage(MEETING_POPUP_BLOCKED_MESSAGE);
+                                                    }
+                                                }}
+                                            >
+                                                Open Meeting
+                                            </Button>
+                                        ) : null}
+                                    </div>
                                 </div>
                             );
                         })}

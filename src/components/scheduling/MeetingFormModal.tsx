@@ -6,8 +6,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import type { RecurrenceEnd, RecurrencePreset } from '@/lib/scheduling/recurrence';
-import { validateRecurrenceInput } from '@/lib/scheduling/recurrence';
+import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import { formInputClass } from '@/components/ui/formClasses';
 import type { MeetingVideoMode } from '@/lib/scheduling/meetingVideoConference';
@@ -74,9 +73,6 @@ export default function MeetingFormModal({
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
-  const [recurrenceEnd, setRecurrenceEnd] = useState<RecurrenceEnd>('never');
-  const [recurrenceUntil, setRecurrenceUntil] = useState('');
-  const [recurrenceCount, setRecurrenceCount] = useState('10');
   const [linkedProjectIds, setLinkedProjectIds] = useState<string[]>([]);
   const [attendeeEmployeeIds, setAttendeeEmployeeIds] = useState<string[]>([]);
   const [externalEmails, setExternalEmails] = useState<string[]>([]);
@@ -129,9 +125,6 @@ export default function MeetingFormModal({
       setStart('');
       setEnd('');
       setRepeatPreset('none');
-      setRecurrenceEnd('never');
-      setRecurrenceUntil('');
-      setRecurrenceCount('10');
       setLinkedProjectIds([]);
       setAttendeeEmployeeIds([]);
       setExternalEmails([]);
@@ -195,36 +188,6 @@ export default function MeetingFormModal({
       return;
     }
 
-    if (mode === 'create') {
-      let untilIso: string | undefined;
-      if (repeatPreset !== 'none' && recurrenceEnd === 'on') {
-        if (!recurrenceUntil) {
-          setError('Choose an end date for the series.');
-          return;
-        }
-        untilIso = new Date(`${recurrenceUntil}T23:59:59`).toISOString();
-      }
-
-      const countNum =
-        repeatPreset !== 'none' && recurrenceEnd === 'after'
-          ? parseInt(recurrenceCount, 10)
-          : undefined;
-
-      if (repeatPreset !== 'none') {
-        const validationErr = validateRecurrenceInput({
-          preset: repeatPreset,
-          start: startDate,
-          end: recurrenceEnd,
-          until: untilIso ? new Date(untilIso) : undefined,
-          count: countNum,
-        });
-        if (validationErr) {
-          setError(validationErr);
-          return;
-        }
-      }
-    }
-
     setSubmitting(true);
     setError(null);
     try {
@@ -271,18 +234,7 @@ export default function MeetingFormModal({
       };
 
       if (repeatPreset !== 'none') {
-        let untilIso: string | undefined;
-        if (recurrenceEnd === 'on' && recurrenceUntil) {
-          untilIso = new Date(`${recurrenceUntil}T23:59:59`).toISOString();
-        }
-        const countNum =
-          recurrenceEnd === 'after' ? parseInt(recurrenceCount, 10) : undefined;
-        body.recurrence = {
-          preset: repeatPreset,
-          end: recurrenceEnd,
-          ...(recurrenceEnd === 'on' && untilIso ? { until: untilIso } : {}),
-          ...(recurrenceEnd === 'after' && countNum != null ? { count: countNum } : {}),
-        };
+        body.recurrence = { preset: repeatPreset };
       }
 
       const res = await fetch('/api/scheduling/meetings', {
@@ -381,12 +333,6 @@ export default function MeetingFormModal({
           <RecurrenceFields
             repeatPreset={repeatPreset}
             onRepeatPresetChange={setRepeatPreset}
-            recurrenceEnd={recurrenceEnd}
-            onRecurrenceEndChange={setRecurrenceEnd}
-            recurrenceUntil={recurrenceUntil}
-            onRecurrenceUntilChange={setRecurrenceUntil}
-            recurrenceCount={recurrenceCount}
-            onRecurrenceCountChange={setRecurrenceCount}
             inputClass={formInputClass}
             anchorDate={start ? new Date(start) : undefined}
             occurrenceLabel="meetings"

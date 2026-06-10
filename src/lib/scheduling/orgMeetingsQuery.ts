@@ -1,5 +1,6 @@
 import Employee from '@/lib/models/Employee';
 import Meeting from '@/lib/models/Meeting';
+import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
 import User from '@/lib/models/User';
 import { meetingPassesAssignmentFilter as meetingPassesAssignmentFilterShared } from '@/lib/scheduling/meetingHours';
 import { Types } from 'mongoose';
@@ -22,6 +23,7 @@ export type OrgMeetingRecord = {
   joinUrl?: string;
   joinPlatform?: MeetingJoinPlatform;
   createdInNucleas?: boolean;
+  seriesRecurrenceCount?: number;
 };
 
 export type OrgMeetingsViewer = {
@@ -115,6 +117,38 @@ export async function listOrgMeetingsInRange(
   return [...deduped.values()].sort(
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
   );
+}
+
+export async function attachSeriesRecurrenceCounts(
+  organizationId: string,
+  meetings: OrgMeetingRecord[]
+): Promise<OrgMeetingRecord[]> {
+  const seriesIds = [
+    ...new Set(
+      meetings
+        .map((m) => m.googleRecurringEventId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    ),
+  ];
+  if (seriesIds.length === 0) return meetings;
+
+  const settings = await MeetingSeriesSettings.find({
+    organizationId,
+    googleRecurringEventId: { $in: seriesIds },
+  })
+    .select('googleRecurringEventId recurrenceCount')
+    .lean();
+
+  const countBySeries = new Map(
+    settings.map((s) => [s.googleRecurringEventId, s.recurrenceCount])
+  );
+
+  return meetings.map((meeting) => {
+    const seriesId = meeting.googleRecurringEventId;
+    if (!seriesId) return meeting;
+    const count = countBySeries.get(seriesId);
+    return count != null ? { ...meeting, seriesRecurrenceCount: count } : meeting;
+  });
 }
 
 export function meetingPassesAssignmentFilter(

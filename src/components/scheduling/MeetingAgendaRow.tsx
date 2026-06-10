@@ -8,6 +8,10 @@ import {
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
+import MeetingJoinCallButton from '@/components/scheduling/MeetingJoinCallButton';
+import SeriesPositionBadge from '@/components/shared/SeriesPositionBadge';
+import ExtendSeriesSelect from '@/components/shared/ExtendSeriesSelect';
+import type { ExtendUnit } from '@/lib/recurrence/recurrenceHorizons';
 
 export type MeetingRow = {
   _id: string;
@@ -59,6 +63,8 @@ interface MeetingAgendaRowProps {
   onDeleteMeeting?: () => void;
   onPopoutBlocked?: () => void;
   variant?: 'default' | 'weekColumn';
+  seriesPosition?: { index: number; total: number } | null;
+  onExtendSeries?: (unit: ExtendUnit) => void;
 }
 
 export default function MeetingAgendaRow({
@@ -75,6 +81,8 @@ export default function MeetingAgendaRow({
   onDeleteMeeting,
   onPopoutBlocked,
   variant = 'default',
+  seriesPosition,
+  onExtendSeries,
 }: MeetingAgendaRowProps) {
   const start = new Date(meeting.start);
   const end = new Date(meeting.end);
@@ -82,6 +90,20 @@ export default function MeetingAgendaRow({
   const linkedCount = meeting.linkedProjectIds?.length || 0;
   const timeRange = formatMeetingTimeRange(start, end);
   const canManage = !!currentUserId && meeting.userId === currentUserId;
+
+  const seriesControls =
+    meeting.googleRecurringEventId && seriesPosition ? (
+      <>
+        <SeriesPositionBadge index={seriesPosition.index} total={seriesPosition.total} />
+        {canManage && onExtendSeries ? (
+          <ExtendSeriesSelect disabled={false} onExtend={onExtendSeries} />
+        ) : null}
+      </>
+    ) : meeting.googleRecurringEventId ? (
+      <span className="text-xs text-text-muted border border-border rounded px-1.5 py-0.5">
+        Recurring
+      </span>
+    ) : null;
 
   const handleOpenMeeting = () => {
     const result = openMeetingPopout(meeting.agendaToken);
@@ -92,6 +114,13 @@ export default function MeetingAgendaRow({
 
   const actionButtons = (
     <>
+      {meeting.joinUrl && (
+        <MeetingJoinCallButton
+          joinUrl={meeting.joinUrl}
+          joinPlatform={meeting.joinPlatform}
+          className={variant === 'weekColumn' ? 'w-full' : undefined}
+        />
+      )}
       {meeting.agendaToken && (
         <Button
           type="button"
@@ -151,10 +180,8 @@ export default function MeetingAgendaRow({
           <p className="font-medium text-text-primary truncate mt-0.5" title={meeting.title}>
             {meeting.title}
           </p>
-          {meeting.googleRecurringEventId && (
-            <span className="inline-block mt-0.5 text-[10px] text-text-muted border border-border rounded px-1 py-px">
-              Recurring
-            </span>
+          {seriesControls && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">{seriesControls}</div>
           )}
           {metaLine ? (
             <p className="text-[11px] text-text-muted truncate mt-0.5" title={metaLine}>
@@ -199,11 +226,7 @@ export default function MeetingAgendaRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-text-primary">{meeting.title}</span>
-            {meeting.googleRecurringEventId && (
-              <span className="text-xs text-text-muted border border-border rounded px-1.5 py-0.5">
-                Recurring
-              </span>
-            )}
+            {seriesControls}
             <span className="text-xs text-text-muted">{timeRange}</span>
           </div>
           <p className="text-xs text-text-secondary mt-0.5">

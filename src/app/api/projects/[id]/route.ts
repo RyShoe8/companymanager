@@ -435,6 +435,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             status: taskStatus, // ALWAYS explicitly set status - this is critical!
           };
 
+          if (task.recurrenceSeriesId) {
+            taskData.recurrenceSeriesId = String(task.recurrenceSeriesId);
+          }
+          if (
+            task.recurrencePreset &&
+            ['daily', 'weekly', 'biweekly', 'monthly'].includes(String(task.recurrencePreset))
+          ) {
+            taskData.recurrencePreset = task.recurrencePreset;
+          }
+
           if (task._id && Types.ObjectId.isValid(String(task._id))) {
             taskData._id = new Types.ObjectId(String(task._id));
           }

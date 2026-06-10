@@ -1,49 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildTaskRecurrenceValue,
-  isTaskRecurrenceApplyReady,
-  validateTaskRecurrenceApply,
-} from '@/lib/recurrence/taskRecurrenceInlineLogic';
+import { expandTaskInstances } from '@/lib/recurrence/expandTaskInstances';
+import type { IProjectTask } from '@/lib/models/Project';
 
-describe('taskRecurrenceInlineLogic', () => {
-  it('does not mark never-end recurrence as apply-ready', () => {
-    const value = buildTaskRecurrenceValue({
-      preset: 'weekly',
-      end: 'never',
-      until: '',
-      count: '10',
-    });
-    expect(isTaskRecurrenceApplyReady(value)).toBe(false);
-    expect(validateTaskRecurrenceApply(value)).toMatch(/After|On date/);
+describe('task recurrence (preset-only)', () => {
+  const baseTask: IProjectTask = {
+    name: 'Weekly sync',
+    startDate: new Date('2026-01-15T09:00:00'),
+    endDate: new Date('2026-01-15T10:00:00'),
+    status: 'active',
+  };
+
+  it('expandTaskInstances creates a bounded weekly series', () => {
+    const instances = expandTaskInstances(baseTask, { preset: 'weekly' });
+    expect(instances.length).toBeGreaterThanOrEqual(24);
+    expect(instances.length).toBeLessThanOrEqual(28);
+    expect(instances.every((t) => t.recurrenceSeriesId === instances[0].recurrenceSeriesId)).toBe(
+      true
+    );
+    expect(instances.every((t) => t.recurrencePreset === 'weekly')).toBe(true);
   });
 
-  it('marks after-count recurrence as apply-ready', () => {
-    const value = buildTaskRecurrenceValue({
+  it('returns single task for none preset path via one occurrence', () => {
+    const instances = expandTaskInstances(baseTask, {
       preset: 'weekly',
-      end: 'after',
-      until: '',
-      count: '10',
+      occurrenceStarts: [new Date(baseTask.startDate)],
     });
-    expect(isTaskRecurrenceApplyReady(value)).toBe(true);
-  });
-
-  it('requires end date for on-end recurrence', () => {
-    const value = buildTaskRecurrenceValue({
-      preset: 'weekly',
-      end: 'on',
-      until: '',
-      count: '10',
-    });
-    expect(isTaskRecurrenceApplyReady(value)).toBe(false);
-    expect(validateTaskRecurrenceApply(value)).toMatch(/End date/);
-  });
-
-  it('buildTaskRecurrenceValue is pure (no side effects on re-build)', () => {
-    const state = { preset: 'weekly' as const, end: 'after' as const, until: '', count: '5' };
-    const first = buildTaskRecurrenceValue(state);
-    const second = buildTaskRecurrenceValue(state);
-    expect(first).toEqual(second);
-    expect(first.preset).toBe('weekly');
-    expect(first.count).toBe(5);
+    expect(instances).toHaveLength(1);
   });
 });

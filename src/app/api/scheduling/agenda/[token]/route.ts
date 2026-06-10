@@ -5,6 +5,8 @@ import Meeting from '@/lib/models/Meeting';
 import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
 import Project from '@/lib/models/Project';
 import Asset from '@/lib/models/Asset';
+import ContentItem from '@/lib/models/ContentItem';
+import Employee from '@/lib/models/Employee';
 import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
 import { buildMeetingAgenda } from '@/lib/scheduling/buildMeetingAgenda';
 import { buildMeetingDetailPayload } from '@/lib/scheduling/buildMeetingDetailPayload';
@@ -72,6 +74,12 @@ export async function GET(
     const migrated = projects.map((p) => migrateProjectFields(migrateStagesToTasks(p)));
 
     const projectIds = linkedProjectIds.map((id) => id.toString());
+
+    const contentItems =
+      linkedProjectIds.length > 0
+        ? await ContentItem.find({ projectId: { $in: linkedProjectIds } }).lean()
+        : [];
+
     const assetsByProjectId = new Map<
       string,
       {
@@ -81,16 +89,14 @@ export async function GET(
         url?: string;
         fileUrl?: string;
         linkedProjectId?: { toString(): string };
+        linkedProjectTaskId?: { toString(): string };
+        linkedContentItemId?: { toString(): string };
       }[]
     >();
     if (projectIds.length > 0) {
       const assets = await Asset.find({
         linkedProjectId: { $in: linkedProjectIds },
         userId: { $in: orgUserIds },
-        $and: [
-          { $or: [{ linkedProjectTaskId: { $exists: false } }, { linkedProjectTaskId: null }] },
-          { $or: [{ linkedProjectTaskIndex: { $exists: false } }, { linkedProjectTaskIndex: null }] },
-        ],
       })
         .sort({ createdAt: -1 })
         .lean();
@@ -104,6 +110,19 @@ export async function GET(
       }
     }
 
+    const attendeeIds = meeting.attendeeEmployeeIds ?? [];
+    const employees =
+      attendeeIds.length > 0
+        ? await Employee.find({ _id: { $in: attendeeIds } }).select('name').lean()
+        : [];
+    const invitees = {
+      employees: employees.map((e) => ({
+        id: e._id.toString(),
+        name: e.name,
+      })),
+      externalEmails: meeting.externalAttendeeEmails ?? [],
+    };
+
     const baseUrl = new URL(request.url).origin;
     const agendaUrl = `${baseUrl}/scheduling/agenda/${token}`;
     const meetingWindow = {
@@ -114,8 +133,14 @@ export async function GET(
       joinUrl: meeting.joinUrl,
       joinPlatform: meeting.joinPlatform,
     };
-    const payload = buildMeetingAgenda(meetingWindow, migrated as any);
-    const detail = buildMeetingDetailPayload(meetingWindow, migrated as any, assetsByProjectId);
+    const payload = buildMeetingAgenda(meetingWindow, migrated as any, contentItems as any);
+    const detail = buildMeetingDetailPayload(
+      meetingWindow,
+      migrated as any,
+      assetsByProjectId,
+      contentItems as any,
+      invitees
+    );
 
     return NextResponse.json({
       meeting: {
