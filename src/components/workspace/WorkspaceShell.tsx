@@ -1257,7 +1257,7 @@ export default function WorkspaceShell({
                                 selected={ws.timeframe}
                                 onSelect={(newTimeframe) => {
                                     ws.setTimeframe(newTimeframe);
-                                    if (newTimeframe === 'today' && ws.timeframe === 'today') {
+                                    if (newTimeframe === 'today') {
                                         ws.setCurrentDate(new Date());
                                     }
                                 }}
