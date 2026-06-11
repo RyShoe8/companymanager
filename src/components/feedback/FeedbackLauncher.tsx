@@ -6,6 +6,8 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
+import { formInputClass } from '@/components/ui/formClasses';
 
 export default function FeedbackLauncher() {
   const pathname = usePathname();
@@ -84,16 +86,18 @@ export default function FeedbackLauncher() {
         stackAboveOverlays
       >
         {success ? (
-          <div className="p-6 text-center space-y-4">
+          <div className="space-y-4">
             <p className="text-text-primary font-medium">Thanks — your feedback was submitted.</p>
-            <Button type="button" variant="secondary" onClick={handleClose}>
-              Close
-            </Button>
+            <div className="flex justify-end">
+              <Button type="button" variant="secondary" onClick={handleClose}>
+                Close
+              </Button>
+            </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-error-light border border-error/30 text-error px-3 py-2 rounded-lg text-sm">
+              <div className="rounded-lg border border-error/30 bg-error-light px-3 py-2 text-sm text-error">
                 {error}
               </div>
             )}
@@ -118,14 +122,14 @@ export default function FeedbackLauncher() {
               <label htmlFor="feedback-message" className="block text-sm font-medium text-text-primary mb-1">
                 Details
               </label>
-              <textarea
+              <AutoGrowTextarea
                 id="feedback-message"
                 required
-                rows={5}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg bg-background-card text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="What happened or what would help?"
+                minRows={5}
+                className={formInputClass}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
