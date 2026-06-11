@@ -142,7 +142,7 @@ export default function EditableText({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === ' ' && e.shiftKey && (multiline || autoMultilineAfter != null)) {
+    if (e.key === 'Enter' && e.shiftKey && (multiline || autoMultilineAfter != null)) {
       const el = e.currentTarget as HTMLInputElement | HTMLTextAreaElement;
       const start = el.selectionStart ?? editValue.length;
       const end = el.selectionEnd ?? start;
