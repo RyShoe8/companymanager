@@ -161,6 +161,7 @@ export async function updateMeetingRecord(params: {
       .filter((pid) => Types.ObjectId.isValid(pid))
       .map((pid) => new Types.ObjectId(pid));
     meeting.linkedProjectIds = projectIds;
+    await meeting.save();
     const migrated = await loadOrgProjects(userId, organizationId, projectIds);
     const result = await propagateMeetingProjectsAndCalendars({
       anchor: meeting,
