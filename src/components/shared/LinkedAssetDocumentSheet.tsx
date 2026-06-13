@@ -94,7 +94,7 @@ export default function LinkedAssetDocumentSheet({
       isOpen={isOpen}
       onClose={handleClose}
       title={mode === 'edit' ? 'Edit asset' : (asset?.name ?? 'Document')}
-      maxWidth="5xl"
+      maxWidth="full"
       elevated={!stackAboveLightbox}
       stackAboveLightbox={stackAboveLightbox}
       stackAboveOverlays={!stackAboveLightbox}
