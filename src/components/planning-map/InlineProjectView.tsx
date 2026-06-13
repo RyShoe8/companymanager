@@ -2726,7 +2726,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             ? 'Edit asset'
             : (previewAsset?.name ?? 'Document')
         }
-        maxWidth="lg"
+        maxWidth="full"
         elevated
         stackAboveOverlays
       >
