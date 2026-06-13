@@ -123,6 +123,7 @@ export default function Modal({
       <div
         className={`fixed inset-x-0 top-16 bottom-0 ${zClass} bg-black/50`}
         onClick={onClose}
+        onWheel={(e) => e.stopPropagation()}
         style={{ top: '4rem', height: 'calc(100vh - 4rem)' }}
       >
         <div
@@ -137,6 +138,7 @@ export default function Modal({
       <div
         className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black/50 p-2 sm:p-4`}
         onClick={onClose}
+        onWheel={(e) => e.stopPropagation()}
       >
         <div
           className={`${panelClass} w-full mx-auto max-h-[90vh] rounded-lg ${maxWidthClass(maxWidth)}`}
