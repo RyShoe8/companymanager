@@ -9,7 +9,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | 'full';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full';
   headerActions?: React.ReactNode;
   hideCloseButton?: boolean;
   /** Use higher z-index so this modal appears above other overlays (e.g. when opened from another modal). */
@@ -32,8 +32,12 @@ const maxWidthClass = (maxWidth: ModalProps['maxWidth']) => {
       return 'max-w-lg';
     case 'xl':
       return 'max-w-xl';
+    case '3xl':
+      return 'max-w-3xl';
     case '4xl':
       return 'max-w-4xl';
+    case '5xl':
+      return 'max-w-5xl';
     case '2xl':
     default:
       return 'max-w-2xl';
@@ -76,11 +80,14 @@ export default function Modal({
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
+      document.documentElement.style.overflow = 'unset';
     }
     return () => {
       document.body.style.overflow = 'unset';
+      document.documentElement.style.overflow = 'unset';
     };
   }, [isOpen]);
 

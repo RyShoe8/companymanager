@@ -9,6 +9,8 @@ import {
   parseDateSafe,
   taskOverlapsViewRange,
   publishDateOnViewDay,
+  localCalendarDayIndex,
+  taskCalendarDayIndex,
 } from '@/lib/utils/dateUtils';
 import {
   computeProjectAssignedHours,
@@ -655,7 +657,11 @@ export default function CalendarView({
         if (!item.publishDate) return false;
         const d = parseDateSafe(item.publishDate);
         if (!d) return false;
-        return taskOverlapsViewRange(rangeStart, rangeEnd, d, d);
+        // Check if publish date falls within the view range (same logic as AgendaView)
+        const v0 = localCalendarDayIndex(rangeStart);
+        const v1 = localCalendarDayIndex(rangeEnd);
+        const t0 = taskCalendarDayIndex(d);
+        return t0 >= v0 && t0 <= v1;
       });
     }
 
