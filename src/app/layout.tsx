@@ -21,11 +21,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Nucleas - Plan, Build and Manage Your Company",
+    default: "Nucleas — The Smart Operating System for Building and Running a Business",
     template: "%s | Nucleas",
   },
-  description: "Plan and manage company work and assets. Visual planning map, project management, asset repository, and team management.",
-  keywords: ["project management", "planning map", "team collaboration", "asset management", "company planning"],
+  description: "Nucleas is the smart operating system for building and running a business. Not another project manager — the business management layer that brings projects, team, content, meetings, and tools together. Build. Organize. Operate.",
+  keywords: ["business management", "business operating system", "project management", "team management", "content planning", "meeting management", "startup tools", "business tools", "SaaS management"],
   authors: [{ name: "Nucleas" }],
   creator: "Nucleas",
   publisher: "Nucleas",
@@ -48,21 +48,21 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: 'https://nucleas.app',
     siteName: 'Nucleas',
-    title: "Nucleas - Plan, Build and Manage Your Company",
-    description: "Plan, build and manage your company. Visual planning map, project management, asset repository, and team management.",
+    title: "Nucleas — The Smart Operating System for Building and Running a Business",
+    description: "Not another project manager. Nucleas is the business management layer that brings projects, team, content, meetings, and tools together. Build. Organize. Operate.",
     images: [
       {
         url: '/images/nucleas-logo.png',
         width: 512,
         height: 512,
-        alt: 'Nucleas Logo',
+        alt: 'Nucleas — Business Operating System',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Nucleas - Plan, Build and Manage Your Company",
-    description: "Plan, build and manage your company. Visual planning map, project management, asset repository, and team management.",
+    title: "Nucleas — The Smart Operating System for Building and Running a Business",
+    description: "Not another project manager. The business management layer that brings it all together. Build. Organize. Operate.",
     images: ['/images/nucleas-logo.png'],
   },
   robots: {
@@ -100,7 +100,7 @@ export default async function RootLayout({
             name: 'Nucleas',
             url: baseUrl,
             logo: `${baseUrl}/images/nucleas-logo.png`,
-            description: 'The operating system for planning, building, and running every project you own. Plan, build, and run from one command center.',
+            description: 'Nucleas is the smart operating system for building and running a business. The business management layer that brings projects, team, content, meetings, and tools together.',
             contactPoint: {
               '@type': 'ContactPoint',
               email: 'theteam@nucleas.app',

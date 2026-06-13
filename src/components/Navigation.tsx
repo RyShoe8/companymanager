@@ -2,11 +2,79 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Dropdown from '@/components/ui/Dropdown';
 import Modal from '@/components/ui/Modal';
 import ProfileModal from '@/components/ProfileModal';
 import OrganizationModal from '@/components/OrganizationModal';
+
+const MARKETING_PAGES = ['/', '/about', '/contact', '/pricing', '/terms', '/privacy'];
+
+function isMarketingPage(pathname: string | null): boolean {
+  if (!pathname) return false;
+  if (MARKETING_PAGES.includes(pathname)) return true;
+  if (pathname.startsWith('/features')) return true;
+  return false;
+}
+
+function FeaturesDropdown({ onNavigate }: { onNavigate?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const categories = [
+    { href: '/features/projects', label: 'Projects', desc: 'Manage projects end to end' },
+    { href: '/features/tasks', label: 'Tasks', desc: 'Break down and track work' },
+    { href: '/features/content', label: 'Content', desc: 'Plan and schedule content' },
+    { href: '/features/meetings', label: 'Meetings', desc: 'Run prepared meetings' },
+    { href: '/features/tools', label: 'Tools', desc: 'Screenshots, recordings & more' },
+    { href: '/features/team', label: 'Team', desc: 'Capacity and utilization' },
+    { href: '/features/efficiency', label: 'Efficiency', desc: 'Work smarter, not harder' },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+      >
+        Features
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-[420px] bg-background-card border border-border rounded-2xl shadow-2xl shadow-black/30 p-3 grid grid-cols-2 gap-1 z-50 animate-fade-in">
+          {categories.map((cat) => (
+            <Link
+              key={cat.href}
+              href={cat.href}
+              onClick={() => { setOpen(false); onNavigate?.(); }}
+              className="flex flex-col gap-0.5 px-3 py-2.5 rounded-xl hover:bg-background-elevated transition-colors group"
+            >
+              <span className="text-sm font-medium text-text-primary group-hover:text-primary transition-colors">{cat.label}</span>
+              <span className="text-xs text-text-muted">{cat.desc}</span>
+            </Link>
+          ))}
+          <Link
+            href="/features"
+            onClick={() => { setOpen(false); onNavigate?.(); }}
+            className="col-span-2 flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-medium text-primary hover:bg-primary/5 transition-colors mt-1 border-t border-border pt-3"
+          >
+            View all features →
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -23,6 +91,8 @@ export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
+  const isOnMarketingPage = isMarketingPage(pathname);
+  const showMarketingNav = !user && isOnMarketingPage;
 
   useEffect(() => {
     if (isAuthPage) return; // no need to fetch on login/register
@@ -136,20 +206,25 @@ export default function Navigation() {
     },
   ];
 
-  const navLinks = [
+  const appNavLinks = [
     { href: '/workspace', label: 'Workspace' },
     { href: '/assets', label: 'Assets' },
     { href: '/employees', label: 'Team' },
   ];
 
+  const marketingNavLinks = [
+    { href: '/pricing', label: 'Pricing' },
+    { href: '/about', label: 'About' },
+  ];
+
   return (
     <>
-      <nav className="bg-background-card border-b border-border">
+      <nav className={`border-b border-border ${showMarketingNav ? 'bg-background/80 backdrop-blur-xl sticky top-0 z-40' : 'bg-background-card'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center">
-              <Link href="/workspace" className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
+              <Link href={user ? '/workspace' : '/'} className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
                 <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md">
                   <img
                     src="/images/nucleas-logo.png?v=6"
@@ -167,18 +242,37 @@ export default function Navigation() {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex md:items-center md:space-x-8">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
-                    ? 'border-primary text-text-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
-                    }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {showMarketingNav ? (
+                <>
+                  <FeaturesDropdown />
+                  {marketingNavLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className={`text-sm font-medium transition-colors ${
+                        pathname === link.href
+                          ? 'text-text-primary'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </>
+              ) : (
+                appNavLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
+                      ? 'border-primary text-text-primary'
+                      : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
+                      }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))
+              )}
             </div>
 
             {/* Desktop: User menu when logged in, Login/Register when not */}
@@ -218,9 +312,9 @@ export default function Navigation() {
                   </Link>
                   <Link
                     href="/register"
-                    className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-primary text-nucleas-ink hover:bg-primary-hover transition-colors"
+                    className="inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold bg-primary text-nucleas-ink hover:bg-primary-hover transition-all duration-200 shadow-lg shadow-primary/20 hover:shadow-primary/30"
                   >
-                    Register
+                    Start Free Trial
                   </Link>
                 </div>
               )}
@@ -251,22 +345,13 @@ export default function Navigation() {
                   align="right"
                 />
               ) : (
-                <div className="flex items-center gap-2">
-                  <Link
-                    href="/login"
-                    className="text-sm font-medium text-text-secondary hover:text-text-primary"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Login
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-primary text-nucleas-ink hover:bg-primary-hover"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Register
-                  </Link>
-                </div>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-primary text-nucleas-ink hover:bg-primary-hover"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Start Free Trial
+                </Link>
               )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -290,21 +375,54 @@ export default function Navigation() {
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border">
+          <div className="md:hidden border-t border-border bg-background-card">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
-                    ? 'bg-background-elevated text-text-primary'
-                    : 'text-text-secondary hover:bg-background-elevated hover:text-text-primary'
-                    }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {showMarketingNav ? (
+                <>
+                  <Link
+                    href="/features"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-text-secondary hover:bg-background-elevated hover:text-text-primary transition-colors"
+                  >
+                    Features
+                  </Link>
+                  {marketingNavLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                        pathname === link.href
+                          ? 'bg-background-elevated text-text-primary'
+                          : 'text-text-secondary hover:bg-background-elevated hover:text-text-primary'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-text-secondary hover:bg-background-elevated hover:text-text-primary transition-colors"
+                  >
+                    Login
+                  </Link>
+                </>
+              ) : (
+                appNavLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
+                      ? 'bg-background-elevated text-text-primary'
+                      : 'text-text-secondary hover:bg-background-elevated hover:text-text-primary'
+                      }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))
+              )}
             </div>
           </div>
         )}

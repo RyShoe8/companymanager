@@ -61,9 +61,11 @@ export function middleware(request: NextRequest) {
     pathname === '/setup-organization' ||
     pathname === '/about' ||
     pathname === '/contact' ||
+    pathname === '/pricing' ||
     pathname === '/terms' ||
     pathname === '/privacy' ||
     pathname.startsWith('/features/') ||
+    pathname === '/features' ||
     pathname.startsWith('/portal/')
   ) {
     if (isOsHost) {

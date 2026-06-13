@@ -1,220 +1,307 @@
 'use client';
 
 import Link from 'next/link';
-import InteractiveDemoBlock from '@/components/home/InteractiveDemoBlock';
+import { useState } from 'react';
 import AnimateIn from '@/components/home/AnimateIn';
 import HomeFAQ from '@/components/home/HomeFAQ';
+import InteractiveDemoBlock from '@/components/home/InteractiveDemoBlock';
+
+/* ─── Feature category cards for the overview section ─── */
+const CATEGORIES = [
+  {
+    title: 'Projects',
+    desc: 'Manage projects end-to-end with tasks, timelines, team assignments, and AI-powered time estimation.',
+    href: '/features/projects',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Tasks',
+    desc: 'Break down projects into clear tasks with status tracking, recurrence, linked assets, and assignments.',
+    href: '/features/tasks',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Content',
+    desc: 'Plan, schedule, and distribute content across channels with targeting, assets, and team assignments.',
+    href: '/features/content',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Meetings',
+    desc: 'Schedule meetings with project context, agendas, availability management, and one-click join.',
+    href: '/features/meetings',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Tools',
+    desc: 'Built-in screenshot capture, screen recording, smart buttons, and a centralized asset library.',
+    href: '/features/tools',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Team',
+    desc: 'Track capacity, assignments, workload, and roles. See how every project impacts your team.',
+    href: '/features/team',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+  },
+];
+
+/* ─── Pain points ─── */
+const PAIN_POINTS = [
+  { icon: '🔀', title: 'Scattered tools', desc: 'Your projects live in one app, docs in another, tasks in a third. Nothing connects.' },
+  { icon: '🔍', title: 'No visibility', desc: 'You can\'t see who\'s overloaded, what\'s behind schedule, or where things stand.' },
+  { icon: '🤝', title: 'Team coordination', desc: 'Meetings lack context. Assignments are unclear. Capacity is a guess.' },
+];
+
+/* ─── How It Works steps ─── */
+const STEPS = [
+  { num: '01', title: 'Build', desc: 'Set up your projects, define tasks, assign your team, and estimate timelines with AI.', color: 'from-primary to-primary/60' },
+  { num: '02', title: 'Organize', desc: 'Link assets, documents, and tools to every project. Everything in one place, always.', color: 'from-accent to-accent/60' },
+  { num: '03', title: 'Operate', desc: 'Run meetings with context, track progress, manage capacity, and ship consistently.', color: 'from-nucleas-fourth to-nucleas-fourth/60' },
+];
+
+/* ─── Differentiators ─── */
+const DIFFERENTIATORS = [
+  { vs: 'Project Managers', us: 'They track tasks.', nucleas: 'We run businesses.', desc: 'Nucleas goes beyond task tracking — it connects your projects, team, content, meetings, and tools into a single operating layer.' },
+  { vs: 'Wikis & Docs', us: 'They store information.', nucleas: 'We connect it to action.', desc: 'Every asset, document, and note in Nucleas is linked to a project, task, or content item — not buried in a folder.' },
+  { vs: 'Spreadsheets', us: 'They organize data.', nucleas: 'We organize operations.', desc: 'Stop managing your business in rows and columns. Nucleas gives you purpose-built views for every aspect of your work.' },
+];
+
+/* ─── Feature highlights ─── */
+const HIGHLIGHTS = [
+  { title: 'AI Time Estimation', desc: 'Get intelligent hour estimates for tasks and content. Just describe the work — AI handles the rest.', icon: '🤖' },
+  { title: 'Smart Buttons', desc: 'Launch hosting, analytics, docs, design tools, and more in one click from any project.', icon: '⚡' },
+  { title: 'Color & Font Tracking', desc: 'Store brand color palettes and font families directly on each project. Always accessible.', icon: '🎨' },
+  { title: 'Screenshot & Recording', desc: 'Capture your screen and record video directly inside Nucleas. Save and link to projects.', icon: '📸' },
+  { title: 'Team Capacity', desc: 'See how assignments impact each team member. Set weekly hours and track utilization.', icon: '📊' },
+  { title: 'Recurring Tasks', desc: 'Set up recurring tasks and content for repeated work. Never forget a regular deliverable.', icon: '🔄' },
+];
+
+/* ─── Audience ─── */
+const AUDIENCES = [
+  { label: 'Startup Studios', desc: 'Manage multiple products and ventures from one dashboard.' },
+  { label: 'Digital Agencies', desc: 'Organize client projects, team capacity, and deliverables.' },
+  { label: 'Indie Founders', desc: 'Run your solo business with the tools of a full team.' },
+  { label: 'SaaS Teams', desc: 'Coordinate development, content, and operations in one place.' },
+  { label: 'Niche Site Operators', desc: 'Track content, SEO, and site operations at scale.' },
+];
 
 export default function HomePageClient() {
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* HERO - Dark, dramatic */}
-      <section className="relative min-h-[95vh] flex items-center overflow-hidden">
-        {/* Dark gradient base */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a]" />
-        {/* Animated gradient orbs */}
-        <div className="absolute top-1/4 -right-32 w-[500px] h-[500px] rounded-full bg-primary/20 blur-[120px] animate-float" />
-        <div className="absolute bottom-1/4 -left-32 w-[400px] h-[400px] rounded-full bg-secondary/20 blur-[100px] animate-float" style={{ animationDelay: '-4s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[80px] animate-pulse" />
-        {/* Grid overlay */}
-        <div className="absolute inset-0 bg-grid-pattern opacity-50" />
-        {/* Radial gradient vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#0f172a_70%)]" />
+    <div className="min-h-screen bg-background overflow-hidden">
+      {/* ═══════════════════════ HERO ═══════════════════════ */}
+      <section className="relative min-h-[95vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
+        <div className="absolute top-1/4 -left-32 w-96 h-96 bg-primary/15 rounded-full blur-3xl animate-float pointer-events-none" />
+        <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-accent/15 rounded-full blur-3xl animate-float pointer-events-none" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-nucleas-fourth/8 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-32 text-center">
-          <div className="flex justify-center mb-10">
-            <img
-              src="/images/nucleas-logo.png?v=6"
-              alt="Nucleas"
-              width={160}
-              height={160}
-              className="h-16 md:h-20 w-auto object-contain"
-            />
-          </div>
-          <AnimateIn delay={100}>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] mb-8 tracking-tight">
-              <span className="text-white">Run Your Entire Internet Business</span>
-              <br />
-              <span className="bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-                From One Command Center
-              </span>
+        <div className="relative max-w-5xl mx-auto text-center z-10">
+          {/* Badge */}
+          <AnimateIn>
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium text-primary mb-8">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              The Business Management Layer
+            </span>
+          </AnimateIn>
+
+          {/* Heading */}
+          <AnimateIn>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-text-primary tracking-tight leading-[1.1] mb-6">
+              The smart operating system for{' '}
+              <span className="bg-gradient-to-r from-primary via-[#007bff] to-accent bg-clip-text text-transparent">
+                building and running
+              </span>{' '}
+              a business
             </h1>
           </AnimateIn>
-          <AnimateIn delay={200}>
-            <p className="text-xl sm:text-2xl text-slate-400 max-w-2xl mx-auto mb-6">
-              Stop juggling tabs, tools, and documents.
-            </p>
-            <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-12">
-              Nucleas is the operating system for planning, building, and running every project you own.
+
+          {/* Subheading */}
+          <AnimateIn>
+            <p className="text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto mb-3 leading-relaxed">
+              We&apos;re not another project manager. Nucleas is the business management layer that brings it all together.
             </p>
           </AnimateIn>
-          <AnimateIn delay={300}>
-            <div className="flex justify-center">
+
+          <AnimateIn>
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-primary/80 mb-10">
+              Build · Organize · Operate
+            </p>
+          </AnimateIn>
+
+          {/* CTAs */}
+          <AnimateIn>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center w-full sm:w-auto px-10 py-4 min-h-[52px] text-base font-semibold rounded-xl bg-primary text-white hover:bg-primary-hover transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center px-8 py-4 rounded-xl bg-primary text-nucleas-ink font-semibold text-lg hover:bg-primary-hover transition-all duration-200 shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:translate-y-[-1px]"
               >
-                Get started
+                Start Your 14-Day Free Trial
               </Link>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl border-2 border-white/15 text-text-primary font-semibold text-lg hover:bg-white/5 transition-all duration-200"
+              >
+                See How It Works
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </a>
             </div>
           </AnimateIn>
-        </div>
-      </section>
 
-      {/* INTERACTIVE DEMO - Glowing card */}
-      <section id="demo" className="relative py-24 md:py-32 -mt-1">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-background" />
-        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Hero image */}
           <AnimateIn>
-            <div className="relative p-8 md:p-12 rounded-3xl bg-background-card border border-border shadow-2xl shadow-primary/5">
-              <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-primary/5 via-transparent to-secondary/5 opacity-50" />
-              <div className="relative flex flex-col items-center">
-                <span className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider mb-6">
-                  Core differentiator
-                </span>
-                <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">
-                  What are you trying to build?
-                </h2>
-                <InteractiveDemoBlock
-                  variant="hero"
-                  subtext="We'll spin up a live demo workspace based on your idea and guide you from scratch."
-                  buttonText="Generate Demo Workspace →"
+            <div className="mt-16 relative mx-auto max-w-4xl">
+              <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 via-accent/20 to-nucleas-fourth/20 rounded-2xl blur-xl opacity-50" />
+              <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/40">
+                <img
+                  src="/images/marketing/hero-dashboard.png"
+                  alt="Nucleas workspace dashboard showing project management, team assignments, and planning tools"
+                  className="w-full h-auto"
+                  loading="eager"
                 />
               </div>
             </div>
           </AnimateIn>
-          <AnimateIn delay={200}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12">
-              {[
-                { icon: '📦', text: 'We create a demo workspace' },
-                { icon: '🔘', text: 'Pre-load tools & buttons' },
-                { icon: '🔄', text: 'Show plan → build → run flow' },
-                { icon: '✨', text: 'Option to convert' },
-              ].map((step, i) => (
-                <div
-                  key={i}
-                  className="group p-5 rounded-2xl bg-background-card border border-border hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 text-center"
-                >
-                  <span className="text-3xl mb-3 block group-hover:scale-110 transition-transform">{step.icon}</span>
-                  <p className="text-sm font-medium text-text-primary">{step.text}</p>
-                </div>
-              ))}
-            </div>
-            <p className="text-center text-text-secondary mt-8 text-base max-w-xl mx-auto">
-              See exactly how Nucleas would run your project. No setup. No commitment. Just a working command center.
-            </p>
-          </AnimateIn>
         </div>
       </section>
 
-      {/* PROBLEM - Chaos vs order */}
-      <section className="py-24 md:py-32 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary text-center mb-16 leading-tight">
-              Running multiple projects
-              <br />
-              <span className="text-primary">shouldn&apos;t feel chaotic</span>
-            </h2>
-          </AnimateIn>
-          <AnimateIn delay={100}>
-            <div className="grid md:grid-cols-2 gap-8 md:gap-12">
-              <div className="p-8 rounded-2xl bg-primary/5 border border-primary/10">
-                <p className="text-text-secondary mb-6 font-medium">Most founders operate across:</p>
-                <ul className="space-y-3">
-                  {['products', 'sites', 'clients', 'experiments', 'revenue streams'].map((item) => (
-                    <li key={item} className="flex items-center gap-3 text-text-primary font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-primary" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="p-8 rounded-2xl bg-slate-100 border border-border">
-                <p className="text-text-secondary mb-6 font-medium">But everything lives in different places:</p>
-                <ul className="space-y-3">
-                  {['dashboards', 'docs', 'bookmarks', 'spreadsheets', 'notes'].map((item) => (
-                    <li key={item} className="flex items-center gap-3 text-text-secondary">
-                      <span className="w-2 h-2 rounded-full bg-text-secondary/50" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </AnimateIn>
-          <AnimateIn delay={200}>
-            <div className="mt-16 p-8 rounded-2xl bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 text-center">
-              <p className="text-2xl md:text-3xl font-bold text-text-primary">
-                You don&apos;t need more tools.
-              </p>
-              <p className="text-2xl md:text-3xl font-bold text-primary mt-2">
-                You need a control panel.
-              </p>
-            </div>
-          </AnimateIn>
-        </div>
-      </section>
-
-      {/* POSITIONING - Bold statement */}
-      <section className="py-24 md:py-32 bg-text-primary">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-8 leading-tight">
-              Nucleas is the operating system
-              <br />
-              for modern builders
-            </h2>
-          </AnimateIn>
-          <AnimateIn delay={100}>
-            <p className="text-slate-400 text-lg mb-6">
-              Not project management. Not a wiki. Not another productivity app.
-            </p>
-            <p className="text-xl font-semibold text-white mb-10">
-              Nucleas is the command center for everything you&apos;re running.
-            </p>
-          </AnimateIn>
-          <AnimateIn delay={200}>
-            <div className="flex flex-wrap justify-center gap-6 text-primary font-semibold text-lg">
-              <span>Plan ideas.</span>
-              <span>Launch builds.</span>
-              <span>Operate live projects.</span>
-            </div>
-            <p className="text-slate-400 mt-6">All from one place.</p>
-          </AnimateIn>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS - Plan Build Run */}
-      <section className="py-24 md:py-32 px-4 sm:px-6 lg:px-8">
+      {/* ═══════════════════════ PROBLEM STATEMENT ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto">
           <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary text-center mb-4">
-              Every project moves through three phases
-            </h2>
-            <p className="text-text-secondary text-center mb-16">The interface adapts to the phase you&apos;re in.</p>
+            <div className="text-center mb-16">
+              <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">The Problem</p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-4">
+                You&apos;re running a business, not just managing projects
+              </h2>
+              <p className="text-lg text-text-secondary max-w-2xl mx-auto">
+                Your work spans projects, people, content, meetings, and dozens of tools. But nothing connects them.
+              </p>
+            </div>
           </AnimateIn>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { label: 'Plan', icon: '📋', color: 'primary', bullets: ['Validate ideas and organize research', 'Store links, docs, and decisions', 'Launch planning tools instantly'] },
-              { label: 'Build', icon: '🔨', color: 'success', bullets: ['Track execution', 'Launch dev, design, and infra tools', 'Centralize assets and workflows'] },
-              { label: 'Run', icon: '🚀', color: 'secondary', bullets: ['Monitor analytics', 'Operate daily', 'Optimize revenue and performance'] },
-            ].map((phase, i) => (
-              <AnimateIn key={phase.label} delay={i * 150}>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {PAIN_POINTS.map((point, i) => (
+              <AnimateIn key={point.title}>
+                <div className="bg-background-card border border-border rounded-2xl p-8 hover:border-red-500/30 transition-all duration-300 h-full">
+                  <span className="text-3xl mb-4 block">{point.icon}</span>
+                  <h3 className="text-xl font-semibold text-text-primary mb-2">{point.title}</h3>
+                  <p className="text-text-secondary">{point.desc}</p>
+                </div>
+              </AnimateIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════ POSITIONING ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+        <div className="max-w-5xl mx-auto text-center">
+          <AnimateIn>
+            <p className="text-sm font-semibold uppercase tracking-wider text-accent mb-3">The Solution</p>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-6">
+              Nucleas is the layer that{' '}
+              <span className="bg-gradient-to-r from-accent to-nucleas-fourth bg-clip-text text-transparent">
+                connects everything
+              </span>
+            </h2>
+            <p className="text-lg text-text-secondary max-w-3xl mx-auto mb-12">
+              Projects, tasks, content, meetings, team capacity, and tools — all wired together in one operating system.
+              Not replacing your tools, but connecting them.
+            </p>
+          </AnimateIn>
+
+          {/* Connection diagram */}
+          <AnimateIn>
+            <div className="relative max-w-lg mx-auto">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-48 h-48 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-2xl" />
+              </div>
+              <div className="relative grid grid-cols-3 gap-4">
+                {['Projects', 'Tasks', 'Content', 'Meetings', 'Team', 'Tools'].map((label, i) => (
+                  <div
+                    key={label}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background-card border border-border hover:border-primary/40 transition-all duration-300 hover:translate-y-[-2px]"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-lg">
+                      {['📁', '✅', '📝', '📹', '👥', '⚡'][i]}
+                    </div>
+                    <span className="text-sm font-medium text-text-primary">{label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-primary/40" />
+                <span className="px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm font-semibold text-primary">
+                  Connected by Nucleas
+                </span>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-primary/40" />
+              </div>
+            </div>
+          </AnimateIn>
+        </div>
+      </section>
+
+      {/* ═══════════════════════ FEATURE CATEGORIES ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <AnimateIn>
+            <div className="text-center mb-16">
+              <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">Platform</p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-4">
+                Everything you need to run your business
+              </h2>
+              <p className="text-lg text-text-secondary max-w-2xl mx-auto">
+                Six integrated modules that work together as one operating system.
+              </p>
+            </div>
+          </AnimateIn>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {CATEGORIES.map((cat) => (
+              <AnimateIn key={cat.title}>
                 <Link
-                  href={phase.label === 'Plan' ? '/plan' : phase.label === 'Build' ? '/build' : '/run'}
-                  className="group block p-8 rounded-3xl border-2 border-border hover:border-primary bg-background-card transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-2"
+                  href={cat.href}
+                  className="group block bg-background-card border border-border rounded-2xl p-8 hover:border-primary/30 transition-all duration-300 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-primary/5 h-full"
                 >
-                  <span className="text-5xl mb-6 block group-hover:scale-110 transition-transform">{phase.icon}</span>
-                  <h3 className="text-2xl font-bold text-text-primary mb-6 group-hover:text-primary transition-colors">{phase.label}</h3>
-                  <ul className="space-y-3 text-text-secondary">
-                    {phase.bullets.map((b) => (
-                      <li key={b} className="flex gap-3">
-                        <span className="text-primary font-bold">→</span>
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-5 group-hover:bg-primary/20 transition-colors">
+                    {cat.icon}
+                  </div>
+                  <h3 className="text-xl font-semibold text-text-primary mb-2 group-hover:text-primary transition-colors">
+                    {cat.title}
+                  </h3>
+                  <p className="text-text-secondary text-sm leading-relaxed">{cat.desc}</p>
+                  <span className="inline-flex items-center gap-1 mt-4 text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    Learn more →
+                  </span>
                 </Link>
               </AnimateIn>
             ))}
@@ -222,114 +309,189 @@ export default function HomePageClient() {
         </div>
       </section>
 
-      {/* SUPER BUTTON SYSTEM */}
-      <section className="py-24 md:py-32 bg-background-card border-y border-border">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ═══════════════════════ HOW IT WORKS ═══════════════════════ */}
+      <section id="how-it-works" className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+        <div className="max-w-5xl mx-auto">
           <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary text-center mb-4">
-              Your tools. One control panel.
-            </h2>
-            <p className="text-text-secondary text-center mb-12 text-lg">
-              Nucleas doesn&apos;t replace your stack. It connects it.
-            </p>
-          </AnimateIn>
-          <AnimateIn delay={100}>
-            <p className="text-text-primary text-center mb-8 font-medium">
-              Every project gets customizable action buttons for:
-            </p>
-            <div className="flex flex-wrap justify-center gap-3 mb-10">
-              {['hosting', 'analytics', 'domains', 'design', 'docs', 'billing', 'marketing'].map((tool) => (
-                <span key={tool} className="px-5 py-2.5 rounded-xl bg-primary-light text-primary-dark font-semibold text-sm">
-                  {tool}
-                </span>
-              ))}
-            </div>
-            <p className="text-xl font-semibold text-text-primary text-center">
-              Launch anything in one click. No more searching.
-            </p>
-          </AnimateIn>
-        </div>
-      </section>
-
-      {/* WHY IT EXISTS */}
-      <section className="py-24 md:py-32 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto">
-          <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary text-center mb-12">
-              Why it exists
-            </h2>
-          </AnimateIn>
-          <AnimateIn delay={100}>
-            <div className="space-y-6 text-lg">
-              <p className="text-text-secondary">
-                Nucleas started as our internal system. We were running:
+            <div className="text-center mb-16">
+              <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">How It Works</p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-4">
+                Build. Organize. Operate.
+              </h2>
+              <p className="text-lg text-text-secondary max-w-2xl mx-auto">
+                Three phases. One system. Total clarity.
               </p>
-              <ul className="space-y-2 text-text-primary font-medium">
-                {['client work', 'products', 'experiments', 'analytics platforms'].map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span className="text-primary">•</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-text-secondary">Everything was scattered.</p>
-              <p className="text-text-primary font-semibold">So we built the command center we wanted.</p>
-              <p className="text-primary font-bold text-xl">Now we run our entire company from it. You can too.</p>
             </div>
           </AnimateIn>
+
+          <div className="space-y-8">
+            {STEPS.map((step) => (
+              <AnimateIn key={step.num}>
+                <div className="flex gap-6 md:gap-10 items-start">
+                  <div className={`flex-shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br ${step.color} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
+                    {step.num}
+                  </div>
+                  <div className="pt-2">
+                    <h3 className="text-2xl font-bold text-text-primary mb-2">{step.title}</h3>
+                    <p className="text-text-secondary text-lg">{step.desc}</p>
+                  </div>
+                </div>
+              </AnimateIn>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* WHO IT'S FOR */}
-      <section className="py-24 md:py-32 bg-primary/5 border-y border-primary/10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ═══════════════════════ DIFFERENTIATORS ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto">
           <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary text-center mb-8">
-              Who it&apos;s for
-            </h2>
-          </AnimateIn>
-          <AnimateIn delay={100}>
-            <p className="text-text-secondary text-center mb-10 text-lg">
-              Nucleas is built for people running multiple projects:
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              {['startup studios', 'indie founders', 'agencies', 'builders', 'operators', 'niche site owners', 'SaaS teams'].map((audience) => (
-                <span key={audience} className="px-5 py-2.5 rounded-full bg-background-card border-2 border-border hover:border-primary/50 text-text-primary font-semibold text-sm transition-colors">
-                  {audience}
+            <div className="text-center mb-16">
+              <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">Why Nucleas</p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary">
+                Not another tool.{' '}
+                <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  The layer above them.
                 </span>
-              ))}
+              </h2>
             </div>
-            <p className="text-text-primary font-semibold text-center mt-10 text-lg">
-              If you&apos;re running more than one thing, you need a hub.
-            </p>
           </AnimateIn>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {DIFFERENTIATORS.map((d) => (
+              <AnimateIn key={d.vs}>
+                <div className="bg-background-card border border-border rounded-2xl p-8 h-full">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-4">vs. {d.vs}</p>
+                  <p className="text-text-secondary mb-1">{d.us}</p>
+                  <p className="text-xl font-bold text-primary mb-4">{d.nucleas}</p>
+                  <p className="text-sm text-text-secondary leading-relaxed">{d.desc}</p>
+                </div>
+              </AnimateIn>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* FINAL CTA */}
-      <section className="py-24 md:py-32 bg-gradient-to-br from-primary via-primary to-secondary">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      {/* ═══════════════════════ FEATURE HIGHLIGHTS ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+        <div className="max-w-6xl mx-auto">
           <AnimateIn>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-6 leading-tight">
-              Stop running your business from memory and bookmarks.
-            </h2>
-            <p className="text-xl text-white/90 mb-12">
-              Run it from Nucleas.
-            </p>
-            <div className="flex justify-center">
-              <Link
-                href="/register"
-                className="inline-flex items-center justify-center w-full sm:w-auto px-10 py-4 min-h-[52px] text-base font-semibold rounded-xl bg-white text-primary hover:bg-gray-100 transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-              >
-                Get started
-              </Link>
+            <div className="text-center mb-16">
+              <p className="text-sm font-semibold uppercase tracking-wider text-accent mb-3">Highlights</p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary">
+                Features that set Nucleas apart
+              </h2>
             </div>
+          </AnimateIn>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {HIGHLIGHTS.map((h) => (
+              <AnimateIn key={h.title}>
+                <div className="bg-background border border-border rounded-2xl p-6 hover:border-primary/20 transition-all duration-300 h-full">
+                  <span className="text-2xl mb-3 block">{h.icon}</span>
+                  <h3 className="text-lg font-semibold text-text-primary mb-2">{h.title}</h3>
+                  <p className="text-sm text-text-secondary leading-relaxed">{h.desc}</p>
+                </div>
+              </AnimateIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════ INTERACTIVE DEMO ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <InteractiveDemoBlock />
+        </div>
+      </section>
+
+      {/* ═══════════════════════ WHO IT'S FOR ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+        <div className="max-w-5xl mx-auto">
+          <AnimateIn>
+            <div className="text-center mb-16">
+              <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">Built For</p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-4">
+                Who uses Nucleas?
+              </h2>
+              <p className="text-lg text-text-secondary max-w-2xl mx-auto">
+                If you&apos;re running more than one project, product, or client — you need Nucleas.
+              </p>
+            </div>
+          </AnimateIn>
+
+          <div className="flex flex-wrap justify-center gap-4">
+            {AUDIENCES.map((a) => (
+              <AnimateIn key={a.label}>
+                <div className="bg-background border border-border rounded-2xl px-6 py-4 hover:border-primary/30 transition-all duration-300 max-w-xs">
+                  <h3 className="text-base font-semibold text-text-primary mb-1">{a.label}</h3>
+                  <p className="text-sm text-text-secondary">{a.desc}</p>
+                </div>
+              </AnimateIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════ PRICING PREVIEW ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto text-center">
+          <AnimateIn>
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">Pricing</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">
+              Simple, seat-based pricing
+            </h2>
+            <p className="text-lg text-text-secondary mb-3">
+              Every plan includes the full platform. No feature gates.
+            </p>
+            <p className="text-primary font-semibold mb-8">
+              Start your 14-day free trial — no credit card required.
+            </p>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-xl border-2 border-primary/30 text-primary font-semibold text-lg hover:bg-primary/5 transition-all duration-200"
+            >
+              View Pricing
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
           </AnimateIn>
         </div>
       </section>
 
-      {/* FAQ - Above footer, AI-friendly Q&A */}
+      {/* ═══════════════════════ FAQ ═══════════════════════ */}
       <HomeFAQ />
+
+      {/* ═══════════════════════ FINAL CTA ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-accent/10 to-nucleas-fourth/10 border border-primary/20 p-10 md:p-16 text-center">
+            <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative">
+              <AnimateIn>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-4">
+                  Ready to run your business from one place?
+                </h2>
+                <p className="text-lg text-text-secondary mb-8 max-w-xl mx-auto">
+                  Join teams who stopped juggling tools and started operating their business from a single system.
+                </p>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center px-10 py-4 rounded-xl bg-primary text-nucleas-ink font-semibold text-lg hover:bg-primary-hover transition-all duration-200 shadow-lg shadow-primary/25 hover:shadow-primary/40"
+                >
+                  Start Your 14-Day Free Trial
+                </Link>
+                <p className="mt-4 text-sm text-text-muted">
+                  No credit card required · Full platform access · Cancel anytime
+                </p>
+              </AnimateIn>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
