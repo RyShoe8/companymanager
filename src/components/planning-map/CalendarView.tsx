@@ -511,9 +511,6 @@ export default function CalendarView({
               className={`text-sm text-left w-full min-w-0 truncate hover:underline ${item.content.status === 'published' ? 'opacity-60' : ''}`}
               title={item.content.title}
             >
-              <span className="mr-1" aria-hidden>
-                📝
-              </span>
               <ItemSeenTag status={contentSeenStatus(project, item.content)} />
               {item.content.title}
             </button>
@@ -583,9 +580,6 @@ export default function CalendarView({
                 }}
                 className="text-left w-full h-full"
               >
-                <span className="mr-2" aria-hidden>
-                  📝
-                </span>
                 <span
                   className={`font-medium text-text-primary line-clamp-2 ${c.status === 'published' ? 'line-through' : ''}`}
                   title={c.title}
@@ -702,9 +696,12 @@ export default function CalendarView({
       (item): item is MergedCalendarItem =>
         item.type === 'content' || taskPassesAssignmentFilter(item.task)
     );
-    const openTasks = taskItems.filter((item) => item.task.status !== 'completed').length;
-    const totalTasks = taskItems.length;
-    const contentCount = contentInRange.length;
+    const activeTasks = taskItems.filter((item) => item.task.status !== 'completed');
+    const openTasks = activeTasks.length;
+    const totalTasks = activeTasks.length;
+    const activeContent = contentInRange.filter((item) => item.status !== 'published');
+    const openContent = activeContent.length;
+    const totalContent = activeContent.length;
     const range = { start: weekStart, end: weekEnd };
     const hours =
       Math.round(
@@ -712,11 +709,12 @@ export default function CalendarView({
           sumContentHoursInTimeframe(project._id.toString(), contentItems, 'weekly', range)) *
           100
       ) / 100;
-    const showWeekMetrics = totalTasks > 0 || contentCount > 0 || hours > 0;
+    const showWeekMetrics = totalTasks > 0 || totalContent > 0 || hours > 0;
     return {
       openTasks,
       totalTasks,
-      contentCount,
+      openContent,
+      totalContent,
       hours,
       displayList,
       hasItemsInWeek: displayList.length > 0,
@@ -980,7 +978,6 @@ export default function CalendarView({
                                         className={`p-3 rounded border border-dashed border-border bg-background-card ${c.status === 'published' ? 'opacity-60' : ''}`}
                                       >
                                         <button type="button" onClick={() => onContentItemClick?.(c)} className="text-left w-full">
-                                          <span className="mr-2" aria-hidden>📝</span>
                                           <span className={`font-medium text-text-primary ${c.status === 'published' ? 'line-through' : ''}`}>
                                             <ItemSeenTag status={contentSeenStatus(project, c)} />
                                             {c.title}
@@ -1032,7 +1029,6 @@ export default function CalendarView({
                                         className={`text-sm text-white text-left w-full min-w-0 break-words hover:underline ${item.content.status === 'published' ? 'opacity-60' : ''}`}
                                         title={item.content.title}
                                       >
-                                        <span className="mr-1" aria-hidden>📝</span>
                                         <ItemSeenTag status={contentSeenStatus(project, item.content)} />
                                         {item.content.title}
                                         <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-white/20">{item.content.channel}</span>
@@ -1340,7 +1336,9 @@ export default function CalendarView({
                                     <span className="mx-1.5 opacity-60" aria-hidden>
                                       ·
                                     </span>
-                                    <span>Content ({summary.contentCount})</span>
+                                    <span>
+                                      Content {summary.openContent}/{summary.totalContent}
+                                    </span>
                                     <span className="mx-1.5 opacity-60" aria-hidden>
                                       ·
                                     </span>
@@ -1571,7 +1569,9 @@ export default function CalendarView({
                                   <span className="mx-1 opacity-60" aria-hidden>
                                     ·
                                   </span>
-                                  <span>Content ({summary.contentCount})</span>
+                                  <span>
+                                    Content {summary.openContent}/{summary.totalContent}
+                                  </span>
                                   <span className="mx-1 opacity-60" aria-hidden>
                                     ·
                                   </span>
