@@ -4,9 +4,10 @@ import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import ModalAction from '@/components/ui/ModalAction';
+import PlatformCredentialModal, { PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
-export type StackItem<C extends string> = { category: C; id: string };
+export type StackItem<C extends string> = { category: C; id: string; login?: string; password?: string };
 
 export interface ProjectStackBarConfig<C extends string> {
   /** Toolbar toggle button label, e.g. "Tech Stack". */
@@ -87,6 +88,34 @@ export default function ProjectStackBar<C extends string>({
       setSelectedIndex(null);
     } catch {
       alert(`Failed to delete ${config.itemNoun} entry.`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveCredentials = async (index: number, credentials: PlatformCredential) => {
+    const updatedItems = [...items];
+    updatedItems[index] = { ...updatedItems[index], ...credentials };
+    setSaving(true);
+    try {
+      await onSave(updatedItems);
+      setSelectedIndex(null);
+    } catch {
+      alert(`Failed to save credentials.`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCredentials = async (index: number) => {
+    const updatedItems = [...items];
+    updatedItems[index] = { ...updatedItems[index], login: undefined, password: undefined };
+    setSaving(true);
+    try {
+      await onSave(updatedItems);
+      setSelectedIndex(null);
+    } catch {
+      alert(`Failed to delete credentials.`);
     } finally {
       setSaving(false);
     }
@@ -221,47 +250,33 @@ export default function ProjectStackBar<C extends string>({
         </div>
       )}
 
-      <Modal
+      <PlatformCredentialModal
         isOpen={selectedIndex !== null && !!selectedItem && !!selectedEntry}
         onClose={() => setSelectedIndex(null)}
-        title={selectedEntry?.name ?? config.modalFallbackTitle}
-        maxWidth="sm"
-        elevated
-        stackAboveOverlays
-        bodyPadding={false}
-      >
-        {selectedItem && selectedEntry && selectedIndex !== null && (
-          <div className="py-1">
-            <p className={`px-4 py-2 text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
-              {config.categoryLabels[selectedEntry.category]}
-            </p>
-            <ModalAction
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              }
-              label="Open"
-              onClick={() => {
-                window.open(selectedEntry.homepageUrl, '_blank', 'noopener,noreferrer');
-                setSelectedIndex(null);
-              }}
-            />
-            {isManagerOrAdmin && (
-              <ModalAction
-                icon={
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                }
-                label="Delete"
-                variant="danger"
-                onClick={() => void handleDelete(selectedIndex)}
-              />
-            )}
-          </div>
-        )}
-      </Modal>
+        platform={{
+          name: selectedEntry?.name ?? config.modalFallbackTitle,
+          icon: selectedEntry && selectedItem ? config.renderIcon(selectedItem.id, 24) : null,
+          url: selectedEntry?.homepageUrl || '',
+        }}
+        credentials={{
+          login: selectedItem?.login,
+          password: selectedItem?.password,
+        }}
+        onSave={(credentials) => {
+          if (selectedIndex !== null) {
+            return handleSaveCredentials(selectedIndex, credentials);
+          }
+          return Promise.resolve();
+        }}
+        onDelete={isManagerOrAdmin ? () => {
+          if (selectedIndex !== null) {
+            return handleDeleteCredentials(selectedIndex);
+          }
+          return Promise.resolve();
+        } : undefined}
+        canEdit={isManagerOrAdmin}
+        canViewPassword={isManagerOrAdmin}
+      />
     </>
   );
 }

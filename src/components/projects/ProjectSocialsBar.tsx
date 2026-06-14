@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import ModalAction from '@/components/ui/ModalAction';
 import SocialIcon from '@/components/projects/SocialIcon';
+import PlatformCredentialModal, { PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import {
   detectSocialNetwork,
@@ -72,6 +73,34 @@ export default function ProjectSocialsBar({
       setSelectedIndex(null);
     } catch {
       alert('Failed to delete social link.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveCredentials = async (index: number, credentials: PlatformCredential) => {
+    const updatedLinks = [...socialLinks];
+    updatedLinks[index] = { ...updatedLinks[index], ...credentials };
+    setSaving(true);
+    try {
+      await onUpdate({ socialLinks: updatedLinks });
+      setSelectedIndex(null);
+    } catch {
+      alert('Failed to save credentials.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCredentials = async (index: number) => {
+    const updatedLinks = [...socialLinks];
+    updatedLinks[index] = { ...updatedLinks[index], login: undefined, password: undefined };
+    setSaving(true);
+    try {
+      await onUpdate({ socialLinks: updatedLinks });
+      setSelectedIndex(null);
+    } catch {
+      alert('Failed to delete credentials.');
     } finally {
       setSaving(false);
     }
@@ -160,53 +189,33 @@ export default function ProjectSocialsBar({
       </div>
     )}
 
-    <Modal
+    <PlatformCredentialModal
       isOpen={selectedIndex !== null && !!selectedLink}
       onClose={() => setSelectedIndex(null)}
-      title={selectedLink ? SOCIAL_NETWORK_LABELS[selectedLink.network] : 'Social link'}
-      maxWidth="sm"
-      elevated
-      stackAboveOverlays
-      bodyPadding={false}
-    >
-      {selectedLink && selectedIndex !== null && (
-        <div className="py-1">
-          <ModalAction
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            }
-            label="Open"
-            onClick={() => {
-              window.open(selectedLink.url, '_blank', 'noopener,noreferrer');
-              setSelectedIndex(null);
-            }}
-          />
-          <ModalAction
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            }
-            label={copyFeedback ? 'Copied' : 'Copy URL'}
-            onClick={() => void handleCopy(selectedLink.url)}
-          />
-          {isManagerOrAdmin && (
-            <ModalAction
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              }
-              label="Delete"
-              variant="danger"
-              onClick={() => void handleDeleteLink(selectedIndex)}
-            />
-          )}
-        </div>
-      )}
-    </Modal>
+      platform={{
+        name: selectedLink ? SOCIAL_NETWORK_LABELS[selectedLink.network] : 'Social link',
+        icon: selectedLink ? <SocialIcon network={selectedLink.network} size={24} /> : null,
+        url: selectedLink?.url || '',
+      }}
+      credentials={{
+        login: selectedLink?.login,
+        password: selectedLink?.password,
+      }}
+      onSave={(credentials) => {
+        if (selectedIndex !== null) {
+          return handleSaveCredentials(selectedIndex, credentials);
+        }
+        return Promise.resolve();
+      }}
+      onDelete={isManagerOrAdmin ? () => {
+        if (selectedIndex !== null) {
+          return handleDeleteCredentials(selectedIndex);
+        }
+        return Promise.resolve();
+      } : undefined}
+      canEdit={isManagerOrAdmin}
+      canViewPassword={isManagerOrAdmin}
+    />
   </>
   );
 }

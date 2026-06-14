@@ -5,7 +5,8 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { getDefaultTaskDates, parseDateSafe } from '@/lib/utils/dateUtils';
 import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
-import { stripActionButtonPasswords } from '@/lib/security/actionButtonCrypto';
+import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
+import { stripPlatformCredentialPasswords, encryptPlatformCredentials } from '@/lib/security/platformCredentialCrypto';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -96,9 +97,42 @@ export async function GET(request: NextRequest) {
     }
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
-    const migratedProjects = projects.map((project: any) =>
-      stripActionButtonPasswords(migrateProjectFields(migrateStagesToTasks(project)))
-    );
+    const migratedProjects = projects.map((project: any) => {
+      const sanitized = stripActionButtonPasswords(migrateProjectFields(migrateStagesToTasks(project)));
+      // Strip platform credential passwords for non-admins
+      if (userRole !== 'Administrator' && userRole !== 'Manager') {
+        if (sanitized.socialLinks) {
+          sanitized.socialLinks = stripPlatformCredentialPasswords(sanitized.socialLinks);
+        }
+        if (sanitized.techStack) {
+          sanitized.techStack = stripPlatformCredentialPasswords(sanitized.techStack);
+        }
+        if (sanitized.marketingStack) {
+          sanitized.marketingStack = stripPlatformCredentialPasswords(sanitized.marketingStack);
+        }
+      } else {
+        // Decrypt passwords for admins/managers
+        if (sanitized.socialLinks) {
+          sanitized.socialLinks = sanitized.socialLinks.map((link: any) => ({
+            ...link,
+            password: link.password ? decryptActionButtonPassword(link.password) : undefined,
+          }));
+        }
+        if (sanitized.techStack) {
+          sanitized.techStack = sanitized.techStack.map((item: any) => ({
+            ...item,
+            password: item.password ? decryptActionButtonPassword(item.password) : undefined,
+          }));
+        }
+        if (sanitized.marketingStack) {
+          sanitized.marketingStack = sanitized.marketingStack.map((item: any) => ({
+            ...item,
+            password: item.password ? decryptActionButtonPassword(item.password) : undefined,
+          }));
+        }
+      }
+      return sanitized;
+    });
 
     return NextResponse.json(migratedProjects);
   } catch (error) {
@@ -130,7 +164,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, devUrl, liveUrl, projectType, category, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate } = body;
+    const { name, description, url, urls, devUrl, liveUrl, projectType, category, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate, socialLinks, techStack, marketingStack } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -263,6 +297,17 @@ export async function POST(request: NextRequest) {
       if (postAssigneeError) {
         return NextResponse.json({ error: postAssigneeError }, { status: 400 });
       }
+    }
+
+    // Encrypt platform credential passwords before saving
+    if (socialLinks && Array.isArray(socialLinks)) {
+      projectData.socialLinks = encryptPlatformCredentials(socialLinks);
+    }
+    if (techStack && Array.isArray(techStack)) {
+      projectData.techStack = encryptPlatformCredentials(techStack);
+    }
+    if (marketingStack && Array.isArray(marketingStack)) {
+      projectData.marketingStack = encryptPlatformCredentials(marketingStack);
     }
 
     const project = await Project.create(projectData);

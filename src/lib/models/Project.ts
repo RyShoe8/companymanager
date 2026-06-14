@@ -20,6 +20,8 @@ export type SocialNetwork =
 export interface IProjectSocialLink {
   network: SocialNetwork;
   url: string;
+  login?: string;
+  password?: string;
 }
 
 export type TechStackCategory = 'hosting' | 'database' | 'api' | 'framework' | 'payments';
@@ -27,6 +29,8 @@ export type TechStackCategory = 'hosting' | 'database' | 'api' | 'framework' | '
 export interface IProjectTechStackItem {
   category: TechStackCategory;
   technologyId: string;
+  login?: string;
+  password?: string;
 }
 
 export type MarketingStackCategory = 'email' | 'analytics' | 'social' | 'crm';
@@ -34,6 +38,8 @@ export type MarketingStackCategory = 'email' | 'analytics' | 'social' | 'crm';
 export interface IProjectMarketingStackItem {
   category: MarketingStackCategory;
   toolId: string;
+  login?: string;
+  password?: string;
 }
 
 export interface IProjectTask {
@@ -149,6 +155,8 @@ const ProjectSchema: Schema = new Schema(
             required: true,
           },
           url: { type: String, trim: true, required: true },
+          login: { type: String, trim: true },
+          password: { type: String, trim: true },
         },
       ],
       default: [],
@@ -166,6 +174,8 @@ const ProjectSchema: Schema = new Schema(
             required: true,
           },
           technologyId: { type: String, trim: true, required: true },
+          login: { type: String, trim: true },
+          password: { type: String, trim: true },
         },
       ],
       default: [],
@@ -179,6 +189,8 @@ const ProjectSchema: Schema = new Schema(
             required: true,
           },
           toolId: { type: String, trim: true, required: true },
+          login: { type: String, trim: true },
+          password: { type: String, trim: true },
         },
       ],
       default: [],

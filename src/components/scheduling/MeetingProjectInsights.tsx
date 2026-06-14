@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import SocialIcon from '@/components/projects/SocialIcon';
 import TechStackIcon from '@/components/projects/TechStackIcon';
 import MarketingStackIcon from '@/components/projects/MarketingStackIcon';
+import PlatformCredentialModal, { PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
 import type { MeetingDetailProjectResources } from '@/lib/scheduling/buildMeetingDetailPayload';
 import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
@@ -15,6 +16,7 @@ import { getTechStackEntry } from '@/lib/utils/techStack';
 
 interface MeetingProjectInsightsProps {
   resources: MeetingDetailProjectResources;
+  isManagerOrAdmin?: boolean;
 }
 
 function UrlRow({
@@ -44,7 +46,11 @@ function UrlRow({
   );
 }
 
-export default function MeetingProjectInsights({ resources }: MeetingProjectInsightsProps) {
+export default function MeetingProjectInsights({ resources, isManagerOrAdmin = false }: MeetingProjectInsightsProps) {
+  const [credentialModal, setCredentialModal] = useState<{
+    platform: PlatformInfo;
+    credentials: PlatformCredential;
+  } | null>(null);
   const paletteSwatches = useMemo(() => {
     const raw =
       resources.colorPalette.length > 0
@@ -190,16 +196,25 @@ export default function MeetingProjectInsights({ resources }: MeetingProjectInsi
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs uppercase tracking-wide text-text-muted w-full sm:w-auto">Socials</span>
           {resources.socialLinks.map((link, index) => (
-            <a
+            <button
               key={`${link.network}-${link.url}-${index}`}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
+              type="button"
+              onClick={() => setCredentialModal({
+                platform: {
+                  name: SOCIAL_NETWORK_LABELS[link.network],
+                  icon: <SocialIcon network={link.network} size={24} />,
+                  url: link.url,
+                },
+                credentials: {
+                  login: link.login,
+                  password: link.password,
+                },
+              })}
               title={SOCIAL_NETWORK_LABELS[link.network]}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background-elevated/40 hover:bg-background-elevated transition-colors"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background-elevated/40 hover:bg-background-elevated transition-colors cursor-pointer"
             >
               <SocialIcon network={link.network} size={18} />
-            </a>
+            </button>
           ))}
         </div>
       )}
@@ -210,13 +225,25 @@ export default function MeetingProjectInsights({ resources }: MeetingProjectInsi
           {resources.techStack.map((item, index) => {
             const entry = getTechStackEntry(item.technologyId);
             return (
-              <span
+              <button
                 key={`${item.technologyId}-${index}`}
+                type="button"
+                onClick={() => entry && setCredentialModal({
+                  platform: {
+                    name: entry.name,
+                    icon: <TechStackIcon technologyId={item.technologyId} size={24} />,
+                    url: entry.homepageUrl,
+                  },
+                  credentials: {
+                    login: item.login,
+                    password: item.password,
+                  },
+                })}
                 title={entry?.name ?? item.technologyId}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background-elevated/40"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background-elevated/40 hover:bg-background-elevated transition-colors cursor-pointer"
               >
                 <TechStackIcon technologyId={item.technologyId} size={18} />
-              </span>
+              </button>
             );
           })}
         </div>
@@ -228,13 +255,25 @@ export default function MeetingProjectInsights({ resources }: MeetingProjectInsi
           {resources.marketingStack.map((item, index) => {
             const entry = getMarketingStackEntry(item.toolId);
             return (
-              <span
+              <button
                 key={`${item.toolId}-${index}`}
+                type="button"
+                onClick={() => entry && setCredentialModal({
+                  platform: {
+                    name: entry.name,
+                    icon: <MarketingStackIcon toolId={item.toolId} size={24} />,
+                    url: entry.homepageUrl,
+                  },
+                  credentials: {
+                    login: item.login,
+                    password: item.password,
+                  },
+                })}
                 title={entry?.name ?? item.toolId}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background-elevated/40"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background-elevated/40 hover:bg-background-elevated transition-colors cursor-pointer"
               >
                 <MarketingStackIcon toolId={item.toolId} size={18} />
-              </span>
+              </button>
             );
           })}
         </div>
@@ -264,6 +303,19 @@ export default function MeetingProjectInsights({ resources }: MeetingProjectInsi
             );
           })}
         </div>
+      )}
+
+      {credentialModal && (
+        <PlatformCredentialModal
+          isOpen={!!credentialModal}
+          onClose={() => setCredentialModal(null)}
+          platform={credentialModal.platform}
+          credentials={credentialModal.credentials}
+          onSave={() => Promise.resolve()}
+          onDelete={undefined}
+          canEdit={false}
+          canViewPassword={isManagerOrAdmin}
+        />
       )}
     </div>
   );

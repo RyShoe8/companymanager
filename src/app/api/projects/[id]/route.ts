@@ -19,7 +19,8 @@ import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/util
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupNewlyCompletedTasks, cleanupProjectMedia } from '@/lib/projects/projectCleanup';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
-import { stripActionButtonPasswords } from '@/lib/security/actionButtonCrypto';
+import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
+import { encryptPlatformCredentials, stripPlatformCredentialPasswords } from '@/lib/security/platformCredentialCrypto';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const Employee = (await import('@/lib/models/Employee')).default;
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
     const userRole = currentUserEmployee?.role || 'User';
+    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
 
     const query: Record<string, unknown> = { _id: id, userId: { $in: orgUserIds } };
     if (userRole !== 'Administrator' && userRole !== 'Manager') {
@@ -81,7 +83,44 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       });
     }
 
-    return NextResponse.json(stripActionButtonPasswords(migratedProject));
+    // Strip action button passwords for non-admins
+    const sanitizedProject = stripActionButtonPasswords(migratedProject);
+
+    // Decrypt platform credentials for admins/managers, strip for others
+    if (isManagerOrAdmin) {
+      // Decrypt passwords for admins/managers
+      if (sanitizedProject.socialLinks) {
+        sanitizedProject.socialLinks = (sanitizedProject.socialLinks as any).map((link: any) => ({
+          ...link,
+          password: link.password ? decryptActionButtonPassword(link.password) : undefined,
+        }));
+      }
+      if (sanitizedProject.techStack) {
+        sanitizedProject.techStack = (sanitizedProject.techStack as any).map((item: any) => ({
+          ...item,
+          password: item.password ? decryptActionButtonPassword(item.password) : undefined,
+        }));
+      }
+      if (sanitizedProject.marketingStack) {
+        sanitizedProject.marketingStack = (sanitizedProject.marketingStack as any).map((item: any) => ({
+          ...item,
+          password: item.password ? decryptActionButtonPassword(item.password) : undefined,
+        }));
+      }
+    } else {
+      // Strip passwords for non-admins
+      if (sanitizedProject.socialLinks) {
+        sanitizedProject.socialLinks = stripPlatformCredentialPasswords(sanitizedProject.socialLinks as any);
+      }
+      if (sanitizedProject.techStack) {
+        sanitizedProject.techStack = stripPlatformCredentialPasswords(sanitizedProject.techStack as any);
+      }
+      if (sanitizedProject.marketingStack) {
+        sanitizedProject.marketingStack = stripPlatformCredentialPasswords(sanitizedProject.marketingStack as any);
+      }
+    }
+
+    return NextResponse.json(sanitizedProject);
   } catch (error) {
     console.error('Error fetching project:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -234,7 +273,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (socialError) {
         return NextResponse.json({ error: socialError }, { status: 400 });
       }
-      project.socialLinks = sanitizeSocialLinks(socialLinks) ?? [];
+      const sanitized = sanitizeSocialLinks(socialLinks) ?? [];
+      project.socialLinks = encryptPlatformCredentials(sanitized);
     }
     if (socialsToolbarVisible !== undefined) {
       project.socialsToolbarVisible = socialsToolbarVisible !== false;
@@ -244,14 +284,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (techStackError) {
         return NextResponse.json({ error: techStackError }, { status: 400 });
       }
-      project.techStack = sanitizeTechStack(techStack) ?? [];
+      const sanitized = sanitizeTechStack(techStack) ?? [];
+      project.techStack = encryptPlatformCredentials(sanitized);
     }
     if (marketingStack !== undefined) {
       const marketingStackError = validateMarketingStackUpdate(marketingStack);
       if (marketingStackError) {
         return NextResponse.json({ error: marketingStackError }, { status: 400 });
       }
-      project.marketingStack = sanitizeMarketingStack(marketingStack) ?? [];
+      const sanitized = sanitizeMarketingStack(marketingStack) ?? [];
+      project.marketingStack = encryptPlatformCredentials(sanitized);
     }
     if (category !== undefined) project.category = category;
     if (projectType !== undefined) {
