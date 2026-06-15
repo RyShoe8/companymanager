@@ -21,14 +21,14 @@ export default function TopBar() {
 
     return (
         <header className="h-12 flex-shrink-0 flex items-center gap-3 px-4 border-b border-border bg-background">
-            <div className="flex items-center gap-2 min-w-[180px]">
-                <span className="text-base font-semibold tracking-tight text-text-primary">Nucleas OS</span>
-                <span className="text-xs text-text-secondary truncate max-w-[200px]">
+            <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
+                <span className="text-sm sm:text-base font-semibold tracking-tight text-text-primary">Nucleas OS</span>
+                <span className="text-xs text-text-secondary truncate max-w-[120px] sm:max-w-[200px]">
                     {projectLabel ? projectLabel : 'default workspace'}
                 </span>
             </div>
 
-            <div className="flex-1" />
+            <div className="flex-1 min-w-0" />
 
             <div className="flex items-center gap-2">
                 <OsInstallButton />

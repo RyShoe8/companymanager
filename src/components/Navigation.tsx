@@ -224,17 +224,17 @@ export default function Navigation() {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center">
-              <Link href={user ? '/workspace' : '/'} className="flex items-center gap-3" onClick={() => setMobileMenuOpen(false)}>
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md">
+              <Link href={user ? '/workspace' : '/'} className="flex items-center gap-2 sm:gap-3" onClick={() => setMobileMenuOpen(false)}>
+                <span className="flex h-10 w-10 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-md">
                   <img
                     src="/images/nucleas-logo.png?v=6"
                     alt="Nucleas Logo"
                     width={56}
                     height={56}
-                    className="h-14 w-14 object-contain"
+                    className="h-10 w-10 sm:h-14 sm:w-14 object-contain"
                   />
                 </span>
-                <span className="text-xl font-bold text-text-primary">
+                <span className="text-lg sm:text-xl font-bold text-text-primary">
                   Nucleas
                 </span>
               </Link>

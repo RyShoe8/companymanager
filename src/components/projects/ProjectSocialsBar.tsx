@@ -92,7 +92,20 @@ export default function ProjectSocialsBar({
     }
   };
 
-  const handleDeleteCredentials = async (index: number) => {
+  const handleRemovePlatform = async (index: number) => {
+    const updatedLinks = socialLinks.filter((_, i) => i !== index);
+    setSaving(true);
+    try {
+      await onUpdate({ socialLinks: updatedLinks });
+      setSelectedIndex(null);
+    } catch {
+      alert('Failed to remove platform.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClearCredentials = async (index: number) => {
     const updatedLinks = [...socialLinks];
     updatedLinks[index] = { ...updatedLinks[index], login: undefined, password: undefined };
     setSaving(true);
@@ -100,7 +113,7 @@ export default function ProjectSocialsBar({
       await onUpdate({ socialLinks: updatedLinks });
       setSelectedIndex(null);
     } catch {
-      alert('Failed to delete credentials.');
+      alert('Failed to clear credentials.');
     } finally {
       setSaving(false);
     }
@@ -207,9 +220,15 @@ export default function ProjectSocialsBar({
         }
         return Promise.resolve();
       }}
-      onDelete={isManagerOrAdmin ? () => {
+      onRemovePlatform={isManagerOrAdmin ? () => {
         if (selectedIndex !== null) {
-          return handleDeleteCredentials(selectedIndex);
+          return handleRemovePlatform(selectedIndex);
+        }
+        return Promise.resolve();
+      } : undefined}
+      onClearCredentials={isManagerOrAdmin ? () => {
+        if (selectedIndex !== null) {
+          return handleClearCredentials(selectedIndex);
         }
         return Promise.resolve();
       } : undefined}

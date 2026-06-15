@@ -58,12 +58,12 @@ export default function OrganizationBrand() {
   }
 
   return (
-    <div className="flex items-center gap-3 min-w-0">
+    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
       <OrganizationLogo logo={logo} isAdmin={isAdmin} onLogoUpdate={setLogo} />
       <EditableText
         value={name}
         onSave={handleNameSave}
-        className="text-2xl sm:text-3xl font-bold text-white block min-w-0"
+        className="text-xl sm:text-2xl lg:text-3xl font-bold text-white block min-w-0 truncate"
         placeholder="Organization name"
         disabled={!isAdmin}
       />

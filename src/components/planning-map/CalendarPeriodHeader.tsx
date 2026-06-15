@@ -18,9 +18,9 @@ export default function CalendarPeriodHeader({
 }: CalendarPeriodHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-3 w-full">
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <PeriodNavButton direction="prev" onClick={onPrev} />
-        <h3 className="text-lg font-semibold text-text-primary min-w-[220px] text-center">
+        <h3 className="text-base sm:text-lg font-semibold text-text-primary min-w-0 text-center truncate px-2">
           {title}
         </h3>
         <PeriodNavButton direction="next" onClick={onNext} />

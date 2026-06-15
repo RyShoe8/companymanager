@@ -648,10 +648,11 @@ export default function CalendarView({
         ) {
           return false;
         }
-        if (!item.publishDate) return false;
+        // If no publishDate, still show the item (like tasks without dates)
+        if (!item.publishDate) return true;
         const d = parseDateSafe(item.publishDate);
-        if (!d) return false;
-        // Check if publish date falls within the view range (same logic as AgendaView)
+        if (!d) return true;
+        // Check if publish date falls within the view range
         const v0 = localCalendarDayIndex(rangeStart);
         const v1 = localCalendarDayIndex(rangeEnd);
         const t0 = taskCalendarDayIndex(d);
