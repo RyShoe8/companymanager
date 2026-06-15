@@ -18,6 +18,10 @@ import {
   isTaskAssignedToOtherEmployee,
 } from '@/lib/utils/projectTeam';
 import { contentCountsInViewPeriod } from '@/lib/utils/projectHours';
+import {
+  buildStageHoursBreakdown,
+  sumStageBreakdown,
+} from '@/lib/utils/employeeUtilizationBreakdown';
 import { sumMeetingHoursForEmployee } from '@/lib/scheduling/meetingHours';
 import Card from '@/components/ui/Card';
 
@@ -432,122 +436,51 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     return sumMeetingHoursForEmployee(meetings, employee, startDate, endDate);
   };
 
-  // Helper function to get project stage from status
-  const getProjectStage = (status: string): 'Plan' | 'Build' | 'Run' => {
-    if (status === 'planning') return 'Plan';
-    if (status === 'in-development' || status === 'in-review') return 'Build';
-    if (status === 'launched' || status === 'completed') return 'Run';
-    return 'Plan'; // default
-  };
+  const projectById = useMemo(() => {
+    const map = new Map<string, IProject>();
+    calcProjects.forEach((p) => map.set(p._id.toString(), p));
+    return map;
+  }, [calcProjects]);
 
-  const getCommittedHoursBreakdown = (employee: IEmployee) => {
-    const breakdown = { Plan: 0, Build: 0, Run: 0 };
-    const employeeProjects = getProjectsForEmployeeCalc(employee);
+  const buildBreakdownForEmployee = useCallback(
+    (employee: IEmployee, mode: 'committed' | 'completed') => {
+      const contentInPeriod = getAssignedContentInViewPeriod(
+        employee,
+        contentItems,
+        timeframe,
+        startDate,
+        endDate,
+        mode === 'completed' ? { forCompleted: true } : undefined
+      );
 
-    employeeProjects.forEach((project) => {
-      if (project.status === 'completed') return;
-      const stage = getProjectStage(project.status);
+      return buildStageHoursBreakdown({
+        projects: getProjectsForEmployeeCalc(employee),
+        employee,
+        mode,
+        rangeStart: startDate,
+        rangeEnd: endDate,
+        calculateHoursInRange: calculateHoursForDateRange,
+        isTaskAssignedToEmployee: isTaskAssignedToEmployee,
+        isTaskAssignedToOtherEmployee: isTaskAssignedToOtherEmployee,
+        contentItems: contentInPeriod,
+        projectById,
+      });
+    },
+    [
+      contentItems,
+      timeframe,
+      startDate,
+      endDate,
+      getProjectsForEmployeeCalc,
+      projectById,
+    ]
+  );
 
-      let taskHoursInRange = 0;
-      if (project.tasks && project.tasks.length > 0) {
-        taskHoursInRange = project.tasks
-          .filter(
-            (task) =>
-              isTaskAssignedToEmployee(task, employee) &&
-              task.estimatedHours &&
-              task.status !== 'completed'
-          )
-          .reduce((sum, task) => {
-            if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = parseDateSafe(task.startDate);
-            const taskEnd = parseDateSafe(task.endDate);
-            if (!taskStart || !taskEnd) return sum;
-            return sum + calculateHoursForDateRange(startDate, endDate, taskStart, taskEnd, task.estimatedHours);
-          }, 0);
-      }
+  const getCommittedHoursBreakdown = (employee: IEmployee) =>
+    buildBreakdownForEmployee(employee, 'committed');
 
-      const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-      const isProjectAssignedToEmployee = projectAssignedToId === employee._id.toString();
-
-      if (isProjectAssignedToEmployee && project.estimatedHours && !taskHoursInRange) {
-        let otherEmployeeTaskHours = 0;
-        if (project.tasks && project.tasks.length > 0) {
-          project.tasks.forEach((task) => {
-            if (
-              task.estimatedHours &&
-              task.status !== 'completed' &&
-              isTaskAssignedToOtherEmployee(task, employee)
-            ) {
-              otherEmployeeTaskHours += task.estimatedHours;
-            }
-          });
-        }
-        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
-        breakdown[stage] += remainingProjectHours;
-      }
-    });
-
-    return {
-      Plan: Math.round(breakdown.Plan * 100) / 100,
-      Build: Math.round(breakdown.Build * 100) / 100,
-      Run: Math.round(breakdown.Run * 100) / 100,
-    };
-  };
-
-  // Calculate breakdown by stage for completed hours
-  const getCompletedHoursBreakdown = (employee: IEmployee) => {
-    const breakdown = { Plan: 0, Build: 0, Run: 0 };
-    const employeeProjects = getProjectsForEmployeeCalc(employee);
-
-    employeeProjects.forEach((project) => {
-      if (project.status !== 'launched' && project.status !== 'completed') return;
-      const stage = getProjectStage(project.status);
-
-      if (project.tasks && project.tasks.length > 0) {
-        const taskHoursInRange = project.tasks
-          .filter(
-            (task) =>
-              isTaskAssignedToEmployee(task, employee) &&
-              task.estimatedHours &&
-              task.status === 'completed'
-          )
-          .reduce((sum, task) => {
-            if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = parseDateSafe(task.startDate);
-            const taskEnd = parseDateSafe(task.endDate);
-            if (!taskStart || !taskEnd) return sum;
-            return sum + calculateHoursForDateRange(startDate, endDate, taskStart, taskEnd, task.estimatedHours);
-          }, 0);
-        breakdown[stage] += taskHoursInRange;
-      }
-
-      const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-      if (projectAssignedToId === employee._id.toString() && project.estimatedHours) {
-        let otherEmployeeTaskHours = 0;
-        if (project.tasks && project.tasks.length > 0) {
-          project.tasks.forEach((task) => {
-            if (
-              task.estimatedHours &&
-              task.status === 'completed' &&
-              isTaskAssignedToOtherEmployee(task, employee)
-            ) {
-              otherEmployeeTaskHours += task.estimatedHours;
-            }
-          });
-        }
-        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
-        breakdown[stage] += remainingProjectHours;
-      }
-    });
-
-
-
-    return {
-      Plan: Math.round(breakdown.Plan * 100) / 100,
-      Build: Math.round(breakdown.Build * 100) / 100,
-      Run: Math.round(breakdown.Run * 100) / 100,
-    };
-  };
+  const getCompletedHoursBreakdown = (employee: IEmployee) =>
+    buildBreakdownForEmployee(employee, 'completed');
 
   // Calculate breakdown by stage for remaining hours
   const getRemainingHoursBreakdown = (employee: IEmployee) => {
@@ -569,90 +502,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     return Math.round(Math.max(0, available - committed) * 100) / 100; // Round to 2 decimals
   };
 
-  // Calculate completed hours for an employee (only items with status 'complete' or 'completed')
+  // Calculate completed hours for an employee (tasks, content, and run-stage project fallback)
   const getCompletedHours = (employee: IEmployee) => {
-    const employeeProjects = getProjectsForEmployeeCalc(employee);
-    let totalHours = 0;
-
-    // Calculate hours from completed projects
-    // NOTE: Projects no longer have startDate/endDate - only tasks and operations do
-    employeeProjects.forEach((project) => {
-      // Only count completed projects
-      if (project.status !== 'launched' && project.status !== 'completed') return;
-
-      // Calculate total task hours assigned to this employee (completed tasks only)
-      let employeeTaskHours = 0;
-      if (project.tasks && project.tasks.length > 0) {
-        project.tasks.forEach((task) => {
-          if (
-            isTaskAssignedToEmployee(task, employee) &&
-            task.estimatedHours &&
-            task.status === 'completed'
-          ) {
-            employeeTaskHours += task.estimatedHours;
-          }
-        });
-      }
-
-      // If employee has completed tasks assigned, count those task hours
-      if (employeeTaskHours > 0 && project.tasks) {
-        const taskHoursInRange = project.tasks
-          .filter(
-            (task) =>
-              isTaskAssignedToEmployee(task, employee) &&
-              task.estimatedHours &&
-              task.status === 'completed'
-          )
-          .reduce((sum, task) => {
-            if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = parseDateSafe(task.startDate);
-            const taskEnd = parseDateSafe(task.endDate);
-            if (!taskStart || !taskEnd) return sum;
-            return sum + calculateHoursForDateRange(
-              startDate,
-              endDate,
-              taskStart,
-              taskEnd,
-              task.estimatedHours
-            );
-          }, 0);
-        totalHours += taskHoursInRange;
-      }
-
-      // If project is assigned to this employee and completed, count remaining hours
-      const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-      if (projectAssignedToId === employee._id.toString() && project.estimatedHours) {
-        // Calculate total hours assigned to other employees via completed tasks
-        let otherEmployeeTaskHours = 0;
-        if (project.tasks && project.tasks.length > 0) {
-          project.tasks.forEach((task) => {
-            if (
-              task.estimatedHours &&
-              task.status === 'completed' &&
-              isTaskAssignedToOtherEmployee(task, employee)
-            ) {
-              otherEmployeeTaskHours += task.estimatedHours;
-            }
-          });
-        }
-
-        // Project hours minus tasks assigned to others
-        // Since projects don't have dates, add full remaining hours
-        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
-        totalHours += remainingProjectHours;
-      }
-    });
-
-
-
-    getAssignedContentInViewPeriod(employee, contentItems, timeframe, startDate, endDate, {
-      forCompleted: true,
-    }).forEach((content) => {
-      const hours = content.estimatedHours || 0;
-      if (hours > 0) totalHours += hours;
-    });
-
-    return Math.round(totalHours * 100) / 100;
+    return sumStageBreakdown(getCompletedHoursBreakdown(employee));
   };
 
   if (employees.length === 0) {

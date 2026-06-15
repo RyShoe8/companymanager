@@ -26,7 +26,7 @@ import { formatDate, parseDateSafe, type TimeframeType } from '@/lib/utils/dateU
 import { computeProjectAssignedHours } from '@/lib/utils/projectHours';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
-import ChecklistSection from '@/components/checklist/ChecklistSection';
+import InsightsPanel from '@/components/insights/InsightsPanel';
 import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
 import MultiSelect from '@/components/ui/MultiSelect';
@@ -291,8 +291,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [credentialEditPassword, setCredentialEditPassword] = useState('');
   const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialReveal, setCredentialReveal] = useState(false);
-  /** When set, overrides localProject.dismissedChecklistIds for ChecklistSection (avoids mutating IProject Document). */
-  const [localDismissedChecklistIds, setLocalDismissedChecklistIds] = useState<string[] | null>(null);
   /** Tab for tasks vs content. */
   const [viewTab, setViewTab] = useState<'tasks' | 'content'>('tasks');
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
@@ -906,7 +904,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     if (project._id.toString() !== localProject._id.toString()) {
       setLocalProject(project);
-      setLocalDismissedChecklistIds(null);
       setViewTab('tasks');
       initialTaskAppliedKeyRef.current = null;
       autoAddTaskAppliedKeyRef.current = null;
@@ -1781,14 +1778,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const compactFieldLabelClass =
     'text-sm text-gray-500 rounded px-1 py-0.5 transition-colors hover:bg-gray-100';
 
-  const dismissedChecklistIds = useMemo(() => {
-    const raw = localDismissedChecklistIds ?? localProject.dismissedChecklistIds ?? [];
-    return raw.map((id) => id.toString());
-  }, [
-    localDismissedChecklistIds,
-    (localProject.dismissedChecklistIds ?? []).map((id) => id.toString()).join(','),
-  ]);
-
   return (
     <div className="space-y-4">
       {/* Project Header Card */}
@@ -2259,29 +2248,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         </div>
       </div>
 
-      {/* Checklist (replaces Smart buttons) */}
-      <ChecklistSection
-        projectId={localProject._id.toString()}
-        phase={mapStatusToStage(localProject.status)}
-        projectType={localProject.category || 'generic'}
-        actionButtons={actionButtons}
-        dismissedChecklistIds={dismissedChecklistIds}
-        isManagerOrAdmin={isManagerOrAdmin}
-        onUpdate={async (updates) => {
-          await onUpdate(updates as Partial<IProject>);
-          if (updates.dismissedChecklistIds !== undefined) {
-            setLocalDismissedChecklistIds(updates.dismissedChecklistIds);
-          }
-        }}
-        onRefreshButtons={async () => {
-          const res = await fetch(`/api/projects/${localProject._id}/buttons`);
-          if (res.ok) {
-            const data = await res.json();
-            const arr = Array.isArray(data) ? data : [];
-            setActionButtons(normalizeActionButtonsList(arr));
-          }
-        }}
-      />
+      {isManagerOrAdmin && <InsightsPanel projectId={localProject._id.toString()} />}
 
       {/* Tasks / Content – tabbed */}
       <div className="bg-white rounded-lg border border-gray-200">

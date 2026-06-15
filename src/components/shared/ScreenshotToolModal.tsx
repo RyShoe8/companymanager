@@ -30,7 +30,7 @@ export default function ScreenshotToolModal({
         allowAssignment={allowAssignment}
         uploadOnly={uploadOnly}
         onUploaded={onClose}
-        description="Capture your screen or upload an image. Save to Nucleas with optional project/task links, or download locally."
+        description="Capture the full window or drag to select an area. Save to Nucleas with optional project/task links, or download locally."
       />
     </Modal>
   );

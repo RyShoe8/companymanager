@@ -1,33 +1,20 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getPublishedPostBySlug } from '@/lib/blog/getPublishedPosts';
+import { buildBlogPostMetadata } from '@/lib/blog/buildBlogMetadata';
+import { BLOG_NAME, BLOG_PATH } from '@/lib/blog/blogConstants';
+import { getBlogPostUrl, toAbsoluteAssetUrl } from '@/lib/blog/getBlogShareUrl';
 import BlogPostBody from '@/components/blog/BlogPostBody';
+import BlogPostShareBar from '@/components/blog/BlogPostShareBar';
 import { StructuredData } from '@/components/StructuredData';
 
 type Props = { params: Promise<{ slug: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const post = await getPublishedPostBySlug(slug);
-  if (!post) return { title: 'Post not found | Nucleas' };
-
-  const title = post.metaTitle?.trim() || post.title;
-  const description = post.metaDescription?.trim() || post.excerpt || title;
-  const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      type: 'article',
-      publishedTime: post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
-      images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : undefined,
-      url: `${baseUrl}/blog/${post.slug}`,
-    },
-  };
+  if (!post) return { title: 'Post not found' };
+  return buildBlogPostMetadata(post);
 }
 
 function formatDate(value?: Date | string | null) {
@@ -44,7 +31,8 @@ export default async function BlogPostPage({ params }: Props) {
   const post = await getPublishedPostBySlug(slug);
   if (!post) notFound();
 
-  const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
+  const postUrl = getBlogPostUrl(post.slug);
+  const shareTitle = post.metaTitle?.trim() || post.title;
 
   return (
     <article className="min-h-screen">
@@ -57,8 +45,8 @@ export default async function BlogPostPage({ params }: Props) {
             ? new Date(post.publishedAt).toISOString()
             : undefined,
           dateModified: post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
-          image: post.coverImageUrl || undefined,
-          url: `${baseUrl}/blog/${post.slug}`,
+          image: post.coverImageUrl ? toAbsoluteAssetUrl(post.coverImageUrl) : undefined,
+          url: postUrl,
           publisher: {
             '@type': 'Organization',
             name: 'Nucleas',
@@ -67,8 +55,8 @@ export default async function BlogPostPage({ params }: Props) {
       />
       <header className="px-4 sm:px-6 lg:px-8 py-12 md:py-16 border-b border-border">
         <div className="max-w-3xl mx-auto">
-          <Link href="/blog" className="text-sm text-text-secondary hover:text-primary">
-            ← Back to blog
+          <Link href={BLOG_PATH} className="text-sm text-text-secondary hover:text-primary">
+            ← Back to {BLOG_NAME}
           </Link>
           {post.publishedAt && (
             <p className="text-sm text-text-muted mt-4">{formatDate(post.publishedAt)}</p>
@@ -77,6 +65,7 @@ export default async function BlogPostPage({ params }: Props) {
           {post.excerpt && (
             <p className="text-lg text-text-secondary mt-4">{post.excerpt}</p>
           )}
+          <BlogPostShareBar url={postUrl} title={shareTitle} />
         </div>
       </header>
       {post.coverImageUrl && (

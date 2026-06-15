@@ -47,6 +47,10 @@ import {
   readObservedItemsForUser,
 } from '@/lib/workspace/itemSeenState';
 import { projectOverlapsDateRange } from '@/lib/utils/projectCalendarOverlap';
+import {
+  isActiveWorkspaceContent,
+  isActiveWorkspaceTask,
+} from '@/lib/workspace/activeWorkspaceItems';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -93,6 +97,12 @@ interface CalendarViewProps {
 export type MergedCalendarItem =
   | { type: 'task'; task: IProjectTask; date: Date }
   | { type: 'content'; content: IContentItem };
+
+function isActiveMergedCalendarItem(item: MergedCalendarItem): boolean {
+  return item.type === 'task'
+    ? isActiveWorkspaceTask(item.task)
+    : isActiveWorkspaceContent(item.content);
+}
 
 export default function CalendarView({
   projects,
@@ -680,7 +690,8 @@ export default function CalendarView({
     );
     const displayList = merged.filter(
       (item): item is MergedCalendarItem =>
-        item.type === 'content' || taskPassesAssignmentFilter(item.task)
+        isActiveMergedCalendarItem(item) &&
+        (item.type === 'content' || taskPassesAssignmentFilter(item.task))
     );
     const activeTasks = taskItems.filter((item) => item.task.status !== 'completed');
     const openTasks = activeTasks.length;
@@ -915,8 +926,10 @@ export default function CalendarView({
                         {/* Unified tasks + content for today */}
                         {(() => {
                           const { merged, taskItems, contentInRange } = getMergedItemsForProject(project, today, today, {});
-                          const displayList = merged.filter((item): item is MergedCalendarItem =>
-                            item.type === 'content' || taskPassesAssignmentFilter(item.task)
+                          const displayList = merged.filter(
+                            (item): item is MergedCalendarItem =>
+                              isActiveMergedCalendarItem(item) &&
+                              (item.type === 'content' || taskPassesAssignmentFilter(item.task))
                           );
                           const visible = displayList.slice(0, 5);
                           const moreCount = displayList.length - 5;

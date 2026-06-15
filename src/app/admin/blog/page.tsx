@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import type { SerializedBlogPost } from '@/lib/blog/serializeBlogPost';
+import { BLOG_NAME } from '@/lib/blog/blogConstants';
 
 export default function AdminBlogPage() {
   const [posts, setPosts] = useState<SerializedBlogPost[]>([]);
@@ -55,7 +56,7 @@ export default function AdminBlogPage() {
       <div className="flex items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Blog</h1>
-          <p className="text-sm text-text-secondary mt-1">Manage public blog posts</p>
+          <p className="text-sm text-text-secondary mt-1">Manage {BLOG_NAME} posts</p>
         </div>
         <Link href="/admin/blog/new">
           <Button>New post</Button>

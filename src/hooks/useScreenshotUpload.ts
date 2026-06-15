@@ -1,15 +1,27 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { captureScreenshot, ScreenshotCaptureError } from '@/lib/captureScreenshot';
+import {
+  captureDisplayFrame,
+  ScreenshotCaptureError,
+  type ScreenshotCaptureMode,
+} from '@/lib/captureScreenshot';
 import { compressImageFile } from '@/lib/compressImageFile';
+import { cropImageFile, type ImageCropRect } from '@/lib/cropImageFile';
 import { downloadImage } from '@/lib/downloadImage';
 import {
   uploadScreenshotAsset,
   type ScreenshotUploadTarget,
 } from '@/lib/uploadScreenshotAsset';
 
-export type ScreenshotUploadStatus = 'idle' | 'capturing' | 'naming' | 'uploading' | 'success' | 'error';
+export type ScreenshotUploadStatus =
+  | 'idle'
+  | 'capturing'
+  | 'selecting_region'
+  | 'naming'
+  | 'uploading'
+  | 'success'
+  | 'error';
 
 export function defaultScreenshotName(): string {
   const d = new Date();
@@ -61,7 +73,10 @@ export function useScreenshotUpload(
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [suggestedName, setSuggestedName] = useState(defaultScreenshotName);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [regionPreviewUrl, setRegionPreviewUrl] = useState<string | null>(null);
+  const [regionSourceFile, setRegionSourceFile] = useState<File | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const regionPreviewUrlRef = useRef<string | null>(null);
   const successTimerRef = useRef<number | null>(null);
 
   const revokePreviewUrl = useCallback(() => {
@@ -72,6 +87,14 @@ export function useScreenshotUpload(
     setPreviewUrl(null);
   }, []);
 
+  const revokeRegionPreviewUrl = useCallback(() => {
+    if (regionPreviewUrlRef.current) {
+      URL.revokeObjectURL(regionPreviewUrlRef.current);
+      regionPreviewUrlRef.current = null;
+    }
+    setRegionPreviewUrl(null);
+  }, []);
+
   const clearSuccessTimer = useCallback(() => {
     if (successTimerRef.current != null) {
       window.clearTimeout(successTimerRef.current);
@@ -79,19 +102,25 @@ export function useScreenshotUpload(
     }
   }, []);
 
-  useEffect(() => () => {
-    clearSuccessTimer();
-    revokePreviewUrl();
-  }, [clearSuccessTimer, revokePreviewUrl]);
+  useEffect(
+    () => () => {
+      clearSuccessTimer();
+      revokePreviewUrl();
+      revokeRegionPreviewUrl();
+    },
+    [clearSuccessTimer, revokePreviewUrl, revokeRegionPreviewUrl]
+  );
 
   const reset = useCallback(() => {
     clearSuccessTimer();
     revokePreviewUrl();
+    revokeRegionPreviewUrl();
+    setRegionSourceFile(null);
     setStatus('idle');
     setStatusMessage(null);
     setErrorMessage(null);
     setPendingFiles([]);
-  }, [clearSuccessTimer, revokePreviewUrl]);
+  }, [clearSuccessTimer, revokePreviewUrl, revokeRegionPreviewUrl]);
 
   const uploadCompressedFiles = useCallback(
     async (files: File[], name: string, uploadTarget?: ScreenshotUploadTarget | null) => {
@@ -132,31 +161,34 @@ export function useScreenshotUpload(
     [target, onUploaded, reset, clearSuccessTimer, revokePreviewUrl]
   );
 
-  const stageForNaming = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-    revokePreviewUrl();
-    setStatusMessage('Compressing screenshot...');
-    setErrorMessage(null);
+  const stageForNaming = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      revokePreviewUrl();
+      setStatusMessage('Compressing screenshot...');
+      setErrorMessage(null);
 
-    try {
-      const compressed = await Promise.all(files.map(compressOrFallback));
+      try {
+        const compressed = await Promise.all(files.map(compressOrFallback));
 
-      const url = URL.createObjectURL(compressed[0]);
-      previewUrlRef.current = url;
-      setPreviewUrl(url);
-      setPendingFiles(compressed);
-      setSuggestedName(defaultScreenshotName());
-      setStatus('naming');
-      setStatusMessage(null);
-    } catch (error) {
-      setStatus('error');
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Failed to prepare screenshot for upload.'
-      );
-      setStatusMessage(null);
-      setPendingFiles([]);
-    }
-  }, [revokePreviewUrl]);
+        const url = URL.createObjectURL(compressed[0]);
+        previewUrlRef.current = url;
+        setPreviewUrl(url);
+        setPendingFiles(compressed);
+        setSuggestedName(defaultScreenshotName());
+        setStatus('naming');
+        setStatusMessage(null);
+      } catch (error) {
+        setStatus('error');
+        setErrorMessage(
+          error instanceof Error ? error.message : 'Failed to prepare screenshot for upload.'
+        );
+        setStatusMessage(null);
+        setPendingFiles([]);
+      }
+    },
+    [revokePreviewUrl]
+  );
 
   const confirmName = useCallback(
     async (name: string, uploadTarget?: ScreenshotUploadTarget | null) => {
@@ -195,15 +227,8 @@ export function useScreenshotUpload(
     [stageForNaming]
   );
 
-  const captureAndUpload = useCallback(async () => {
-    setStatus('capturing');
-    setStatusMessage('Capturing screenshot...');
-    setErrorMessage(null);
-
-    try {
-      const captured = await captureScreenshot();
-      await stageForNaming([captured]);
-    } catch (error) {
+  const handleCaptureError = useCallback(
+    (error: unknown) => {
       if (error instanceof ScreenshotCaptureError && error.code === 'canceled') {
         reset();
         return;
@@ -218,21 +243,91 @@ export function useScreenshotUpload(
             : 'Failed to capture screenshot.'
       );
       setStatusMessage(null);
-    }
-  }, [stageForNaming, reset]);
+    },
+    [reset]
+  );
+
+  const startCapture = useCallback(
+    async (mode: ScreenshotCaptureMode) => {
+      setStatus('capturing');
+      setStatusMessage('Capturing screenshot...');
+      setErrorMessage(null);
+
+      try {
+        const captured = await captureDisplayFrame();
+
+        if (mode === 'full') {
+          await stageForNaming([captured]);
+          return;
+        }
+
+        revokeRegionPreviewUrl();
+        const url = URL.createObjectURL(captured);
+        regionPreviewUrlRef.current = url;
+        setRegionPreviewUrl(url);
+        setRegionSourceFile(captured);
+        setStatus('selecting_region');
+        setStatusMessage(null);
+      } catch (error) {
+        handleCaptureError(error);
+      }
+    },
+    [stageForNaming, revokeRegionPreviewUrl, handleCaptureError]
+  );
+
+  const confirmRegion = useCallback(
+    async (rect: ImageCropRect) => {
+      const source = regionSourceFile;
+      if (!source) return;
+
+      setStatus('capturing');
+      setStatusMessage('Cropping selection...');
+      setErrorMessage(null);
+
+      try {
+        const cropped = await cropImageFile(source, rect);
+        revokeRegionPreviewUrl();
+        setRegionSourceFile(null);
+        await stageForNaming([cropped]);
+      } catch (error) {
+        setStatus('selecting_region');
+        setErrorMessage(
+          error instanceof Error ? error.message : 'Failed to crop screenshot selection.'
+        );
+        setStatusMessage(null);
+      }
+    },
+    [regionSourceFile, revokeRegionPreviewUrl, stageForNaming]
+  );
+
+  const cancelRegionSelection = useCallback(() => {
+    revokeRegionPreviewUrl();
+    setRegionSourceFile(null);
+    reset();
+  }, [revokeRegionPreviewUrl, reset]);
+
+  const captureAndUpload = useCallback(async () => {
+    await startCapture('full');
+  }, [startCapture]);
 
   const isBusy = status === 'capturing' || status === 'uploading';
+  const isSelectingRegion = status === 'selecting_region';
 
   return {
     status,
     statusMessage,
     errorMessage,
     isBusy,
+    isSelectingRegion,
     isNaming: status === 'naming',
     suggestedName,
     previewUrl,
+    regionPreviewUrl,
     uploadFromFiles,
+    startCapture,
     captureAndUpload,
+    confirmRegion,
+    cancelRegionSelection,
     confirmName,
     downloadByName,
     cancelNaming,

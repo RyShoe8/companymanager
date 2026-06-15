@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
+import { BLOG_SHORT_NAME } from '@/lib/blog/blogConstants';
 import Dropdown from '@/components/ui/Dropdown';
 import Modal from '@/components/ui/Modal';
 import ProfileModal from '@/components/ProfileModal';
@@ -268,7 +269,7 @@ export default function Navigation() {
   ];
 
   const marketingNavLinks = [
-    { href: '/blog', label: 'Blog' },
+    { href: '/blog', label: BLOG_SHORT_NAME },
     { href: '/pricing', label: 'Pricing' },
     { href: '/about', label: 'About' },
   ];

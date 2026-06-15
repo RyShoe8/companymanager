@@ -1,3 +1,5 @@
+export type ScreenshotCaptureMode = 'full' | 'region';
+
 export class ScreenshotCaptureError extends Error {
   constructor(
     message: string,
@@ -121,7 +123,7 @@ async function waitForCapturableFrame(
 }
 
 /** Capture a single frame from user-selected display media (tab, window, or screen). */
-export async function captureScreenshot(): Promise<File> {
+export async function captureDisplayFrame(): Promise<File> {
   if (!isScreenshotCaptureSupported()) {
     throw new ScreenshotCaptureError(
       'Screenshot capture is unavailable in this browser. Please upload an image instead.',
@@ -207,4 +209,9 @@ export async function captureScreenshot(): Promise<File> {
   } finally {
     stopStream(stream);
   }
+}
+
+/** @deprecated Use captureDisplayFrame */
+export async function captureScreenshot(): Promise<File> {
+  return captureDisplayFrame();
 }

@@ -1,37 +1,39 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getPublishedPosts } from '@/lib/blog/getPublishedPosts';
+import {
+  buildBlogIndexMetadata,
+  getBlogIndexStructuredData,
+} from '@/lib/blog/buildBlogMetadata';
+import {
+  BLOG_NAME,
+  BLOG_OG_IMAGE,
+  BLOG_TAGLINE,
+} from '@/lib/blog/blogConstants';
 import BlogPostCard from '@/components/blog/BlogPostCard';
 import { StructuredData } from '@/components/StructuredData';
 
-export const metadata: Metadata = {
-  title: 'Blog',
-  description: 'Insights on running projects, teams, and your business from the Nucleas team.',
-  openGraph: {
-    title: 'Blog | Nucleas',
-    description: 'Insights on running projects, teams, and your business from the Nucleas team.',
-  },
-};
+export const metadata = buildBlogIndexMetadata();
 
 export default async function BlogIndexPage() {
   const { posts } = await getPublishedPosts({ limit: 24 });
 
   return (
     <div className="min-h-screen">
-      <StructuredData
-        type="WebPage"
-        data={{
-          name: 'Nucleas Blog',
-          description: 'Insights on running projects, teams, and your business.',
-          url: `${process.env.NEXTAUTH_URL || 'https://nucleas.app'}/blog`,
-        }}
-      />
-      <section className="px-4 sm:px-6 lg:px-8 py-16 md:py-24 border-b border-border">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4">Blog</h1>
-          <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-            Practical ideas for running projects, teams, and your business from one place.
-          </p>
+      <StructuredData type="WebPage" data={getBlogIndexStructuredData()} />
+      <section className="px-4 sm:px-6 lg:px-8 py-12 md:py-16 border-b border-border">
+        <div className="max-w-4xl mx-auto">
+          <div className="relative overflow-hidden rounded-2xl border border-border mb-8">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={BLOG_OG_IMAGE}
+              alt={BLOG_NAME}
+              className="w-full max-h-[320px] object-cover"
+            />
+          </div>
+          <div className="text-center">
+            <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-4">{BLOG_NAME}</h1>
+            <p className="text-lg text-text-secondary max-w-2xl mx-auto">{BLOG_TAGLINE}</p>
+          </div>
         </div>
       </section>
       <section className="px-4 sm:px-6 lg:px-8 py-12 md:py-16">

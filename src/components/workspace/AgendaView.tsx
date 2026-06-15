@@ -47,6 +47,10 @@ import {
     filterContentToSeriesRepresentatives,
     filterTasksToSeriesRepresentatives,
 } from '@/lib/recurrence/filterSeriesRepresentatives';
+import {
+    isActiveWorkspaceContent,
+    isActiveWorkspaceTask,
+} from '@/lib/workspace/activeWorkspaceItems';
 
 interface AgendaViewProps {
     projects: IProject[];
@@ -310,6 +314,7 @@ export default function AgendaView({
                     : [];
                 if (showTasks) {
                     displayTasks.forEach((task) => {
+                        if (!isActiveWorkspaceTask(task)) return;
                         const taskStart = parseDateSafe(task.startDate);
                         const taskEnd = parseDateSafe(task.endDate);
                         if (!taskStart || !taskEnd) return;
@@ -320,9 +325,6 @@ export default function AgendaView({
                 }
                 if (tasksOnDay.length > 0) {
                     tasksOnDay.sort((a, b) => {
-                        const aDone = a.status === 'completed';
-                        const bDone = b.status === 'completed';
-                        if (aDone !== bDone) return aDone ? 1 : -1;
                         const aIdx = resolveTaskIndexInProject(project, a);
                         const bIdx = resolveTaskIndexInProject(project, b);
                         return taskActivityMs(project, b, bIdx) - taskActivityMs(project, a, aIdx);
@@ -333,6 +335,7 @@ export default function AgendaView({
                 if (showContent) {
                     displayContent
                         .filter((item) => {
+                            if (!isActiveWorkspaceContent(item)) return false;
                             if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                                 return false;
                             if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
@@ -362,6 +365,7 @@ export default function AgendaView({
                 : [];
             const orphanContent = showContent
                 ? displayAllContent.filter((item) => {
+                    if (!isActiveWorkspaceContent(item)) return false;
                     if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                         return false;
                     if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
@@ -440,6 +444,7 @@ export default function AgendaView({
             referenceDate: currentDate,
         })
             .filter((item) => {
+                if (!isActiveWorkspaceContent(item)) return false;
                 if (item.publishDate) return false;
                 if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                     return false;

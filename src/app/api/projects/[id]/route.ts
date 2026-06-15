@@ -21,6 +21,8 @@ import { cleanupNewlyCompletedTasks, cleanupProjectMedia } from '@/lib/projects/
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
 import { encryptPlatformCredentials, stripPlatformCredentialPasswords } from '@/lib/security/platformCredentialCrypto';
+import { diffNewLinkedCategorySlugs } from '@/lib/insights/getProjectLinkedCategorySlugs';
+import { syncInsightAutoCompletion } from '@/lib/insights/syncInsightAutoCompletion';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -227,6 +229,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     };
 
     let previousTasksSnapshot: Array<{ _id?: { toString: () => string }; status?: unknown }> = [];
+    const stackBeforeSnapshot =
+      techStack !== undefined || marketingStack !== undefined
+        ? {
+            techStack: project.techStack?.map((i) => ({ category: i.category, technologyId: i.technologyId })),
+            marketingStack: project.marketingStack?.map((i) => ({ category: i.category, toolId: i.toolId })),
+          }
+        : null;
 
     // Apply migration to the instance before modifying it
     migrateProjectFields(project);
@@ -619,6 +628,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Save the project
     await project.save();
+
+    if (stackBeforeSnapshot && (techStack !== undefined || marketingStack !== undefined)) {
+      const stackAfter = {
+        techStack: project.techStack ?? [],
+        marketingStack: project.marketingStack ?? [],
+      };
+      const newSlugs = diffNewLinkedCategorySlugs(stackBeforeSnapshot, stackAfter);
+      if (newSlugs.length) {
+        await syncInsightAutoCompletion(id, newSlugs);
+      }
+    }
 
     if (tasks !== undefined && Array.isArray(tasks)) {
       await cleanupNewlyCompletedTasks(id, previousTasksSnapshot ?? [], project.tasks ?? []);

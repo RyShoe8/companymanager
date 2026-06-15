@@ -20,7 +20,7 @@ const TOOLS = [
     href: '/tools/screenshot',
     title: 'Screenshot Tool',
     description:
-      'Capture a browser tab, window, or your screen using the Screen Capture API. Name your shot and download it locally.',
+      'Capture the full browser window or drag to select an area. Download locally — no account required.',
     icon: '📸',
   },
 ];

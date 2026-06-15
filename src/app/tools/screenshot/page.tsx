@@ -37,8 +37,8 @@ export default function PublicScreenshotToolPage() {
             Screenshot Tool
           </h1>
           <p className="text-text-secondary">
-            Use your browser&apos;s screen picker to capture a tab, window, or display. Name your screenshot
-            and download it — nothing is uploaded unless you sign in to Nucleas.
+            Capture the full browser window or drag to select an area after sharing a tab or window.
+            Name your screenshot and download it locally — nothing is uploaded unless you sign in to Nucleas.
           </p>
         </div>
       </section>
