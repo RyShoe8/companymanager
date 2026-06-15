@@ -103,6 +103,8 @@ export default function MeetingAgendaRow({
         <MeetingJoinCallButton
           joinUrl={meeting.joinUrl}
           joinPlatform={meeting.joinPlatform}
+          agendaToken={meeting.agendaToken}
+          onPopoutBlocked={onPopoutBlocked}
           className={variant === 'weekColumn' ? 'w-full' : undefined}
         />
       )}

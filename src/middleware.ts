@@ -66,6 +66,8 @@ export function middleware(request: NextRequest) {
     pathname === '/privacy' ||
     pathname.startsWith('/features/') ||
     pathname === '/features' ||
+    pathname.startsWith('/blog') ||
+    pathname.startsWith('/tools') ||
     pathname.startsWith('/portal/')
   ) {
     if (isOsHost) {

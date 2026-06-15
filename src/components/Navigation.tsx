@@ -14,7 +14,62 @@ function isMarketingPage(pathname: string | null): boolean {
   if (!pathname) return false;
   if (MARKETING_PAGES.includes(pathname)) return true;
   if (pathname.startsWith('/features')) return true;
+  if (pathname.startsWith('/blog')) return true;
+  if (pathname.startsWith('/tools')) return true;
   return false;
+}
+
+function FreeToolsDropdown({ onNavigate }: { onNavigate?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const tools = [
+    { href: '/tools/screenshot', label: 'Screenshot Tool', desc: 'Capture and download locally' },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+      >
+        Free Tools
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-72 bg-background-card border border-border rounded-2xl shadow-2xl shadow-black/30 p-3 z-50 animate-fade-in">
+          {tools.map((tool) => (
+            <Link
+              key={tool.href}
+              href={tool.href}
+              onClick={() => { setOpen(false); onNavigate?.(); }}
+              className="flex flex-col gap-0.5 px-3 py-2.5 rounded-xl hover:bg-background-elevated transition-colors group"
+            >
+              <span className="text-sm font-medium text-text-primary group-hover:text-primary transition-colors">{tool.label}</span>
+              <span className="text-xs text-text-muted">{tool.desc}</span>
+            </Link>
+          ))}
+          <Link
+            href="/tools"
+            onClick={() => { setOpen(false); onNavigate?.(); }}
+            className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-medium text-primary hover:bg-primary/5 transition-colors mt-1 border-t border-border pt-3"
+          >
+            All free tools →
+          </Link>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FeaturesDropdown({ onNavigate }: { onNavigate?: () => void }) {
@@ -213,6 +268,7 @@ export default function Navigation() {
   ];
 
   const marketingNavLinks = [
+    { href: '/blog', label: 'Blog' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/about', label: 'About' },
   ];
@@ -245,6 +301,7 @@ export default function Navigation() {
               {showMarketingNav ? (
                 <>
                   <FeaturesDropdown />
+                  <FreeToolsDropdown />
                   {marketingNavLinks.map((link) => (
                     <Link
                       key={link.href}
@@ -385,6 +442,13 @@ export default function Navigation() {
                     className="block px-3 py-2 rounded-md text-base font-medium text-text-secondary hover:bg-background-elevated hover:text-text-primary transition-colors"
                   >
                     Features
+                  </Link>
+                  <Link
+                    href="/tools"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-text-secondary hover:bg-background-elevated hover:text-text-primary transition-colors"
+                  >
+                    Free Tools
                   </Link>
                   {marketingNavLinks.map((link) => (
                     <Link

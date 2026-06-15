@@ -5,6 +5,7 @@ import {
   getJoinPlatformLabel,
   type MeetingJoinPlatform,
 } from '@/lib/scheduling/extractMeetingJoinUrl';
+import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
 
 function joinCallLabel(platform?: MeetingJoinPlatform): string {
   const label = getJoinPlatformLabel(platform);
@@ -14,6 +15,8 @@ function joinCallLabel(platform?: MeetingJoinPlatform): string {
 interface MeetingJoinCallButtonProps {
   joinUrl: string;
   joinPlatform?: MeetingJoinPlatform;
+  agendaToken?: string;
+  onPopoutBlocked?: () => void;
   size?: 'sm' | 'md';
   className?: string;
 }
@@ -21,19 +24,31 @@ interface MeetingJoinCallButtonProps {
 export default function MeetingJoinCallButton({
   joinUrl,
   joinPlatform,
+  agendaToken,
+  onPopoutBlocked,
   size = 'sm',
   className,
 }: MeetingJoinCallButtonProps) {
+  const handleClick = () => {
+    window.open(joinUrl, '_blank', 'noopener,noreferrer');
+
+    if (agendaToken) {
+      const result = openMeetingPopout(agendaToken);
+      if (result.blocked) {
+        onPopoutBlocked?.();
+      }
+    }
+  };
+
   return (
-    <a
-      href={joinUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`inline-flex ${className ?? ''}`}
+    <Button
+      type="button"
+      size={size}
+      variant="secondary"
+      className={className}
+      onClick={handleClick}
     >
-      <Button type="button" size={size} variant="secondary">
-        {joinCallLabel(joinPlatform)}
-      </Button>
-    </a>
+      {joinCallLabel(joinPlatform)}
+    </Button>
   );
 }

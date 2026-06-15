@@ -667,6 +667,10 @@ export default function AgendaView({
                                             <MeetingJoinCallButton
                                                 joinUrl={meeting.joinUrl}
                                                 joinPlatform={meeting.joinPlatform}
+                                                agendaToken={meeting.agendaToken}
+                                                onPopoutBlocked={() =>
+                                                    setPopoutMessage(MEETING_POPUP_BLOCKED_MESSAGE)
+                                                }
                                             />
                                         ) : null}
                                         {meeting.agendaToken ? (

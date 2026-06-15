@@ -15,6 +15,7 @@ interface ScreenshotToolPanelProps {
   projects?: IProject[];
   allowAssignment?: boolean;
   uploadOnly?: boolean;
+  downloadOnly?: boolean;
   description?: string;
   onUploaded?: () => void;
   onBack?: () => void;
@@ -26,14 +27,17 @@ export default function ScreenshotToolPanel({
   projects = [],
   allowAssignment = false,
   uploadOnly = false,
-  description = 'Capture a screen or upload an image to save as an asset.',
+  downloadOnly = false,
+  description = downloadOnly
+    ? 'Capture a tab, window, or your screen, then download the image locally.'
+    : 'Capture a screen or upload an image to save as an asset.',
   onUploaded,
   onBack,
   showBack = false,
 }: ScreenshotToolPanelProps) {
   const screenshotFileInputRef = useRef<HTMLInputElement>(null);
   const screenshotCaptureSupported = isScreenshotCaptureSupported();
-  const useSaveDialog = allowAssignment && !target;
+  const useSaveDialog = allowAssignment && !target && !downloadOnly;
 
   const {
     status,
@@ -100,7 +104,9 @@ export default function ScreenshotToolPanel({
           >
             {screenshotBusy && screenshotStatusMessage?.startsWith('Uploading')
               ? screenshotStatusMessage
-              : 'Upload file'}
+              : downloadOnly
+                ? 'Choose image file'
+                : 'Upload file'}
           </Button>
         </div>
         {screenshotStatusMessage && !screenshotBusy && (
@@ -145,7 +151,10 @@ export default function ScreenshotToolPanel({
         <ScreenshotNameDialog
           isOpen={screenshotNaming}
           defaultName={screenshotSuggestedName}
-          onConfirm={(name) => void screenshotConfirmName(name)}
+          submitLabel={downloadOnly ? 'Download' : 'Upload'}
+          onConfirm={(name) =>
+            void (downloadOnly ? screenshotDownloadByName(name) : screenshotConfirmName(name))
+          }
           onCancel={screenshotCancelNaming}
         />
       )}

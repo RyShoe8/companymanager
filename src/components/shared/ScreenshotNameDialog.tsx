@@ -9,6 +9,7 @@ import Input from '@/components/ui/Input';
 interface ScreenshotNameDialogProps {
   isOpen: boolean;
   defaultName: string;
+  submitLabel?: string;
   onConfirm: (name: string) => void;
   onCancel: () => void;
 }
@@ -16,6 +17,7 @@ interface ScreenshotNameDialogProps {
 export default function ScreenshotNameDialog({
   isOpen,
   defaultName,
+  submitLabel = 'Upload',
   onConfirm,
   onCancel,
 }: ScreenshotNameDialogProps) {
@@ -68,7 +70,7 @@ export default function ScreenshotNameDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={!name.trim()}>
-            Upload
+            {submitLabel}
           </Button>
         </div>
       </form>

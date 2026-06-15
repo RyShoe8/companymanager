@@ -46,6 +46,7 @@ import {
   observeItemsForUser,
   readObservedItemsForUser,
 } from '@/lib/workspace/itemSeenState';
+import { projectOverlapsDateRange } from '@/lib/utils/projectCalendarOverlap';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -65,22 +66,6 @@ const WEEKLY_EXPANDED_LIST_MAX_HEIGHT = 360;
 const WEEKLY_HEADER_HEIGHT = 72;
 const WEEKLY_BOTTOM_PADDING = 24;
 const MONTHLY_EXPANDED_LIST_MAX_HEIGHT = 400;
-
-function projectOverlapsDateRange(project: IProject, rangeStart: Date, rangeEnd: Date): boolean {
-  let pStart: Date;
-  if (project.tasks && project.tasks.length > 0) {
-    const earliestTask = project.tasks.reduce((earliest, task) =>
-      new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest
-    );
-    pStart = new Date(earliestTask.startDate);
-  } else {
-    pStart = new Date(project.createdAt);
-  }
-  const pEnd = project.endDate
-    ? new Date(project.endDate)
-    : new Date(pStart.getTime() + 30 * 24 * 60 * 60 * 1000);
-  return pStart <= rangeEnd && pEnd >= rangeStart;
-}
 
 interface CalendarViewProps {
   projects: IProject[];
@@ -991,7 +976,10 @@ export default function CalendarView({
                                   {moreCount > 0 && (
                                     <button
                                       type="button"
-                                      onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onProjectClick(project);
+                                      }}
                                       className="text-sm text-white underline hover:no-underline"
                                     >
                                       +{moreCount} more
@@ -1039,7 +1027,10 @@ export default function CalendarView({
                                   {moreCount > 0 && (
                                     <button
                                       type="button"
-                                      onClick={(e) => { e.stopPropagation(); setTimeframeModalOpen({ project, startDate: today, endDate: today }); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onProjectClick(project);
+                                      }}
                                       className="text-xs text-white italic opacity-80 hover:opacity-100"
                                     >
                                       +{moreCount} more
@@ -1512,7 +1503,9 @@ export default function CalendarView({
             weekEnd.setHours(23, 59, 59, 999);
 
             const weekProjects = sortProjectsByLatestUpdate(
-              projects.filter((p) => projectOverlapsDateRange(p, weekStart, weekEnd))
+              projects.filter((p) =>
+                projectOverlapsDateRange(p, weekStart, weekEnd, contentItems)
+              )
             );
 
             return (
@@ -1680,19 +1673,9 @@ export default function CalendarView({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthProjects = sortProjectsByLatestUpdate(
-              projects.filter((p) => {
-                let pStart: Date;
-                if (p.tasks && p.tasks.length > 0) {
-                  const earliestTask = p.tasks.reduce((earliest, task) =>
-                    new Date(task.startDate) < new Date(earliest.startDate) ? task : earliest
-                  );
-                  pStart = new Date(earliestTask.startDate);
-                } else {
-                  pStart = new Date(p.createdAt);
-                }
-                const pEnd = p.endDate ? new Date(p.endDate) : new Date(pStart.getTime() + 30 * 24 * 60 * 60 * 1000);
-                return pStart <= monthEnd && pEnd >= monthStart;
-              })
+              projects.filter((p) =>
+                projectOverlapsDateRange(p, monthStart, monthEnd, contentItems)
+              )
             );
 
             return (

@@ -221,6 +221,7 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
               <MeetingJoinCallButton
                 joinUrl={detail.meeting.joinUrl}
                 joinPlatform={detail.meeting.joinPlatform}
+                agendaToken={popout ? undefined : token}
               />
             )}
           </div>

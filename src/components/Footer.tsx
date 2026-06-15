@@ -12,8 +12,14 @@ const featureLinks = [
   { href: '/features/efficiency', label: 'Efficiency' },
 ];
 
+const freeToolLinks = [
+  { href: '/tools', label: 'All Free Tools' },
+  { href: '/tools/screenshot', label: 'Screenshot Tool' },
+];
+
 const companyLinks = [
   { href: '/about', label: 'About' },
+  { href: '/blog', label: 'Blog' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/contact', label: 'Contact' },
   { href: '/contact?type=Feature Request', label: 'Request a Feature' },
@@ -47,7 +53,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-10 lg:gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-10 lg:gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-4 lg:col-span-2">
             <Link href="/" className="inline-block mb-4">
@@ -77,6 +83,20 @@ export default function Footer() {
                 </Link>
               </li>
               {featureLinks.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="text-sm text-slate-400 hover:text-white transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Free Tools */}
+          <div>
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Free Tools</h3>
+            <ul className="space-y-3">
+              {freeToolLinks.map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-sm text-slate-400 hover:text-white transition-colors">
                     {link.label}
