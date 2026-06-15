@@ -136,8 +136,17 @@ type LinkedAssetRow = {
   textContent?: string;
   userId?: string;
   linkedProjectTaskId?: string;
+  linkedProjectTaskIndex?: number;
   linkedContentItemId?: string;
 };
+
+function isProjectLevelLinkedAsset(asset: LinkedAssetRow): boolean {
+  return (
+    !asset.linkedProjectTaskId &&
+    (asset.linkedProjectTaskIndex == null || asset.linkedProjectTaskIndex === undefined) &&
+    !asset.linkedContentItemId
+  );
+}
 
 function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -165,6 +174,10 @@ function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
             typeof (o.linkedProjectTaskId as { toString?: () => string }).toString === 'function'
           ? (o.linkedProjectTaskId as { toString: () => string }).toString()
           : undefined,
+    linkedProjectTaskIndex:
+      typeof o.linkedProjectTaskIndex === 'number' && Number.isInteger(o.linkedProjectTaskIndex)
+        ? o.linkedProjectTaskIndex
+        : undefined,
     linkedContentItemId:
       typeof o.linkedContentItemId === 'string'
         ? o.linkedContentItemId
@@ -333,7 +346,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const loadLinkedAssets = useCallback(async () => {
     setLinkedAssetsLoading(true);
     try {
-      const res = await fetch(`/api/assets?linkedProjectId=${localProject._id}`);
+      const res = await fetch(
+        `/api/assets?linkedProjectId=${localProject._id.toString()}&linkedScope=all`
+      );
       if (!res.ok) {
         setLinkedAssets([]);
         return;
@@ -373,13 +388,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync drafts when opening sheet or switching asset id; omit previewAsset ref so post-save identity updates do not reset edit mode
   }, [previewAsset?._id]);
 
+  const projectLinkedAssets = useMemo(
+    () => linkedAssets.filter(isProjectLevelLinkedAsset),
+    [linkedAssets]
+  );
+
   const linkedAssetTypeCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const a of linkedAssets) {
+    for (const a of projectLinkedAssets) {
       m.set(a.type, (m.get(a.type) ?? 0) + 1);
     }
     return m;
-  }, [linkedAssets]);
+  }, [projectLinkedAssets]);
 
   const linkedAssetTypesInUse = useMemo(
     () => Array.from(linkedAssetTypeCounts.keys()).sort((a, b) => a.localeCompare(b)),
@@ -387,18 +407,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   );
 
   const visibleLinkedAssets = useMemo(() => {
-    if (!linkedAssetTypeFilter) return linkedAssets;
-    return linkedAssets.filter((a) => a.type === linkedAssetTypeFilter);
-  }, [linkedAssets, linkedAssetTypeFilter]);
-
-  const taskAssets = useMemo(
-    () => linkedAssets.filter((asset) => Boolean(asset.linkedProjectTaskId)),
-    [linkedAssets]
-  );
-  const contentItemAssets = useMemo(
-    () => linkedAssets.filter((asset) => Boolean(asset.linkedContentItemId)),
-    [linkedAssets]
-  );
+    if (!linkedAssetTypeFilter) return projectLinkedAssets;
+    return projectLinkedAssets.filter((a) => a.type === linkedAssetTypeFilter);
+  }, [projectLinkedAssets, linkedAssetTypeFilter]);
 
   const projectIdStr = localProject._id.toString();
   const projectBadgeEligible =
@@ -2121,7 +2132,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Linked assets</h4>
           {linkedAssetsLoading ? (
             <p className="text-xs text-gray-500">Loading…</p>
-          ) : linkedAssets.length === 0 ? (
+          ) : projectLinkedAssets.length === 0 ? (
             <p className="text-xs text-gray-500">
               No linked assets yet. Use Add → Document or link items from the Assets page.
             </p>
@@ -2137,7 +2148,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  All ({linkedAssets.length})
+                  All ({projectLinkedAssets.length})
                 </button>
                 {linkedAssetTypesInUse.map((t) => {
                   const count = linkedAssetTypeCounts.get(t) ?? 0;
@@ -2419,7 +2430,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     <ContentLinkedAssets
                       project={localProject}
                       contentItemId={itemId}
-                      prefetchedAssets={contentItemAssets}
                       isManagerOrAdmin={isManagerOrAdmin}
                       currentUserId={currentUserId}
                       currentUserEmployeeId={currentUserEmployeeId}
@@ -2577,7 +2587,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           project={localProject}
                           taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
                           taskIndex={idx}
-                          prefetchedAssets={taskAssets}
                           isManagerOrAdmin={isManagerOrAdmin}
                           currentUserId={currentUserId}
                           currentUserEmployeeId={currentUserEmployeeId}

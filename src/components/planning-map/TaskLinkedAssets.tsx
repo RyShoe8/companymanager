@@ -24,15 +24,13 @@ function isTextDocumentAssetType(type: string): boolean {
 }
 
 function formatLinkedAssetTypeLabel(type: string): string {
-  if (!type) return 'Other';
-  return type.charAt(0).toUpperCase() + type.slice(1);
+  return type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Other';
 }
 
 interface TaskLinkedAssetsProps {
   project: IProject;
   taskId?: string;
   taskIndex?: number;
-  prefetchedAssets?: Array<LinkedAssetChip & { linkedProjectTaskId?: string }>;
   isManagerOrAdmin: boolean;
   currentUserId?: string;
   currentUserEmployeeId?: string | null;
@@ -45,7 +43,6 @@ export default function TaskLinkedAssets({
   project,
   taskId,
   taskIndex,
-  prefetchedAssets,
   isManagerOrAdmin,
   currentUserId,
   currentUserEmployeeId,
@@ -82,36 +79,51 @@ export default function TaskLinkedAssets({
   const canAddAssets = canViewAssets;
 
   const loadAssets = useCallback(async () => {
-    if (!taskId) {
+    if (!taskId && taskIndex == null) {
       setAssets([]);
-      return;
-    }
-    if (prefetchedAssets) {
-      setAssets(
-        prefetchedAssets.filter((asset) => asset.linkedProjectTaskId?.toString() === taskId)
-      );
-      setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/assets?linkedProjectTaskId=${taskId}`);
-      if (!res.ok) {
-        setAssets([]);
-        return;
+      const chips: LinkedAssetChip[] = [];
+      const seen = new Set<string>();
+
+      const addFromResponse = (data: unknown) => {
+        if (!Array.isArray(data)) return;
+        for (const raw of data) {
+          const chip = normalizeLinkedAssetChip(raw);
+          if (chip && !seen.has(chip._id)) {
+            seen.add(chip._id);
+            chips.push(chip);
+          }
+        }
+      };
+
+      if (taskId) {
+        const byIdRes = await fetch(
+          `/api/assets?linkedProjectTaskId=${encodeURIComponent(taskId)}`
+        );
+        if (byIdRes.ok) {
+          addFromResponse(await byIdRes.json());
+        }
       }
-      const data = await res.json();
-      if (!Array.isArray(data)) {
-        setAssets([]);
-        return;
+
+      if (taskIndex != null) {
+        const legacyRes = await fetch(
+          `/api/assets?linkedProjectId=${encodeURIComponent(projectId)}&linkedProjectTaskIndex=${taskIndex}`
+        );
+        if (legacyRes.ok) {
+          addFromResponse(await legacyRes.json());
+        }
       }
-      setAssets(data.map(normalizeLinkedAssetChip).filter((x): x is LinkedAssetChip => x != null));
+
+      setAssets(chips);
     } catch {
       setAssets([]);
     } finally {
       setLoading(false);
     }
-  }, [taskId, prefetchedAssets]);
+  }, [taskId, taskIndex, projectId]);
 
   useEffect(() => {
     void loadAssets();
@@ -129,9 +141,7 @@ export default function TaskLinkedAssets({
         setPreviewDocument(null);
       }
       setAssetPendingDelete(null);
-      if (!prefetchedAssets) {
-        await loadAssets();
-      }
+      await loadAssets();
       onAssetsChanged?.();
     } else {
       alert(result.error ?? 'Could not delete asset.');
@@ -240,9 +250,7 @@ export default function TaskLinkedAssets({
                     linkedProjectTaskIndex: taskIndex,
                   }}
                   onDocumentCreated={() => {
-                    if (!prefetchedAssets) {
-                      void loadAssets();
-                    }
+                    void loadAssets();
                     onAssetsChanged?.();
                   }}
                   onAddButton={async () => {}}

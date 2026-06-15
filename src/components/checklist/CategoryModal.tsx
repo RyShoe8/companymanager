@@ -583,7 +583,7 @@ export default function CategoryModal({
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
-                  {adding ? 'Adding...' : 'Add to project'}
+                  {adding ? 'Adding...' : useAssetFlow ? entitySubmitLabel : 'Add to project'}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => setSelectedEntry(null)}>Back</Button>
               </div>

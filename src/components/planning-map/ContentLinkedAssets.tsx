@@ -6,15 +6,6 @@ import ContentItemAssetsSection from '@/components/planning-map/ContentItemAsset
 interface ContentLinkedAssetsProps {
   project: IProject;
   contentItemId: string;
-  prefetchedAssets?: Array<{
-    _id: string;
-    name: string;
-    type: string;
-    url?: string;
-    fileUrl?: string;
-    userId?: string;
-    linkedContentItemId?: string;
-  }>;
   isManagerOrAdmin: boolean;
   currentUserId?: string;
   currentUserEmployeeId?: string | null;
@@ -28,7 +19,6 @@ interface ContentLinkedAssetsProps {
 export default function ContentLinkedAssets({
   project,
   contentItemId,
-  prefetchedAssets,
   isManagerOrAdmin,
   currentUserId,
   currentUserEmployeeId,
@@ -41,7 +31,6 @@ export default function ContentLinkedAssets({
     <ContentItemAssetsSection
       project={project}
       contentItemId={contentItemId}
-      prefetchedAssets={prefetchedAssets}
       isManagerOrAdmin={isManagerOrAdmin}
       currentUserId={currentUserId}
       currentUserEmployeeId={currentUserEmployeeId}

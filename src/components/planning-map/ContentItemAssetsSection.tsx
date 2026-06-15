@@ -32,7 +32,6 @@ function formatLinkedAssetTypeLabel(type: string): string {
 interface ContentItemAssetsSectionProps {
   project: IProject;
   contentItemId?: string;
-  prefetchedAssets?: Array<LinkedAssetChip & { linkedContentItemId?: string }>;
   isManagerOrAdmin: boolean;
   currentUserId?: string;
   currentUserEmployeeId?: string | null;
@@ -51,7 +50,6 @@ interface ContentItemAssetsSectionProps {
 export default function ContentItemAssetsSection({
   project,
   contentItemId,
-  prefetchedAssets,
   isManagerOrAdmin,
   currentUserId,
   currentUserEmployeeId,
@@ -90,18 +88,11 @@ export default function ContentItemAssetsSection({
       setAssets([]);
       return;
     }
-    if (prefetchedAssets) {
-      setAssets(
-        prefetchedAssets.filter(
-          (asset) => asset.linkedContentItemId?.toString() === contentItemId
-        )
-      );
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
-      const res = await fetch(`/api/assets?linkedContentItemId=${contentItemId}`);
+      const res = await fetch(
+        `/api/assets?linkedContentItemId=${encodeURIComponent(contentItemId)}`
+      );
       if (!res.ok) {
         setAssets([]);
         return;
@@ -117,7 +108,7 @@ export default function ContentItemAssetsSection({
     } finally {
       setLoading(false);
     }
-  }, [contentItemId, mode, prefetchedAssets]);
+  }, [contentItemId, mode]);
 
   useEffect(() => {
     void loadAssets();
@@ -135,9 +126,7 @@ export default function ContentItemAssetsSection({
         setPreviewDocument(null);
       }
       setAssetPendingDelete(null);
-      if (!prefetchedAssets) {
-        await loadAssets();
-      }
+      await loadAssets();
       onAssetsChanged?.();
     } else {
       alert(result.error ?? 'Could not delete asset.');
@@ -245,9 +234,7 @@ export default function ContentItemAssetsSection({
               }}
               onPendingAsset={onPendingAsset}
               onDocumentCreated={() => {
-                if (!prefetchedAssets) {
-                  void loadAssets();
-                }
+                void loadAssets();
                 onAssetsChanged?.();
               }}
               onAddButton={async () => {}}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Types } from 'mongoose';
 import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import { requireAuth } from '@/lib/auth/middleware';
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
     const category = searchParams.get('category');
     const linkedProjectId = searchParams.get('linkedProjectId');
+    const linkedScope = searchParams.get('linkedScope');
     const linkedProjectTaskIndex = searchParams.get('linkedProjectTaskIndex');
     const linkedProjectTaskId = searchParams.get('linkedProjectTaskId');
     const linkedContentItemId = searchParams.get('linkedContentItemId');
@@ -44,22 +46,23 @@ export async function GET(request: NextRequest) {
     if (category) {
       query.category = category;
     }
-    if (linkedProjectId) {
-      query.linkedProjectId = linkedProjectId;
-      if (!linkedProjectTaskId && linkedProjectTaskIndex == null) {
+    if (linkedProjectId && Types.ObjectId.isValid(linkedProjectId)) {
+      query.linkedProjectId = new Types.ObjectId(linkedProjectId);
+      const includeNestedLinks = linkedScope === 'all';
+      if (!includeNestedLinks && !linkedProjectTaskId && linkedProjectTaskIndex == null) {
         query.$and = [
           { $or: [{ linkedProjectTaskId: { $exists: false } }, { linkedProjectTaskId: null }] },
           { $or: [{ linkedProjectTaskIndex: { $exists: false } }, { linkedProjectTaskIndex: null }] },
         ];
       }
     }
-    if (linkedProjectTaskId) {
-      query.linkedProjectTaskId = linkedProjectTaskId;
+    if (linkedProjectTaskId && Types.ObjectId.isValid(linkedProjectTaskId)) {
+      query.linkedProjectTaskId = new Types.ObjectId(linkedProjectTaskId);
     } else if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined) {
       query.linkedProjectTaskIndex = parseInt(linkedProjectTaskIndex);
     }
-    if (linkedContentItemId) {
-      query.linkedContentItemId = linkedContentItemId;
+    if (linkedContentItemId && Types.ObjectId.isValid(linkedContentItemId)) {
+      query.linkedContentItemId = new Types.ObjectId(linkedContentItemId);
     }
 
     const filteredQuery =
@@ -113,17 +116,19 @@ export async function POST(request: NextRequest) {
       description,
       category,
       tags: tags || [],
-      linkedProjectId,
       clientAccessible: clientAccessible === true,
       userId: session.userId,
     };
-    if (linkedProjectTaskId) {
-      assetData.linkedProjectTaskId = linkedProjectTaskId;
+    if (linkedProjectId && Types.ObjectId.isValid(linkedProjectId)) {
+      assetData.linkedProjectId = new Types.ObjectId(linkedProjectId);
+    }
+    if (linkedProjectTaskId && Types.ObjectId.isValid(linkedProjectTaskId)) {
+      assetData.linkedProjectTaskId = new Types.ObjectId(linkedProjectTaskId);
     } else if (linkedProjectTaskIndex !== undefined && linkedProjectTaskIndex !== null) {
       assetData.linkedProjectTaskIndex = linkedProjectTaskIndex;
     }
-    if (linkedContentItemId) {
-      assetData.linkedContentItemId = linkedContentItemId;
+    if (linkedContentItemId && Types.ObjectId.isValid(linkedContentItemId)) {
+      assetData.linkedContentItemId = new Types.ObjectId(linkedContentItemId);
     }
 
     const asset = await Asset.create(assetData);
