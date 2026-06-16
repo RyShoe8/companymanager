@@ -6,6 +6,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
 import { normalizeTaskStatus } from '@/lib/projects/projectCleanup';
+import { resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 
 type TaskLike = {
@@ -110,8 +111,14 @@ export async function PATCH(
 
     const previousStatus = normalizeTaskStatus(task.status);
     const taskObjectId = (project.tasks as { _id?: { toString: () => string } }[])[index]?._id?.toString();
+    const taskDoc = (project.tasks as Array<{ status: TaskStatus; completedAt?: Date }>)[index];
 
-    (project.tasks as { status: TaskStatus }[])[index].status = status;
+    taskDoc.status = status;
+    taskDoc.completedAt = resolveTaskCompletedAt(
+      previousStatus,
+      status,
+      taskDoc.completedAt
+    );
     await project.save();
     await touchProjectActivity(projectId);
 

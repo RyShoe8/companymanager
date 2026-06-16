@@ -2,6 +2,12 @@ import ContentItem from '@/lib/models/ContentItem';
 import { deleteAssetsForProject } from '@/lib/assets/assetCleanup';
 import { deleteRecordingsForProject } from '@/lib/recordings/recordingCleanup';
 import { deleteStoredFile } from '@/lib/storage/deleteStoredFile';
+import {
+  deleteCommentsForProject,
+  deleteInsightStateForProject,
+  resolveOrganizationIdForProject,
+  unlinkProjectFromMeetings,
+} from '@/lib/cleanup/entityCleanup';
 
 type ProjectTaskRef = {
   _id?: { toString: () => string };
@@ -10,11 +16,13 @@ type ProjectTaskRef = {
 type ProjectForCleanup = {
   logo?: string;
   tasks?: ProjectTaskRef[];
+  userId?: { toString: () => string };
 };
 
 export async function cleanupProjectMedia(
   projectId: string,
-  project: ProjectForCleanup
+  project: ProjectForCleanup,
+  organizationId?: string
 ): Promise<void> {
   const contentItems = await ContentItem.find({ projectId }).select('_id').lean();
   const contentItemIds = contentItems
@@ -26,6 +34,12 @@ export async function cleanupProjectMedia(
     .filter((id): id is string => Boolean(id));
 
   try {
+    const orgId = organizationId ?? (await resolveOrganizationIdForProject(project.userId));
+    await deleteCommentsForProject(projectId);
+    await deleteInsightStateForProject(projectId);
+    if (orgId) {
+      await unlinkProjectFromMeetings(projectId, orgId);
+    }
     await deleteAssetsForProject(projectId, taskIds, contentItemIds);
     await deleteRecordingsForProject(projectId, taskIds, contentItemIds);
     await deleteStoredFile(project.logo);

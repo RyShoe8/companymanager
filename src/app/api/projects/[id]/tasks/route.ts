@@ -14,6 +14,7 @@ import {
 } from '@/lib/utils/projectTeam';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
+import { resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 
 type IncomingTask = {
   name?: string;
@@ -48,6 +49,7 @@ async function buildTaskDocument(task: IncomingTask, organizationId: string) {
     estimatedHours:
       task.estimatedHours !== undefined && task.estimatedHours !== null ? task.estimatedHours : undefined,
     status: taskStatus,
+    completedAt: resolveTaskCompletedAt(undefined, taskStatus),
   };
 
   if (task.assignedToEmployeeIds !== undefined) {

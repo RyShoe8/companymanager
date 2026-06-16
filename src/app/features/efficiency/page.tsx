@@ -3,13 +3,13 @@ import { MarketingTrialCta } from '@/components/marketing/MarketingTrialCta';
 import { StructuredData } from '@/components/StructuredData';
 import AnimateIn from '@/components/home/AnimateIn';
 import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
-import AssetsPlatformScreenshot from '@/components/marketing/screenshots/AssetsPlatformScreenshot';
+import TaskLinkedAssetsScreenshot from '@/components/marketing/screenshots/TaskLinkedAssetsScreenshot';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
   title: 'Efficiency & Organization — Work Smarter, Not Harder',
-  description: 'Smart shortcuts, quick forms, keyboard shortcuts, lens views, organization branding, multi-project management, collaboration, and invitations. Nucleas efficiency features.',
+  description: 'Smart shortcuts, quick forms, keyboard shortcuts, lens views, contextual asset linking, organization branding, multi-project management, collaboration, and invitations. Nucleas efficiency features.',
   keywords: ['business efficiency', 'keyboard shortcuts', 'organization management', 'team collaboration', 'multi-project management'],
   alternates: { canonical: '/features/efficiency' },
   openGraph: { title: 'Efficiency & Organization — Work Smarter | Nucleas', description: 'Efficiency features and organizational tools for running your business.', url: `${baseUrl}/features/efficiency`, type: 'website' as const },
@@ -26,7 +26,7 @@ const EFFICIENCY = [
 ];
 
 const ORGANIZATION = [
-  { title: 'Centralized Asset Repository', desc: 'Single source of truth for screenshots, recordings, documents, and links. No more hunting through folders, drives, and bookmarks.' },
+  { title: 'Contextual Asset Linking', desc: 'Attach screenshots, recordings, documents, and links directly to projects, tasks, and content — right where your team is working.' },
   { title: 'Project & Task Links', desc: 'Link assets to specific projects, tasks, and content for context. Every resource is connected to the work it supports.' },
   { title: 'Organization Branding', desc: 'Custom branding for your organization. Upload logos, set colors, and make Nucleas feel like your own platform.' },
   { title: 'Multi-Project Management', desc: 'Manage multiple projects from a single dashboard. Switch between projects instantly with full context preservation.' },
@@ -41,12 +41,12 @@ export default function EfficiencyFeaturePage() {
       <StructuredData type="WebPage" data={{ name: 'Efficiency & Organization | Nucleas', description: metadata.description, url: `${baseUrl}/features/efficiency`, publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl } }} />
       <StructuredData type="BreadcrumbList" data={{ itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl }, { '@type': 'ListItem', position: 2, name: 'Features', item: `${baseUrl}/features` }, { '@type': 'ListItem', position: 3, name: 'Efficiency', item: `${baseUrl}/features/efficiency` }] }} />
       <div className="min-h-screen bg-background">
-        <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 py-20 md:py-28"><div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" /><div className="relative max-w-4xl mx-auto text-center"><AnimateIn><span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium text-primary mb-6">Efficiency</span><h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-text-primary tracking-tight mb-6">Work smarter,{' '}<span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">not harder</span></h1><p className="text-lg text-text-secondary max-w-2xl mx-auto">Centralize assets, connect every resource to your work, and eliminate friction from your daily workflow.</p></AnimateIn></div></section>
+        <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 py-20 md:py-28"><div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" /><div className="relative max-w-4xl mx-auto text-center"><AnimateIn><span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium text-primary mb-6">Efficiency</span><h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-text-primary tracking-tight mb-6">Work smarter,{' '}<span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">not harder</span></h1><p className="text-lg text-text-secondary max-w-2xl mx-auto">Link screenshots, recordings, and docs to the projects and tasks they support — and eliminate friction from your daily workflow.</p></AnimateIn></div></section>
 
         <section className="px-4 sm:px-6 lg:px-8 pb-16">
           <AnimateIn>
-            <MarketingScreenshotFrame glow="mixed" className="max-w-5xl" alt="Nucleas centralized asset library linked to projects, tasks, and content">
-              <AssetsPlatformScreenshot />
+            <MarketingScreenshotFrame glow="mixed" className="max-w-5xl" alt="Nucleas assets linked to project tasks in the workspace inspector">
+              <TaskLinkedAssetsScreenshot />
             </MarketingScreenshotFrame>
           </AnimateIn>
         </section>
@@ -57,9 +57,9 @@ export default function EfficiencyFeaturePage() {
               <div className="flex flex-col md:flex-row gap-8 items-center">
                 <div className="flex-shrink-0 w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-3xl">🗂️</div>
                 <div>
-                  <h2 className="text-2xl font-bold text-text-primary mb-3">Centralized assets and platform</h2>
+                  <h2 className="text-2xl font-bold text-text-primary mb-3">Assets linked to your work</h2>
                   <p className="text-text-secondary leading-relaxed">
-                    Nucleas keeps screenshots, recordings, documents, and links in one searchable library — then connects them to the projects, tasks, and content they support. Your team always works from a single source of truth instead of scattered drives and bookmarks.
+                    Nucleas keeps screenshots, recordings, documents, and links attached to the projects, tasks, and content they support — so your team finds what they need in context instead of hunting through folders, drives, and bookmarks.
                   </p>
                 </div>
               </div>

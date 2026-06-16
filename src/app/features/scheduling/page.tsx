@@ -77,8 +77,8 @@ export default function SchedulingFeaturePage() {
         <section className="px-4 sm:px-6 lg:px-8 pb-16">
           <AnimateIn>
             <MarketingScreenshotFrame
-              className="max-w-5xl"
-              alt="Nucleas scheduling workspace with meeting calendar and team capacity sidebar"
+              className="max-w-6xl"
+              alt="Nucleas scheduling workspace with meeting calendar and linked projects"
             >
               <SchedulingScreenshot />
             </MarketingScreenshotFrame>

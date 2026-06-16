@@ -5,6 +5,8 @@ import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
+import { normalizeTaskStatus } from '@/lib/projects/projectCleanup';
+import { resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { notifyTaskChange } from '@/lib/workspace/workspaceNotifications';
 
@@ -159,7 +161,15 @@ export async function PUT(
     }
 
     const { task, index } = resolved;
-    (project.tasks as { status: string }[])[index].status = approved ? 'completed' : 'active';
+    const previousStatus = normalizeTaskStatus(task.status);
+    const nextStatus = approved ? 'completed' : 'active';
+    const taskDoc = (project.tasks as Array<{ status: string; completedAt?: Date }>)[index];
+    taskDoc.status = nextStatus;
+    taskDoc.completedAt = resolveTaskCompletedAt(
+      previousStatus,
+      nextStatus,
+      taskDoc.completedAt
+    );
     await project.save();
     await touchProjectActivity(projectId);
 

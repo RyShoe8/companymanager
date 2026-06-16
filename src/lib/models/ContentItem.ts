@@ -21,6 +21,8 @@ export interface IContentItem extends Document {
   estimatedHours?: number;
   recurrenceSeriesId?: string;
   recurrencePreset?: RecurrencePreset;
+  /** Set when status first transitions to published; cleared if unpublished. */
+  statusPublishedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,11 +60,13 @@ const ContentItemSchema: Schema = new Schema(
       type: String,
       enum: ['daily', 'weekly', 'biweekly', 'monthly'],
     },
+    statusPublishedAt: { type: Date },
   },
   { timestamps: true }
 );
 
 ContentItemSchema.index({ projectId: 1, publishDate: 1 });
+ContentItemSchema.index({ status: 1, statusPublishedAt: 1 });
 // Org-scoped activity polling and per-assignee schedule queries
 ContentItemSchema.index({ userId: 1, updatedAt: -1 });
 ContentItemSchema.index({ assignedToEmployeeId: 1, publishDate: 1 });

@@ -34,7 +34,7 @@ export const FAQ_DATA: FAQItem[] = [
   {
     question: 'What tools are built into Nucleas?',
     answer:
-      'Nucleas includes a screenshot generator (capture full pages or areas), screen recording, a centralized asset library, and Smart Buttons — customizable one-click launchers for your hosting, analytics, design tools, documentation, and anything else you use per project.',
+      'Nucleas includes a screenshot generator (capture full pages or areas), screen recording, assets linked to projects and tasks, and Smart Buttons — customizable one-click launchers for your hosting, analytics, design tools, documentation, and anything else you use per project.',
   },
   {
     question: 'How does the AI estimation work?',

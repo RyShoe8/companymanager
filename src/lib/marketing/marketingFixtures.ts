@@ -492,3 +492,27 @@ export function marketingProjectName(projectId?: Types.ObjectId | string): strin
   const id = projectId.toString();
   return MARKETING_PROJECTS.find((p) => p._id.toString() === id)?.name ?? 'Project';
 }
+
+/** Static asset chip labels keyed by task name — for marketing previews only. */
+export const MARKETING_TASK_ASSET_CHIPS: Record<string, string[]> = {
+  'Design homepage hero': ['Homepage hero screenshot', 'Brand guidelines'],
+  'API integration tests': ['API integration spec', 'Product walkthrough recording'],
+};
+
+export const MARKETING_LINKED_ASSET_EXAMPLES = [
+  {
+    label: 'Homepage hero screenshot',
+    target: 'Website Relaunch · Design homepage hero',
+    type: 'Task',
+  },
+  {
+    label: 'Launch teaser clip',
+    target: 'Q2 Content Push · Product launch announcement',
+    type: 'Content',
+  },
+  {
+    label: 'Brand guidelines',
+    target: 'Website Relaunch',
+    type: 'Project',
+  },
+] as const;

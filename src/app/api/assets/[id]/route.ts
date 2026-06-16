@@ -11,6 +11,7 @@ import {
   canAccessAsset,
   getAssetSessionContext,
 } from '@/lib/assets/assetAccess';
+import { deleteStoredFile } from '@/lib/storage/deleteStoredFile';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -204,6 +205,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     if (!isManagerOrAdmin && !isOwner) {
       return NextResponse.json({ error: 'You do not have permission to delete this asset' }, { status: 403 });
+    }
+
+    const fileUrl = asset.fileUrl?.trim();
+    if (fileUrl?.startsWith('https://')) {
+      await deleteStoredFile(fileUrl);
     }
 
     await Asset.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });

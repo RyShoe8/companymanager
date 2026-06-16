@@ -17,7 +17,9 @@ import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/soci
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
 import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
-import { cleanupNewlyCompletedTasks, cleanupProjectMedia } from '@/lib/projects/projectCleanup';
+import { cleanupNewlyCompletedTasks, cleanupProjectMedia, normalizeTaskStatus } from '@/lib/projects/projectCleanup';
+import { cleanupRemovedTasks, findRemovedTasks } from '@/lib/cleanup/entityCleanup';
+import { resolveProjectCompletedAt, resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
 import { encryptPlatformCredentials, stripPlatformCredentialPasswords } from '@/lib/security/platformCredentialCrypto';
@@ -372,6 +374,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (logo !== undefined) project.logo = logo || undefined;
     const previousStatus = project.status;
     if (status !== undefined) project.status = status;
+    if (status !== undefined) {
+      project.completedAt = resolveProjectCompletedAt(
+        previousStatus,
+        project.status,
+        project.completedAt
+      );
+    }
     if (endDate !== undefined) {
       if (endDate === null || endDate === '') {
         project.set('endDate', undefined);
@@ -510,6 +519,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           // Debug logging to help identify status preservation issues
           console.log(`Task ${index} "${task.name || 'Untitled'}": received status="${task.status}" (type: ${typeof task.status}), setting to="${taskStatus}"`);
 
+          const previousTask =
+            task._id && Types.ObjectId.isValid(String(task._id))
+              ? previousTasks.find((t) => t._id?.toString() === String(task._id))
+              : previousTasks[index];
+          const previousTaskStatus = normalizeTaskStatus(
+            (previousTask as { status?: unknown } | undefined)?.status
+          );
+          const previousCompletedAt = (previousTask as { completedAt?: Date } | undefined)?.completedAt;
+
           // Build taskData explicitly - don't rely on spread operator for status
           const taskData: any = {
             name: typeof task.name === 'string' ? task.name.trim() : '',
@@ -518,6 +536,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             endDate,
             estimatedHours: task.estimatedHours !== undefined && task.estimatedHours !== null ? task.estimatedHours : undefined,
             status: taskStatus, // ALWAYS explicitly set status - this is critical!
+            completedAt: resolveTaskCompletedAt(previousTaskStatus, taskStatus, previousCompletedAt),
           };
 
           if (task.recurrenceSeriesId) {
@@ -595,7 +614,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             { status: 400 }
           );
         }
+        const removedTasks = findRemovedTasks(previousTasks, project.tasks ?? []);
+        if (removedTasks.length > 0) {
+          await cleanupRemovedTasks(id, removedTasks);
+        }
       } else {
+        const previousTasksBeforeClear = [...(project.tasks ?? [])];
+        const removedTasks = findRemovedTasks(previousTasksBeforeClear, []);
+        if (removedTasks.length > 0) {
+          await cleanupRemovedTasks(id, removedTasks);
+        }
         project.tasks = [];
       }
     }
@@ -697,7 +725,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    await cleanupProjectMedia(id, project);
+    await cleanupProjectMedia(id, project, user.organizationId);
 
     await Project.findOneAndDelete({ _id: id, userId: { $in: orgUserIds } });
 

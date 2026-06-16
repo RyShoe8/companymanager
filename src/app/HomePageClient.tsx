@@ -61,7 +61,7 @@ const CATEGORIES = [
   },
   {
     title: 'Tools',
-    desc: 'Built-in screenshot capture, screen recording, smart buttons, and a centralized asset library.',
+    desc: 'Built-in screenshot capture, screen recording, smart buttons, and assets linked to your tasks.',
     href: '/features/tools',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

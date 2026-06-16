@@ -53,6 +53,8 @@ export interface IProjectTask {
   assignedToEmployeeId?: Types.ObjectId; // Legacy single assignment (synced from first in array)
   assignedToEmployeeIds?: Types.ObjectId[];
   status?: TaskStatus;
+  /** Set when status transitions to completed; cleared when reopened. */
+  completedAt?: Date;
   /** Shared id when created as part of a recurring series (instance generation). */
   recurrenceSeriesId?: string;
   /** Repeat interval for this series (daily, weekly, biweekly, monthly). */
@@ -97,6 +99,8 @@ export interface IProject extends Document {
   fontPalette?: string[];
   logo?: string; // Project logo URL
   status: ProjectStatus;
+  /** Set when status transitions to completed; cleared when reopened. */
+  completedAt?: Date;
   endDate?: Date; // Optional end date - project stops appearing on status page after this date
   estimatedHours?: number;
   assignedTo?: string; // Legacy - kept for backward compatibility
@@ -227,6 +231,10 @@ const ProjectSchema: Schema = new Schema(
       enum: ['planning', 'in-development', 'launched', 'in-review', 'completed'],
       default: 'planning',
     },
+    completedAt: {
+      type: Date,
+      required: false,
+    },
     endDate: {
       type: Date,
       required: false,
@@ -330,6 +338,10 @@ const ProjectSchema: Schema = new Schema(
           enum: ['active', 'completed', 'in-review'],
           default: 'active',
         },
+        completedAt: {
+          type: Date,
+          required: false,
+        },
         recurrenceSeriesId: {
           type: String,
           trim: true,
@@ -372,6 +384,7 @@ const ProjectSchema: Schema = new Schema(
 // Add indexes for better query performance
 ProjectSchema.index({ userId: 1 });
 ProjectSchema.index({ status: 1 });
+ProjectSchema.index({ status: 1, completedAt: 1 });
 ProjectSchema.index({ projectType: 1 });
 ProjectSchema.index({ assignedToEmployeeId: 1 });
 ProjectSchema.index({ assignedToEmployeeIds: 1 });

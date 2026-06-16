@@ -11,6 +11,8 @@ import { isDistributionMethod } from '@/lib/constants/contentDistribution';
 import { Types } from 'mongoose';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupPublishedContentMedia } from '@/lib/recordings/recordingCleanup';
+import { cleanupContentItemDelete } from '@/lib/cleanup/entityCleanup';
+import { resolveStatusPublishedAt } from '@/lib/cleanup/statusTimestamps';
 import { contentChanged, notifyContentChange } from '@/lib/workspace/workspaceNotifications';
 import {
   CONTENT_CHANNELS as CHANNELS,
@@ -103,6 +105,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: 'Invalid content status' }, { status: 400 });
       }
       doc.status = status;
+      doc.statusPublishedAt = resolveStatusPublishedAt(
+        previousStatus,
+        status,
+        doc.statusPublishedAt
+      );
     }
     if (notes !== undefined) doc.notes = notes === '' ? undefined : String(notes).trim();
     if (publishDate !== undefined) doc.publishDate = publishDate === null || publishDate === '' ? undefined : new Date(publishDate);
@@ -188,6 +195,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (error) return NextResponse.json({ error: error.message }, { status: error.status });
 
     const projectId = (item as { projectId?: Types.ObjectId }).projectId?.toString();
+    await cleanupContentItemDelete(id);
     await ContentItem.findByIdAndDelete(id);
     if (projectId) {
       await touchProjectActivity(projectId);

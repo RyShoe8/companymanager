@@ -8,6 +8,7 @@ import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import {
   MARKETING_EMPLOYEES,
   MARKETING_SMART_BUTTONS,
+  MARKETING_TASK_ASSET_CHIPS,
   type MarketingSmartButton,
 } from '@/lib/marketing/marketingFixtures';
 
@@ -24,13 +25,18 @@ type MarketingProjectInspectorPreviewProps = {
   smartButtons?: MarketingSmartButton[];
   showCreateMenu?: boolean;
   showTasks?: boolean;
+  showLinkedAssets?: boolean;
 };
+
+const ASSET_CHIP_CLASS =
+  'inline-flex items-center rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary max-w-[220px] truncate';
 
 export default function MarketingProjectInspectorPreview({
   project,
   smartButtons = MARKETING_SMART_BUTTONS,
   showCreateMenu = false,
   showTasks = true,
+  showLinkedAssets = false,
 }: MarketingProjectInspectorPreviewProps) {
   const tasks = (project.tasks ?? []).filter((t) => t.status !== 'completed').slice(0, 4);
   const assigneeName = (employeeId?: { toString(): string }) => {
@@ -112,6 +118,8 @@ export default function MarketingProjectInspectorPreview({
               const status = TASK_STATUS_LABELS[task.status ?? 'active'] ?? TASK_STATUS_LABELS.active;
               const assignee =
                 task.assignedToEmployeeIds?.[0] ?? task.assignedToEmployeeId;
+              const assetChips =
+                showLinkedAssets && task.name ? MARKETING_TASK_ASSET_CHIPS[task.name] : undefined;
               return (
                 <div key={`${task.name}-${idx}`} className="p-4">
                   <div className="flex items-start justify-between gap-2">
@@ -121,6 +129,15 @@ export default function MarketingProjectInspectorPreview({
                         <span>{task.estimatedHours ?? 0}h</span>
                         <span>{assigneeName(assignee as { toString(): string } | undefined)}</span>
                       </p>
+                      {assetChips && assetChips.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {assetChips.map((label) => (
+                            <span key={label} className={ASSET_CHIP_CLASS}>
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     <span className="inline-flex items-center gap-1.5 text-xs text-gray-900 shrink-0">
                       <span
