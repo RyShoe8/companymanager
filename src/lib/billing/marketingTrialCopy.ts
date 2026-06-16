@@ -1,3 +1,4 @@
+import '@/lib/billing-engine';
 import {
   getPublicPricingPlans,
   maxTrialDaysFromPlans,
