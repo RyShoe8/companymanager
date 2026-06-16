@@ -12,9 +12,6 @@ export type { AddSmartButtonPayload, AssetLinkContext, PendingAssetPayload };
 
 interface AddButtonProps {
   projectId: string;
-  phase: 'Plan' | 'Build' | 'Run';
-  projectType: string;
-  isManagerOrAdmin: boolean;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: () => void;
   linkContext?: AssetLinkContext;
@@ -28,9 +25,6 @@ interface AddButtonProps {
 
 export default function AddButton({
   projectId,
-  phase,
-  projectType,
-  isManagerOrAdmin,
   onAddButton,
   onDocumentCreated,
   linkContext,
@@ -68,9 +62,6 @@ export default function AddButton({
       {showModal && (
         <CategoryModal
           projectId={projectId}
-          phase={phase}
-          projectType={projectType}
-          isManagerOrAdmin={isManagerOrAdmin}
           onClose={() => setShowModal(false)}
           onAddButton={onAddButton}
           onDocumentCreated={onDocumentCreated}

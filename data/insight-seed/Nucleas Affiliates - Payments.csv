@@ -1,0 +1,11 @@
+Company,Company URL,One-sentence description,Starter price,Pricing source URL,Affiliate / referral URL,Affiliate note
+Stripe,https://stripe.com,"Payments infrastructure for subscriptions, one-time payments, and marketplaces.",Free to start; pay-as-you-go,https://stripe.com/pricing,https://stripe.com/partners,Partner ecosystem
+PayPal,https://www.paypal.com,Widely used payment wallet and checkout platform.,Free to start; transaction fees,https://www.paypal.com/us/business,N/A / referral program not confirmed,Pricing
+Paddle,https://paddle.com,Merchant-of-record platform for software and digital goods.,Free to start; pay-as-you-go,https://www.paddle.com/pricing,https://www.paddle.com/partners,Partner ecosystem
+Lemon Squeezy,https://www.lemonsqueezy.com,Merchant-of-record checkout for software and digital products.,Free to start; transaction fees,https://www.lemonsqueezy.com,N/A / public affiliate program not confirmed,Pricing
+Square,https://squareup.com,Payment processing and POS platform for businesses.,Free to start; transaction fees,https://squareup.com/us/en/pricing,N/A / partner ecosystem,Pricing
+Braintree,https://www.braintreepayments.com,PayPal-owned payment platform for web and mobile commerce.,Free to start; transaction fees,https://www.braintreepayments.com/pricing,N/A / partner ecosystem,Pricing
+Gumroad,https://gumroad.com,Simple checkout and digital product selling platform.,Free to start; platform fee per sale,https://gumroad.com/pricing,N/A / public affiliate program not confirmed,Pricing
+Chargebee,https://www.chargebee.com,Subscription billing and revenue operations platform.,Quote/usage-based; not usually self-serve starter,https://www.chargebee.com/pricing/,https://www.chargebee.com/partners/,Partner ecosystem
+FastSpring,https://fastspring.com,Merchant-of-record ecommerce platform for software.,Quote/usage-based,https://fastspring.com/pricing/,https://fastspring.com/partners/,Partner ecosystem
+Shopify Payments,https://www.shopify.com/payments,Payments built into Shopify storefronts.,Included with Shopify plan; transaction fees apply,https://www.shopify.com/pricing,https://www.shopify.com/affiliates,Shopify affiliate program

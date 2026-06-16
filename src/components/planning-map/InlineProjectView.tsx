@@ -2081,9 +2081,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           })}
           <AddButton
             projectId={localProject._id.toString()}
-            phase={mapStatusToStage(localProject.status)}
-            projectType={localProject.projectType || 'generic'}
-            isManagerOrAdmin={isManagerOrAdmin}
             socialsToolbarHidden={localProject.socialsToolbarVisible === false}
             onAddSocial={async (url) => {
               const parsed = parseSocialLinkInput(url);

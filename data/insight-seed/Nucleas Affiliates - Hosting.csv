@@ -1,0 +1,11 @@
+Company,Company URL,One-sentence description,Starter price,Pricing source URL,Affiliate / referral URL,Affiliate note
+Vercel,https://vercel.com,Front-end hosting and deployment platform optimized for Next.js and modern web apps.,Free; Pro $20/mo,https://vercel.com/pricing,N/A / referral program not confirmed,Pricing
+Netlify,https://www.netlify.com,"Modern hosting platform for static sites, front ends, and serverless functions.",Free; Pro from ~$19/mo,https://www.netlify.com/pricing/,N/A / public affiliate program not confirmed,Pricing
+Cloudflare,https://www.cloudflare.com,"Edge network with pages, workers, security, and performance tooling.",Free; paid usage/Pro starts at ~$20/mo,https://www.cloudflare.com/plans/,N/A / referral program not confirmed,Pricing
+Render,https://render.com,"App hosting and managed services for web apps, workers, and databases.",Free; paid from ~$7/mo,https://render.com/pricing,N/A / public affiliate program not confirmed,Pricing
+Fly.io,https://fly.io,Global app hosting platform for containers and stateful apps.,Free allowances; usage-based,https://fly.io/pricing/,N/A / public affiliate program not confirmed,Pricing
+Railway,https://railway.com,Developer-friendly deployment platform with usage-based hosting.,Usage-based; starter from ~$5 in credits,https://railway.com/pricing,N/A / public affiliate program not confirmed,Pricing
+DigitalOcean,https://www.digitalocean.com,"Cloud platform for apps, droplets, managed databases, and app platform.",From ~$5/mo,https://www.digitalocean.com/pricing,https://www.digitalocean.com/referral-program,Public referral program
+AWS Amplify,https://aws.amazon.com/amplify/,Managed hosting and deployment for full-stack web apps.,Free tier; pay-as-you-go,https://aws.amazon.com/amplify/pricing/,N/A / AWS partner network instead of simple affiliate,Pricing
+Firebase Hosting,https://firebase.google.com/products/hosting,Google's static and app hosting service with CDN and SSL.,Free tier; pay-as-you-go,https://firebase.google.com/pricing,N/A / Google partner programs vary,Pricing
+Hostinger,https://www.hostinger.com,Low-cost shared and cloud hosting for websites and small apps.,From ~$2.99/mo,https://www.hostinger.com/pricing,https://www.hostinger.com/affiliates,Public affiliate program

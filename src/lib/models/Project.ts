@@ -106,8 +106,6 @@ export interface IProject extends Document {
   tasks?: IProjectTask[];
   /** Smart buttons: Available vs Active; no duplicates in Active, removed from Available. */
   actionButtons?: IProjectActionButton[];
-  /** Dismissed checklist template item IDs (ReferralCatalog entry IDs) - user can re-add via Add button. */
-  dismissedChecklistIds?: Types.ObjectId[];
   /** Client portal: slug for URL (e.g. /portal/abc123). */
   clientPortalSlug?: string;
   /** Client portal: optional token for authenticated access. */
@@ -355,10 +353,6 @@ const ProjectSchema: Schema = new Schema(
         password: { type: String, trim: true },
       },
     ],
-    dismissedChecklistIds: {
-      type: [Schema.Types.ObjectId],
-      default: [],
-    },
     clientPortalSlug: { type: String, trim: true },
     clientPortalToken: { type: String, trim: true },
     invitedClientEmails: { type: [String], default: [] },

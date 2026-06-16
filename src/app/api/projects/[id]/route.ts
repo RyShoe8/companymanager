@@ -177,7 +177,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       assignedToEmployeeIds,
       assignedToNames,
       tasks,
-      dismissedChecklistIds,
       socialLinks,
       socialsToolbarVisible,
       techStack,
@@ -258,7 +257,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         devUrl !== undefined || liveUrl !== undefined ||
         projectType !== undefined || color !== undefined || colorPalette !== undefined || fontPalette !== undefined || logo !== undefined || endDate !== undefined || estimatedHours !== undefined ||
         assignedTo !== undefined || assignedToEmployeeId !== undefined || assignedToEmployeeIds !== undefined ||
-        assignedToNames !== undefined || tasks !== undefined || dismissedChecklistIds !== undefined ||
+        assignedToNames !== undefined || tasks !== undefined ||
         socialLinks !== undefined || socialsToolbarVisible !== undefined ||
         techStack !== undefined || marketingStack !== undefined) {
         return NextResponse.json({ error: 'Users can only change project status' }, { status: 403 });
@@ -604,16 +603,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Explicitly mark tasks array as modified to ensure Mongoose saves it
     if (tasks !== undefined) {
       project.markModified('tasks');
-    }
-
-    if (dismissedChecklistIds !== undefined) {
-      if (Array.isArray(dismissedChecklistIds)) {
-        project.dismissedChecklistIds = dismissedChecklistIds
-          .filter((id: unknown) => id && Types.ObjectId.isValid(id as string))
-          .map((id: string) => new Types.ObjectId(id));
-      } else {
-        project.dismissedChecklistIds = [];
-      }
     }
 
     // Save the project

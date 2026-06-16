@@ -240,9 +240,6 @@ export default function TaskLinkedAssets({
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <AddButton
                   projectId={projectId}
-                  phase={phase}
-                  projectType={projectType}
-                  isManagerOrAdmin={isManagerOrAdmin}
                   label="Add"
                   linkContext={{
                     linkedProjectId: projectId,

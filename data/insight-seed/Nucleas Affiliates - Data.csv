@@ -1,0 +1,11 @@
+Company,Company URL,One-sentence description,Starter price,Pricing source URL,Affiliate / referral URL,Affiliate note
+MongoDB Atlas,https://www.mongodb.com/atlas,Managed document database for modern applications.,Free; M10 from ~$0.08/hr,https://www.mongodb.com/pricing,N/A / partner ecosystem,Pricing
+Supabase,https://supabase.com,"Open-source backend with Postgres, auth, storage, and functions.",Free; Pro from ~$25/mo,https://supabase.com/pricing,N/A / partner ecosystem,Pricing
+Neon,https://neon.tech,Serverless Postgres with branching and managed scaling.,Free; Launch from ~$19/mo,https://neon.tech/pricing,N/A / partner ecosystem,Pricing
+Firebase,https://firebase.google.com,"Backend platform with hosting, database, and auth.",Free tier; pay-as-you-go,https://firebase.google.com/pricing,N/A / partner ecosystem,Pricing
+PlanetScale,https://planetscale.com,Serverless MySQL platform with branching and scaling.,Free; paid from ~$39/mo,https://planetscale.com/pricing,N/A / partner ecosystem,Pricing
+Upstash,https://upstash.com,"Serverless Redis, Kafka, and vector database services.",Free; paid usage-based,https://upstash.com/pricing,N/A / partner ecosystem,Pricing
+Redis Cloud,https://redis.io/cloud/,Managed Redis with free starter and scaled tiers.,Free; paid from ~$7/mo,https://redis.io/pricing/,N/A / partner ecosystem,Pricing
+Airtable,https://www.airtable.com,Flexible database/spreadsheet hybrid for operations and workflows.,Free; Team from ~$20/user/mo,https://www.airtable.com/pricing,https://www.airtable.com/partners,Partner ecosystem
+Vercel Blob,https://vercel.com/storage/blob,Simple object storage built into Vercel.,Free tier; usage-based,https://vercel.com/pricing,N/A / built-in product,Pricing
+Cloudflare R2,https://developers.cloudflare.com/r2/,Low-cost object storage with zero egress fees.,Free tier; usage-based,https://developers.cloudflare.com/r2/pricing/,N/A / built-in product,Pricing

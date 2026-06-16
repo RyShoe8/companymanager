@@ -1,0 +1,11 @@
+Company,Company URL,One-sentence description,Starter price,Pricing source URL,Affiliate / referral URL,Affiliate note
+UptimeRobot,https://uptimerobot.com,Simple uptime and status monitoring for sites and services.,Free; Pro from ~$7/mo,https://uptimerobot.com/pricing/,https://uptimerobot.com/affiliates,Public affiliate program
+Better Stack,https://betterstack.com,"Uptime, logs, and incident tools for modern teams.",Free; paid from ~$29/mo,https://betterstack.com/pricing/,https://betterstack.com/partners,Partner ecosystem
+Sentry,https://sentry.io,Error monitoring and performance observability for apps.,Free; Team from ~$26/mo,https://sentry.io/pricing/,https://sentry.io/partners/,Partner ecosystem
+Datadog,https://www.datadoghq.com,"Infrastructure monitoring, logging, and observability platform.",Free trial; Pro from ~$15/host/mo,https://www.datadoghq.com/pricing/,https://www.datadoghq.com/partners/,Partner ecosystem
+Pingdom,https://www.pingdom.com,Website uptime and performance monitoring.,From ~$10/mo,https://www.pingdom.com/pricing/,N/A / partner ecosystem,Pricing
+New Relic,https://newrelic.com,Observability platform for apps and infrastructure.,Free; paid from usage-based pricing,https://newrelic.com/pricing,N/A / partner ecosystem,Pricing
+Grafana Cloud,https://grafana.com/products/cloud/,"Managed observability stack with metrics, logs, and traces.",Free; paid usage-based,https://grafana.com/pricing/,https://grafana.com/partners/,Partner ecosystem
+Statuspage,https://www.atlassian.com/software/statuspage,Status pages and incident communication from Atlassian.,From ~$29/mo,https://www.atlassian.com/software/statuspage/pricing,https://www.atlassian.com/partners,Partner ecosystem
+Cronitor,https://cronitor.io,"Cron, uptime, and API monitoring with alerting.",Free; paid from ~$10/mo,https://cronitor.io/pricing,N/A / public affiliate program not confirmed,Pricing
+Better Uptime,https://betteruptime.com,"All-in-one uptime, incident, and on-call platform.",Free; paid from ~$25/mo,https://betteruptime.com/pricing,https://betteruptime.com/partners,Partner ecosystem

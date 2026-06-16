@@ -1,0 +1,11 @@
+Company,Company URL,One-sentence description,Starter price,Pricing source URL,Affiliate / referral URL,Affiliate note
+BrowserStack,https://www.browserstack.com,Cross-browser testing platform with real devices and browsers.,From ~$39/mo,https://www.browserstack.com/pricing,https://www.browserstack.com/affiliates,Public affiliate program
+LambdaTest,https://www.lambdatest.com,"Cloud testing platform for browsers, mobile, and automation.",From ~$19/mo,https://www.lambdatest.com/pricing,https://www.lambdatest.com/affiliate-program,Public affiliate program
+Playwright,https://playwright.dev,Open-source end-to-end testing framework from Microsoft.,Free,https://playwright.dev,N/A / open-source,Free/open-source option
+Cypress,https://www.cypress.io,Developer-focused end-to-end testing framework.,Free; cloud paid tiers,https://www.cypress.io/pricing,N/A / open-source,Free/open-source option
+Percy,https://percy.io,Visual regression testing for web apps.,From ~$49/mo,https://percy.io/pricing,N/A / partner ecosystem,Pricing
+Sauce Labs,https://saucelabs.com,Cross-browser and mobile testing cloud with automation support.,From ~$39/mo,https://saucelabs.com/pricing,N/A / partner ecosystem,Pricing
+Chromatic,https://www.chromatic.com,Visual testing and review for component libraries and Storybook.,Free; paid from ~$149/mo,https://www.chromatic.com/pricing,N/A / partner ecosystem,Pricing
+Applitools,https://applitools.com,AI-powered visual testing and monitoring platform.,Trial; paid by quote,https://applitools.com/pricing/,N/A / partner ecosystem,Pricing
+Testim,https://www.testim.io,AI-assisted test automation platform.,Trial; paid by quote,https://www.testim.io/pricing/,N/A / partner ecosystem,Pricing
+QA Wolf,https://www.qawolf.com,Managed end-to-end testing service and platform.,Paid by quote,https://www.qawolf.com,N/A / partner ecosystem,Pricing

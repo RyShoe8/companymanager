@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
@@ -10,16 +10,7 @@ import RecordingToolPanel from '@/components/shared/RecordingToolPanel';
 import { detectSocialNetwork, parseSocialLinkInput, SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
 import type { MediaUploadTarget } from '@/lib/mediaUploadTarget';
 
-interface CatalogEntry {
-  _id: string;
-  companyName: string;
-  categoryName?: string;
-  category: string;
-  url?: string;
-  projectTypes?: string[];
-}
-
-type AddStep = 'type' | 'link' | 'email' | 'document' | 'more' | 'social' | 'screenshot' | 'recording';
+type AddStep = 'type' | 'link' | 'email' | 'document' | 'social' | 'screenshot' | 'recording';
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
@@ -63,9 +54,6 @@ async function readApiErrorMessage(res: Response, fallback: string): Promise<str
 
 interface CategoryModalProps {
   projectId: string;
-  phase: 'Plan' | 'Build' | 'Run';
-  projectType: string;
-  isManagerOrAdmin: boolean;
   onClose: () => void;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: () => void;
@@ -81,9 +69,6 @@ interface CategoryModalProps {
 
 export default function CategoryModal({
   projectId,
-  phase,
-  projectType,
-  isManagerOrAdmin,
   onClose,
   onAddButton,
   onDocumentCreated,
@@ -96,10 +81,6 @@ export default function CategoryModal({
   stackAboveLightbox = false,
 }: CategoryModalProps) {
   const [step, setStep] = useState<AddStep>('type');
-  const [entries, setEntries] = useState<CatalogEntry[]>([]);
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null);
   const [addLabel, setAddLabel] = useState('');
   const [addUrl, setAddUrl] = useState('');
   const [adding, setAdding] = useState(false);
@@ -112,7 +93,6 @@ export default function CategoryModal({
   const [addingEmail, setAddingEmail] = useState(false);
   const [socialUrl, setSocialUrl] = useState('');
   const [addingSocial, setAddingSocial] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
 
   const screenshotTarget = useMemo<MediaUploadTarget | null>(() => {
@@ -190,34 +170,6 @@ export default function CategoryModal({
     return saveAsset(buildAssetPayload({ name: label.trim(), type: 'link', url: url.trim() }));
   };
 
-  const needsCatalog = step === 'more';
-
-  useEffect(() => {
-    if (!needsCatalog) return;
-    const fetchEntries = async () => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams({ phase, projectType: projectType || 'generic' });
-        if (query) params.set('q', query);
-        const res = await fetch(`/api/referral-catalog?${params}`);
-        if (res.ok) {
-          const data = await res.json();
-          setEntries(data.entries || []);
-        }
-      } catch (e) {
-        setEntries([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    const t = setTimeout(fetchEntries, 200);
-    return () => clearTimeout(t);
-  }, [step, phase, projectType, query, needsCatalog]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [step]);
-
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -286,12 +238,6 @@ export default function CategoryModal({
     }
   };
 
-  const handleAddClick = (entry: CatalogEntry) => {
-    setSelectedEntry(entry);
-    setAddLabel(entry.companyName);
-    setAddUrl(entry.url || '');
-  };
-
   const handleSocialSubmit = async () => {
     if (!onAddSocial || !socialUrl.trim()) return;
     const parsed = parseSocialLinkInput(socialUrl);
@@ -318,7 +264,6 @@ export default function CategoryModal({
         { id: 'recording', label: 'Recording', desc: 'Record screen + voice or upload video' },
         { id: 'link', label: 'Link', desc: 'Any URL with a button label' },
         { id: 'email', label: 'Email', desc: 'Mailbox address; optional stored password' },
-        { id: 'more', label: 'More', desc: 'Other link types and tools' },
       ];
       if (socialsToolbarHidden && onAddSocial && !useAssetFlow) {
         typeOptions.splice(1, 0, { id: 'social', label: 'Socials', desc: 'Add a social profile URL' });
@@ -546,79 +491,6 @@ export default function CategoryModal({
       );
     }
 
-    if (step === 'more') {
-      return (
-        <div className="space-y-3">
-          <Button variant="secondary" size="sm" onClick={() => { setStep('type'); setSelectedEntry(null); setQuery(''); }}>
-            Back
-          </Button>
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search link types or tools..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          />
-          {selectedEntry ? (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Add a button for <strong>{selectedEntry.companyName}</strong>.</p>
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Button name</label>
-                <input
-                  type="text"
-                  value={addLabel}
-                  onChange={(e) => setAddLabel(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">URL</label>
-                <input
-                  type="url"
-                  value={addUrl}
-                  onChange={(e) => setAddUrl(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleAddSubmit} disabled={adding || !addLabel.trim() || !addUrl.trim()}>
-                  {adding ? 'Adding...' : useAssetFlow ? entitySubmitLabel : 'Add to project'}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => setSelectedEntry(null)}>Back</Button>
-              </div>
-            </div>
-          ) : (
-            <div className="max-h-48 overflow-y-auto space-y-1">
-              {loading ? (
-                <p className="text-sm text-gray-500">Loading...</p>
-              ) : entries.length === 0 ? (
-                <p className="text-sm text-gray-500">No results. Add entries in Admin → Stage Management.</p>
-              ) : (
-                entries.map((entry) => (
-                  <div
-                    key={entry._id}
-                    className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{entry.companyName}</span>
-                    {isManagerOrAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => handleAddClick(entry)}
-                        className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200"
-                      >
-                        Add
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      );
-    }
-
     return null;
   };
 
@@ -636,7 +508,7 @@ export default function CategoryModal({
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'recording' ? 'Recording' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : step === 'social' ? 'Socials' : 'More'}
+            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'recording' ? 'Recording' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : 'Socials'}
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

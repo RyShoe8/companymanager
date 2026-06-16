@@ -8,7 +8,6 @@ const navItems = [
   { href: '/admin/plans', label: 'Plans' },
   { href: '/admin/blog', label: 'Blog' },
   { href: '/admin/feedback', label: 'Feedback' },
-  { href: '/admin/stage-management', label: 'Stage Management' },
   { href: '/admin/insights', label: 'Insights' },
 ];
 
