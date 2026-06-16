@@ -57,9 +57,6 @@ const marketingIcons = {
   clarity: wrap(
     `<defs><linearGradient id="clarity" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#0078D4"/><stop offset="1" stop-color="#50E6FF"/></linearGradient></defs><rect width="24" height="24" rx="5" fill="url(#clarity)"/><path fill="#FFFFFF" d="M6 14c2.5-4 4.5-6 6-6s3.5 2 6 6c-2 3-4 5-6 5s-4-2-6-5z"/><circle cx="9" cy="10" r="1.5" fill="#FFFFFF"/>`
   ),
-  tailnote: wrap(
-    `<rect width="24" height="24" rx="5" fill="#52C3A7"/><path fill="#FFFFFF" d="M7 7h10v3H11v2h5v3h-5v4H7V7z"/><path fill="#1C9ABD" d="M14 7h3v14h-3V7z"/>`
-  ),
 };
 
 /** Tech icons: white glyph on brand-colored circle for near-black brands */

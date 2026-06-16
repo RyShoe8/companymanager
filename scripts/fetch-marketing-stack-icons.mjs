@@ -3,7 +3,8 @@
  * Falls back to lettermark SVGs when a brand is not in Simple Icons.
  * Usage: node scripts/fetch-marketing-stack-icons.mjs
  */
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -11,7 +12,7 @@ import {
   isDarkBrandHex,
   normalizeHex,
 } from './lib/simpleIconColorize.mjs';
-import { loadCustomIcon } from './lib/loadCustomIcon.mjs';
+import { loadCustomIcon, loadCustomRasterIcon } from './lib/loadCustomIcon.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -123,6 +124,16 @@ const darkIds = [];
 
 for (const [id, slug] of Object.entries(ICONS)) {
   try {
+    const customPng = await loadCustomRasterIcon(customDir, id);
+    if (customPng) {
+      await writeFile(join(outDir, `${id}.png`), customPng);
+      const staleSvg = join(outDir, `${id}.svg`);
+      if (existsSync(staleSvg)) await unlink(staleSvg);
+      console.log(`IMG ${id}`);
+      ok++;
+      continue;
+    }
+
     let svg = null;
     let brandHex = null;
     let source = 'icon';
@@ -134,7 +145,7 @@ for (const [id, slug] of Object.entries(ICONS)) {
       source = 'custom';
     } else {
       if (CUSTOM_ONLY.has(id)) {
-        throw new Error('custom only — run npm run icons:generate-custom');
+        throw new Error(`custom only — add scripts/icons/custom/marketing-stack/${id}.png`);
       }
       const colored = await fetchColoredIcon(slug, SLUG_OVERRIDES);
       if (colored) {

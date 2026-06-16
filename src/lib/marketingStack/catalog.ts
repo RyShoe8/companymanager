@@ -6,6 +6,8 @@ export interface MarketingStackCatalogEntry {
   category: MarketingStackCategory;
   homepageUrl: string;
   simpleIconSlug: string;
+  /** When set, icon is served from /icons/marketing-stack/{id}.{extension} */
+  iconExtension?: 'png' | 'svg';
 }
 
 export const MARKETING_STACK_CATALOG: MarketingStackCatalogEntry[] = [
@@ -20,7 +22,7 @@ export const MARKETING_STACK_CATALOG: MarketingStackCatalogEntry[] = [
   { id: 'mailerlite', name: 'MailerLite', category: 'email', homepageUrl: 'https://www.mailerlite.com', simpleIconSlug: 'mailerlite' },
   { id: 'mailjet', name: 'Mailjet', category: 'email', homepageUrl: 'https://www.mailjet.com', simpleIconSlug: 'mailjet' },
   { id: 'beehiiv', name: 'Beehiiv', category: 'email', homepageUrl: 'https://www.beehiiv.com', simpleIconSlug: 'beehiiv' },
-  { id: 'tailnote', name: 'Tailnote', category: 'email', homepageUrl: 'https://tailnote.io', simpleIconSlug: 'tailnote' },
+  { id: 'tailnote', name: 'Tailnote', category: 'email', homepageUrl: 'https://tailnote.io', simpleIconSlug: 'tailnote', iconExtension: 'png' },
 
   // Analytics
   { id: 'googleanalytics', name: 'Google Analytics', category: 'analytics', homepageUrl: 'https://analytics.google.com', simpleIconSlug: 'googleanalytics' },
