@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { PublicPricingPlan } from 'billing-engine/client';
-import { planHasYearlyToggle } from 'billing-engine/client';
+import { isRecommendedPlan, planHasYearlyToggle } from 'billing-engine/client';
 import { BillingIntervalToggleShell } from 'billing-engine/next/components';
 import { PricingPlanMarketingCard } from '@/components/pricing/PricingPlanMarketingCard';
 import { EnterprisePricingCard } from '@/components/pricing/EnterprisePricingCard';
@@ -13,10 +13,9 @@ type BillingInterval = 'month' | 'year';
 type Props = {
   plans: PublicPricingPlan[];
   ctaByPlanId: Record<string, string>;
-  isRecommendedPlan: (plan: PublicPricingPlan) => boolean;
 };
 
-export function PricingPlansSection({ plans, ctaByPlanId, isRecommendedPlan }: Props) {
+export function PricingPlansSection({ plans, ctaByPlanId }: Props) {
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('month');
   const showGlobalToggle = useMemo(() => plans.some(planHasYearlyToggle), [plans]);
 

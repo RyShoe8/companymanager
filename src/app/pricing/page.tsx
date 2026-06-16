@@ -1,7 +1,7 @@
 import '@/lib/billing-engine';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getPublicPricingPlans, isRecommendedPlan, sortPlansForPricingDisplay } from 'billing-engine';
+import { getPublicPricingPlans, sortPlansForPricingDisplay } from 'billing-engine';
 import Button from '@/components/ui/Button';
 import { PricingPlansSection } from '@/components/pricing/PricingPlansSection';
 import { NUCLEAS_PLATFORM_FEATURES } from '@/lib/marketing/nucleasPlatformFeatures';
@@ -97,11 +97,7 @@ export default async function PricingPage() {
         {/* Plan Cards */}
         <section className="px-4 sm:px-6 lg:px-8 pb-16">
           <AnimateIn>
-            <PricingPlansSection
-              plans={plans}
-              ctaByPlanId={ctaByPlanId}
-              isRecommendedPlan={isRecommendedPlan}
-            />
+            <PricingPlansSection plans={plans} ctaByPlanId={ctaByPlanId} />
           </AnimateIn>
         </section>
 
