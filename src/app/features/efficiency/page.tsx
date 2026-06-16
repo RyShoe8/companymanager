@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { MarketingTrialCta } from '@/components/marketing/MarketingTrialCta';
 import { StructuredData } from '@/components/StructuredData';
 import AnimateIn from '@/components/home/AnimateIn';
+import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
+import AssetsPlatformScreenshot from '@/components/marketing/screenshots/AssetsPlatformScreenshot';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
@@ -24,10 +26,10 @@ const EFFICIENCY = [
 ];
 
 const ORGANIZATION = [
+  { title: 'Centralized Asset Repository', desc: 'Single source of truth for screenshots, recordings, documents, and links. No more hunting through folders, drives, and bookmarks.' },
+  { title: 'Project & Task Links', desc: 'Link assets to specific projects, tasks, and content for context. Every resource is connected to the work it supports.' },
   { title: 'Organization Branding', desc: 'Custom branding for your organization. Upload logos, set colors, and make Nucleas feel like your own platform.' },
   { title: 'Multi-Project Management', desc: 'Manage multiple projects from a single dashboard. Switch between projects instantly with full context preservation.' },
-  { title: 'Centralized Asset Repository', desc: 'Single source of truth for all tools, documents, and resources. No more hunting through folders, drives, and bookmarks.' },
-  { title: 'Project & Task Links', desc: 'Link assets to specific projects and tasks for context. Every resource is connected to the work it supports.' },
   { title: 'Team Collaboration', desc: 'Built-in collaboration features for teams. Work together on projects, tasks, and content without leaving Nucleas.' },
   { title: 'Comments & Discussions', desc: 'Comment on projects, tasks, and content items. Keep discussions attached to the work they\'re about.' },
   { title: 'Invitations', desc: 'Invite team members to join your organization with a simple link. Role-based onboarding gets them started fast.' },
@@ -39,7 +41,31 @@ export default function EfficiencyFeaturePage() {
       <StructuredData type="WebPage" data={{ name: 'Efficiency & Organization | Nucleas', description: metadata.description, url: `${baseUrl}/features/efficiency`, publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl } }} />
       <StructuredData type="BreadcrumbList" data={{ itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl }, { '@type': 'ListItem', position: 2, name: 'Features', item: `${baseUrl}/features` }, { '@type': 'ListItem', position: 3, name: 'Efficiency', item: `${baseUrl}/features/efficiency` }] }} />
       <div className="min-h-screen bg-background">
-        <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 py-20 md:py-28"><div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" /><div className="relative max-w-4xl mx-auto text-center"><AnimateIn><span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium text-primary mb-6">Efficiency</span><h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-text-primary tracking-tight mb-6">Work smarter,{' '}<span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">not harder</span></h1><p className="text-lg text-text-secondary max-w-2xl mx-auto">Smart shortcuts, quick forms, keyboard navigation, and organizational features that eliminate friction from your daily workflow.</p></AnimateIn></div></section>
+        <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 py-20 md:py-28"><div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" /><div className="relative max-w-4xl mx-auto text-center"><AnimateIn><span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium text-primary mb-6">Efficiency</span><h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-text-primary tracking-tight mb-6">Work smarter,{' '}<span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">not harder</span></h1><p className="text-lg text-text-secondary max-w-2xl mx-auto">Centralize assets, connect every resource to your work, and eliminate friction from your daily workflow.</p></AnimateIn></div></section>
+
+        <section className="px-4 sm:px-6 lg:px-8 pb-16">
+          <AnimateIn>
+            <MarketingScreenshotFrame glow="mixed" className="max-w-5xl" alt="Nucleas centralized asset library linked to projects, tasks, and content">
+              <AssetsPlatformScreenshot />
+            </MarketingScreenshotFrame>
+          </AnimateIn>
+        </section>
+
+        <section className="px-4 sm:px-6 lg:px-8 py-20 bg-background-card/50">
+          <div className="max-w-4xl mx-auto">
+            <AnimateIn>
+              <div className="flex flex-col md:flex-row gap-8 items-center">
+                <div className="flex-shrink-0 w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-3xl">🗂️</div>
+                <div>
+                  <h2 className="text-2xl font-bold text-text-primary mb-3">Centralized assets and platform</h2>
+                  <p className="text-text-secondary leading-relaxed">
+                    Nucleas keeps screenshots, recordings, documents, and links in one searchable library — then connects them to the projects, tasks, and content they support. Your team always works from a single source of truth instead of scattered drives and bookmarks.
+                  </p>
+                </div>
+              </div>
+            </AnimateIn>
+          </div>
+        </section>
 
         {/* Efficiency Features */}
         <section className="px-4 sm:px-6 lg:px-8 py-20">

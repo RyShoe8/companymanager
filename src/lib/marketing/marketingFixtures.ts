@@ -1,8 +1,14 @@
 import { Types } from 'mongoose';
-import type { IContentItem } from '@/lib/models/ContentItem';
+import type { IAsset } from '@/lib/models/Asset';
+import type { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import type { IEmployee } from '@/lib/models/Employee';
 import type { IMeeting } from '@/lib/models/Meeting';
 import type { IProject, IProjectTask } from '@/lib/models/Project';
+import { toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
+import {
+  buildMeetingDetailPayload,
+  type MeetingDetailPayload,
+} from '@/lib/scheduling/buildMeetingDetailPayload';
 import { getProjectsForStage, type ProjectStage } from '@/lib/utils/statusMapping';
 
 export const MARKETING_ORG_NAME = 'Meridian Studio';
@@ -299,4 +305,190 @@ export function marketingProjectsForStage(stage: ProjectStage): IProject[] {
 
 export function marketingActiveProjects(): IProject[] {
   return MARKETING_PROJECTS.filter((p) => p.status !== 'completed') as IProject[];
+}
+
+export const MARKETING_ASSET_IDS = {
+  heroScreenshot: new Types.ObjectId('674a00000000000000000501'),
+  walkthroughRecording: new Types.ObjectId('674a00000000000000000502'),
+  brandGuide: new Types.ObjectId('674a00000000000000000503'),
+  analyticsDashboard: new Types.ObjectId('674a00000000000000000504'),
+  launchDeck: new Types.ObjectId('674a00000000000000000505'),
+  homepageMockup: new Types.ObjectId('674a00000000000000000506'),
+  apiSpec: new Types.ObjectId('674a00000000000000000507'),
+  socialClip: new Types.ObjectId('674a00000000000000000508'),
+} as const;
+
+export const MARKETING_ASSETS = [
+  {
+    _id: MARKETING_ASSET_IDS.heroScreenshot,
+    name: 'Homepage hero screenshot',
+    type: 'screenshot',
+    category: 'Marketing',
+    linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_ASSET_IDS.walkthroughRecording,
+    name: 'Product walkthrough recording',
+    type: 'file',
+    category: 'Recordings',
+    linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_ASSET_IDS.brandGuide,
+    name: 'Brand guidelines',
+    type: 'document',
+    category: 'Design',
+    linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_ASSET_IDS.analyticsDashboard,
+    name: 'Analytics dashboard link',
+    type: 'link',
+    url: 'https://analytics.google.com',
+    category: 'Analytics',
+    linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_ASSET_IDS.launchDeck,
+    name: 'Launch deck',
+    type: 'document',
+    category: 'Sales',
+    linkedProjectId: MARKETING_PROJECT_IDS.mobile,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_ASSET_IDS.homepageMockup,
+    name: 'Homepage mockup',
+    type: 'screenshot',
+    category: 'Design',
+    linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+    linkedContentItemId: MARKETING_CONTENT_ITEMS[1]._id,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_ASSET_IDS.apiSpec,
+    name: 'API integration spec',
+    type: 'document',
+    category: 'Engineering',
+    linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_ASSET_IDS.socialClip,
+    name: 'Launch teaser clip',
+    type: 'file',
+    category: 'Social',
+    linkedProjectId: MARKETING_PROJECT_IDS.contentPush,
+    linkedContentItemId: MARKETING_CONTENT_ITEMS[0]._id,
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+] as unknown as IAsset[];
+
+export type MarketingContentDetailDefaults = {
+  title: string;
+  channel: ContentChannel;
+  status: ContentStatus;
+  publishDate: string;
+  notes: string;
+  assignedToEmployeeId: string;
+  estimatedHours: string;
+  keywords: string;
+  internalLinks: string[];
+  externalUrl: string;
+  distributionMethods: DistributionMethod[];
+  project: IProject;
+};
+
+export function marketingContentDetailDefaults(
+  item: IContentItem = MARKETING_CONTENT_ITEMS[1]
+): MarketingContentDetailDefaults {
+  const project =
+    MARKETING_PROJECTS.find((p) => p._id.toString() === item.projectId?.toString()) ??
+    MARKETING_PROJECTS[0];
+  return {
+    title: item.title,
+    channel: item.channel as ContentChannel,
+    status: item.status as ContentStatus,
+    publishDate: item.publishDate ? toContentInputDate(item.publishDate) : '',
+    notes:
+      'Thread announcing the homepage relaunch with feature highlights, customer proof points, and a CTA to book a demo.',
+    assignedToEmployeeId: item.assignedToEmployeeId?.toString() ?? '',
+    estimatedHours: '3',
+    keywords: 'product launch, homepage, SaaS, relaunch',
+    internalLinks: ['/features', '/pricing'],
+    externalUrl: 'https://meridian.studio/blog/launch',
+    distributionMethods: (item.distributionMethods ?? []) as DistributionMethod[],
+    project,
+  };
+}
+
+const marketingMeetingAssetsByProject = new Map<string, { _id: Types.ObjectId; name: string; type: string; linkedProjectId?: Types.ObjectId; linkedContentItemId?: Types.ObjectId }[]>([
+  [
+    MARKETING_PROJECT_IDS.relaunch.toString(),
+    [
+      {
+        _id: MARKETING_ASSET_IDS.heroScreenshot,
+        name: 'Homepage hero screenshot',
+        type: 'screenshot',
+        linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+      },
+      {
+        _id: MARKETING_ASSET_IDS.brandGuide,
+        name: 'Brand guidelines',
+        type: 'document',
+        linkedProjectId: MARKETING_PROJECT_IDS.relaunch,
+      },
+    ],
+  ],
+]);
+
+const sprintMeeting = MARKETING_MEETINGS[0];
+
+export const MARKETING_MEETING_DETAIL: MeetingDetailPayload = buildMeetingDetailPayload(
+  {
+    title: sprintMeeting.title,
+    start: sprintMeeting.start,
+    end: sprintMeeting.end,
+    agendaUrl: `/scheduling/agenda/${sprintMeeting.agendaToken}`,
+    joinUrl: sprintMeeting.joinUrl,
+    joinPlatform: sprintMeeting.joinPlatform,
+  },
+  [MARKETING_PROJECTS[0]],
+  marketingMeetingAssetsByProject,
+  MARKETING_CONTENT_ITEMS.filter(
+    (c) => c.projectId?.toString() === MARKETING_PROJECT_IDS.relaunch.toString()
+  ),
+  {
+    employees: [
+      { id: MARKETING_EMPLOYEE_IDS.alex.toString(), name: 'Alex Chen' },
+      { id: MARKETING_EMPLOYEE_IDS.jordan.toString(), name: 'Jordan Lee' },
+    ],
+    externalEmails: [],
+  }
+);
+
+export function marketingProjectName(projectId?: Types.ObjectId | string): string {
+  if (!projectId) return '';
+  const id = projectId.toString();
+  return MARKETING_PROJECTS.find((p) => p._id.toString() === id)?.name ?? 'Project';
 }

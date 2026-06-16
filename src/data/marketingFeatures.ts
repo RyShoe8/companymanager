@@ -221,7 +221,7 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
     title: 'Meetings',
     tagline: 'Every meeting, fully prepared',
     description:
-      'Smart meeting management with agendas, project context, and scheduling — so every call has purpose and every minute counts.',
+      'Smart meeting management with agendas, project context, and a focused popout — so every call has purpose and every minute counts.',
     href: '/features/meetings',
     icon: 'video',
     features: [
@@ -238,18 +238,6 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         icon: 'list',
       },
       {
-        title: 'Calendar View',
-        description:
-          'Visualize your schedule with a full calendar view — day, week, and month perspectives.',
-        icon: 'calendar',
-      },
-      {
-        title: 'Meeting Availability',
-        description:
-          'See team availability at a glance to schedule meetings when everyone can attend.',
-        icon: 'clock',
-      },
-      {
         title: 'Meeting Project Insights',
         description:
           'Surface project status, recent tasks, and key metrics automatically before each meeting.',
@@ -264,20 +252,61 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
       {
         title: 'Meeting Detail View',
         description:
-          'Full meeting details with agenda, notes, attendees, and post-meeting action items.',
+          'Full meeting popout with agenda, notes, attendees, and linked project work.',
         icon: 'maximize',
       },
       {
-        title: 'Scheduling Panel',
+        title: 'Linked Project Work',
         description:
-          'A dedicated scheduling panel to manage upcoming meetings, availability, and invites.',
+          'Review tasks and content tied to each linked project without leaving the meeting view.',
+        icon: 'link',
+      },
+    ],
+  },
+  {
+    id: 'scheduling',
+    title: 'Scheduling',
+    tagline: 'Plan meetings in your workspace',
+    description:
+      'Visual scheduling inside the Schedule phase — calendar, team availability, and linked projects in one view.',
+    href: '/features/scheduling',
+    icon: 'calendar',
+    features: [
+      {
+        title: 'Workspace Calendar',
+        description:
+          'See meetings on a weekly calendar while you stay in the Nucleas workspace.',
+        icon: 'calendar',
+      },
+      {
+        title: 'Team Availability',
+        description:
+          'Capacity sidebar shows who is booked and who has room when you schedule.',
+        icon: 'clock',
+      },
+      {
+        title: 'Meeting Creation',
+        description:
+          'Create meetings with attendees, times, and project links from the Schedule phase.',
+        icon: 'plus-circle',
+      },
+      {
+        title: 'Linked Projects',
+        description:
+          'Attach projects when scheduling so meeting context is ready before the call.',
+        icon: 'folder',
+      },
+      {
+        title: 'Schedule Phase',
+        description:
+          'Dedicated Schedule phase keeps meeting planning separate from build and run work.',
         icon: 'layout',
       },
       {
-        title: 'Scheduling Calendar Bar',
+        title: 'Agenda Handoff',
         description:
-          'Quick-access calendar bar for at-a-glance scheduling without leaving your workspace.',
-        icon: 'sidebar',
+          'Open the meeting popout from scheduled events for insights and join links.',
+        icon: 'maximize',
       },
     ],
   },

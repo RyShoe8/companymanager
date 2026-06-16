@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { StructuredData } from '@/components/StructuredData';
 import AnimateIn from '@/components/home/AnimateIn';
 import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
-import ToolsScreenshot from '@/components/marketing/screenshots/ToolsScreenshot';
+import ToolsCaptureScreenshot from '@/components/marketing/screenshots/ToolsCaptureScreenshot';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
@@ -16,12 +16,10 @@ export const metadata = {
 };
 
 const FEATURES = [
-  { title: 'Screenshot Capture', desc: 'Capture screenshots directly within Nucleas. No third-party tools needed — capture, annotate, and save in one workflow.' },
-  { title: 'Screenshot Gallery', desc: 'View, organize, and manage all captured screenshots. Browse by project, search by name, and link screenshots to tasks and content.' },
-  { title: 'Recording Capture', desc: 'Record your screen and audio directly inside Nucleas. Create walkthroughs, bug reports, and training videos without leaving the platform.' },
-  { title: 'Recording Management', desc: 'Save, organize, name, and access all your recordings. Link recordings to specific projects, tasks, and content items.' },
-  { title: 'Asset Linking', desc: 'Link any asset — screenshots, recordings, documents — to projects, tasks, and content items. Build a web of connected resources.' },
-  { title: 'Smart Buttons', desc: 'One-click launch buttons for hosting, analytics, design tools, documentation, billing, and marketing platforms. Every project gets its own control panel.' },
+  { title: 'Screenshot Capture', desc: 'Capture full windows or select a region directly in Nucleas. Save to your machine or attach captures to projects without switching apps.' },
+  { title: 'Area Selection', desc: 'Draw a custom region when you only need part of the screen — perfect for UI reviews, bug reports, and quick share-outs.' },
+  { title: 'Screen Recording', desc: 'Record your screen with system or microphone audio. Create walkthroughs, demos, and training videos inside the platform.' },
+  { title: 'Recording Controls', desc: 'Arm, stabilize, and record with clear on-screen controls. Upload existing video files when capture is not available on your device.' },
 ];
 
 export default function ToolsFeaturePage() {
@@ -31,7 +29,7 @@ export default function ToolsFeaturePage() {
       <StructuredData type="BreadcrumbList" data={{ itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl }, { '@type': 'ListItem', position: 2, name: 'Features', item: `${baseUrl}/features` }, { '@type': 'ListItem', position: 3, name: 'Tools', item: `${baseUrl}/features/tools` }] }} />
       <div className="min-h-screen bg-background">
         <section className="relative overflow-hidden px-4 sm:px-6 lg:px-8 py-20 md:py-28"><div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" /><div className="relative max-w-4xl mx-auto text-center"><AnimateIn><span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-sm font-medium text-accent mb-6">Nucleas OS</span><h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-text-primary tracking-tight mb-6">Your built-in{' '}<span className="bg-gradient-to-r from-accent to-nucleas-fourth bg-clip-text text-transparent">operating system</span></h1><p className="text-lg text-text-secondary max-w-2xl mx-auto">Screenshots, recordings, smart buttons, and asset management — all built in. No more switching between apps to capture, record, and organize.</p></AnimateIn></div></section>
-        <section className="px-4 sm:px-6 lg:px-8 pb-16"><AnimateIn><MarketingScreenshotFrame glow="mixed" alt="Nucleas built-in tools including screenshot capture, recordings, and smart buttons"><ToolsScreenshot /></MarketingScreenshotFrame></AnimateIn></section>
+        <section className="px-4 sm:px-6 lg:px-8 pb-16"><AnimateIn><MarketingScreenshotFrame glow="mixed" className="max-w-5xl" alt="Nucleas built-in screenshot capture and screen recording tools"><ToolsCaptureScreenshot /></MarketingScreenshotFrame></AnimateIn></section>
         <section className="px-4 sm:px-6 lg:px-8 py-20"><div className="max-w-6xl mx-auto"><AnimateIn><div className="text-center mb-16"><h2 className="text-3xl sm:text-4xl font-bold text-text-primary">Built-in <span className="text-accent">tools</span> for every workflow</h2></div></AnimateIn><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{FEATURES.map((f) => (<AnimateIn key={f.title}><div className="bg-background-card border border-border rounded-2xl p-6 hover:border-accent/30 transition-all duration-300 hover:translate-y-[-2px] h-full"><h3 className="text-base font-semibold text-text-primary mb-2">{f.title}</h3><p className="text-sm text-text-secondary leading-relaxed">{f.desc}</p></div></AnimateIn>))}</div></div></section>
         <section className="px-4 sm:px-6 lg:px-8 py-20 bg-background-card/50"><div className="max-w-4xl mx-auto"><AnimateIn><div className="flex flex-col md:flex-row gap-8 items-center"><div className="flex-shrink-0 w-20 h-20 rounded-2xl bg-gradient-to-br from-accent to-nucleas-fourth flex items-center justify-center text-3xl">⚡</div><div><h2 className="text-2xl font-bold text-text-primary mb-3">Smart Buttons</h2><p className="text-text-secondary leading-relaxed">Every project in Nucleas gets customizable action buttons for hosting panels, analytics dashboards, design tools, documentation, billing portals, and marketing platforms. One click launches the exact tool you need — no more hunting through bookmarks, browser tabs, or password managers. Your entire tool stack, organized by project.</p></div></div></AnimateIn></div></section>
         <section className="px-4 sm:px-6 lg:px-8 py-16"><div className="max-w-3xl mx-auto flex flex-wrap justify-center gap-4"><Link href="/features/projects" className="px-6 py-3 rounded-xl border border-border text-text-secondary hover:text-primary hover:border-primary/30 transition-all text-sm font-medium">Explore Projects →</Link><Link href="/features/efficiency" className="px-6 py-3 rounded-xl border border-border text-text-secondary hover:text-primary hover:border-primary/30 transition-all text-sm font-medium">Explore Efficiency →</Link></div></section>

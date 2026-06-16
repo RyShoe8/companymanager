@@ -14,9 +14,8 @@ export default function TeamScreenshot() {
   const projects = marketingActiveProjects();
 
   return (
-    <MarketingPreviewShell phase="Build" lens="capacity" timeframe="weekly" showLensRow={false}>
-      <div className="max-w-4xl mx-auto">
-        <EmployeeSidebar
+    <MarketingPreviewShell phase="Build" lens="capacity" timeframe="weekly" showLensRow minHeight="min-h-[400px]">
+      <EmployeeSidebar
           employees={MARKETING_EMPLOYEES}
           projects={projects}
           allProjects={projects}
@@ -27,7 +26,6 @@ export default function TeamScreenshot() {
           currentUserRole="Administrator"
           currentUserEmployeeId={MARKETING_EMPLOYEES[0]._id.toString()}
         />
-      </div>
     </MarketingPreviewShell>
   );
 }

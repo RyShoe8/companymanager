@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { MarketingTrialCta } from '@/components/marketing/MarketingTrialCta';
 import { StructuredData } from '@/components/StructuredData';
 import AnimateIn from '@/components/home/AnimateIn';
+import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
+import TasksScreenshot from '@/components/marketing/screenshots/TasksScreenshot';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
@@ -39,6 +41,13 @@ export default function TasksFeaturePage() {
               <p className="text-lg text-text-secondary max-w-2xl mx-auto">Define detailed tasks with status tracking, recurrence, linked assets, and team assignments. Manage everything inline within your projects.</p>
             </AnimateIn>
           </div>
+        </section>
+        <section className="px-4 sm:px-6 lg:px-8 pb-16">
+          <AnimateIn>
+            <MarketingScreenshotFrame alt="Nucleas task management with inline project tasks and assignments">
+              <TasksScreenshot />
+            </MarketingScreenshotFrame>
+          </AnimateIn>
         </section>
         <section className="px-4 sm:px-6 lg:px-8 py-20"><div className="max-w-6xl mx-auto"><AnimateIn><div className="text-center mb-16"><h2 className="text-3xl sm:text-4xl font-bold text-text-primary">Powerful <span className="text-primary">task management</span></h2></div></AnimateIn><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{FEATURES.map((f) => (<AnimateIn key={f.title}><div className="bg-background-card border border-border rounded-2xl p-6 hover:border-primary/30 transition-all duration-300 hover:translate-y-[-2px] h-full"><h3 className="text-base font-semibold text-text-primary mb-2">{f.title}</h3><p className="text-sm text-text-secondary leading-relaxed">{f.desc}</p></div></AnimateIn>))}</div></div></section>
         <section className="px-4 sm:px-6 lg:px-8 py-20 bg-background-card/50"><div className="max-w-4xl mx-auto"><AnimateIn><div className="flex flex-col md:flex-row gap-8 items-center"><div className="flex-shrink-0 w-20 h-20 rounded-2xl bg-gradient-to-br from-accent to-nucleas-fourth flex items-center justify-center text-3xl">🔄</div><div><h2 className="text-2xl font-bold text-text-primary mb-3">Task Recurrence</h2><p className="text-text-secondary leading-relaxed">Some work happens on a schedule. Set up recurring tasks for weekly reports, monthly reviews, daily standups, or any custom cadence. Nucleas automatically creates task instances so nothing falls through the cracks. Track completion history and adjust schedules as your workflow evolves.</p></div></div></AnimateIn></div></section>

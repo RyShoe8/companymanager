@@ -27,7 +27,8 @@ const CATEGORIES = [
   { title: 'Projects', desc: 'Manage projects end-to-end with tasks, timelines, team assignments, and AI-powered time estimation.', href: '/features/projects', icon: '📁' },
   { title: 'Tasks', desc: 'Break down projects into clear tasks with status tracking, recurrence, linked assets, and time estimation.', href: '/features/tasks', icon: '✅' },
   { title: 'Content', desc: 'Plan, schedule, and distribute content across channels with targeting, assets, and team coordination.', href: '/features/content', icon: '📝' },
-  { title: 'Meetings', desc: 'Schedule meetings with full project context, agendas, availability, and one-click video join.', href: '/features/meetings', icon: '📹' },
+  { title: 'Meetings', desc: 'Walk into calls with project context, agendas, insights, and one-click join.', href: '/features/meetings', icon: '📹' },
+  { title: 'Scheduling', desc: 'Plan meetings on a workspace calendar with team availability and linked projects.', href: '/features/scheduling', icon: '📅' },
   { title: 'Tools', desc: 'Built-in screenshot capture, screen recording, smart buttons, and centralized asset management.', href: '/features/tools', icon: '⚡' },
   { title: 'Team', desc: 'Track capacity, workload, assignments, and roles. See how every project impacts your team.', href: '/features/team', icon: '👥' },
   { title: 'Efficiency & Organization', desc: 'Smart shortcuts, quick forms, lens views, organization branding, and collaboration features.', href: '/features/efficiency', icon: '🚀' },
@@ -52,7 +53,7 @@ export default function FeaturesPage() {
                 <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">run your business</span>
               </h1>
               <p className="text-lg text-text-secondary max-w-2xl mx-auto mb-10">
-                Seven integrated modules that work together as one operating system. Not another project manager — the business management layer.
+                Eight integrated modules that work together as one operating system. Not another project manager — the business management layer.
               </p>
             </AnimateIn>
           </div>

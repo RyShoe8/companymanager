@@ -8,6 +8,7 @@ const featureLinks = [
   { href: '/features/tasks', label: 'Tasks' },
   { href: '/features/content', label: 'Content' },
   { href: '/features/meetings', label: 'Meetings' },
+  { href: '/features/scheduling', label: 'Scheduling' },
   { href: '/features/tools', label: 'Tools' },
   { href: '/features/team', label: 'Team' },
   { href: '/features/efficiency', label: 'Efficiency' },

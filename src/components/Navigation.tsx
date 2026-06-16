@@ -90,6 +90,7 @@ function FeaturesDropdown({ onNavigate }: { onNavigate?: () => void }) {
     { href: '/features/tasks', label: 'Tasks', desc: 'Break down and track work' },
     { href: '/features/content', label: 'Content', desc: 'Plan and schedule content' },
     { href: '/features/meetings', label: 'Meetings', desc: 'Run prepared meetings' },
+    { href: '/features/scheduling', label: 'Scheduling', desc: 'Workspace calendar' },
     { href: '/features/tools', label: 'Tools', desc: 'Screenshots, recordings & more' },
     { href: '/features/team', label: 'Team', desc: 'Capacity and utilization' },
     { href: '/features/efficiency', label: 'Efficiency', desc: 'Work smarter, not harder' },
