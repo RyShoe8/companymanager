@@ -1,10 +1,20 @@
 [
+  "angular",
   "aws",
+  "braintree",
+  "denodeploy",
+  "django",
   "elasticsearch",
   "express",
   "flyio",
   "heroku",
+  "nextjs",
   "paypal",
+  "planetscale",
+  "railway",
   "razorpay",
-  "sqlite"
+  "remix",
+  "sqlite",
+  "square",
+  "vercel"
 ]

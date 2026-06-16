@@ -6,10 +6,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchColoredIcon, isDarkBrandHex } from './lib/simpleIconColorize.mjs';
+import { loadCustomIcon } from './lib/loadCustomIcon.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const outDir = join(root, 'public', 'icons', 'tech-stack');
+const customDir = join(root, 'scripts', 'icons', 'custom', 'tech-stack');
 
 /** id -> simple-icons slug (must match catalog.ts) */
 const ICONS = {
@@ -81,11 +83,25 @@ const darkIds = [];
 
 for (const [id, slug] of Object.entries(ICONS)) {
   try {
-    const result = await fetchColoredIcon(slug, SLUG_OVERRIDES);
-    if (!result) throw new Error('not found in any version');
-    await writeFile(join(outDir, `${id}.svg`), result.svg, 'utf8');
-    if (isDarkBrandHex(result.hex)) darkIds.push(id);
-    console.log(`OK  ${id}`);
+    let svg = null;
+    let brandHex = null;
+    let source = 'icon';
+
+    const custom = await loadCustomIcon(customDir, id);
+    if (custom) {
+      svg = custom.svg;
+      brandHex = custom.hex;
+      source = 'custom';
+    } else {
+      const result = await fetchColoredIcon(slug, SLUG_OVERRIDES);
+      if (!result) throw new Error('not found in any version');
+      svg = result.svg;
+      brandHex = result.hex;
+    }
+
+    await writeFile(join(outDir, `${id}.svg`), svg, 'utf8');
+    if (brandHex && isDarkBrandHex(brandHex)) darkIds.push(id);
+    console.log(`${source === 'custom' ? 'CUS' : 'OK '} ${id}`);
     ok++;
   } catch (err) {
     console.error(`FAIL ${id} (${slug}): ${err.message}`);

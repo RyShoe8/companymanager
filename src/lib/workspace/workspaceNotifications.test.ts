@@ -8,11 +8,13 @@ import {
   projectFieldsChanged,
   resolveContentRecipientEmployeeIds,
   resolveProjectRecipientEmployeeIds,
+  resolveTaskCommentRecipientEmployeeIds,
   resolveTaskRecipientEmployeeIds,
   resolveTaskStatusNotificationEmployeeIds,
   taskChanged,
 } from '@/lib/workspace/workspaceNotifications';
 import type { WorkspaceDigestInterval } from '@/lib/workspace/notificationTypes';
+import { eventTypeLabel } from '@/lib/services/workspaceDigestEmail';
 
 describe('workspaceNotifications', () => {
   it('resolves task recipients from assignee ids', () => {
@@ -90,6 +92,57 @@ describe('workspaceNotifications', () => {
     expect(
       buildWorkspaceDeepLink({ baseUrl: 'https://nucleas.app', projectId: 'p1', taskId: 't1' })
     ).toBe('https://nucleas.app/workspace?project=p1&task=t1');
+  });
+
+  it('resolves task comment recipients as assignees plus managers on team', () => {
+    const employeesById = new Map([
+      ['mgr-1', { role: 'Manager' as const }],
+      ['usr-1', { role: 'User' as const }],
+      ['usr-2', { role: 'User' as const }],
+    ]);
+    const recipients = resolveTaskCommentRecipientEmployeeIds(
+      { assignedToEmployeeIds: ['usr-2'] },
+      { assignedToEmployeeIds: ['mgr-1', 'usr-1', 'usr-2'] },
+      employeesById
+    );
+    expect(recipients.sort()).toEqual(['mgr-1', 'usr-2']);
+  });
+
+  it('builds digest rows for comment events with deep links', () => {
+    const taskRow = eventToDigestRow(
+      {
+        eventType: 'task_comment',
+        projectId: 'p1',
+        projectName: 'Project One',
+        entityKind: 'task',
+        entityId: 't1',
+        entityLabel: 'Task A',
+        changeLabel: 'New comment: Looks good',
+      },
+      'https://nucleas.app'
+    );
+    expect(taskRow.href).toBe('https://nucleas.app/workspace?project=p1&task=t1');
+
+    const contentRow = eventToDigestRow(
+      {
+        eventType: 'content_comment',
+        projectId: 'p1',
+        projectName: 'Project One',
+        entityKind: 'content',
+        entityId: 'c1',
+        entityLabel: 'Blog post',
+        changeLabel: 'New comment',
+      },
+      'https://nucleas.app'
+    );
+    expect(contentRow.href).toBe('https://nucleas.app/workspace?project=p1&content=c1');
+  });
+
+  it('labels comment events in digest emails', () => {
+    expect(eventTypeLabel('task_comment')).toBe('Comment');
+    expect(eventTypeLabel('content_comment')).toBe('Comment');
+    expect(eventTypeLabel('task_new')).toBe('New');
+    expect(eventTypeLabel('task_update')).toBe('Update');
   });
 
   it('groups digest rows by project', () => {

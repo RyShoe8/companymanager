@@ -11,6 +11,7 @@
     "seed:insights": "tsx scripts/seed-insight-vendors.ts",
     "icons:tech": "node scripts/fetch-tech-stack-icons.mjs",
     "icons:marketing": "node scripts/fetch-marketing-stack-icons.mjs",
+    "icons:generate-custom": "node scripts/generate-custom-stack-icons.mjs",
     "postinstall": "node scripts/copy-ffmpeg-core.mjs"
   },
   "dependencies": {

@@ -11,10 +11,12 @@ import {
   isDarkBrandHex,
   normalizeHex,
 } from './lib/simpleIconColorize.mjs';
+import { loadCustomIcon } from './lib/loadCustomIcon.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const outDir = join(root, 'public', 'icons', 'marketing-stack');
+const customDir = join(root, 'scripts', 'icons', 'custom', 'marketing-stack');
 
 const ICONS = {
   brevo: 'brevo',
@@ -29,7 +31,7 @@ const ICONS = {
   beehiiv: 'beehiiv',
   googleanalytics: 'googleanalytics',
   posthog: 'posthog',
-  clarity: 'microsoft',
+  clarity: 'microsoftclarity',
   mixpanel: 'mixpanel',
   amplitude: 'amplitude',
   heap: 'heap',
@@ -57,7 +59,11 @@ const ICONS = {
   intercom: 'intercom',
   zendesk: 'zendesk',
   close: 'close',
+  tailnote: 'tailnote',
 };
+
+/** IDs that use custom SVG only (no Simple Icons slug). */
+const CUSTOM_ONLY = new Set(['tailnote']);
 
 /** Lettermark fallbacks when Simple Icons has no asset */
 const FALLBACKS = {
@@ -89,6 +95,8 @@ const FALLBACKS = {
 
 const SLUG_OVERRIDES = {
   plausible: ['plausibleanalytics', 'plausible'],
+  clarity: ['microsoftclarity', 'clarity'],
+  tailnote: ['tailnote'],
 };
 
 function lettermarkSvg(id) {
@@ -119,14 +127,24 @@ for (const [id, slug] of Object.entries(ICONS)) {
     let brandHex = null;
     let source = 'icon';
 
-    const colored = await fetchColoredIcon(slug, SLUG_OVERRIDES);
-    if (colored) {
-      svg = colored.svg;
-      brandHex = colored.hex;
+    const custom = await loadCustomIcon(customDir, id);
+    if (custom) {
+      svg = custom.svg;
+      brandHex = custom.hex;
+      source = 'custom';
     } else {
-      svg = lettermarkSvg(id);
-      brandHex = fallbackBrandHex(id);
-      source = 'fallback';
+      if (CUSTOM_ONLY.has(id)) {
+        throw new Error('custom only — run npm run icons:generate-custom');
+      }
+      const colored = await fetchColoredIcon(slug, SLUG_OVERRIDES);
+      if (colored) {
+        svg = colored.svg;
+        brandHex = colored.hex;
+      } else {
+        svg = lettermarkSvg(id);
+        brandHex = fallbackBrandHex(id);
+        source = 'fallback';
+      }
     }
 
     if (!svg) throw new Error('not found');
@@ -134,9 +152,10 @@ for (const [id, slug] of Object.entries(ICONS)) {
     await writeFile(join(outDir, `${id}.svg`), svg, 'utf8');
     if (brandHex && isDarkBrandHex(brandHex)) darkIds.push(id);
 
-    console.log(`${source === 'icon' ? 'OK ' : 'FB '} ${id}`);
+    console.log(`${source === 'custom' ? 'CUS' : source === 'icon' ? 'OK ' : 'FB '} ${id}`);
     if (source === 'icon') ok++;
-    else fallback++;
+    else if (source === 'fallback') fallback++;
+    else ok++;
   } catch (err) {
     console.error(`FAIL ${id} (${slug}): ${err.message}`);
     fail++;

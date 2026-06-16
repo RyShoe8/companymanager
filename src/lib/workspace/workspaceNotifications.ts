@@ -403,6 +403,107 @@ export async function notifyProjectChange(options: {
   });
 }
 
+export function resolveTaskCommentRecipientEmployeeIds(
+  task: TaskLike,
+  project: ProjectLike,
+  employeesById: Map<string, Pick<IEmployee, 'role'>>
+): string[] {
+  return resolveTaskStatusNotificationEmployeeIds(task, project, employeesById);
+}
+
+function truncateCommentPreview(content: string, maxLen = 80): string {
+  const trimmed = content.trim().replace(/\s+/g, ' ');
+  if (trimmed.length <= maxLen) return trimmed;
+  return `${trimmed.slice(0, maxLen - 1)}…`;
+}
+
+export async function notifyComment(options: {
+  entityType: 'projectTask' | 'contentItem' | 'project';
+  entityId: string;
+  taskId?: string | null;
+  commentContent: string;
+  actorUserId: string;
+  organizationId: string;
+}): Promise<void> {
+  if (options.entityType === 'project') return;
+
+  await connectDB();
+
+  const actorEmployee = await Employee.findOne({
+    userId: options.actorUserId,
+    organizationId: options.organizationId,
+  })
+    .select('_id')
+    .lean();
+  const actorEmployeeId = actorEmployee?._id?.toString() ?? null;
+
+  const commentPreview = truncateCommentPreview(options.commentContent);
+  const changeLabel = commentPreview ? `New comment: ${commentPreview}` : 'New comment';
+
+  if (options.entityType === 'contentItem') {
+    const ContentItem = (await import('@/lib/models/ContentItem')).default;
+    const Project = (await import('@/lib/models/Project')).default;
+
+    const content = await ContentItem.findById(options.entityId).lean();
+    if (!content?.projectId) return;
+
+    const project = await Project.findById(content.projectId).select('_id name').lean();
+    if (!project?.name) return;
+
+    const projectId = project._id.toString();
+    const contentId = content._id.toString();
+
+    await enqueueForEmployeeIds({
+      employeeIds: resolveContentRecipientEmployeeIds(content),
+      actorUserId: options.actorUserId,
+      actorEmployeeId,
+      organizationId: options.organizationId,
+      eventType: 'content_comment',
+      projectId,
+      projectName: project.name,
+      entityKind: 'content',
+      entityId: contentId,
+      entityLabel: content.title?.trim() || 'Untitled content',
+      changeLabel,
+    });
+    return;
+  }
+
+  // projectTask: entityId is the project ID
+  const Project = (await import('@/lib/models/Project')).default;
+  const project = await Project.findById(options.entityId).lean();
+  if (!project?.name) return;
+
+  const projectId = project._id.toString();
+  const taskId = normalizeId(options.taskId);
+  if (!taskId) return;
+
+  const tasks = (project.tasks ?? []) as TaskLike[];
+  const taskIndex = tasks.findIndex((t) => normalizeId(t._id) === taskId);
+  const task = taskIndex >= 0 ? tasks[taskIndex] : null;
+  if (!task) return;
+
+  const teamIds = [...getProjectTeamEmployeeIds(project)];
+  const employees = await Employee.find({ _id: { $in: teamIds } });
+  const employeesById = new Map(employees.map((e) => [e._id.toString(), e]));
+  const recipients = resolveTaskCommentRecipientEmployeeIds(task, project, employeesById);
+
+  await enqueueForEmployeeIds({
+    employeeIds: recipients,
+    actorUserId: options.actorUserId,
+    actorEmployeeId,
+    organizationId: options.organizationId,
+    eventType: 'task_comment',
+    projectId,
+    projectName: project.name,
+    entityKind: 'task',
+    entityId: taskId,
+    entityLabel: task.name?.trim() || 'Untitled task',
+    taskIndex: taskIndex >= 0 ? taskIndex : undefined,
+    changeLabel,
+  });
+}
+
 export async function notifyProjectPutChanges(options: {
   beforeProject: ProjectLike & { tasks?: TaskLike[] };
   afterProject: ProjectLike & { tasks?: TaskLike[] };

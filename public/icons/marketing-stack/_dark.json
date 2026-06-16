@@ -1,4 +1,8 @@
 [
   "amplitude",
+  "buffer",
+  "close",
+  "later",
+  "posthog",
   "zendesk"
 ]

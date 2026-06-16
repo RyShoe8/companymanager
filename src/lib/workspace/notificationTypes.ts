@@ -14,8 +14,10 @@ export type WorkspaceDigestInterval = (typeof WORKSPACE_DIGEST_INTERVALS)[number
 export const WORKSPACE_NOTIFICATION_EVENT_TYPES = [
   'task_new',
   'task_update',
+  'task_comment',
   'content_new',
   'content_update',
+  'content_comment',
   'project_new',
   'project_update',
 ] as const;

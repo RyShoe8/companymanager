@@ -25,7 +25,7 @@ export const MARKETING_STACK_CATALOG: MarketingStackCatalogEntry[] = [
   // Analytics
   { id: 'googleanalytics', name: 'Google Analytics', category: 'analytics', homepageUrl: 'https://analytics.google.com', simpleIconSlug: 'googleanalytics' },
   { id: 'posthog', name: 'PostHog', category: 'analytics', homepageUrl: 'https://posthog.com', simpleIconSlug: 'posthog' },
-  { id: 'clarity', name: 'Microsoft Clarity', category: 'analytics', homepageUrl: 'https://clarity.microsoft.com', simpleIconSlug: 'microsoft' },
+  { id: 'clarity', name: 'Microsoft Clarity', category: 'analytics', homepageUrl: 'https://clarity.microsoft.com', simpleIconSlug: 'microsoftclarity' },
   { id: 'mixpanel', name: 'Mixpanel', category: 'analytics', homepageUrl: 'https://mixpanel.com', simpleIconSlug: 'mixpanel' },
   { id: 'amplitude', name: 'Amplitude', category: 'analytics', homepageUrl: 'https://amplitude.com', simpleIconSlug: 'amplitude' },
   { id: 'heap', name: 'Heap', category: 'analytics', homepageUrl: 'https://heap.io', simpleIconSlug: 'heap' },

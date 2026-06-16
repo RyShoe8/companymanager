@@ -157,6 +157,19 @@ export async function POST(request: NextRequest) {
       await touchProjectActivity(projectId);
     }
 
+    if (entityType === 'projectTask' || entityType === 'contentItem') {
+      void import('@/lib/workspace/workspaceNotifications').then(({ notifyComment }) => {
+        void notifyComment({
+          entityType,
+          entityId,
+          taskId: commentData.taskId?.toString() ?? taskId ?? null,
+          commentContent: content,
+          actorUserId: session.userId,
+          organizationId: user.organizationId!,
+        }).catch((err) => console.error('[workspaceNotifications] comment', err));
+      });
+    }
+
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {
     // Create comment error

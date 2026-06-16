@@ -4,7 +4,8 @@ import { groupDigestRowsByProject } from '@/lib/workspace/workspaceNotifications
 
 const LOGO_URL = 'https://nucleas.app/images/nucleas-logo.png';
 
-function eventTypeLabel(eventType: DigestEventRow['eventType']): string {
+export function eventTypeLabel(eventType: DigestEventRow['eventType']): string {
+  if (eventType.endsWith('_comment')) return 'Comment';
   if (eventType.endsWith('_new')) return 'New';
   return 'Update';
 }

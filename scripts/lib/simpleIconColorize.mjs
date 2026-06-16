@@ -134,3 +134,9 @@ export async function getBrandHex(slug, slugOverrides = {}) {
   }
   return map.get(slug) ?? null;
 }
+
+/** Extract the first hex fill from an SVG (for custom overrides). */
+export function extractDominantFill(svg) {
+  const match = svg.match(/\bfill\s*=\s*["']#([0-9A-Fa-f]{6})["']/i);
+  return match ? match[1].toUpperCase() : null;
+}
