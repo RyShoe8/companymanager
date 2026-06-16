@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import OrganizationSetupCheck from "@/components/OrganizationSetupCheck";
 import MobileBottomNav from "@/components/ui/MobileBottomNav";
 import { StructuredData } from "@/components/StructuredData";
+import PostHogProvider from "@/components/analytics/PostHogProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -137,20 +138,22 @@ export default async function RootLayout({
             />
           </>
         )}
-        <OrganizationSetupCheck>
-          {isBareShell ? (
-            children
-          ) : (
-            <>
-              <Navigation />
-              <main className="flex-1 pb-16 md:pb-0">
-                {children}
-              </main>
-              <Footer />
-              <MobileBottomNav />
-            </>
-          )}
-        </OrganizationSetupCheck>
+        <PostHogProvider>
+          <OrganizationSetupCheck>
+            {isBareShell ? (
+              children
+            ) : (
+              <>
+                <Navigation />
+                <main className="flex-1 pb-16 md:pb-0">
+                  {children}
+                </main>
+                <Footer />
+                <MobileBottomNav />
+              </>
+            )}
+          </OrganizationSetupCheck>
+        </PostHogProvider>
       </body>
     </html>
   );
