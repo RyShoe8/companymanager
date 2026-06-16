@@ -1316,6 +1316,7 @@ export default function CalendarView({
                         const showEmptyWeekSummary =
                           !isExpanded &&
                           !summary.showWeekMetrics &&
+                          showTasks &&
                           (project.tasks?.length ?? 0) > 0;
                         const unseenItems = !isExpanded
                           ? filterUnseenItems(project, summary.displayList)
@@ -1353,19 +1354,6 @@ export default function CalendarView({
                                 {showEmptyWeekSummary ? (
                                   <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
                                     <span>No tasks this week</span>
-                                    <span className="mx-1.5 opacity-60" aria-hidden>
-                                      ·
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                      }}
-                                      className="underline hover:opacity-100 opacity-90"
-                                    >
-                                      View all
-                                    </button>
                                   </p>
                                 ) : null}
                               </div>
@@ -1401,6 +1389,7 @@ export default function CalendarView({
                       {(() => {
                         const project = pos.project!;
                         const hasTasks = (project.tasks?.length ?? 0) > 0;
+                        const headerTextClass = getProjectCardHeaderTextClass(displayColor);
 
                         if (!isExpanded) return null;
 
@@ -1422,25 +1411,14 @@ export default function CalendarView({
                               <p className="text-white opacity-90 mb-3 mt-3 px-6 shrink-0">{project.description}</p>
                             )}
 
-                            {visibleTasks.length === 0 && hasTasks && project.tasks!.length > 0 ? (
-                              <div className="mt-4 px-6 pb-6 shrink-0">
-                                <p className="text-sm font-semibold text-text-primary mb-2">Tasks:</p>
-                                <p className="text-sm text-text-secondary mb-2">No tasks scheduled this week.</p>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                  }}
-                                  className="text-sm text-primary hover:underline"
-                                >
-                                  View all
-                                </button>
-                              </div>
-                            ) : weekSummary.displayList.length > 0 ? (
+                            {weekSummary.displayList.length > 0 ? (
                               <div className="mt-4 px-6 pb-6 flex flex-col flex-1 min-h-0">
-                                <p className="text-sm font-semibold text-text-primary mb-2 shrink-0">
-                                  {hasTasks ? 'Tasks:' : 'Tasks & Content:'}
+                                <p className={`text-sm font-semibold mb-2 shrink-0 ${headerTextClass}`}>
+                                  {weekSummary.displayList.some((i) => i.type === 'content')
+                                    ? weekSummary.displayList.some((i) => i.type === 'task')
+                                      ? 'Tasks & Content:'
+                                      : 'Content:'
+                                    : 'Tasks:'}
                                 </p>
                                 <div
                                   className="overflow-y-auto"
@@ -1452,6 +1430,16 @@ export default function CalendarView({
                                     `${projectId}-weekly`
                                   )}
                                 </div>
+                              </div>
+                            ) : showTasks &&
+                              visibleTasks.length === 0 &&
+                              hasTasks &&
+                              project.tasks!.length > 0 ? (
+                              <div className="mt-4 px-6 pb-6 shrink-0">
+                                <p className={`text-sm font-semibold mb-2 ${headerTextClass}`}>Tasks:</p>
+                                <p className={`text-sm mb-2 ${headerTextClass} opacity-90`}>
+                                  No tasks scheduled this week.
+                                </p>
                               </div>
                             ) : null}
                           </div>
@@ -1622,36 +1610,33 @@ export default function CalendarView({
                                 </p>
                               ) : null}
 
-                              {visibleTasks.length === 0 && hasTasks && project.tasks!.length > 0 ? (
-                                <div className="mb-2">
-                                  <p className="text-xs font-semibold text-text-primary mb-1">Tasks:</p>
-                                  <p className="text-xs text-text-secondary mb-1">
-                                    No tasks scheduled this week.
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setTimeframeModalOpen({ project, startDate: weekStart, endDate: weekEnd });
-                                    }}
-                                    className="text-xs text-primary hover:underline"
-                                  >
-                                    View all
-                                  </button>
-                                </div>
-                              ) : summary.displayList.length > 0 ? (
+                              {summary.displayList.length > 0 ? (
                                 <div
                                   className="overflow-y-auto"
                                   style={{ maxHeight: MONTHLY_EXPANDED_LIST_MAX_HEIGHT }}
                                 >
-                                  <p className="text-xs font-semibold text-text-primary mb-1">
-                                    {hasTasks ? 'Tasks:' : 'Tasks & Content:'}
+                                  <p className={`text-xs font-semibold mb-1 ${headerTextClass}`}>
+                                    {summary.displayList.some((i) => i.type === 'content')
+                                      ? summary.displayList.some((i) => i.type === 'task')
+                                        ? 'Tasks & Content:'
+                                        : 'Content:'
+                                      : 'Tasks:'}
                                   </p>
                                   {renderExpandedRangeItems(
                                     project,
                                     summary.displayList,
                                     `${projectId}-month-${weekIdx}`
                                   )}
+                                </div>
+                              ) : showTasks &&
+                                visibleTasks.length === 0 &&
+                                hasTasks &&
+                                project.tasks!.length > 0 ? (
+                                <div className="mb-2">
+                                  <p className={`text-xs font-semibold mb-1 ${headerTextClass}`}>Tasks:</p>
+                                  <p className={`text-xs mb-1 ${headerTextClass} opacity-90`}>
+                                    No tasks scheduled this week.
+                                  </p>
                                 </div>
                               ) : null}
                             </div>

@@ -7,6 +7,7 @@ import {
   PlatformOnboardingSettingsModel,
 } from '@/lib/models/PlatformOnboardingSettings';
 import OnboardingBookingModel from '@/lib/models/OnboardingBooking';
+import { getHostCalendarLinkStatuses } from '@/lib/onboarding/hostCalendarBusy';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,11 @@ export async function GET() {
     .limit(100)
     .lean();
 
-  return NextResponse.json({ settings, bookings });
+  const hostCalendarStatus = await getHostCalendarLinkStatuses(
+    settings.hosts.map((h) => ({ id: h.id, email: h.email }))
+  );
+
+  return NextResponse.json({ settings, bookings, hostCalendarStatus });
 }
 
 export async function PATCH(request: Request) {

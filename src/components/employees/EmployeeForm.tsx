@@ -103,18 +103,18 @@ export default function EmployeeForm({ employee, onSubmit, onCancel }: EmployeeF
         />
       </div>
       <Input
-        label="Email (for invitation - optional)"
+        label="Email (optional — sends an invite)"
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="employee@example.com"
       />
-      <div className="flex gap-2 justify-end">
+      <div className="flex flex-wrap gap-2 justify-end pt-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit">
-          {employee ? 'Update' : 'Create'} Employee
+          {employee ? 'Update Team Member' : 'Create Team Member'}
         </Button>
       </div>
     </form>

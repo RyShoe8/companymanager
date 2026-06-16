@@ -8,7 +8,61 @@ import {
   type PlatformOnboardingSettingsDoc,
 } from '@/lib/models/PlatformOnboardingSettings';
 import OnboardingBookingModel from '@/lib/models/OnboardingBooking';
-import { computeAvailableSlots } from '@/lib/onboarding/slotEngine';
+import { computeAvailableSlots, type OnboardingSettingsLike } from '@/lib/onboarding/slotEngine';
+import { getHostCalendarBusyBlocks } from '@/lib/onboarding/hostCalendarBusy';
+
+function settingsToSlotInput(
+  settings: PlatformOnboardingSettingsDoc
+): OnboardingSettingsLike {
+  return {
+    durationMinutes: settings.durationMinutes,
+    minAdvanceHours: settings.minAdvanceHours,
+    maxAdvanceDays: settings.maxAdvanceDays,
+    hosts: settings.hosts.map((h) => ({
+      id: h.id,
+      email: h.email,
+      name: h.name,
+      timezone: h.timezone,
+      slots: h.slots,
+      active: h.active,
+      lastAssignedAt: h.lastAssignedAt,
+    })),
+  };
+}
+
+export async function computeOnboardingAvailableSlots(
+  settings: PlatformOnboardingSettingsDoc,
+  now: Date = new Date()
+) {
+  const slotSettings = settingsToSlotInput(settings);
+  const rangeEnd = new Date(now.getTime() + settings.maxAdvanceDays * 24 * 60 * 60_000);
+
+  const [bookings, calendarBusy] = await Promise.all([
+    OnboardingBookingModel.find({
+      status: 'scheduled',
+      start: { $gte: now },
+    }).lean(),
+    getHostCalendarBusyBlocks(
+      settings.hosts
+        .filter((h) => h.active !== false)
+        .map((h) => ({ id: h.id, email: h.email })),
+      now,
+      rangeEnd
+    ),
+  ]);
+
+  const existing = [
+    ...bookings.map((b) => ({
+      hostId: b.hostId,
+      start: b.start,
+      end: b.end,
+      status: b.status,
+    })),
+    ...calendarBusy,
+  ];
+
+  return computeAvailableSlots(slotSettings, existing, now);
+}
 
 export type OnboardingEligibility =
   | {
@@ -70,33 +124,7 @@ export async function listOnboardingAvailability() {
   const gate = await requireOnboardingEligible();
   if (!gate.ok) return gate;
 
-  const bookings = await OnboardingBookingModel.find({
-    status: 'scheduled',
-    start: { $gte: new Date() },
-  }).lean();
-
-  const slots = computeAvailableSlots(
-    {
-      durationMinutes: gate.settings.durationMinutes,
-      minAdvanceHours: gate.settings.minAdvanceHours,
-      maxAdvanceDays: gate.settings.maxAdvanceDays,
-      hosts: gate.settings.hosts.map((h) => ({
-        id: h.id,
-        email: h.email,
-        name: h.name,
-        timezone: h.timezone,
-        slots: h.slots,
-        active: h.active,
-        lastAssignedAt: h.lastAssignedAt,
-      })),
-    },
-    bookings.map((b) => ({
-      hostId: b.hostId,
-      start: b.start,
-      end: b.end,
-      status: b.status,
-    }))
-  );
+  const slots = await computeOnboardingAvailableSlots(gate.settings);
 
   return { ok: true as const, slots };
 }

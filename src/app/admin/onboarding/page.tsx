@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import Select from '@/components/ui/Select';
+import { getTimezoneSelectOptions } from '@/lib/scheduling/timezoneOptions';
 
 type Slot = {
   dayOfWeek: number;
@@ -35,7 +37,26 @@ type Booking = {
   hostEmail: string;
 };
 
+type HostCalendarStatus = {
+  hostId: string;
+  email: string;
+  status: 'connected' | 'user_not_found' | 'calendar_not_connected';
+};
+
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function calendarStatusMessage(status: HostCalendarStatus['status']): string {
+  switch (status) {
+    case 'connected':
+      return 'Google Calendar connected — existing events block booking slots.';
+    case 'calendar_not_connected':
+      return 'This user exists in Nucleas but has not connected Google Calendar (Meetings → connect calendar).';
+    case 'user_not_found':
+      return 'No Nucleas account with this email — calendar busy times cannot be checked.';
+    default:
+      return '';
+  }
+}
 
 function newHost(): Host {
   return {
@@ -51,8 +72,10 @@ function newHost(): Host {
 export default function AdminOnboardingPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [hostCalendarStatus, setHostCalendarStatus] = useState<HostCalendarStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const defaultTimezoneOptions = useMemo(() => getTimezoneSelectOptions(), []);
 
   async function load() {
     const res = await fetch('/api/admin/onboarding');
@@ -63,6 +86,7 @@ export default function AdminOnboardingPage() {
     }
     setSettings(data.settings);
     setBookings(data.bookings ?? []);
+    setHostCalendarStatus(data.hostCalendarStatus ?? []);
   }
 
   useEffect(() => {
@@ -112,7 +136,8 @@ export default function AdminOnboardingPage() {
       <div>
         <h1 className="text-2xl font-semibold text-text-primary">Onboarding calls</h1>
         <p className="text-sm text-text-secondary mt-1">
-          Configure hosts, availability, and review upcoming bookings.
+          Configure hosts, availability, and review upcoming bookings. Hosts must use the same
+          email as their Nucleas account and connect Google Calendar to block busy times.
         </p>
       </div>
 
@@ -171,7 +196,14 @@ export default function AdminOnboardingPage() {
             Add host
           </Button>
         </div>
-        {settings.hosts.map((host, hostIndex) => (
+        {settings.hosts.map((host, hostIndex) => {
+          const calendarStatus = hostCalendarStatus.find((s) => s.hostId === host.id);
+          const timezoneOptions =
+            host.timezone && !defaultTimezoneOptions.some((o) => o.value === host.timezone)
+              ? getTimezoneSelectOptions(host.timezone)
+              : defaultTimezoneOptions;
+
+          return (
           <div key={host.id} className="rounded-lg border border-border p-4 space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <input
@@ -185,10 +217,11 @@ export default function AdminOnboardingPage() {
                     return { ...s, hosts };
                   })
                 }
-                className="rounded border border-border bg-background px-3 py-2 text-sm"
+                className="rounded border border-border bg-background-elevated px-3 py-2 text-sm text-text-primary"
               />
               <input
                 placeholder="Email"
+                type="email"
                 value={host.email}
                 onChange={(e) =>
                   setSettings((s) => {
@@ -198,22 +231,37 @@ export default function AdminOnboardingPage() {
                     return { ...s, hosts };
                   })
                 }
-                className="rounded border border-border bg-background px-3 py-2 text-sm"
+                className="rounded border border-border bg-background-elevated px-3 py-2 text-sm text-text-primary"
               />
-              <input
-                placeholder="Timezone (IANA)"
-                value={host.timezone}
-                onChange={(e) =>
-                  setSettings((s) => {
-                    if (!s) return s;
-                    const hosts = [...s.hosts];
-                    hosts[hostIndex] = { ...hosts[hostIndex], timezone: e.target.value };
-                    return { ...s, hosts };
-                  })
-                }
-                className="rounded border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
-              />
+              <div className="sm:col-span-2">
+                <Select
+                  label="Timezone"
+                  value={host.timezone}
+                  onChange={(e) =>
+                    setSettings((s) => {
+                      if (!s) return s;
+                      const hosts = [...s.hosts];
+                      hosts[hostIndex] = { ...hosts[hostIndex], timezone: e.target.value };
+                      return { ...s, hosts };
+                    })
+                  }
+                  options={timezoneOptions}
+                />
+              </div>
             </div>
+            {calendarStatus ? (
+              <p
+                className={`text-xs ${
+                  calendarStatus.status === 'connected'
+                    ? 'text-green-600'
+                    : calendarStatus.status === 'calendar_not_connected'
+                      ? 'text-amber-600'
+                      : 'text-text-muted'
+                }`}
+              >
+                {calendarStatusMessage(calendarStatus.status)}
+              </p>
+            ) : null}
             <label className="flex items-center gap-2 text-sm text-text-secondary">
               <input
                 type="checkbox"
@@ -319,7 +367,8 @@ export default function AdminOnboardingPage() {
               Add window
             </Button>
           </div>
-        ))}
+          );
+        })}
         <Button type="button" disabled={saving} onClick={() => void save()}>
           {saving ? 'Saving…' : 'Save settings'}
         </Button>

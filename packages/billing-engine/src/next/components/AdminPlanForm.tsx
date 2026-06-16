@@ -36,6 +36,29 @@ const empty = {
   onboardingCallsEnabled: false,
 };
 
+function intervalHelperText(interval: Interval): string {
+  switch (interval) {
+    case 'month':
+      return 'Set monthly prices below. Enable yearly pricing to show a month/year toggle on the public pricing page.';
+    case 'year':
+      return 'This plan bills yearly only. Choose Month above to offer both monthly and yearly on one plan.';
+    case 'lifetime':
+      return 'One-time purchase only. Choose Month to offer recurring monthly and optional yearly billing.';
+  }
+}
+
+function basePriceLabel(interval: Interval): string {
+  if (interval === 'month') return 'Monthly base (cents)';
+  if (interval === 'year') return 'Yearly base (cents)';
+  return 'One-time base (cents)';
+}
+
+function seatPriceLabel(interval: Interval): string {
+  if (interval === 'month') return 'Monthly seat (cents)';
+  if (interval === 'year') return 'Yearly seat (cents)';
+  return 'Additional user price (cents)';
+}
+
 export function AdminPlanForm({
   mode,
   planId,
@@ -133,7 +156,68 @@ export function AdminPlanForm({
               <option value="year">Year</option>
               <option value="lifetime">Lifetime</option>
             </select>
+            <p className="text-xs text-text-muted">{intervalHelperText(form.interval)}</p>
           </div>
+          {form.interval === 'month' ? (
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={form.yearlyOffer.enabled}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      yearlyOffer: { ...f.yearlyOffer, enabled: e.target.checked },
+                    }))
+                  }
+                />
+                Also offer yearly pricing
+              </label>
+              {form.yearlyOffer.enabled ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-text-secondary">Yearly pricing</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="yearBase">Yearly base (cents)</Label>
+                      <Input
+                        id="yearBase"
+                        type="number"
+                        min={0}
+                        value={form.yearlyOffer.basePriceCents}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            yearlyOffer: {
+                              ...f.yearlyOffer,
+                              basePriceCents: Number(e.target.value),
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="yearSeat">Yearly seat (cents)</Label>
+                      <Input
+                        id="yearSeat"
+                        type="number"
+                        min={0}
+                        value={form.yearlyOffer.additionalUserPriceCents}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            yearlyOffer: {
+                              ...f.yearlyOffer,
+                              additionalUserPriceCents: Number(e.target.value),
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="trialDays">Trial days</Label>
             <Input
@@ -155,91 +239,46 @@ export function AdminPlanForm({
               </p>
             ) : null}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="base">Base price (cents)</Label>
-            <Input
-              id="base"
-              type="number"
-              min={0}
-              value={form.basePriceCents}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setForm((f) => ({ ...f, basePriceCents: Number(e.target.value) }))
-              }
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="seat">Additional user price (cents)</Label>
-            <Input
-              id="seat"
-              type="number"
-              min={0}
-              value={form.additionalUserPriceCents}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setForm((f) => ({ ...f, additionalUserPriceCents: Number(e.target.value) }))
-              }
-            />
-            <p className="text-xs text-text-muted">
-              Set to 0 to disallow employees beyond included users (no seat add-ons).
-            </p>
-          </div>
-          {form.interval === 'month' ? (
-            <div className="space-y-3 rounded-md border border-border p-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={form.yearlyOffer.enabled}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      yearlyOffer: { ...f.yearlyOffer, enabled: e.target.checked },
-                    }))
-                  }
-                />
-                Also offer yearly pricing
-              </label>
-              {form.yearlyOffer.enabled ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="yearBase">Yearly base (cents)</Label>
-                    <Input
-                      id="yearBase"
-                      type="number"
-                      min={0}
-                      value={form.yearlyOffer.basePriceCents}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          yearlyOffer: {
-                            ...f.yearlyOffer,
-                            basePriceCents: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="yearSeat">Yearly seat (cents)</Label>
-                    <Input
-                      id="yearSeat"
-                      type="number"
-                      min={0}
-                      value={form.yearlyOffer.additionalUserPriceCents}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          yearlyOffer: {
-                            ...f.yearlyOffer,
-                            additionalUserPriceCents: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              ) : null}
+          <div
+            className={cn(
+              'space-y-3',
+              form.interval === 'month' && form.yearlyOffer.enabled
+                ? 'rounded-md border border-border p-3'
+                : ''
+            )}
+          >
+            {form.interval === 'month' && form.yearlyOffer.enabled ? (
+              <p className="text-xs font-medium text-text-secondary">Monthly pricing</p>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="base">{basePriceLabel(form.interval)}</Label>
+              <Input
+                id="base"
+                type="number"
+                min={0}
+                value={form.basePriceCents}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setForm((f) => ({ ...f, basePriceCents: Number(e.target.value) }))
+                }
+                required
+              />
             </div>
-          ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="seat">{seatPriceLabel(form.interval)}</Label>
+              <Input
+                id="seat"
+                type="number"
+                min={0}
+                value={form.additionalUserPriceCents}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setForm((f) => ({ ...f, additionalUserPriceCents: Number(e.target.value) }))
+                }
+              />
+              <p className="text-xs text-text-muted">
+                Set to 0 to disallow employees beyond included users (no seat add-ons).
+              </p>
+            </div>
+          </div>
           <label className="flex items-center gap-2 text-sm text-text-primary">
             <input
               type="checkbox"
