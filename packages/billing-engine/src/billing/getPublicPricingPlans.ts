@@ -1,6 +1,9 @@
 import { connectBillingDb } from '../context';
 import { SubscriptionPlanModel, type SubscriptionPlanDoc } from '../models/SubscriptionPlan';
 import { mapPlanDocToPublicPricing } from '../billing/mapPlanDocToPublicPricing';
+import type { PublicPricingPlan } from '../types/publicPricing';
+
+export type { PublicPricingPlan, PublicPricingYearlyOffer } from '../types/publicPricing';
 
 /** Legacy Tailnote seed slugs — never show on Nucleas public pricing. */
 export const LEGACY_PLACEHOLDER_SLUGS = ['basic', 'pro'] as const;
@@ -8,31 +11,6 @@ export const LEGACY_PLACEHOLDER_SLUGS = ['basic', 'pro'] as const;
 const legacyPlaceholderSlugSet = new Set<string>(LEGACY_PLACEHOLDER_SLUGS);
 
 /** Serializable plan row for marketing / pricing UI (latest version per slug). */
-export type PublicPricingYearlyOffer = {
-  enabled: boolean;
-  basePriceCents: number;
-  additionalUserPriceCents: number;
-};
-
-/** Serializable plan row for marketing / pricing UI (latest version per slug). */
-export type PublicPricingPlan = {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  badge: string;
-  interval: SubscriptionPlanDoc['interval'];
-  basePriceCents: number;
-  additionalUserPriceCents: number;
-  includedUsers: number;
-  version: number;
-  maxSubscriptionSlots: number;
-  subscriptionCount: number;
-  soldOut: boolean;
-  trialDays: number;
-  yearlyOffer: PublicPricingYearlyOffer | null;
-  onboardingCallsEnabled: boolean;
-};
 
 /**
  * Active, non-paused, non-archived plans for public pricing — one card per slug (highest version).

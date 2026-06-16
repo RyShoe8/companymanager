@@ -8,7 +8,7 @@ import EmployeeForm from '@/components/employees/EmployeeForm';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import type { EmployeeLimitInfo, PublicPricingPlan } from 'billing-engine';
+import type { EmployeeLimitInfo, PublicPricingPlan } from 'billing-engine/client';
 import { seatUsageLine } from '@/lib/billing/seatDisplay';
 
 type BillingSeatPayload = {

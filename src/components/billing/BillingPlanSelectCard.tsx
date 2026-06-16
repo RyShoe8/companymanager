@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { PricingPlanCard } from 'billing-engine/next/components';
-import type { PublicPricingPlan } from 'billing-engine';
+import type { PublicPricingPlan } from 'billing-engine/client';
 import Button from '@/components/ui/Button';
 
 type Props = {

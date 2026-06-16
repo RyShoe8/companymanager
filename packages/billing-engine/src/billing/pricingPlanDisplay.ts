@@ -1,4 +1,4 @@
-import type { PublicPricingPlan } from './getPublicPricingPlans';
+import type { PublicPricingPlan } from '../types/publicPricing';
 import { getBillingContext } from '../context';
 import { DEFAULT_PLAN_FEATURE_BULLETS } from './defaultPlanFeatureBullets';
 

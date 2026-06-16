@@ -11,7 +11,8 @@
     "./next/handlers": "./src/next/handlers/index.ts",
     "./next/components": "./src/next/components/index.ts",
     "./subscriptionAccess": "./src/billing/subscriptionAccess.ts",
-    "./pricing-display": "./src/billing/pricingPlanDisplay.ts"
+    "./pricing-display": "./src/billing/pricingPlanDisplay.ts",
+    "./client": "./src/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -1,5 +1,5 @@
 import type { SubscriptionPlanDoc } from '../models/SubscriptionPlan';
-import type { PublicPricingPlan } from '../billing/getPublicPricingPlans';
+import type { PublicPricingPlan } from '../types/publicPricing';
 import { getPlanSubscriptionCapUsage } from '../billing/planSubscriptionCap';
 
 export async function mapPlanDocToPublicPricing(

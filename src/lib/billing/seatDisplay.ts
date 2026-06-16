@@ -1,4 +1,4 @@
-import type { EmployeeLimitInfo, PublicPricingPlan } from 'billing-engine';
+import type { EmployeeLimitInfo, PublicPricingPlan } from 'billing-engine/client';
 import { formatUsd, intervalSuffix } from 'billing-engine/pricing-display';
 
 export function seatUsageLine(

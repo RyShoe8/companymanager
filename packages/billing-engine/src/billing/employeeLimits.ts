@@ -4,14 +4,9 @@ import { OrganizationSubscriptionModel } from '../models/OrganizationSubscriptio
 import { SubscriptionPlanModel, type SubscriptionPlanDoc } from '../models/SubscriptionPlan';
 import { isActiveSubscriptionStatus, isOrganizationPaid } from './subscriptionAccess';
 import { getBillingContext } from '../context';
+import type { EmployeeLimitInfo } from '../types/publicPricing';
 
-export type EmployeeLimitInfo = {
-  currentCount: number;
-  maxEmployees: number | null;
-  includedUsers: number | null;
-  canAddMore: boolean;
-  canAddBeyondIncluded: boolean;
-};
+export type { EmployeeLimitInfo } from '../types/publicPricing';
 
 export function getEffectiveSeatCount(employeeDocumentCount: number): number {
   return employeeDocumentCount;

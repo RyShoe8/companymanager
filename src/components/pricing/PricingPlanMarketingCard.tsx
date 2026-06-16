@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { PublicPricingPlan } from 'billing-engine';
+import type { PublicPricingPlan } from 'billing-engine/client';
 import { PricingPlanCard } from 'billing-engine/next/components';
 import Button from '@/components/ui/Button';
 

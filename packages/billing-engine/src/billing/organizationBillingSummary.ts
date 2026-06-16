@@ -1,4 +1,4 @@
-import type { PublicPricingPlan } from '../billing/getPublicPricingPlans';
+import type { PublicPricingPlan } from '../types/publicPricing';
 import type { EmployeeLimitInfo } from '../billing/employeeLimits';
 import { isActiveSubscriptionStatus, isOrganizationPaid } from '../billing/subscriptionAccess';
 

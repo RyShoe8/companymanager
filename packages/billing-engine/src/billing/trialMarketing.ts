@@ -1,4 +1,4 @@
-import type { PublicPricingPlan } from './getPublicPricingPlans';
+import type { PublicPricingPlan } from '../types/publicPricing';
 
 export function maxTrialDaysFromPlans(
   plans: Pick<PublicPricingPlan, 'trialDays' | 'interval'>[]

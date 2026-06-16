@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { PublicPricingPlan } from '../../billing/getPublicPricingPlans';
+import type { PublicPricingPlan } from '../../types/publicPricing';
 import {
   planHasYearlyToggle,
   primaryPriceLine,

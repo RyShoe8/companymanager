@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../ui/card';
-import type { PublicPricingPlan } from '../../billing/getPublicPricingPlans';
+import type { PublicPricingPlan } from '../../types/publicPricing';
 import {
   includedUsersSummary,
   isRecommendedPlan,

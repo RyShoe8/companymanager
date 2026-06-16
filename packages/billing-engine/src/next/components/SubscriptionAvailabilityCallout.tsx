@@ -1,4 +1,4 @@
-import type { PublicPricingPlan } from '../../billing/getPublicPricingPlans';
+import type { PublicPricingPlan } from '../../types/publicPricing';
 import { subscriptionCap } from '../../billing/pricingPlanDisplay';
 
 export function SubscriptionAvailabilityCallout({
