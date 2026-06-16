@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { StructuredData } from '@/components/StructuredData';
 import AnimateIn from '@/components/home/AnimateIn';
+import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
+import ProjectsScreenshot from '@/components/marketing/screenshots/ProjectsScreenshot';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
@@ -48,7 +50,11 @@ export default function ProjectsFeaturePage() {
 
         <section className="px-4 sm:px-6 lg:px-8 pb-16">
           <AnimateIn>
-            <div className="max-w-4xl mx-auto relative"><div className="absolute -inset-4 bg-gradient-to-r from-primary/20 via-accent/10 to-primary/20 rounded-2xl blur-xl opacity-40" /><div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl"><img src="/images/marketing/features-projects.png" alt="Nucleas project management interface with tasks, assignments, and timeline" className="w-full h-auto" loading="eager" /></div></div>
+            <MarketingScreenshotFrame
+              alt="Nucleas project management interface with tasks, assignments, and timeline"
+            >
+              <ProjectsScreenshot />
+            </MarketingScreenshotFrame>
           </AnimateIn>
         </section>
 

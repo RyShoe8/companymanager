@@ -5,6 +5,8 @@ import { useState } from 'react';
 import AnimateIn from '@/components/home/AnimateIn';
 import HomeFAQ from '@/components/home/HomeFAQ';
 import InteractiveDemoBlock from '@/components/home/InteractiveDemoBlock';
+import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
+import HeroWorkspaceScreenshot from '@/components/marketing/screenshots/HeroWorkspaceScreenshot';
 
 /* ─── Feature category cards for the overview section ─── */
 const CATEGORIES = [
@@ -178,16 +180,14 @@ export default function HomePageClient() {
 
           {/* Hero image */}
           <AnimateIn>
-            <div className="mt-16 relative mx-auto max-w-4xl">
-              <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 via-accent/20 to-nucleas-fourth/20 rounded-2xl blur-xl opacity-50" />
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/40">
-                <img
-                  src="/images/marketing/hero-dashboard.png"
-                  alt="Nucleas workspace dashboard showing project management, team assignments, and planning tools"
-                  className="w-full h-auto"
-                  loading="eager"
-                />
-              </div>
+            <div className="mt-16">
+              <MarketingScreenshotFrame
+                glow="primary"
+                className="shadow-black/40"
+                alt="Nucleas workspace dashboard showing project management, team assignments, and planning tools"
+              >
+                <HeroWorkspaceScreenshot />
+              </MarketingScreenshotFrame>
             </div>
           </AnimateIn>
         </div>
