@@ -21,6 +21,16 @@ const SubscriptionPlanSchema = new Schema(
     maxSubscriptionSlots: { type: Number, default: 0, min: 0 },
     /** Free trial length for first-time Checkout subscriptions; 0 = none */
     trialDays: { type: Number, default: 0, min: 0, max: 365 },
+    /** Optional yearly pricing when interval is month */
+    yearlyOffer: {
+      enabled: { type: Boolean, default: false },
+      basePriceCents: { type: Number, default: 0, min: 0 },
+      additionalUserPriceCents: { type: Number, default: 0, min: 0 },
+      stripeBasePriceId: { type: String, default: '' },
+      stripeSeatPriceId: { type: String, default: '' },
+    },
+    /** When true, org owners on this plan can schedule a platform onboarding call */
+    onboardingCallsEnabled: { type: Boolean, default: false },
     /** Retired from public catalog; existing subs stay pinned */
     archived: { type: Boolean, default: false, index: true },
   },

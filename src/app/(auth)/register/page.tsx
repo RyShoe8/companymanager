@@ -22,6 +22,7 @@ function RegisterForm() {
   const searchParams = useSearchParams();
   const invitationToken = searchParams.get('token');
   const planId = searchParams.get('plan');
+  const billingInterval = searchParams.get('interval') === 'year' ? 'year' : 'month';
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,9 +36,9 @@ function RegisterForm() {
   // Load invitation details if token is present
   useEffect(() => {
     if (planId) {
-      persistSelectedPlanId(planId);
+      persistSelectedPlanId(planId, billingInterval);
     }
-  }, [planId]);
+  }, [planId, billingInterval]);
 
   useEffect(() => {
     if (invitationToken) {

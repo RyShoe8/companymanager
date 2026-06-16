@@ -112,7 +112,13 @@ const AUDIENCES = [
   { label: 'Niche Site Operators', desc: 'Track content, SEO, and site operations at scale.' },
 ];
 
-export default function HomePageClient() {
+export default function HomePageClient({
+  trialPricingLine = 'Free trial available on eligible plans.',
+  trialCtaLabel = 'Get Started',
+}: {
+  trialPricingLine?: string;
+  trialCtaLabel?: string;
+}) {
   return (
     <div className="min-h-screen bg-background overflow-hidden">
       {/* ═══════════════════════ HERO ═══════════════════════ */}
@@ -437,7 +443,7 @@ export default function HomePageClient() {
               Every plan includes the full platform. No feature gates.
             </p>
             <p className="text-primary font-semibold mb-8">
-              Start your 14-day free trial — no credit card required.
+              {trialPricingLine}
             </p>
             <Link
               href="/pricing"
@@ -474,10 +480,10 @@ export default function HomePageClient() {
                   href="/register"
                   className="inline-flex items-center px-10 py-4 rounded-xl bg-primary text-nucleas-ink font-semibold text-lg hover:bg-primary-hover transition-all duration-200 shadow-lg shadow-primary/25 hover:shadow-primary/40"
                 >
-                  Start Your 14-Day Free Trial
+                  {trialCtaLabel}
                 </Link>
                 <p className="mt-4 text-sm text-text-muted">
-                  No credit card required · Full platform access · Cancel anytime
+                  Full platform access on eligible plans
                 </p>
               </AnimateIn>
             </div>

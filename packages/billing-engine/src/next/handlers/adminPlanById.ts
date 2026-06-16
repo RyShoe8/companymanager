@@ -20,6 +20,14 @@ const PatchSchema = z.object({
   paused: z.boolean().optional(),
   maxSubscriptionSlots: z.number().int().nonnegative().optional(),
   trialDays: z.number().int().min(0).max(365).optional(),
+  yearlyOffer: z
+    .object({
+      enabled: z.boolean(),
+      basePriceCents: z.number().int().nonnegative(),
+      additionalUserPriceCents: z.number().int().nonnegative(),
+    })
+    .optional(),
+  onboardingCallsEnabled: z.boolean().optional(),
   archived: z.boolean().optional(),
 });
 

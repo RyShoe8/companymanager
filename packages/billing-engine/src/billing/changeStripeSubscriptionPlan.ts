@@ -7,6 +7,8 @@ import {
   validatePlanForCheckout,
 } from './createCheckoutSession';
 import { getEffectiveSeatCount } from './employeeLimits';
+import type { BillingInterval } from './planPricing';
+import { resolvePlanStripePrices } from './planPricing';
 import { isActiveSubscriptionStatus } from './subscriptionAccess';
 import { connectBillingDb, getBillingContext, getOrganizationModel } from '../context';
 import type { OrganizationBillingFields } from '../types';
@@ -34,6 +36,7 @@ export async function changeStripeSubscriptionPlan(args: {
   org: OrganizationBillingFields;
   userEmail?: string | null;
   subscriptionPlanId: string;
+  billingInterval?: BillingInterval;
 }): Promise<ChangePlanResult> {
   const planId = args.subscriptionPlanId.trim();
   if (!isValidObjectIdString(planId)) {
@@ -47,7 +50,8 @@ export async function changeStripeSubscriptionPlan(args: {
   }
 
   const orgId = args.org._id;
-  await validatePlanForCheckout(targetPlan, orgId.toString()).catch((e) => {
+  const billingInterval: BillingInterval = args.billingInterval ?? 'month';
+  await validatePlanForCheckout(targetPlan, orgId.toString(), billingInterval).catch((e) => {
     if (e instanceof CheckoutSessionError) {
       throw new ChangePlanError(e.message, e.status);
     }
@@ -60,10 +64,12 @@ export async function changeStripeSubscriptionPlan(args: {
     isActiveSubscriptionStatus(args.org.subscriptionStatus) &&
     isActiveSubscriptionStatus(orgSub?.status);
 
+  const resolved = resolvePlanStripePrices(targetPlan, billingInterval);
+
   const useCheckout =
     targetPlan.interval === 'lifetime' ||
     !hasRecurringStripeSub ||
-    !targetPlan.stripeBasePriceId;
+    !resolved.basePriceId;
 
   if (useCheckout) {
     try {
@@ -71,6 +77,7 @@ export async function changeStripeSubscriptionPlan(args: {
         org: args.org,
         userEmail: args.userEmail,
         subscriptionPlanId: planId,
+        billingInterval,
       });
       return { mode: 'checkout', url };
     } catch (e) {
@@ -96,9 +103,9 @@ export async function changeStripeSubscriptionPlan(args: {
   const items: Stripe.SubscriptionUpdateParams.Item[] = [];
 
   if (baseItemId) {
-    items.push({ id: baseItemId, price: targetPlan.stripeBasePriceId });
+    items.push({ id: baseItemId, price: resolved.basePriceId });
   } else {
-    items.push({ price: targetPlan.stripeBasePriceId });
+    items.push({ price: resolved.basePriceId });
   }
 
   const ctx = getBillingContext();
@@ -109,8 +116,8 @@ export async function changeStripeSubscriptionPlan(args: {
   const seatCount = getEffectiveSeatCount(await ctx.seats.getSeatCount(orgIdStr));
   const additional = Math.max(0, seatCount - (targetPlan.includedUsers ?? 1));
   const targetSupportsSeats =
-    targetPlan.additionalUserPriceCents > 0 &&
-    Boolean(targetPlan.stripeSeatPriceId) &&
+    resolved.additionalUserPriceCents > 0 &&
+    Boolean(resolved.seatPriceId) &&
     targetPlan.interval !== 'lifetime';
 
   if (!targetSupportsSeats) {
@@ -120,7 +127,7 @@ export async function changeStripeSubscriptionPlan(args: {
   } else if (seatItemId) {
     items.push({ id: seatItemId, quantity: additional });
   } else if (additional > 0) {
-    items.push({ price: targetPlan.stripeSeatPriceId, quantity: additional });
+    items.push({ price: resolved.seatPriceId, quantity: additional });
   }
 
   const updated = await stripe.subscriptions.update(subId, {
@@ -129,6 +136,7 @@ export async function changeStripeSubscriptionPlan(args: {
     metadata: {
       organizationId: orgId.toString(),
       subscriptionPlanId: String(targetPlan._id),
+      billingInterval: resolved.billingInterval,
     },
   });
 
@@ -139,6 +147,7 @@ export async function changeStripeSubscriptionPlan(args: {
       $set: {
         subscriptionPlanId: planObjId,
         status: updated.status === 'trialing' ? 'trialing' : 'active',
+        billingInterval: resolved.billingInterval,
       },
     },
     { upsert: true }

@@ -20,6 +20,8 @@ export * from './billing/mapPlanDocToPublicPricing';
 export * from './billing/organizationBillingSummary';
 export * from './billing/pricingPlanDisplay';
 export * from './billing/planTrial';
+export * from './billing/trialMarketing';
+export * from './billing/planPricing';
 export * from './billing/planSubscriptionCap';
 export * from './billing/planSlug';
 export * from './billing/ensureDefaultPlans';

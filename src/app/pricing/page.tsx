@@ -2,10 +2,11 @@ import '@/lib/billing-engine';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getPublicPricingPlans, isRecommendedPlan, sortPlansForPricingDisplay } from 'billing-engine';
-import { PricingPlanCard } from 'billing-engine/next/components';
 import Button from '@/components/ui/Button';
+import { PricingPlanMarketingCard } from '@/components/pricing/PricingPlanMarketingCard';
 import { NUCLEAS_PLATFORM_FEATURES } from '@/lib/marketing/nucleasPlatformFeatures';
 import { pricingPlanCtaHref } from '@/lib/billing/pricingPlanCta';
+import { getMarketingTrialCopy } from '@/lib/billing/marketingTrialCopy';
 import { StructuredData } from '@/components/StructuredData';
 import AnimateIn from '@/components/home/AnimateIn';
 
@@ -13,32 +14,30 @@ export const dynamic = 'force-dynamic';
 
 const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
-export const metadata: Metadata = {
-  title: 'Pricing — Simple, Seat-Based Plans',
-  description: 'Nucleas pricing is simple: every plan includes the full platform. Pay for seats, not features. Start your 14-day free trial — no credit card required.',
-  keywords: ['Nucleas pricing', 'business management pricing', 'seat-based pricing', 'SaaS pricing', 'free trial'],
-  alternates: { canonical: '/pricing' },
-  openGraph: {
-    title: 'Pricing — Simple, Seat-Based Plans | Nucleas',
-    description: 'Every plan includes the full platform. Pay for seats, not features. 14-day free trial.',
-    url: `${baseUrl}/pricing`,
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Pricing | Nucleas',
-    description: 'Simple, seat-based pricing. Full platform access. 14-day free trial.',
-  },
-};
-
-const PRICING_FAQ = [
-  { q: 'Is there a free trial?', a: 'Yes! Every plan includes a 14-day free trial with full platform access. No credit card required to start.' },
-  { q: 'What\'s included in every plan?', a: 'Every plan includes the full Nucleas platform — projects, tasks, content, meetings, tools, team management, and all features. Plans differ only by the number of seats included.' },
-  { q: 'Can I change plans later?', a: 'Absolutely. You can upgrade or downgrade your plan at any time. Changes take effect on your next billing cycle.' },
-  { q: 'What happens after my trial ends?', a: 'After your 14-day trial, you can choose a plan that fits your team size. All your data and settings are preserved.' },
-];
+export async function generateMetadata(): Promise<Metadata> {
+  const trial = await getMarketingTrialCopy();
+  const description = `Nucleas pricing is simple: every plan includes the full platform. Pay for seats, not features.${trial.metadataTrialSuffix}`;
+  return {
+    title: 'Pricing — Simple, Seat-Based Plans',
+    description,
+    keywords: ['Nucleas pricing', 'business management pricing', 'seat-based pricing', 'SaaS pricing', 'free trial'],
+    alternates: { canonical: '/pricing' },
+    openGraph: {
+      title: 'Pricing — Simple, Seat-Based Plans | Nucleas',
+      description,
+      url: `${baseUrl}/pricing`,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'Pricing | Nucleas',
+      description,
+    },
+  };
+}
 
 export default async function PricingPage() {
+  const trial = await getMarketingTrialCopy();
   const plans = sortPlansForPricingDisplay(await getPublicPricingPlans());
   const planCtas = await Promise.all(
     plans.map(async (plan) => ({
@@ -48,9 +47,22 @@ export default async function PricingPage() {
   );
   const ctaByPlanId = Object.fromEntries(planCtas.map((entry) => [entry.id, entry.href]));
 
+  const pricingFaq = [
+    { q: 'Is there a free trial?', a: trial.pricingFaqTrialAnswer },
+    {
+      q: "What's included in every plan?",
+      a: 'Every plan includes the full Nucleas platform — projects, tasks, content, meetings, tools, team management, and all features. Plans differ only by the number of seats included.',
+    },
+    {
+      q: 'Can I change plans later?',
+      a: 'Absolutely. You can upgrade or downgrade your plan at any time. Changes take effect on your next billing cycle.',
+    },
+    { q: 'What happens after my trial ends?', a: trial.pricingFaqAfterTrialAnswer },
+  ];
+
   return (
     <>
-      <StructuredData type="WebPage" data={{ name: 'Pricing | Nucleas', description: metadata.description as string, url: `${baseUrl}/pricing`, publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl } }} />
+      <StructuredData type="WebPage" data={{ name: 'Pricing | Nucleas', description: (await generateMetadata()).description as string, url: `${baseUrl}/pricing`, publisher: { '@type': 'Organization', name: 'Nucleas', url: baseUrl } }} />
       <StructuredData type="BreadcrumbList" data={{ itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl }, { '@type': 'ListItem', position: 2, name: 'Pricing', item: `${baseUrl}/pricing` }] }} />
 
       <div className="min-h-screen bg-background">
@@ -60,10 +72,12 @@ export default async function PricingPage() {
           <div className="absolute top-1/3 -left-32 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative max-w-4xl mx-auto text-center">
             <AnimateIn>
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-sm font-semibold text-green-400 mb-6">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                14-Day Free Trial on All Plans
-              </span>
+              {trial.heroBadge ? (
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-sm font-semibold text-green-400 mb-6">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  {trial.heroBadge}
+                </span>
+              ) : null}
             </AnimateIn>
             <AnimateIn>
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-text-primary tracking-tight mb-6">
@@ -91,19 +105,11 @@ export default async function PricingPage() {
             ) : (
               <div className="max-w-7xl mx-auto grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 {plans.map((plan) => (
-                  <PricingPlanCard
+                  <PricingPlanMarketingCard
                     key={plan.id}
                     plan={plan}
-                    variant="marketing"
+                    href={ctaByPlanId[plan.id] ?? `/register?plan=${encodeURIComponent(plan.id)}`}
                     className={isRecommendedPlan(plan) ? 'ring-2 ring-primary/40' : undefined}
-                    footer={
-                      <Link
-                        href={ctaByPlanId[plan.id] ?? `/register?plan=${encodeURIComponent(plan.id)}`}
-                        className="block w-full"
-                      >
-                        <Button className="w-full">Start Free Trial — {plan.name}</Button>
-                      </Link>
-                    }
                   />
                 ))}
               </div>
@@ -148,7 +154,7 @@ export default async function PricingPage() {
               <h2 className="text-2xl font-bold text-text-primary text-center mb-10">Frequently asked questions</h2>
             </AnimateIn>
             <div className="space-y-4">
-              {PRICING_FAQ.map((faq) => (
+              {pricingFaq.map((faq) => (
                 <AnimateIn key={faq.q}>
                   <div className="bg-background-card border border-border rounded-xl p-6">
                     <h3 className="text-base font-semibold text-text-primary mb-2">{faq.q}</h3>
@@ -168,10 +174,10 @@ export default async function PricingPage() {
               <AnimateIn>
                 <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">Ready to get started?</h2>
                 <p className="text-lg text-text-secondary mb-8 max-w-xl mx-auto">
-                  Start your 14-day free trial today. Full platform access, no credit card required.
+                  {trial.featureCtaSubtext}
                 </p>
                 <Link href="/register" className="inline-flex items-center px-8 py-4 rounded-xl bg-primary text-nucleas-ink font-semibold text-lg hover:bg-primary-hover transition-all shadow-lg shadow-primary/25">
-                  Start Your 14-Day Free Trial
+                  {trial.ctaButtonLabel}
                 </Link>
               </AnimateIn>
             </div>

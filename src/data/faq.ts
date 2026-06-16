@@ -19,7 +19,7 @@ export const FAQ_DATA: FAQItem[] = [
   {
     question: 'Is there a free trial?',
     answer:
-      'Yes. Every plan comes with a 14-day free trial — no credit card required. You get full access to the entire platform so you can see how Nucleas fits your workflow before committing.',
+      'Eligible plans include a free trial with full access to the entire platform so you can see how Nucleas fits your workflow before your first charge.',
   },
   {
     question: "What's included in every plan?",
@@ -49,6 +49,6 @@ export const FAQ_DATA: FAQItem[] = [
   {
     question: 'How do I get started?',
     answer:
-      'Sign up at nucleas.app, create your organization, and add your first project. You\'ll have the full platform available from day one with a 14-day free trial. Most teams are up and running within minutes.',
+      'Sign up at nucleas.app, create your organization, and add your first project. You get the full platform on the plan you choose. Most teams are up and running within minutes.',
   },
 ];

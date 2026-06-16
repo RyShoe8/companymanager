@@ -360,6 +360,10 @@ export default function AdminPage() {
                           ? ` (${group.subscriptionStatus})`
                           : ''}
                       </span>
+                      <p className="w-full text-xs text-text-muted">
+                        Manual plan assignment bypasses Stripe checkout and trial periods. The org
+                        gets access immediately on the selected plan.
+                      </p>
                       <select
                         value={planSelections[group.organizationId] ?? group.subscriptionPlanId ?? ''}
                         onChange={(e) =>

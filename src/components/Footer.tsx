@@ -64,7 +64,7 @@ export default function Footer() {
               Ready to run your business from one place?
             </h3>
             <p className="text-text-secondary mb-6 max-w-xl mx-auto">
-              Start your 14-day free trial. No credit card required.
+              Free trial available on eligible plans.
             </p>
             <Link
               href="/register"

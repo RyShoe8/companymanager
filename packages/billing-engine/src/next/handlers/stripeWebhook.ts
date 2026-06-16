@@ -147,6 +147,8 @@ export async function POST(request: Request) {
                 ? new Date(sub.current_period_end * 1000)
                 : undefined;
             const trialEndsAt = trialEndsAtFromStripeSub(sub);
+            const billingInterval =
+              session.metadata?.billingInterval === 'year' ? 'year' : 'month';
 
             await OrganizationSubscriptionModel.findOneAndUpdate(
               { organizationId: orgObjId },
@@ -161,6 +163,7 @@ export async function POST(request: Request) {
                   renewsAt,
                   cancelAtPeriodEnd: sub.cancel_at_period_end === true,
                   trialEndsAt: trialEndsAt ?? null,
+                  billingInterval,
                 },
               },
               { upsert: true }

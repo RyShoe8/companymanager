@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MarketingTrialCta } from '@/components/marketing/MarketingTrialCta';
 import { StructuredData } from '@/components/StructuredData';
 import AnimateIn from '@/components/home/AnimateIn';
 
@@ -57,7 +58,7 @@ export default function EfficiencyFeaturePage() {
         </section>
 
         <section className="px-4 sm:px-6 lg:px-8 py-16"><div className="max-w-3xl mx-auto flex flex-wrap justify-center gap-4"><Link href="/features/tools" className="px-6 py-3 rounded-xl border border-border text-text-secondary hover:text-primary hover:border-primary/30 transition-all text-sm font-medium">Explore Tools →</Link><Link href="/features/team" className="px-6 py-3 rounded-xl border border-border text-text-secondary hover:text-primary hover:border-primary/30 transition-all text-sm font-medium">Explore Team →</Link></div></section>
-        <section className="px-4 sm:px-6 lg:px-8 pb-20"><div className="max-w-4xl mx-auto relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-accent/10 to-nucleas-fourth/10 border border-primary/20 p-10 md:p-16 text-center"><div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" /><div className="relative"><h2 className="text-3xl font-bold text-text-primary mb-4">Work smarter with Nucleas</h2><p className="text-text-secondary mb-8">Full platform access. 14-day free trial. No credit card required.</p><Link href="/register" className="inline-flex items-center px-8 py-4 rounded-xl bg-primary text-nucleas-ink font-semibold text-lg hover:bg-primary-hover transition-all shadow-lg shadow-primary/25">Start Your 14-Day Free Trial</Link></div></div></section>
+        <MarketingTrialCta title="Work smarter with Nucleas" />
       </div>
     </>
   );

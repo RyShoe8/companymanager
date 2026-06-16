@@ -21,5 +21,14 @@ export async function mapPlanDocToPublicPricing(
     subscriptionCount: usage.used,
     soldOut: usage.soldOut,
     trialDays: Number(plan.trialDays ?? 0),
+    yearlyOffer:
+      plan.interval === 'month' && plan.yearlyOffer?.enabled
+        ? {
+            enabled: true,
+            basePriceCents: Number(plan.yearlyOffer.basePriceCents ?? 0),
+            additionalUserPriceCents: Number(plan.yearlyOffer.additionalUserPriceCents ?? 0),
+          }
+        : null,
+    onboardingCallsEnabled: Boolean(plan.onboardingCallsEnabled),
   };
 }

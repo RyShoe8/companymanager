@@ -157,7 +157,7 @@ export default function AboutPage() {
               <AnimateIn>
                 <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">Ready to try Nucleas?</h2>
                 <p className="text-lg text-text-secondary mb-8 max-w-xl mx-auto">
-                  Start your 14-day free trial. Full platform access, no credit card required.
+                  Free trial available on eligible plans. Full platform access.
                 </p>
                 <Link href="/register" className="inline-flex items-center px-8 py-4 rounded-xl bg-primary text-nucleas-ink font-semibold text-lg hover:bg-primary-hover transition-all shadow-lg shadow-primary/25">
                   Start Your 14-Day Free Trial

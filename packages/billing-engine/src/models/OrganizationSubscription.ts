@@ -23,6 +23,7 @@ const OrganizationSubscriptionSchema = new Schema(
     cancelAtPeriodEnd: { type: Boolean, default: false },
     grandfathered: { type: Boolean, default: false },
     trialEndsAt: { type: Date },
+    billingInterval: { type: String, enum: ['month', 'year'], default: 'month' },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } }
 );

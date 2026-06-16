@@ -26,24 +26,43 @@ export function trialLine(plan: PublicPricingPlan): string | null {
   return `${days}-day free trial`;
 }
 
-export function primaryPriceLine(plan: PublicPricingPlan): string {
+export function primaryPriceLine(
+  plan: PublicPricingPlan,
+  billingInterval: 'month' | 'year' = 'month'
+): string {
   if (plan.interval === 'lifetime') {
     return `${formatUsd(plan.basePriceCents)} one-time`;
   }
+  if (billingInterval === 'year' && plan.yearlyOffer?.enabled) {
+    return `${formatUsd(plan.yearlyOffer.basePriceCents)}/yr`;
+  }
   return `${formatUsd(plan.basePriceCents)}${intervalSuffix(plan.interval)}`;
+}
+
+export function planHasYearlyToggle(plan: PublicPricingPlan): boolean {
+  return plan.interval === 'month' && Boolean(plan.yearlyOffer?.enabled);
+}
+
+export function seatPolicyLine(
+  plan: PublicPricingPlan,
+  billingInterval: 'month' | 'year' = 'month'
+): string | null {
+  if (plan.interval === 'lifetime') return null;
+  const perSeat =
+    billingInterval === 'year' && plan.yearlyOffer?.enabled
+      ? plan.yearlyOffer.additionalUserPriceCents
+      : plan.additionalUserPriceCents;
+  const suffix =
+    billingInterval === 'year' && plan.yearlyOffer?.enabled ? '/yr' : intervalSuffix(plan.interval);
+  if (perSeat > 0) {
+    return `Add more users anytime for ${formatUsd(perSeat)} per user${suffix}`;
+  }
+  return 'No additional seats available on this plan';
 }
 
 export function includedUsersSummary(plan: PublicPricingPlan): string {
   const n = Math.max(1, plan.includedUsers);
   return `${n} user${n === 1 ? '' : 's'} included`;
-}
-
-export function seatPolicyLine(plan: PublicPricingPlan): string | null {
-  if (plan.interval === 'lifetime') return null;
-  if (plan.additionalUserPriceCents > 0) {
-    return `Add more users anytime for ${formatUsd(plan.additionalUserPriceCents)} per user${intervalSuffix(plan.interval)}`;
-  }
-  return 'No additional seats available on this plan';
 }
 
 export function subscriptionCap(

@@ -10,6 +10,7 @@ const BodySchema = z
   .object({
     plan: z.enum(['basic', 'pro']).optional(),
     subscriptionPlanId: z.string().optional(),
+    billingInterval: z.enum(['month', 'year']).optional(),
   })
   .refine((b) => b.plan !== undefined || Boolean(b.subscriptionPlanId?.trim()), {
     message: 'Provide plan (basic|pro) or subscriptionPlanId',
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       userEmail: user.email,
       subscriptionPlanId: parsed.data.subscriptionPlanId,
       planSlug: parsed.data.plan,
+      billingInterval: parsed.data.billingInterval,
     });
 
     return NextResponse.json({ url });

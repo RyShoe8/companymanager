@@ -30,6 +30,12 @@ export default async function EditAdminPlanPage({ params }: Props) {
     badge: String(p.badge ?? ''),
     maxSubscriptionSlots: Number(p.maxSubscriptionSlots ?? 0),
     trialDays: Number(p.trialDays ?? 0),
+    yearlyOffer: {
+      enabled: Boolean(p.yearlyOffer?.enabled),
+      basePriceCents: Number(p.yearlyOffer?.basePriceCents ?? 0),
+      additionalUserPriceCents: Number(p.yearlyOffer?.additionalUserPriceCents ?? 0),
+    },
+    onboardingCallsEnabled: Boolean(p.onboardingCallsEnabled),
   };
 
   const backHref = p.archived ? '/admin/plans' : '/admin/plans';
@@ -43,7 +49,12 @@ export default async function EditAdminPlanPage({ params }: Props) {
         >
           ← Plans
         </Link>
-        <AdminPlanForm mode="edit" planId={id} initial={initial} />
+        <AdminPlanForm
+          mode="edit"
+          planId={id}
+          initial={initial}
+          stripeProductId={String(p.stripeProductId ?? '')}
+        />
       </div>
     </div>
   );

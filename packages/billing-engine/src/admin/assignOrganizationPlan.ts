@@ -32,6 +32,7 @@ export async function assignOrganizationPlan(
         status,
         seats: seatCount,
         grandfathered: true,
+        // Manual grants bypass Stripe Checkout trials and start access immediately.
         startedAt: new Date(),
       },
     },

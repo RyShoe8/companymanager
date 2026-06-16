@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../../ui/card';
@@ -6,19 +9,25 @@ import {
   includedUsersSummary,
   isRecommendedPlan,
   planFeatureBullets,
+  planHasYearlyToggle,
   primaryPriceLine,
   subscriptionCap,
   trialLine,
 } from '../../billing/pricingPlanDisplay';
 import { SubscriptionAvailabilityCallout } from './SubscriptionAvailabilityCallout';
+import { PricingIntervalToggle } from './PricingIntervalToggle';
 import { cn } from '../../ui/cn';
+
+type BillingInterval = 'month' | 'year';
 
 type PricingPlanCardProps = {
   plan: PublicPricingPlan;
   variant?: 'current' | 'selectable' | 'marketing';
   compact?: boolean;
-  footer?: ReactNode;
+  footer?: ReactNode | ((ctx: { billingInterval: BillingInterval }) => ReactNode);
   className?: string;
+  defaultBillingInterval?: BillingInterval;
+  onBillingIntervalChange?: (interval: BillingInterval) => void;
 };
 
 export function PricingPlanCard({
@@ -27,7 +36,10 @@ export function PricingPlanCard({
   compact = false,
   footer,
   className,
+  defaultBillingInterval = 'month',
+  onBillingIntervalChange,
 }: PricingPlanCardProps) {
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(defaultBillingInterval);
   const description = plan.description.trim();
   const features = planFeatureBullets(plan);
   const hasCap = subscriptionCap(plan) !== null;
@@ -35,6 +47,15 @@ export function PricingPlanCard({
   const recommended = isRecommendedPlan(plan);
   const isCurrent = variant === 'current';
   const isMarketing = variant === 'marketing';
+  const showIntervalToggle = planHasYearlyToggle(plan) && !isCurrent;
+
+  function handleIntervalChange(interval: BillingInterval) {
+    setBillingInterval(interval);
+    onBillingIntervalChange?.(interval);
+  }
+
+  const resolvedFooter =
+    typeof footer === 'function' ? footer({ billingInterval }) : footer;
 
   return (
     <Card
@@ -97,22 +118,49 @@ export function PricingPlanCard({
         {hasCap && !compact ? <SubscriptionAvailabilityCallout plan={plan} marketing={isMarketing} /> : null}
       </CardHeader>
       <CardContent className={cn('flex flex-1 flex-col gap-5', compact && 'gap-3')}>
+        {showIntervalToggle ? (
+          <PricingIntervalToggle
+            plan={plan}
+            value={billingInterval}
+            onChange={handleIntervalChange}
+            marketing={isMarketing}
+            className={isMarketing ? 'mx-auto' : undefined}
+          />
+        ) : null}
         <div>
           <p
             className={cn(
               'font-semibold tracking-tight',
-              compact ? 'text-2xl' : 'text-4xl'
+              compact ? 'text-2xl' : 'text-4xl',
+              isMarketing && 'text-center'
             )}
           >
-            {primaryPriceLine(plan)}
+            {primaryPriceLine(plan, billingInterval)}
           </p>
           {trial ? (
-            <p className="mt-2 text-sm font-medium text-primary">{trial}</p>
+            <p
+              className={cn(
+                'mt-2 text-sm font-medium text-primary',
+                isMarketing && 'text-center'
+              )}
+            >
+              {trial}
+            </p>
           ) : null}
-          <p className={cn('mt-2 text-base font-medium', isMarketing ? 'text-gray-900' : 'text-text-primary')}>
+          <p
+            className={cn(
+              'mt-2 text-base font-medium',
+              isMarketing ? 'text-gray-900 text-center' : 'text-text-primary'
+            )}
+          >
             {includedUsersSummary(plan)}
           </p>
-          <p className={cn('mt-0.5 text-sm', isMarketing ? 'text-gray-600' : 'text-text-muted')}>
+          <p
+            className={cn(
+              'mt-0.5 text-sm',
+              isMarketing ? 'text-gray-600 text-center' : 'text-text-muted'
+            )}
+          >
             Per subscription
           </p>
         </div>
@@ -133,7 +181,7 @@ export function PricingPlanCard({
           </ul>
         ) : null}
       </CardContent>
-      {footer ? <CardFooter className="mt-auto">{footer}</CardFooter> : null}
+      {resolvedFooter ? <CardFooter className="mt-auto">{resolvedFooter}</CardFooter> : null}
     </Card>
   );
 }

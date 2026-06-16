@@ -6,11 +6,10 @@ import { getStripe } from '../stripe/client';
 export type PlanForSync = SubscriptionPlanDoc & { _id: mongoose.Types.ObjectId };
 
 function recurringForInterval(
-  interval: SubscriptionPlanDoc['interval']
-): Stripe.PriceCreateParams.Recurring | undefined {
-  if (interval === 'lifetime') return undefined;
+  interval: 'month' | 'year'
+): Stripe.PriceCreateParams.Recurring {
   return {
-    interval: interval === 'year' ? 'year' : 'month',
+    interval,
     usage_type: 'licensed',
   };
 }
@@ -58,7 +57,7 @@ export async function syncPlanToStripe(plan: PlanForSync) {
   } else {
     const price = await stripe.prices.create({
       ...baseParams,
-      recurring: recurringForInterval(plan.interval),
+      recurring: recurringForInterval(plan.interval === 'year' ? 'year' : 'month'),
     });
     basePriceId = price.id;
   }
@@ -69,10 +68,7 @@ export async function syncPlanToStripe(plan: PlanForSync) {
       product: productId,
       currency: 'usd',
       unit_amount: plan.additionalUserPriceCents,
-      recurring: {
-        interval: plan.interval === 'year' ? 'year' : 'month',
-        usage_type: 'licensed',
-      },
+      recurring: recurringForInterval(plan.interval === 'year' ? 'year' : 'month'),
       metadata: { ...meta, tailnotePriceRole: 'seat' },
     });
     seatPriceId = seat.id;
@@ -80,9 +76,50 @@ export async function syncPlanToStripe(plan: PlanForSync) {
     seatPriceId = '';
   }
 
+  let yearlyOffer = plan.yearlyOffer ?? {
+    enabled: false,
+    basePriceCents: 0,
+    additionalUserPriceCents: 0,
+    stripeBasePriceId: '',
+    stripeSeatPriceId: '',
+  };
+
+  if (plan.interval === 'month' && yearlyOffer.enabled) {
+    const yearBase = await stripe.prices.create({
+      product: productId,
+      currency: 'usd',
+      unit_amount: yearlyOffer.basePriceCents,
+      recurring: recurringForInterval('year'),
+      metadata: { ...meta, tailnotePriceRole: 'yearly_base' },
+    });
+    let yearSeatId = '';
+    if (yearlyOffer.additionalUserPriceCents > 0) {
+      const yearSeat = await stripe.prices.create({
+        product: productId,
+        currency: 'usd',
+        unit_amount: yearlyOffer.additionalUserPriceCents,
+        recurring: recurringForInterval('year'),
+        metadata: { ...meta, tailnotePriceRole: 'yearly_seat' },
+      });
+      yearSeatId = yearSeat.id;
+    }
+    yearlyOffer = {
+      ...yearlyOffer,
+      stripeBasePriceId: yearBase.id,
+      stripeSeatPriceId: yearSeatId,
+    };
+  } else if (plan.interval === 'month') {
+    yearlyOffer = {
+      ...yearlyOffer,
+      stripeBasePriceId: '',
+      stripeSeatPriceId: '',
+    };
+  }
+
   return {
     stripeProductId: productId,
     stripeBasePriceId: basePriceId,
     stripeSeatPriceId: seatPriceId,
+    yearlyOffer,
   };
 }

@@ -377,6 +377,7 @@ export interface SendEmailData {
   subject: string;
   html: string;
   text?: string;
+  attachments?: Array<{ name: string; content: string }>;
 }
 
 /**
@@ -404,6 +405,13 @@ export async function sendEmail(data: SendEmailData): Promise<void> {
   
   if (data.text) {
     sendSmtpEmail.textContent = data.text;
+  }
+
+  if (data.attachments?.length) {
+    sendSmtpEmail.attachment = data.attachments.map((file) => ({
+      name: file.name,
+      content: Buffer.from(file.content, 'utf8').toString('base64'),
+    }));
   }
 
   try {

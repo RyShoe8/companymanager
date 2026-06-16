@@ -9,6 +9,7 @@ import { getBillingContext } from '../../context';
 
 const BodySchema = z.object({
   subscriptionPlanId: z.string().min(1),
+  billingInterval: z.enum(['month', 'year']).optional(),
 });
 
 export async function POST(request: Request) {
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       org: gate.ctx.org,
       userEmail,
       subscriptionPlanId: parsed.data.subscriptionPlanId,
+      billingInterval: parsed.data.billingInterval,
     });
     return NextResponse.json(result);
   } catch (err) {

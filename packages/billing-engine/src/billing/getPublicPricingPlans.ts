@@ -8,6 +8,13 @@ export const LEGACY_PLACEHOLDER_SLUGS = ['basic', 'pro'] as const;
 const legacyPlaceholderSlugSet = new Set<string>(LEGACY_PLACEHOLDER_SLUGS);
 
 /** Serializable plan row for marketing / pricing UI (latest version per slug). */
+export type PublicPricingYearlyOffer = {
+  enabled: boolean;
+  basePriceCents: number;
+  additionalUserPriceCents: number;
+};
+
+/** Serializable plan row for marketing / pricing UI (latest version per slug). */
 export type PublicPricingPlan = {
   id: string;
   slug: string;
@@ -23,6 +30,8 @@ export type PublicPricingPlan = {
   subscriptionCount: number;
   soldOut: boolean;
   trialDays: number;
+  yearlyOffer: PublicPricingYearlyOffer | null;
+  onboardingCallsEnabled: boolean;
 };
 
 /**

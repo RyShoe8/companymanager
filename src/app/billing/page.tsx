@@ -1,15 +1,17 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Modal from '@/components/ui/Modal';
 import { PricingPlanCard } from 'billing-engine/next/components';
 import type { PublicPricingPlan, EmployeeLimitInfo } from 'billing-engine';
+import { trialWontBeChargedUntil } from 'billing-engine';
 import { seatUsageLine } from '@/lib/billing/seatDisplay';
-import { consumeSelectedPlanId } from '@/lib/billing/selectedPlanStorage';
+import { consumeSelectedPlanId, consumeSelectedBillingInterval } from '@/lib/billing/selectedPlanStorage';
+import { BillingPlanSelectCard } from '@/components/billing/BillingPlanSelectCard';
+import { OnboardingBookingPanel } from '@/components/billing/OnboardingBookingPanel';
 
 type BillingSummary = {
   renewsAt?: string | null;
@@ -19,9 +21,6 @@ type BillingSummary = {
   canCancel?: boolean;
   canReactivate?: boolean;
   canChangePlan?: boolean;
-  canAddSeats?: boolean;
-  addSeatsHref?: string | null;
-  addSeatsBlockedReason?: string | null;
 };
 
 type BillingPayload = {
@@ -48,6 +47,8 @@ function BillingPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planFromQuery = searchParams.get('plan');
+  const intervalFromQuery = searchParams.get('interval') === 'year' ? 'year' : 'month';
+  const checkoutSuccess = searchParams.get('checkout') === 'success';
   const autoPlanHandledRef = useRef(false);
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [currentPlan, setCurrentPlan] = useState<PublicPricingPlan | null>(null);
@@ -62,6 +63,7 @@ function BillingPageInner() {
   const [changePlanPendingId, setChangePlanPendingId] = useState<string | null>(null);
   const [accessChecked, setAccessChecked] = useState(false);
   const [billingLoaded, setBillingLoaded] = useState(false);
+  const [onboardingModalOpen, setOnboardingModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,14 +171,14 @@ function BillingPageInner() {
     }
   }
 
-  async function selectPlan(planId: string) {
+  async function selectPlan(planId: string, billingInterval: 'month' | 'year' = 'month') {
     setActionError(null);
     setChangePlanPendingId(planId);
     try {
       const res = await fetch('/api/stripe/change-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscriptionPlanId: planId }),
+        body: JSON.stringify({ subscriptionPlanId: planId, billingInterval }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -200,6 +202,7 @@ function BillingPageInner() {
     if (!accessChecked || !billingLoaded || loadError || autoPlanHandledRef.current) return;
 
     const storedPlanId = planFromQuery ? null : consumeSelectedPlanId();
+    const storedInterval = planFromQuery ? intervalFromQuery : consumeSelectedBillingInterval();
     const planId = (planFromQuery ?? storedPlanId)?.trim();
     if (!planId || viewerRole !== 'owner') {
       autoPlanHandledRef.current = true;
@@ -213,30 +216,41 @@ function BillingPageInner() {
     const target = availablePlans.find((plan) => plan.id === planId);
     if (!target || target.soldOut) return;
 
-    void selectPlan(planId);
+    void selectPlan(planId, storedInterval);
   }, [
     accessChecked,
     billingLoaded,
     loadError,
     planFromQuery,
+    intervalFromQuery,
     viewerRole,
     availablePlans,
     currentPlan?.id,
   ]);
+
+  useEffect(() => {
+    if (!billingLoaded || !checkoutSuccess || !currentPlan?.onboardingCallsEnabled) return;
+    setOnboardingModalOpen(true);
+  }, [billingLoaded, checkoutSuccess, currentPlan?.onboardingCallsEnabled]);
+
+  const showOnboardingPanel =
+    isOwner && currentPlan?.onboardingCallsEnabled && !loadError && billing?.subscriptionStatus !== 'none';
 
   const usageLine = seatUsageLine(seatLimits, currentPlan);
 
   if (!accessChecked) {
     return (
       <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
-        <p className="text-sm text-text-secondary">Loading billing…</p>
+        <div className="max-w-3xl min-w-0 mx-auto w-full">
+          <p className="text-sm text-text-secondary">Loading billing…</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
-      <div className="max-w-3xl min-w-0 space-y-6">
+      <div className="max-w-3xl min-w-0 mx-auto w-full space-y-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-text-primary">Billing</h1>
           <p className="text-text-secondary text-sm mt-1">
@@ -297,26 +311,18 @@ function BillingPageInner() {
             </p>
           ) : null}
 
+          {billing?.subscriptionStatus === 'trialing' && billing?.trialEndsAt && !loadError ? (
+            <p className="text-sm text-primary rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+              {trialWontBeChargedUntil(billing.trialEndsAt)}
+            </p>
+          ) : null}
+
           {isOwner && !loadError ? (
             <div className="flex flex-wrap gap-2">
               {billing?.canChangePlan ? (
                 <Button type="button" variant="secondary" onClick={() => setChangePlanOpen(true)}>
                   Change plan
                 </Button>
-              ) : null}
-              {billing?.canAddSeats && billing.addSeatsHref ? (
-                <Link href={billing.addSeatsHref}>
-                  <Button type="button" variant="secondary">
-                    Add seats
-                  </Button>
-                </Link>
-              ) : billing?.addSeatsBlockedReason ? (
-                <div className="w-full space-y-2">
-                  <Button type="button" variant="secondary" disabled>
-                    Add seats
-                  </Button>
-                  <p className="text-xs text-text-secondary">{billing.addSeatsBlockedReason}</p>
-                </div>
               ) : null}
               {billing?.canCancel ? (
                 <Button
@@ -343,10 +349,14 @@ function BillingPageInner() {
 
           {!isOwner && !loadError ? (
             <p className="text-xs text-text-secondary">
-              Only the organization owner can change plan, add seats, or cancel billing.
+              Only the organization owner can change plan or cancel billing.
             </p>
           ) : null}
         </Card>
+
+        {showOnboardingPanel ? (
+          <OnboardingBookingPanel />
+        ) : null}
 
         <Modal
           isOpen={changePlanOpen}
@@ -363,25 +373,28 @@ function BillingPageInner() {
               <p className="text-sm text-text-secondary">No other plans are available right now.</p>
             ) : (
               changePlanOptions.map((plan) => (
-                <PricingPlanCard
+                <BillingPlanSelectCard
                   key={plan.id}
                   plan={plan}
-                  variant="selectable"
-                  compact
-                  footer={
-                    <Button
-                      type="button"
-                      className="w-full"
-                      disabled={changePlanPendingId !== null}
-                      onClick={() => void selectPlan(plan.id)}
-                    >
-                      {changePlanPendingId === plan.id ? 'Processing…' : `Select ${plan.name}`}
-                    </Button>
-                  }
+                  disabled={changePlanPendingId !== null}
+                  pending={changePlanPendingId === plan.id}
+                  onSelect={(planId, billingInterval) => void selectPlan(planId, billingInterval)}
                 />
               ))
             )}
           </div>
+        </Modal>
+
+        <Modal
+          isOpen={onboardingModalOpen}
+          onClose={() => setOnboardingModalOpen(false)}
+          title="Schedule your onboarding call"
+          maxWidth="lg"
+        >
+          <OnboardingBookingPanel
+            title="Book your onboarding call"
+            onBooked={() => setOnboardingModalOpen(false)}
+          />
         </Modal>
       </div>
     </div>
@@ -393,7 +406,9 @@ export default function BillingPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
-          <p className="text-sm text-text-secondary">Loading billing…</p>
+          <div className="max-w-3xl min-w-0 mx-auto w-full">
+            <p className="text-sm text-text-secondary">Loading billing…</p>
+          </div>
         </div>
       }
     >

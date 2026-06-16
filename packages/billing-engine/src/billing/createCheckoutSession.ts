@@ -11,6 +11,8 @@ import {
   PlanSubscriptionCapError,
 } from './planSubscriptionCap';
 import { checkoutTrialPeriodDays, shouldApplyPlanTrialAtCheckout } from './planTrial';
+import type { BillingInterval, ResolvedPlanPrices } from './planPricing';
+import { resolvePlanStripePrices, validatePlanPricesSynced } from './planPricing';
 import { getBillingContext } from '../context';
 
 export class CheckoutSessionError extends Error {
@@ -25,13 +27,15 @@ export class CheckoutSessionError extends Error {
 
 export async function validatePlanForCheckout(
   dbPlan: SubscriptionPlanDoc,
-  organizationId?: string
+  organizationId?: string,
+  billingInterval: BillingInterval = 'month'
 ): Promise<void> {
   if (!isPlanOfferable(dbPlan)) {
     throw new CheckoutSessionError('Plan not available', 400);
   }
-  if (!dbPlan.stripeBasePriceId) {
-    throw new CheckoutSessionError('Plan not synced to Stripe yet', 400);
+  const syncError = validatePlanPricesSynced(dbPlan, billingInterval);
+  if (syncError) {
+    throw new CheckoutSessionError(syncError, 400);
   }
   try {
     await assertPlanHasSubscriptionSlot(dbPlan, organizationId);
@@ -48,6 +52,7 @@ export type CreateCheckoutSessionInput = {
   userEmail?: string | null;
   subscriptionPlanId?: string;
   planSlug?: 'basic' | 'pro';
+  billingInterval?: BillingInterval;
   successUrl?: string;
   cancelUrl?: string;
 };
@@ -61,14 +66,16 @@ export async function createCheckoutSessionForOrganization(
 
   const ctx = getBillingContext();
   const base = ctx.billing.getAppBaseUrl();
-  const successUrl = input.successUrl ?? `${base}/dashboard/billing?checkout=success`;
-  const cancelUrl = input.cancelUrl ?? `${base}/dashboard/billing`;
+  const successUrl = input.successUrl ?? `${base}/billing?checkout=success`;
+  const cancelUrl = input.cancelUrl ?? `${base}/billing`;
 
   const orgId = input.org._id.toString();
+  const billingInterval: BillingInterval = input.billingInterval ?? 'month';
   let priceId = '';
   let checkoutMode: 'subscription' | 'payment' = 'subscription';
   let subscriptionPlanIdMeta = '';
   let dbPlanForSeats: SubscriptionPlanDoc | null = null;
+  let resolvedPrices: ResolvedPlanPrices | null = null;
   const stripePriceIds = getStripePriceIds();
 
   if (input.subscriptionPlanId?.trim()) {
@@ -80,9 +87,10 @@ export async function createCheckoutSessionForOrganization(
     if (!dbPlan) {
       throw new CheckoutSessionError('Plan not found', 404);
     }
-    await validatePlanForCheckout(dbPlan, orgId);
+    await validatePlanForCheckout(dbPlan, orgId, billingInterval);
 
-    priceId = dbPlan.stripeBasePriceId;
+    resolvedPrices = resolvePlanStripePrices(dbPlan, billingInterval);
+    priceId = resolvedPrices.basePriceId;
     subscriptionPlanIdMeta = String(dbPlan._id);
     checkoutMode = dbPlan.interval === 'lifetime' ? 'payment' : 'subscription';
     dbPlanForSeats = dbPlan;
@@ -98,8 +106,9 @@ export async function createCheckoutSessionForOrganization(
       .lean<SubscriptionPlanDoc>();
 
     if (slugPlan?.stripeBasePriceId) {
-      await validatePlanForCheckout(slugPlan, orgId);
-      priceId = slugPlan.stripeBasePriceId;
+      await validatePlanForCheckout(slugPlan, orgId, billingInterval);
+      resolvedPrices = resolvePlanStripePrices(slugPlan, billingInterval);
+      priceId = resolvedPrices.basePriceId;
       subscriptionPlanIdMeta = String(slugPlan._id);
       checkoutMode = slugPlan.interval === 'lifetime' ? 'payment' : 'subscription';
       dbPlanForSeats = slugPlan;
@@ -119,22 +128,24 @@ export async function createCheckoutSessionForOrganization(
   const stripe = getStripe();
   const meta: Record<string, string> = { organizationId: orgId };
   if (subscriptionPlanIdMeta) meta.subscriptionPlanId = subscriptionPlanIdMeta;
+  if (resolvedPrices && checkoutMode === 'subscription') {
+    meta.billingInterval = resolvedPrices.billingInterval;
+  }
 
   const lineItems: import('stripe').Stripe.Checkout.SessionCreateParams.LineItem[] = [
     { price: priceId, quantity: 1 },
   ];
-  if (
-    checkoutMode === 'subscription' &&
-    dbPlanForSeats?.stripeSeatPriceId &&
-    dbPlanForSeats.additionalUserPriceCents > 0
-  ) {
+  const seatPriceId = resolvedPrices?.seatPriceId ?? dbPlanForSeats?.stripeSeatPriceId;
+  const seatUnitCents =
+    resolvedPrices?.additionalUserPriceCents ?? dbPlanForSeats?.additionalUserPriceCents ?? 0;
+  if (checkoutMode === 'subscription' && seatPriceId && seatUnitCents > 0 && dbPlanForSeats) {
     if (ctx.seats.beforeCountSeats) {
       await ctx.seats.beforeCountSeats(orgId);
     }
     const cnt = getEffectiveSeatCount(await ctx.seats.getSeatCount(orgId));
     const extra = Math.max(0, cnt - (dbPlanForSeats.includedUsers ?? 1));
     if (extra > 0) {
-      lineItems.push({ price: dbPlanForSeats.stripeSeatPriceId, quantity: extra });
+      lineItems.push({ price: seatPriceId, quantity: extra });
     }
   }
 

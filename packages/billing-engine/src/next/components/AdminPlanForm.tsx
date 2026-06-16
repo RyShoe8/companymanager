@@ -10,6 +10,18 @@ import { cn } from '../../ui/cn';
 
 type Interval = 'month' | 'year' | 'lifetime';
 
+type YearlyOfferForm = {
+  enabled: boolean;
+  basePriceCents: number;
+  additionalUserPriceCents: number;
+};
+
+const emptyYearlyOffer = (): YearlyOfferForm => ({
+  enabled: false,
+  basePriceCents: 0,
+  additionalUserPriceCents: 0,
+});
+
 const empty = {
   name: '',
   interval: 'year' as Interval,
@@ -20,16 +32,20 @@ const empty = {
   badge: '',
   maxSubscriptionSlots: 0,
   trialDays: 0,
+  yearlyOffer: emptyYearlyOffer(),
+  onboardingCallsEnabled: false,
 };
 
 export function AdminPlanForm({
   mode,
   planId,
   initial,
+  stripeProductId,
 }: {
   mode: 'create' | 'edit';
   planId?: string;
   initial?: typeof empty;
+  stripeProductId?: string;
 }) {
   const router = useRouter();
   const [form, setForm] = useState(initial ?? empty);
@@ -41,7 +57,7 @@ export function AdminPlanForm({
     setError(null);
     setLoading(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         name: form.name,
         interval: form.interval,
         basePriceCents: Number(form.basePriceCents),
@@ -51,7 +67,15 @@ export function AdminPlanForm({
         badge: form.badge,
         maxSubscriptionSlots: Number(form.maxSubscriptionSlots),
         trialDays: Number(form.trialDays),
+        onboardingCallsEnabled: form.onboardingCallsEnabled,
       };
+      if (form.interval === 'month') {
+        body.yearlyOffer = {
+          enabled: form.yearlyOffer.enabled,
+          basePriceCents: Number(form.yearlyOffer.basePriceCents),
+          additionalUserPriceCents: Number(form.yearlyOffer.additionalUserPriceCents),
+        };
+      }
       const url = mode === 'create' ? '/api/admin/plans' : `/api/admin/plans/${planId}`;
       const res = await fetch(url, {
         method: mode === 'create' ? 'POST' : 'PATCH',
@@ -123,8 +147,13 @@ export function AdminPlanForm({
               }
             />
             <p className="text-xs text-text-muted">
-              0 = no trial. Applies to monthly/yearly Checkout only; first subscription per organization.
+              0 = no trial. Applies on first Stripe Checkout only; lifetime plans ignore trial.
             </p>
+            {mode === 'edit' && !stripeProductId ? (
+              <p className="text-xs text-amber-600">
+                Sync this plan to Stripe after saving so checkout can use it.
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="base">Base price (cents)</Label>
@@ -154,6 +183,73 @@ export function AdminPlanForm({
               Set to 0 to disallow employees beyond included users (no seat add-ons).
             </p>
           </div>
+          {form.interval === 'month' ? (
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={form.yearlyOffer.enabled}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      yearlyOffer: { ...f.yearlyOffer, enabled: e.target.checked },
+                    }))
+                  }
+                />
+                Also offer yearly pricing
+              </label>
+              {form.yearlyOffer.enabled ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="yearBase">Yearly base (cents)</Label>
+                    <Input
+                      id="yearBase"
+                      type="number"
+                      min={0}
+                      value={form.yearlyOffer.basePriceCents}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          yearlyOffer: {
+                            ...f.yearlyOffer,
+                            basePriceCents: Number(e.target.value),
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="yearSeat">Yearly seat (cents)</Label>
+                    <Input
+                      id="yearSeat"
+                      type="number"
+                      min={0}
+                      value={form.yearlyOffer.additionalUserPriceCents}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          yearlyOffer: {
+                            ...f.yearlyOffer,
+                            additionalUserPriceCents: Number(e.target.value),
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <label className="flex items-center gap-2 text-sm text-text-primary">
+            <input
+              type="checkbox"
+              checked={form.onboardingCallsEnabled}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, onboardingCallsEnabled: e.target.checked }))
+              }
+            />
+            Include onboarding call
+          </label>
           <div className="space-y-2">
             <Label htmlFor="inc">Included users</Label>
             <Input
