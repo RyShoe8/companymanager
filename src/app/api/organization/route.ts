@@ -6,6 +6,7 @@ import Organization from '@/lib/models/Organization';
 import { sanitizeString } from '@/lib/utils/security';
 import { organizationSlugFromUserId } from '@/lib/utils/organizationSlug';
 import { isMongoDuplicateKeyError } from '@/lib/utils/mongoErrors';
+import { syncUserToBrevoInBackground } from '@/lib/services/brevoContactSync';
 
 function organizationErrorResponse(error: unknown) {
   console.error('[organization] create/update failed', error);
@@ -134,6 +135,14 @@ export async function PUT(request: NextRequest) {
     // Mark organization setup as complete
     user.organizationSetupComplete = true;
     await user.save();
+
+    syncUserToBrevoInBackground({
+      email: user.email,
+      name: user.name,
+      organizationId: user.organizationId,
+      organizationName: organization.name,
+      role: 'Administrator',
+    });
 
     return NextResponse.json({
       message: 'Organization updated successfully',

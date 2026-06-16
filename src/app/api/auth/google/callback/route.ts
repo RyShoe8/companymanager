@@ -5,6 +5,10 @@ import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import { createSession } from '@/lib/auth/session';
 import { verifyLoginOAuthState } from '@/lib/auth/loginOauthState';
+import {
+  syncRegisteredUserToBrevoInBackground,
+  syncUserToBrevoInBackground,
+} from '@/lib/services/brevoContactSync';
 
 /**
  * Handle Google OAuth callback
@@ -260,6 +264,24 @@ export async function GET(request: NextRequest) {
 
     // Create session
     await createSession(user._id.toString(), user.email);
+
+    if (isNewUser && user.organizationId) {
+      if (invitationToken || isJoiningExistingOrg) {
+        syncRegisteredUserToBrevoInBackground({
+          email: user.email,
+          name: user.name,
+          organizationId: user.organizationId,
+          userId: user._id.toString(),
+        });
+      } else {
+        syncUserToBrevoInBackground({
+          email: user.email,
+          name: user.name,
+          organizationId: user.organizationId,
+          role: 'Administrator',
+        });
+      }
+    }
 
     // Redirect based on organization setup status
     if (isNewUser && !user.organizationSetupComplete) {

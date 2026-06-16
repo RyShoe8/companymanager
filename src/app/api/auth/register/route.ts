@@ -7,6 +7,10 @@ import Invitation from '@/lib/models/Invitation';
 import { createSession } from '@/lib/auth/session';
 import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
 import { isValidEmail } from '@/lib/utils/security';
+import {
+  syncRegisteredUserToBrevoInBackground,
+  syncUserToBrevoInBackground,
+} from '@/lib/services/brevoContactSync';
 
 export async function POST(request: NextRequest) {
   try {
@@ -172,6 +176,22 @@ export async function POST(request: NextRequest) {
 
     // Create session
     await createSession(user._id.toString(), user.email);
+
+    if (invitationToken) {
+      syncRegisteredUserToBrevoInBackground({
+        email: user.email,
+        name: user.name,
+        organizationId,
+        userId: user._id.toString(),
+      });
+    } else {
+      syncUserToBrevoInBackground({
+        email: user.email,
+        name: user.name,
+        organizationId,
+        role: 'Administrator',
+      });
+    }
 
     return NextResponse.json(
       {

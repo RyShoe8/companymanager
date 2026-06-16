@@ -46,8 +46,8 @@ export interface IProjectTask {
   _id?: Types.ObjectId; // Mongoose adds by default; use for stable task references (project.tasks.id(taskId))
   name: string;
   description?: string;
-  startDate: Date;
-  endDate: Date;
+  startDate?: Date;
+  endDate?: Date;
   estimatedHours?: number;
   assignedTo?: string; // Legacy - kept for backward compatibility
   assignedToEmployeeId?: Types.ObjectId; // Legacy single assignment (synced from first in array)
@@ -304,11 +304,11 @@ const ProjectSchema: Schema = new Schema(
         },
         startDate: {
           type: Date,
-          required: true,
+          required: false,
         },
         endDate: {
           type: Date,
-          required: true,
+          required: false,
         },
         estimatedHours: {
           type: Number,

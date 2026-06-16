@@ -1,4 +1,5 @@
 import { IProject, IProjectTask } from '@/lib/models/Project';
+import { parseDateSafe } from '@/lib/utils/dateUtils';
 
 /** Index of `task` in `project.tasks` for deep-links and schedule clicks. */
 export function resolveTaskIndexInProject(project: IProject, task: IProjectTask): number {
@@ -13,6 +14,8 @@ export function resolveTaskIndexInProject(project: IProject, task: IProjectTask)
         });
         if (i !== -1) return i;
     }
-    const st = new Date(task.startDate).getTime();
-    return tasks.findIndex((t) => t.name === task.name && new Date(t.startDate).getTime() === st);
+    const st = parseDateSafe(task.startDate)?.getTime() ?? 0;
+    return tasks.findIndex(
+      (t) => t.name === task.name && (parseDateSafe(t.startDate)?.getTime() ?? 0) === st
+    );
 }

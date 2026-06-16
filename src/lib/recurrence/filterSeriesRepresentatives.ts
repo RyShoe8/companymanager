@@ -2,6 +2,11 @@ import type { IProjectTask } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import { taskIdString } from '@/lib/projects/taskArrayGuards';
 import { sortByDateAsc } from '@/lib/recurrence/recurrenceHorizons';
+import { parseDateSafe } from '@/lib/utils/dateUtils';
+
+function taskSortDate(task: IProjectTask): Date {
+  return parseDateSafe(task.startDate) ?? new Date(0);
+}
 
 function startOfDay(date: Date): Date {
   const d = new Date(date);
@@ -12,17 +17,18 @@ function startOfDay(date: Date): Date {
 function pickUpcomingTaskInSeries(seriesTasks: IProjectTask[], referenceDate: Date): IProjectTask | null {
   const active = seriesTasks.filter((t) => t.status !== 'completed');
   if (active.length === 0) return null;
-  const sorted = sortByDateAsc(active, (t) => new Date(t.startDate));
+  const sorted = sortByDateAsc(active, taskSortDate);
   const ref = startOfDay(referenceDate).getTime();
 
   const inProgress = sorted.find((t) => {
-    const start = new Date(t.startDate).getTime();
-    const end = new Date(t.endDate).getTime();
+    const start = parseDateSafe(t.startDate)?.getTime();
+    const end = parseDateSafe(t.endDate)?.getTime();
+    if (start == null || end == null) return false;
     return start <= ref && end >= ref;
   });
   if (inProgress) return inProgress;
 
-  const next = sorted.find((t) => new Date(t.startDate).getTime() >= ref);
+  const next = sorted.find((t) => (parseDateSafe(t.startDate)?.getTime() ?? 0) >= ref);
   if (next) return next;
 
   return sorted[sorted.length - 1];
@@ -84,7 +90,7 @@ export function filterTasksToSeriesRepresentatives(
       options.mode === 'completed'
         ? pickCompletedRepresentative(
             seriesTasks,
-            (t) => new Date(t.startDate),
+            taskSortDate,
             (t) => t.status === 'completed'
           )
         : pickUpcomingTaskInSeries(seriesTasks, ref);

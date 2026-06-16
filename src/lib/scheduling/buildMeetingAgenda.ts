@@ -1,6 +1,6 @@
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
-import { publishDateOnViewDay } from '@/lib/utils/dateUtils';
+import { publishDateOnViewDay, parseDateSafe } from '@/lib/utils/dateUtils';
 
 export type AgendaTaskItem = {
   taskId: string;
@@ -38,9 +38,9 @@ export type MeetingAgendaPayload = {
 };
 
 function taskOverlapsWindow(task: IProjectTask, windowStart: Date, windowEnd: Date): boolean {
-  const start = new Date(task.startDate);
-  const end = new Date(task.endDate);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+  const start = parseDateSafe(task.startDate);
+  const end = parseDateSafe(task.endDate);
+  if (!start || !end) return false;
   return start <= windowEnd && end >= windowStart;
 }
 
@@ -59,13 +59,16 @@ export function buildMeetingAgenda(
     (project.tasks || []).forEach((task, taskIndex) => {
       if (!taskOverlapsWindow(task, meeting.start, meeting.end)) return;
       const taskId = task._id?.toString() || `${pid}-${taskIndex}`;
+      const taskStart = parseDateSafe(task.startDate);
+      const taskEnd = parseDateSafe(task.endDate);
+      if (!taskStart || !taskEnd) return;
       tasks.push({
         taskId,
         taskIndex,
         name: task.name || 'Untitled Task',
         status: task.status,
-        startDate: new Date(task.startDate).toISOString(),
-        endDate: new Date(task.endDate).toISOString(),
+        startDate: taskStart.toISOString(),
+        endDate: taskEnd.toISOString(),
       });
     });
 

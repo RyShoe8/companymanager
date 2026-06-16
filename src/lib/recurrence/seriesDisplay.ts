@@ -6,6 +6,7 @@ import {
   sortByDateAsc,
   type SeriesPosition,
 } from '@/lib/recurrence/recurrenceHorizons';
+import { parseDateSafe } from '@/lib/utils/dateUtils';
 
 /** Show extend control when this many or fewer occurrences remain (including current). */
 export const EXTEND_SERIES_REMAINING_THRESHOLD = 3;
@@ -22,7 +23,7 @@ export function getTaskSeriesPosition(
   const seriesId = task.recurrenceSeriesId;
   if (!seriesId) return null;
   const series = allTasks.filter((t) => t.recurrenceSeriesId === seriesId);
-  const sorted = sortByDateAsc(series, (t) => new Date(t.startDate));
+  const sorted = sortByDateAsc(series, (t) => parseDateSafe(t.startDate) ?? new Date(0));
   const id = taskIdString(task);
   if (!id) return null;
   return getSeriesPosition(

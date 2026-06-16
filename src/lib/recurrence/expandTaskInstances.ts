@@ -1,11 +1,19 @@
 import type { IProjectTask } from '@/lib/models/Project';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
+import { parseDateSafe } from '@/lib/utils/dateUtils';
 import {
   expandInitialSeriesDates,
   newRecurrenceSeriesId,
 } from '@/lib/recurrence/recurrenceHorizons';
 
 type TaskRecurrencePreset = Exclude<RecurrencePreset, 'none'>;
+
+function taskDurationMs(task: IProjectTask): number | null {
+  const start = parseDateSafe(task.startDate);
+  const end = parseDateSafe(task.endDate);
+  if (!start || !end) return null;
+  return Math.max(0, end.getTime() - start.getTime());
+}
 
 export function expandTaskInstances(
   baseTask: IProjectTask,
@@ -15,9 +23,9 @@ export function expandTaskInstances(
     seriesId?: string;
   }
 ): IProjectTask[] {
-  const start = new Date(baseTask.startDate);
-  const end = new Date(baseTask.endDate);
-  const durationMs = Math.max(0, end.getTime() - start.getTime());
+  const start = parseDateSafe(baseTask.startDate);
+  if (!start) return [baseTask];
+  const durationMs = taskDurationMs(baseTask) ?? 0;
 
   const occurrenceStarts =
     options.occurrenceStarts ??
@@ -40,9 +48,8 @@ export function expandTaskExtensionInstances(
   templateTask: IProjectTask,
   occurrenceStarts: Date[]
 ): IProjectTask[] {
-  const start = new Date(templateTask.startDate);
-  const end = new Date(templateTask.endDate);
-  const durationMs = Math.max(0, end.getTime() - start.getTime());
+  const durationMs = taskDurationMs(templateTask);
+  if (durationMs === null) return [];
   const seriesId = templateTask.recurrenceSeriesId;
   const preset = (templateTask.recurrencePreset ?? 'weekly') as TaskRecurrencePreset;
 

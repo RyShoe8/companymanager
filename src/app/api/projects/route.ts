@@ -3,7 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
-import { getDefaultTaskDates, parseDateSafe } from '@/lib/utils/dateUtils';
+import { getDefaultTaskDates, resolveTaskDateInput } from '@/lib/utils/dateUtils';
 import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
 import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
 import { stripPlatformCredentialPasswords, encryptPlatformCredentials } from '@/lib/security/platformCredentialCrypto';
@@ -240,18 +240,8 @@ export async function POST(request: NextRequest) {
 
       projectData.tasks = await Promise.all(tasks.map(async (task: any) => {
         const defaultDates = getDefaultTaskDates();
-        let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
-        let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
-
-        // Normalize dates to midnight UTC (match PUT /projects/[id] task handling)
-        if (startDate) {
-          startDate = new Date(
-            Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
-          );
-        }
-        if (endDate) {
-          endDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
-        }
+        const startDate = resolveTaskDateInput(task.startDate, { fallback: defaultDates.startDate });
+        const endDate = resolveTaskDateInput(task.endDate, { fallback: defaultDates.endDate });
 
         const taskData: any = {
           ...task,

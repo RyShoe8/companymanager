@@ -27,6 +27,13 @@ export function getBrevoSenderEmail(): string {
   return fromEnv || 'theteam@nucleas.app';
 }
 
+/** Brevo list ID for Nucleas user signups (default: list #3 "Users"). */
+export function getBrevoUsersListId(): number {
+  const raw = (process.env.BREVO_USERS_LIST_ID ?? '3').trim();
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
+}
+
 export function getBrevoConfigurationError(): string | null {
   const keyType = getBrevoKeyType();
   if (keyType === 'missing') {
@@ -318,25 +325,29 @@ export async function createBrevoContact(data: CreateContactData): Promise<void>
     
     createContact.attributes = attributes;
     
-    // Add to list ID #3 (Users list)
-    createContact.listIds = [3];
+    const listId = getBrevoUsersListId();
+    createContact.listIds = [listId];
     createContact.updateEnabled = true; // Update if contact already exists
 
     await contactsApiInstance.createContact(createContact);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const listId = getBrevoUsersListId();
+    const err = error as AxiosLikeError;
+    const code = err.response?.body?.code ?? err.response?.data?.code;
+    const status = err.response?.statusCode ?? err.response?.status;
     // If contact already exists, try to add them to the list
-    if (error?.response?.body?.code === 'duplicate_parameter' || error?.response?.statusCode === 400) {
+    if (code === 'duplicate_parameter' || status === 400) {
       try {
-        await contactsApiInstance.addContactToList(3, { emails: [data.email.toLowerCase()] });
-      } catch (listError: any) {
-        // If already in list, that's fine - silently continue
-        if (listError?.response?.body?.code !== 'duplicate_parameter') {
-          // Error adding contact to list in Brevo
+        await contactsApiInstance.addContactToList(listId, { emails: [data.email.toLowerCase()] });
+      } catch (listError: unknown) {
+        const listErr = listError as AxiosLikeError;
+        const listCode = listErr.response?.body?.code ?? listErr.response?.data?.code;
+        if (listCode !== 'duplicate_parameter') {
+          logBrevoError('Error adding existing contact to Brevo list', listError);
         }
       }
     } else {
-      // Error creating contact in Brevo
-      // Don't throw - we don't want to fail employee creation if Brevo fails
+      logBrevoError('Error creating contact in Brevo', error);
     }
   }
 }

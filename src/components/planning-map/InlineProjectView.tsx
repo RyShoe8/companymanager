@@ -1413,7 +1413,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
     const updatedTasks = [...(localProject.tasks || [])];
     const previousStatus = updatedTasks[taskIndex]?.status;
-    const updatedTask = { ...updatedTasks[taskIndex], [field]: value };
+    const updatedTask = {
+      ...updatedTasks[taskIndex],
+      [field]: field === 'startDate' || field === 'endDate' ? value ?? null : value,
+    };
 
     // Optimistically update the name if the ID changes
     if (field === 'assignedToEmployeeId') {
@@ -1645,9 +1648,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       if (seriesTasks.length === 0) return;
 
       const sorted = [...seriesTasks].sort(
-        (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+        (a, b) =>
+          (parseDateSafe(a.startDate)?.getTime() ?? 0) - (parseDateSafe(b.startDate)?.getTime() ?? 0)
       );
       const last = sorted[sorted.length - 1];
+      if (!last?.startDate) return;
       const preset = (last.recurrencePreset ?? 'weekly') as RecurrencePreset;
       const extensionDates = expandExtensionDates(new Date(last.startDate), preset, unit);
       if (extensionDates.length === 0) return;
@@ -2466,9 +2471,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                         </div>
                         <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
-                            <EditableDate value={task.startDate} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} className="text-gray-900 leading-none py-0" placeholder="Start" disabled={!isManagerOrAdmin} />
+                            <EditableDate value={task.startDate ?? null} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} className="text-gray-900 leading-none py-0" placeholder="Start" disabled={!isManagerOrAdmin} clearable />
                             <span className="leading-none">→</span>
-                            <EditableDate value={task.endDate} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900 leading-none py-0" placeholder="End" disabled={!isManagerOrAdmin} />
+                            <EditableDate value={task.endDate ?? null} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900 leading-none py-0" placeholder="End" disabled={!isManagerOrAdmin} clearable />
                           </div>
                           {canContributeToProject && task.recurrenceSeriesId ? (
                             <>

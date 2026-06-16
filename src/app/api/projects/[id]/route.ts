@@ -5,7 +5,7 @@ import Project from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
-import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
+import { parseDateSafe, getDefaultTaskDates, resolveTaskDateInput } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput } from '@/lib/utils/fontPaletteInput';
@@ -490,18 +490,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         project.tasks = await Promise.all(sanitizedTasks.map(async (task: any, index: number) => {
           // Handle dates - provide defaults if not specified or invalid
           const defaultDates = getDefaultTaskDates();
-          let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
-          let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
-
-          // Normalize dates to midnight UTC for comparison (ignore time component); UTC getters match stored calendar days)
-          if (startDate) {
-            startDate = new Date(
-              Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
-            );
-          }
-          if (endDate) {
-            endDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
-          }
+          const startDate = resolveTaskDateInput(task.startDate, { fallback: defaultDates.startDate });
+          const endDate = resolveTaskDateInput(task.endDate, { fallback: defaultDates.endDate });
 
           // Preserve all task fields, especially status
           // Explicitly check for status to avoid overwriting valid statuses with 'active'

@@ -255,3 +255,29 @@ export function getDefaultTaskDates(): { startDate: Date; endDate: Date } {
   const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   return { startDate: now, endDate: oneWeekLater };
 }
+
+/** Normalize a task date to UTC midnight, or undefined when unset/invalid. */
+export function parseOptionalTaskDate(value: unknown): Date | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  if (typeof value !== 'string' && !(value instanceof Date)) return undefined;
+  const parsed = parseDateSafe(value);
+  if (!parsed) return undefined;
+  return new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
+  );
+}
+
+/**
+ * Parse task date from API/client payload.
+ * null/'' = explicitly cleared; undefined = use fallback when provided (new tasks).
+ */
+export function resolveTaskDateInput(
+  value: unknown,
+  options?: { fallback?: Date }
+): Date | null {
+  if (value === null || value === '') return null;
+  if (value === undefined) {
+    return options?.fallback ?? null;
+  }
+  return parseOptionalTaskDate(value) ?? options?.fallback ?? null;
+}

@@ -10,8 +10,8 @@ import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import { requireAuth } from '@/lib/auth/middleware';
 import { generateInvitationToken } from '@/lib/utils/invitation';
-import { createBrevoContact } from '@/lib/services/email';
 import { sendEmployeeInvitationEmail } from '@/lib/services/employeeInvitation';
+import { syncUserToBrevoInBackground } from '@/lib/services/brevoContactSync';
 import { getOrganizationForBillingUser } from '@/lib/billing/organizationResolve';
 
 export async function GET(request: NextRequest) {
@@ -208,21 +208,15 @@ export async function POST(request: NextRequest) {
         emailError = emailResult.emailError;
       }
 
-      // Add contact to Brevo
-      try {
-        await createBrevoContact({
-          email: email.toLowerCase(),
-          name,
-          attributes: {
-            ROLE: role,
-            JOB_TITLE: jobTitle || '',
-            EMPLOYEE_TYPE: employeeType || 'full-time',
-          },
-        });
-      } catch (brevoError) {
-        // Error adding contact to Brevo
-        // Don't fail the request if Brevo fails
-      }
+      // Add contact to Brevo (includes organization name when available)
+      syncUserToBrevoInBackground({
+        email: email.toLowerCase(),
+        name,
+        organizationId: user.organizationId,
+        role,
+        jobTitle: jobTitle || undefined,
+        employeeType: employeeType || 'full-time',
+      });
 
       if (billingOrg?.org) {
         try {

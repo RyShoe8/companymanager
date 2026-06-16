@@ -5,7 +5,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateProjectFields } from '@/lib/utils/apiHelpers';
-import { parseDateSafe, getDefaultTaskDates } from '@/lib/utils/dateUtils';
+import { parseDateSafe, getDefaultTaskDates, resolveTaskDateInput } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 import {
   canUserContributeToProject,
@@ -29,17 +29,8 @@ type IncomingTask = {
 
 async function buildTaskDocument(task: IncomingTask, organizationId: string) {
   const defaultDates = getDefaultTaskDates();
-  let startDate = parseDateSafe(task.startDate) || defaultDates.startDate;
-  let endDate = parseDateSafe(task.endDate) || defaultDates.endDate;
-
-  if (startDate) {
-    startDate = new Date(
-      Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
-    );
-  }
-  if (endDate) {
-    endDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
-  }
+  const startDate = resolveTaskDateInput(task.startDate, { fallback: defaultDates.startDate });
+  const endDate = resolveTaskDateInput(task.endDate, { fallback: defaultDates.endDate });
 
   let taskStatus: 'active' | 'completed' | 'in-review' = 'active';
   if (task.status !== undefined && task.status !== null) {
