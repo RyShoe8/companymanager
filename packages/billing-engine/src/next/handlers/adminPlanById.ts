@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { connectBillingDb, getBillingContext } from '../../context';
 import { SubscriptionPlanModel } from '../../models/SubscriptionPlan';
 import { OrganizationSubscriptionModel } from '../../models/OrganizationSubscription';
-import { getStripe } from '../../stripe/client';
+import { archivePlanInStripe } from '../../stripe/archivePlanInStripe';
 import { validObjectId } from '../../utils/validObjectId';
 
 export const dynamic = 'force-dynamic';
@@ -111,10 +111,12 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   const stripeProductId = plan.stripeProductId?.trim();
   if (stripeProductId && process.env.STRIPE_SECRET_KEY) {
-    try {
-      await getStripe().products.update(stripeProductId, { active: false });
-    } catch (e) {
-      console.error('[admin plan delete] Stripe product deactivate failed', stripeProductId, e);
+    const archived = await archivePlanInStripe(plan);
+    if (!archived.ok) {
+      return NextResponse.json(
+        { error: archived.error ?? 'Failed to archive plan in Stripe' },
+        { status: 502 }
+      );
     }
   }
 

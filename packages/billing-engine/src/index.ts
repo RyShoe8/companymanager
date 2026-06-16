@@ -31,6 +31,7 @@ export * from './billing/notifyOrganizationBilling';
 export * from './stripe/client';
 export { getStripePriceIds, MAX_TEMPLATES_BASIC } from './stripe/config';
 export * from './stripe/syncPlanToStripe';
+export * from './stripe/archivePlanInStripe';
 export * from './stripe/syncAddonToStripe';
 export * from './stripe/syncSubscriptionSeats';
 export * from './stripe/subscriptionItemSync';
