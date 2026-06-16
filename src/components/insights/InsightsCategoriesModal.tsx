@@ -42,7 +42,7 @@ export default function InsightsCategoriesModal({ categories, onClose }: Insight
               className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2 ${lightSurface('bg-gray-50', 'dark:bg-gray-900/40', light)}`}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getCategoryBadgeClass(cat.slug)}`}>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getCategoryBadgeClass(cat.slug, light)}`}>
                   {cat.name}
                 </span>
                 <span className={`text-xs ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>

@@ -27,6 +27,7 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
   const [loading, setLoading] = useState(true);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [showCategories, setShowCategories] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,46 +77,64 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
 
   return (
     <div className={`${lightSurface('bg-white', 'dark:bg-gray-800', light)} rounded-lg border ${lightSurface('border-gray-200', 'dark:border-gray-700', light)} p-4`}>
-      <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => setPanelExpanded((prev) => !prev)}
+        aria-expanded={panelExpanded}
+        className={`flex w-full items-center gap-2 text-left ${panelExpanded ? 'mb-3' : ''}`}
+      >
+        <span className={`shrink-0 text-xs ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
+          {panelExpanded ? '▼' : '▶'}
+        </span>
         <h3 className={`text-lg font-semibold ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>Insights</h3>
-        <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mt-1`}>
-          {progress.completed} of {progress.total} completed
-        </p>
-        <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${lightSurface('bg-gray-100', 'dark:bg-gray-700', light)}`}>
-          <div className="h-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
-        </div>
-      </div>
+        {!panelExpanded && (
+          <span className={`ml-auto text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
+            {progress.completed} of {progress.total} completed
+          </span>
+        )}
+      </button>
 
-      {loading ? (
-        <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>Loading insights…</p>
-      ) : insights.length === 0 ? (
-        <div className="text-center py-6">
-          <p className={`text-sm font-medium ${lightSurface('text-gray-900', 'dark:text-white', light)} mb-1`}>
-            You&apos;re all caught up!
+      {panelExpanded && (
+        <>
+          <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-2`}>
+            {progress.completed} of {progress.total} completed
           </p>
-          <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-4`}>
-            Every insight for this project is complete or dismissed.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowCategories(true)}
-            className="text-sm text-primary hover:underline"
-          >
-            Browse all insight categories
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {insights.map((item) => (
-            <InsightCard
-              key={item.id}
-              projectId={projectId}
-              item={item}
-              onDismiss={handleDismiss}
-              dismissing={dismissingId === item.id}
-            />
-          ))}
-        </div>
+          <div className={`mb-3 h-1.5 rounded-full overflow-hidden ${lightSurface('bg-gray-100', 'dark:bg-gray-700', light)}`}>
+            <div className="h-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+          </div>
+
+          {loading ? (
+            <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>Loading insights…</p>
+          ) : insights.length === 0 ? (
+            <div className="text-center py-6">
+              <p className={`text-sm font-medium ${lightSurface('text-gray-900', 'dark:text-white', light)} mb-1`}>
+                You&apos;re all caught up!
+              </p>
+              <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-4`}>
+                Every insight for this project is complete or dismissed.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowCategories(true)}
+                className="text-sm text-primary hover:underline"
+              >
+                Browse all insight categories
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {insights.map((item) => (
+                <InsightCard
+                  key={item.id}
+                  projectId={projectId}
+                  item={item}
+                  onDismiss={handleDismiss}
+                  dismissing={dismissingId === item.id}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {showCategories && (

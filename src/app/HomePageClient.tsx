@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useState } from 'react';
 import AnimateIn from '@/components/home/AnimateIn';
 import HomeFAQ from '@/components/home/HomeFAQ';
-import InteractiveDemoBlock from '@/components/home/InteractiveDemoBlock';
 import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
 import HeroWorkspaceScreenshot from '@/components/marketing/screenshots/HeroWorkspaceScreenshot';
 
@@ -395,13 +394,6 @@ export default function HomePageClient() {
               </AnimateIn>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════ INTERACTIVE DEMO ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
-          <InteractiveDemoBlock />
         </div>
       </section>
 
