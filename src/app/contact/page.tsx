@@ -12,11 +12,12 @@ import MarketingPageHeader from '@/components/home/MarketingPageHeader';
 function ContactForm() {
   const searchParams = useSearchParams();
   const presetType = searchParams.get('type') || '';
+  const presetSubject = searchParams.get('subject') || '';
 
   const [type, setType] = useState(presetType || 'Other');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(presetSubject);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -44,7 +45,7 @@ function ContactForm() {
       setSuccess(true);
       setName('');
       setEmail('');
-      setSubject('');
+      setSubject(presetSubject);
       setMessage('');
       setType(presetType || 'Other');
     } catch (err) {
@@ -96,6 +97,7 @@ function ContactForm() {
                 options={[
                   { value: 'Bug', label: 'Bug Report' },
                   { value: 'Feature Request', label: 'Feature Request' },
+                  { value: 'Enterprise', label: 'Enterprise' },
                   { value: 'Other', label: 'Other' },
                 ]}
               />

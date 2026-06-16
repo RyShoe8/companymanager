@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate contact type
-    const validTypes = ['Bug', 'Feature Request', 'Other'];
+    const validTypes = ['Bug', 'Feature Request', 'Enterprise', 'Other'];
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { error: 'Invalid contact type' },
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       try {
         await connectDB();
         await FeedbackSubmission.create({
-          type: type as 'Bug' | 'Feature Request' | 'Other',
+          type: type as 'Bug' | 'Feature Request' | 'Enterprise' | 'Other',
           subject,
           message,
           name,

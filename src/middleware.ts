@@ -56,12 +56,14 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/invitations/') ||
     pathname.startsWith('/api/portal/') ||
     pathname.startsWith('/api/contact') ||
+    pathname.startsWith('/api/sales-calls') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname === '/setup-organization' ||
     pathname === '/about' ||
     pathname === '/contact' ||
     pathname === '/pricing' ||
+    pathname === '/book-call' ||
     pathname === '/terms' ||
     pathname === '/privacy' ||
     pathname.startsWith('/features/') ||

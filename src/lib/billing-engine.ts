@@ -5,12 +5,12 @@ import connectDB from '@/lib/db/mongodb';
 import Organization from '@/lib/models/Organization';
 import Employee from '@/lib/models/Employee';
 import User from '@/lib/models/User';
-import { NUCLEAS_PLATFORM_FEATURES } from '@/lib/marketing/nucleasPlatformFeatures';
+import { NUCLEAS_PLAN_CARD_BULLETS } from '@/lib/marketing/planCardBullets';
 import { sendEmail } from '@/lib/services/email';
 import { buildBillingNotificationEmail } from '@/lib/billing/billingEmailTemplates';
 import { getBillingSession, requirePlatformAdminApi } from '@/lib/billing/sessionAdapter';
 
-const NUCLEAS_PLAN_FEATURE_BULLETS = NUCLEAS_PLATFORM_FEATURES;
+const NUCLEAS_PLAN_FEATURE_BULLETS = NUCLEAS_PLAN_CARD_BULLETS;
 
 function getAppBaseUrl(): string {
   const fromEnv = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? '').trim();

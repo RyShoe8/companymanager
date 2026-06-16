@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { getPublicPricingPlans, isRecommendedPlan, sortPlansForPricingDisplay } from 'billing-engine';
 import Button from '@/components/ui/Button';
 import { PricingPlanMarketingCard } from '@/components/pricing/PricingPlanMarketingCard';
+import { EnterprisePricingCard } from '@/components/pricing/EnterprisePricingCard';
 import { NUCLEAS_PLATFORM_FEATURES } from '@/lib/marketing/nucleasPlatformFeatures';
 import { pricingPlanCtaHref } from '@/lib/billing/pricingPlanCta';
 import { getMarketingTrialCopy } from '@/lib/billing/marketingTrialCopy';
@@ -103,7 +104,7 @@ export default async function PricingPage() {
                 <Link href="/contact" className="text-primary hover:text-primary-hover">contact us</Link>.
               </p>
             ) : (
-              <div className="max-w-7xl mx-auto grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="max-w-7xl mx-auto grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
                 {plans.map((plan) => (
                   <PricingPlanMarketingCard
                     key={plan.id}
@@ -112,6 +113,7 @@ export default async function PricingPage() {
                     className={isRecommendedPlan(plan) ? 'ring-2 ring-primary/40' : undefined}
                   />
                 ))}
+                <EnterprisePricingCard />
               </div>
             )}
           </AnimateIn>

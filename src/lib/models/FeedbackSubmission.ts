@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type FeedbackSubmissionType = 'Bug' | 'Feature Request' | 'Other';
+export type FeedbackSubmissionType = 'Bug' | 'Feature Request' | 'Enterprise' | 'Other';
 export type FeedbackSubmissionSource = 'contact' | 'app';
 export type FeedbackSubmissionStatus = 'new' | 'done';
 
@@ -22,7 +22,7 @@ const FeedbackSubmissionSchema = new Schema<IFeedbackSubmission>(
   {
     type: {
       type: String,
-      enum: ['Bug', 'Feature Request', 'Other'],
+      enum: ['Bug', 'Feature Request', 'Enterprise', 'Other'],
       required: true,
     },
     subject: { type: String, required: true, trim: true, maxlength: 200 },

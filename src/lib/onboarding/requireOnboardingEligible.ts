@@ -8,6 +8,7 @@ import {
   type PlatformOnboardingSettingsDoc,
 } from '@/lib/models/PlatformOnboardingSettings';
 import OnboardingBookingModel from '@/lib/models/OnboardingBooking';
+import SalesCallBookingModel from '@/lib/models/SalesCallBooking';
 import { computeAvailableSlots, type OnboardingSettingsLike } from '@/lib/onboarding/slotEngine';
 import { getHostCalendarBusyBlocks } from '@/lib/onboarding/hostCalendarBusy';
 
@@ -37,8 +38,12 @@ export async function computeOnboardingAvailableSlots(
   const slotSettings = settingsToSlotInput(settings);
   const rangeEnd = new Date(now.getTime() + settings.maxAdvanceDays * 24 * 60 * 60_000);
 
-  const [bookings, calendarBusy] = await Promise.all([
+  const [onboardingBookings, salesBookings, calendarBusy] = await Promise.all([
     OnboardingBookingModel.find({
+      status: 'scheduled',
+      start: { $gte: now },
+    }).lean(),
+    SalesCallBookingModel.find({
       status: 'scheduled',
       start: { $gte: now },
     }).lean(),
@@ -52,7 +57,13 @@ export async function computeOnboardingAvailableSlots(
   ]);
 
   const existing = [
-    ...bookings.map((b) => ({
+    ...onboardingBookings.map((b) => ({
+      hostId: b.hostId,
+      start: b.start,
+      end: b.end,
+      status: b.status,
+    })),
+    ...salesBookings.map((b) => ({
       hostId: b.hostId,
       start: b.start,
       end: b.end,

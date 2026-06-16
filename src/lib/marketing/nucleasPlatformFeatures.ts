@@ -2,7 +2,7 @@
 export const NUCLEAS_PLATFORM_FEATURES = [
   'Workspace planning and scheduling',
   'Visual planning map with multiple time horizons',
-  'Projects with tasks, milestones, and status tracking',
+  'Projects with tasks and content tracking',
   'AI-powered time estimation',
   'Content planning and scheduling',
   'Meeting management with project insights',

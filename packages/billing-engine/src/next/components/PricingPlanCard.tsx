@@ -57,18 +57,11 @@ export function PricingPlanCard({
   const resolvedFooter =
     typeof footer === 'function' ? footer({ billingInterval }) : footer;
 
-  return (
-    <Card
-      className={cn(
-        'relative flex w-full flex-col overflow-hidden',
-        isMarketing
-          ? 'border-slate-200/80 bg-white text-gray-900 shadow-float ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-ring'
-          : 'border-border bg-background-card text-text-primary shadow-sm',
-        recommended && isMarketing ? 'ring-2 ring-primary/40' : '',
-        isCurrent ? 'ring-2 ring-primary/30' : '',
-        className
-      )}
-    >
+  const marketingShellClass =
+    'relative flex w-full flex-col overflow-hidden rounded-lg border border-slate-200/80 bg-white text-gray-900 shadow-float ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-ring';
+
+  const inner = (
+    <>
       {recommended && isMarketing ? (
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1 tn-grad-bg" />
       ) : null}
@@ -84,7 +77,14 @@ export function PricingPlanCard({
             isMarketing && 'justify-center'
           )}
         >
-          <CardTitle className={cn(compact ? 'text-lg' : 'text-xl')}>{plan.name}</CardTitle>
+          <CardTitle
+            className={cn(
+              compact ? 'text-lg' : 'text-xl',
+              isMarketing && 'text-gray-900'
+            )}
+          >
+            {plan.name}
+          </CardTitle>
           {plan.badge.trim() ? (
             <span className="rounded-full border border-primary/30 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
               {plan.badge.trim()}
@@ -132,7 +132,7 @@ export function PricingPlanCard({
             className={cn(
               'font-semibold tracking-tight',
               compact ? 'text-2xl' : 'text-4xl',
-              isMarketing && 'text-center'
+              isMarketing ? 'text-center text-gray-900' : ''
             )}
           >
             {primaryPriceLine(plan, billingInterval)}
@@ -182,6 +182,33 @@ export function PricingPlanCard({
         ) : null}
       </CardContent>
       {resolvedFooter ? <CardFooter className="mt-auto">{resolvedFooter}</CardFooter> : null}
+    </>
+  );
+
+  if (isMarketing) {
+    return (
+      <div
+        className={cn(
+          marketingShellClass,
+          recommended ? 'ring-2 ring-primary/40' : '',
+          className
+        )}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Card
+      className={cn(
+        'relative flex w-full flex-col overflow-hidden',
+        'border-border bg-background-card text-text-primary shadow-sm',
+        isCurrent ? 'ring-2 ring-primary/30' : '',
+        className
+      )}
+    >
+      {inner}
     </Card>
   );
 }
