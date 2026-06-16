@@ -136,6 +136,7 @@ export default function WorkspaceShell({
     } = useSchedulingCalendar(ws.timeframe, ws.currentDate);
     const schedulingAvailability = useSchedulingAvailability();
 
+    // Fetch meetings whenever the utilization sidebar is shown (all timeframes including Today).
     const meetingsFetchEnabled =
         ws.phase === 'Schedule' ||
         ws.lens === 'agenda' ||

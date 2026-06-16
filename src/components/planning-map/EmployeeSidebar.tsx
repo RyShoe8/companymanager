@@ -22,6 +22,10 @@ import {
   buildStageHoursBreakdown,
   sumStageBreakdown,
 } from '@/lib/utils/employeeUtilizationBreakdown';
+import {
+  calculateProratedHoursInRange,
+  countWeekdaysInRange,
+} from '@/lib/utils/utilizationTaskHours';
 import { sumMeetingHoursForEmployee } from '@/lib/scheduling/meetingHours';
 import Card from '@/components/ui/Card';
 
@@ -157,24 +161,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
   endDate.setHours(23, 59, 59, 999);
 
   // Helper function to count weekdays (Monday-Friday) between two dates
-  const countWeekdays = (start: Date, end: Date): number => {
-    let count = 0;
-    const current = new Date(start);
-    current.setHours(0, 0, 0, 0);
-    const endDate = new Date(end);
-    endDate.setHours(23, 59, 59, 999);
-
-    while (current <= endDate) {
-      const dayOfWeek = current.getDay();
-      // 0 = Sunday, 6 = Saturday, so weekdays are 1-5 (Monday-Friday)
-      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        count++;
-      }
-      current.setDate(current.getDate() + 1);
-    }
-
-    return count;
-  };
+  const countWeekdays = countWeekdaysInRange;
 
   // Calculate total available hours based on timeframe (weekdays only)
   const totalAvailableHours = (employee: IEmployee) => {
@@ -239,21 +226,6 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
 
 
 
-  // Helper function to normalize date to start of day
-  const normalizeToStartOfDay = (date: Date): Date => {
-    const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
-    return normalized;
-  };
-
-  // Helper function to normalize date to end of day
-  const normalizeToEndOfDay = (date: Date): Date => {
-    const normalized = new Date(date);
-    normalized.setHours(23, 59, 59, 999);
-    return normalized;
-  };
-
-  // Helper function to calculate hours for a date range (weekdays only; full hours on Today overlap)
   const calculateHoursForDateRange = (
     rangeStart: Date,
     rangeEnd: Date,
@@ -261,55 +233,10 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     projectEnd: Date,
     totalHours: number
   ): number => {
-    if (timeframe === 'today') {
-      const taskStart = parseDateSafe(projectStart);
-      const taskEnd = parseDateSafe(projectEnd);
-      if (!taskStart || !taskEnd) return 0;
-      if (taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd)) {
-        return totalHours;
-      }
-      return 0;
-    }
-
-    // Normalize project dates: start to beginning of day, end to end of day (inclusive)
-    // Note: HTML date inputs store dates as YYYY-MM-DD 00:00:00, so endDate at Day 10 means Day 10 00:00:00
-    // We need to treat this as inclusive of Day 10, so normalize to end of Day 10
-    const normalizedProjectStart = normalizeToStartOfDay(projectStart);
-    const normalizedProjectEnd = normalizeToEndOfDay(projectEnd);
-
-    // Normalize range dates: start to beginning of day, end to end of day
-    const normalizedRangeStart = normalizeToStartOfDay(rangeStart);
-    const normalizedRangeEnd = normalizeToEndOfDay(rangeEnd);
-
-    // Find the overlap between project dates and the timeframe
-    // Compare dates properly: if project starts after range ends or project ends before range starts, no overlap
-    if (normalizedProjectStart.getTime() > normalizedRangeEnd.getTime() ||
-      normalizedProjectEnd.getTime() < normalizedRangeStart.getTime()) {
-      return 0;
-    }
-
-    const overlapStart = normalizedProjectStart > normalizedRangeStart ? normalizedProjectStart : normalizedRangeStart;
-    const overlapEnd = normalizedProjectEnd < normalizedRangeEnd ? normalizedProjectEnd : normalizedRangeEnd;
-
-    // If no overlap, return 0
-    if (overlapStart.getTime() > overlapEnd.getTime()) return 0;
-
-    // Calculate project duration in weekdays (Monday-Friday only)
-    const projectDurationWeekdays = countWeekdays(normalizedProjectStart, normalizedProjectEnd);
-
-    if (projectDurationWeekdays <= 0) return 0;
-
-    // Calculate number of weekdays in the overlap
-    const overlapWeekdays = countWeekdays(overlapStart, overlapEnd);
-
-    // Ensure we have at least 1 weekday
-    if (overlapWeekdays < 1) return 0;
-
-    // Calculate hours for the overlap period (weekdays only)
-    // Use precise calculation to avoid floating point errors
-    const hoursForOverlap = (totalHours * overlapWeekdays) / projectDurationWeekdays;
-
-    return hoursForOverlap;
+    const taskStart = parseDateSafe(projectStart);
+    const taskEnd = parseDateSafe(projectEnd);
+    if (!taskStart || !taskEnd) return 0;
+    return calculateProratedHoursInRange(rangeStart, rangeEnd, taskStart, taskEnd, totalHours);
   };
 
   const sumAssignedTaskHoursInPeriod = useCallback(

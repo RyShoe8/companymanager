@@ -1,5 +1,6 @@
 import type { IMeeting } from '@/lib/models/Meeting';
 import type { IEmployee } from '@/lib/models/Employee';
+import { localCalendarDayIndex } from '@/lib/utils/dateUtils';
 import { meetingInstanceDedupeKey } from '@/lib/scheduling/meetingDedupe';
 
 export function meetingDurationHours(
@@ -19,6 +20,34 @@ export function meetingDurationHours(
 
   const hours = (overlapEnd - overlapStart) / (1000 * 60 * 60);
   return Math.round(hours * 100) / 100;
+}
+
+export function meetingOverlapsViewRange(
+  viewStart: Date,
+  viewEnd: Date,
+  meeting: Pick<IMeeting, 'start' | 'end'>
+): boolean {
+  const start = new Date(meeting.start);
+  const end = new Date(meeting.end);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return false;
+  }
+  const v0 = localCalendarDayIndex(viewStart);
+  const v1 = localCalendarDayIndex(viewEnd);
+  const m0 = localCalendarDayIndex(start);
+  const m1 = localCalendarDayIndex(end);
+  return m0 <= v1 && m1 >= v0;
+}
+
+export function meetingHoursInViewRange(
+  meeting: Pick<IMeeting, 'start' | 'end'>,
+  rangeStart: Date,
+  rangeEnd: Date
+): number {
+  if (!meetingOverlapsViewRange(rangeStart, rangeEnd, meeting)) {
+    return 0;
+  }
+  return meetingDurationHours(meeting, rangeStart, rangeEnd);
 }
 
 export function employeeAttendsMeeting(
@@ -65,7 +94,7 @@ export function sumMeetingHoursForEmployee(
 ): number {
   const deduped = dedupeMeetingsForEmployee(meetings, employee);
   const total = deduped.reduce(
-    (sum, meeting) => sum + meetingDurationHours(meeting, rangeStart, rangeEnd),
+    (sum, meeting) => sum + meetingHoursInViewRange(meeting, rangeStart, rangeEnd),
     0
   );
   return Math.round(total * 100) / 100;

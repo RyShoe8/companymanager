@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
 import type { IMeeting } from '@/lib/models/Meeting';
 import type { IEmployee } from '@/lib/models/Employee';
-import { meetingInstanceDedupeKey } from '@/lib/scheduling/meetingDedupe';
+import { meetingInstanceDedupeKey, normalizeMeetingTimestampMs } from '@/lib/scheduling/meetingDedupe';
 import {
   dedupeMeetingsForEmployee,
   employeeAttendsMeeting,
+  meetingHoursInViewRange,
+  meetingOverlapsViewRange,
   sumMeetingHoursForEmployee,
 } from '@/lib/scheduling/meetingHours';
 
@@ -56,7 +58,21 @@ describe('meetingInstanceDedupeKey', () => {
       start,
       end,
     });
-    expect(key).toBe(`ical:ical-abc:${start.getTime()}`);
+    expect(key).toBe(`ical:ical-abc:${normalizeMeetingTimestampMs(start)}`);
+  });
+
+  it('collapses copies with start/end off by seconds', () => {
+    const keyA = meetingInstanceDedupeKey({
+      googleEventId: 'copy-a',
+      start,
+      end,
+    });
+    const keyB = meetingInstanceDedupeKey({
+      googleEventId: 'copy-b',
+      start: new Date(start.getTime() + 15_000),
+      end: new Date(end.getTime() + 500),
+    });
+    expect(keyA).toBe(keyB);
   });
 
   it('distinguishes recurring instances by start time', () => {
@@ -159,6 +175,61 @@ describe('sumMeetingHoursForEmployee', () => {
     ];
 
     expect(sumMeetingHoursForEmployee(meetings, employee, weekStart, weekEnd)).toBe(2);
+  });
+
+  it('dedupes recurring copies when instance start differs by seconds', () => {
+    const meetings = [
+      ...Array.from({ length: 6 }, (_, i) =>
+        meetingRow({
+          googleRecurringEventId: 'series-standup',
+          googleEventId: `copy-${i}`,
+          start: new Date('2026-06-09T14:00:00.000Z'),
+          end: new Date('2026-06-09T14:30:00.000Z'),
+        })
+      ),
+      meetingRow({
+        googleRecurringEventId: 'series-standup',
+        googleEventId: 'copy-drift',
+        start: new Date('2026-06-09T14:00:12.000Z'),
+        end: new Date('2026-06-09T14:30:08.000Z'),
+      }),
+    ];
+
+    expect(sumMeetingHoursForEmployee(meetings, employee, weekStart, weekEnd)).toBe(0.5);
+  });
+});
+
+describe('meetingHoursInViewRange', () => {
+  it('includes meetings on the viewed calendar day', () => {
+    const viewDay = new Date(2026, 5, 9, 12, 0, 0);
+    const viewStart = new Date(viewDay);
+    viewStart.setHours(0, 0, 0, 0);
+    const viewEnd = new Date(viewDay);
+    viewEnd.setHours(23, 59, 59, 999);
+
+    const meeting = meetingRow({
+      start: new Date(2026, 5, 9, 14, 0, 0),
+      end: new Date(2026, 5, 9, 15, 0, 0),
+    });
+
+    expect(meetingOverlapsViewRange(viewStart, viewEnd, meeting)).toBe(true);
+    expect(meetingHoursInViewRange(meeting, viewStart, viewEnd)).toBe(1);
+  });
+
+  it('excludes meetings outside the viewed calendar day', () => {
+    const viewDay = new Date(2026, 5, 9, 12, 0, 0);
+    const viewStart = new Date(viewDay);
+    viewStart.setHours(0, 0, 0, 0);
+    const viewEnd = new Date(viewDay);
+    viewEnd.setHours(23, 59, 59, 999);
+
+    const meeting = meetingRow({
+      start: new Date(2026, 5, 10, 14, 0, 0),
+      end: new Date(2026, 5, 10, 15, 0, 0),
+    });
+
+    expect(meetingOverlapsViewRange(viewStart, viewEnd, meeting)).toBe(false);
+    expect(meetingHoursInViewRange(meeting, viewStart, viewEnd)).toBe(0);
   });
 });
 
