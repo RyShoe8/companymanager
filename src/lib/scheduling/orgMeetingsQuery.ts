@@ -2,6 +2,7 @@ import Employee from '@/lib/models/Employee';
 import Meeting from '@/lib/models/Meeting';
 import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
 import User from '@/lib/models/User';
+import { meetingInstanceDedupeKey } from '@/lib/scheduling/meetingDedupe';
 import { meetingPassesAssignmentFilter as meetingPassesAssignmentFilterShared } from '@/lib/scheduling/meetingHours';
 import { Types } from 'mongoose';
 
@@ -31,11 +32,6 @@ export type OrgMeetingsViewer = {
   role: 'Administrator' | 'Manager' | 'User';
   employeeId: string | null;
 };
-
-function meetingDedupeKey(meeting: Pick<OrgMeetingRecord, 'iCalUID' | 'googleEventId' | 'start'>): string {
-  const seriesKey = meeting.iCalUID || meeting.googleEventId || '';
-  return `${seriesKey}:${new Date(meeting.start).getTime()}`;
-}
 
 export async function getOrgMeetingsViewer(userId: string): Promise<OrgMeetingsViewer | null> {
   const user = await User.findById(userId).lean();
@@ -100,7 +96,7 @@ export async function listOrgMeetingsInRange(
 
   const deduped = new Map<string, OrgMeetingRecord>();
   for (const meeting of meetings as OrgMeetingRecord[]) {
-    const key = meetingDedupeKey(meeting);
+    const key = meetingInstanceDedupeKey(meeting);
     const existing = deduped.get(key);
     if (!existing) {
       deduped.set(key, meeting);

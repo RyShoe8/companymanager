@@ -1,12 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent, type FocusEvent } from 'react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { cn } from '../../ui/cn';
+import {
+  formatCentsAsDollarInput,
+  parseDollarInputToCents,
+} from '../../billing/moneyInput';
 
 type Interval = 'month' | 'year' | 'lifetime';
 
@@ -48,15 +52,64 @@ function intervalHelperText(interval: Interval): string {
 }
 
 function basePriceLabel(interval: Interval): string {
-  if (interval === 'month') return 'Monthly base (cents)';
-  if (interval === 'year') return 'Yearly base (cents)';
-  return 'One-time base (cents)';
+  if (interval === 'month') return 'Monthly base price';
+  if (interval === 'year') return 'Yearly base price';
+  return 'One-time base price';
 }
 
 function seatPriceLabel(interval: Interval): string {
-  if (interval === 'month') return 'Monthly seat (cents)';
-  if (interval === 'year') return 'Yearly seat (cents)';
-  return 'Additional user price (cents)';
+  if (interval === 'month') return 'Monthly seat price';
+  if (interval === 'year') return 'Yearly seat price';
+  return 'Additional user price';
+}
+
+function DollarPriceInput({
+  id,
+  label,
+  cents,
+  onChangeCents,
+  required = false,
+}: {
+  id: string;
+  label: string;
+  cents: number;
+  onChangeCents: (cents: number) => void;
+  required?: boolean;
+}) {
+  const [display, setDisplay] = useState(() => formatCentsAsDollarInput(cents));
+
+  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setDisplay(raw);
+    onChangeCents(parseDollarInputToCents(raw));
+  }
+
+  function handleBlur(e: FocusEvent<HTMLInputElement>) {
+    const nextCents = parseDollarInputToCents(e.target.value);
+    onChangeCents(nextCents);
+    setDisplay(formatCentsAsDollarInput(nextCents));
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative">
+        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-text-muted">
+          $
+        </span>
+        <Input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          className="pl-7"
+          value={display}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          required={required}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function AdminPlanForm({
@@ -122,7 +175,7 @@ export function AdminPlanForm({
     <Card className="max-w-lg">
       <CardHeader>
         <CardTitle>{mode === 'create' ? 'Create plan' : 'Edit plan'}</CardTitle>
-        <CardDescription>Amounts are in USD cents (e.g. 3900 = $39.00).</CardDescription>
+        <CardDescription>Enter amounts in US dollars (for example, 39.00).</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
@@ -177,42 +230,28 @@ export function AdminPlanForm({
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-text-secondary">Yearly pricing</p>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="yearBase">Yearly base (cents)</Label>
-                      <Input
-                        id="yearBase"
-                        type="number"
-                        min={0}
-                        value={form.yearlyOffer.basePriceCents}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            yearlyOffer: {
-                              ...f.yearlyOffer,
-                              basePriceCents: Number(e.target.value),
-                            },
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="yearSeat">Yearly seat (cents)</Label>
-                      <Input
-                        id="yearSeat"
-                        type="number"
-                        min={0}
-                        value={form.yearlyOffer.additionalUserPriceCents}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            yearlyOffer: {
-                              ...f.yearlyOffer,
-                              additionalUserPriceCents: Number(e.target.value),
-                            },
-                          }))
-                        }
-                      />
-                    </div>
+                    <DollarPriceInput
+                      id="yearBase"
+                      label="Yearly base price"
+                      cents={form.yearlyOffer.basePriceCents}
+                      onChangeCents={(basePriceCents) =>
+                        setForm((f) => ({
+                          ...f,
+                          yearlyOffer: { ...f.yearlyOffer, basePriceCents },
+                        }))
+                      }
+                    />
+                    <DollarPriceInput
+                      id="yearSeat"
+                      label="Yearly seat price"
+                      cents={form.yearlyOffer.additionalUserPriceCents}
+                      onChangeCents={(additionalUserPriceCents) =>
+                        setForm((f) => ({
+                          ...f,
+                          yearlyOffer: { ...f.yearlyOffer, additionalUserPriceCents },
+                        }))
+                      }
+                    />
                   </div>
                 </div>
               ) : null}
@@ -250,34 +289,24 @@ export function AdminPlanForm({
             {form.interval === 'month' && form.yearlyOffer.enabled ? (
               <p className="text-xs font-medium text-text-secondary">Monthly pricing</p>
             ) : null}
-            <div className="space-y-2">
-              <Label htmlFor="base">{basePriceLabel(form.interval)}</Label>
-              <Input
-                id="base"
-                type="number"
-                min={0}
-                value={form.basePriceCents}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setForm((f) => ({ ...f, basePriceCents: Number(e.target.value) }))
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seat">{seatPriceLabel(form.interval)}</Label>
-              <Input
-                id="seat"
-                type="number"
-                min={0}
-                value={form.additionalUserPriceCents}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setForm((f) => ({ ...f, additionalUserPriceCents: Number(e.target.value) }))
-                }
-              />
-              <p className="text-xs text-text-muted">
-                Set to 0 to disallow employees beyond included users (no seat add-ons).
-              </p>
-            </div>
+            <DollarPriceInput
+              id="base"
+              label={basePriceLabel(form.interval)}
+              cents={form.basePriceCents}
+              onChangeCents={(basePriceCents) => setForm((f) => ({ ...f, basePriceCents }))}
+              required
+            />
+            <DollarPriceInput
+              id="seat"
+              label={seatPriceLabel(form.interval)}
+              cents={form.additionalUserPriceCents}
+              onChangeCents={(additionalUserPriceCents) =>
+                setForm((f) => ({ ...f, additionalUserPriceCents }))
+              }
+            />
+            <p className="text-xs text-text-muted">
+              Set seat price to $0.00 to disallow employees beyond included users (no seat add-ons).
+            </p>
           </div>
           <label className="flex items-center gap-2 text-sm text-text-primary">
             <input

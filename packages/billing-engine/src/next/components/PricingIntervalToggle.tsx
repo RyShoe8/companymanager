@@ -11,23 +11,19 @@ import { cn } from '../../ui/cn';
 
 type BillingInterval = 'month' | 'year';
 
-type PricingIntervalToggleProps = {
-  plan: PublicPricingPlan;
+type BillingIntervalToggleShellProps = {
   value: BillingInterval;
   onChange: (interval: BillingInterval) => void;
   className?: string;
   marketing?: boolean;
 };
 
-export function PricingIntervalToggle({
-  plan,
+export function BillingIntervalToggleShell({
   value,
   onChange,
   className,
   marketing = false,
-}: PricingIntervalToggleProps) {
-  if (!planHasYearlyToggle(plan)) return null;
-
+}: BillingIntervalToggleShellProps) {
   return (
     <div
       className={cn(
@@ -58,6 +54,33 @@ export function PricingIntervalToggle({
         </button>
       ))}
     </div>
+  );
+}
+
+type PricingIntervalToggleProps = {
+  plan: PublicPricingPlan;
+  value: BillingInterval;
+  onChange: (interval: BillingInterval) => void;
+  className?: string;
+  marketing?: boolean;
+};
+
+export function PricingIntervalToggle({
+  plan,
+  value,
+  onChange,
+  className,
+  marketing = false,
+}: PricingIntervalToggleProps) {
+  if (!planHasYearlyToggle(plan)) return null;
+
+  return (
+    <BillingIntervalToggleShell
+      value={value}
+      onChange={onChange}
+      className={className}
+      marketing={marketing}
+    />
   );
 }
 

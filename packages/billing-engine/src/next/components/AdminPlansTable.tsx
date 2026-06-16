@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { Button } from '../../ui/button';
+import { formatUsd } from '../../billing/pricingPlanDisplay';
 
 export type PlanRow = {
   _id: string;
@@ -25,7 +26,7 @@ export type PlanRow = {
 };
 
 function fmtMoney(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatUsd(cents);
 }
 
 function slotsLabel(p: PlanRow) {

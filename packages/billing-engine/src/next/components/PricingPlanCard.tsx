@@ -27,6 +27,8 @@ type PricingPlanCardProps = {
   footer?: ReactNode | ((ctx: { billingInterval: BillingInterval }) => ReactNode);
   className?: string;
   defaultBillingInterval?: BillingInterval;
+  billingInterval?: BillingInterval;
+  hideIntervalToggle?: boolean;
   onBillingIntervalChange?: (interval: BillingInterval) => void;
 };
 
@@ -37,9 +39,12 @@ export function PricingPlanCard({
   footer,
   className,
   defaultBillingInterval = 'month',
+  billingInterval: billingIntervalProp,
+  hideIntervalToggle = false,
   onBillingIntervalChange,
 }: PricingPlanCardProps) {
-  const [billingInterval, setBillingInterval] = useState<BillingInterval>(defaultBillingInterval);
+  const [internalInterval, setInternalInterval] = useState<BillingInterval>(defaultBillingInterval);
+  const billingInterval = billingIntervalProp ?? internalInterval;
   const description = plan.description.trim();
   const features = planFeatureBullets(plan);
   const hasCap = subscriptionCap(plan) !== null;
@@ -47,10 +52,13 @@ export function PricingPlanCard({
   const recommended = isRecommendedPlan(plan);
   const isCurrent = variant === 'current';
   const isMarketing = variant === 'marketing';
-  const showIntervalToggle = planHasYearlyToggle(plan) && !isCurrent;
+  const showIntervalToggle =
+    !hideIntervalToggle && planHasYearlyToggle(plan) && !isCurrent;
 
   function handleIntervalChange(interval: BillingInterval) {
-    setBillingInterval(interval);
+    if (billingIntervalProp === undefined) {
+      setInternalInterval(interval);
+    }
     onBillingIntervalChange?.(interval);
   }
 

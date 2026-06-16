@@ -1,5 +1,6 @@
 import type { IMeeting } from '@/lib/models/Meeting';
 import type { IEmployee } from '@/lib/models/Employee';
+import { meetingInstanceDedupeKey } from '@/lib/scheduling/meetingDedupe';
 
 export function meetingDurationHours(
   meeting: Pick<IMeeting, 'start' | 'end'>,
@@ -18,11 +19,6 @@ export function meetingDurationHours(
 
   const hours = (overlapEnd - overlapStart) / (1000 * 60 * 60);
   return Math.round(hours * 100) / 100;
-}
-
-function meetingSeriesKey(meeting: Pick<IMeeting, 'iCalUID' | 'googleEventId' | 'googleRecurringEventId' | 'start'>): string {
-  const series = meeting.iCalUID || meeting.googleRecurringEventId || meeting.googleEventId || '';
-  return `${series}:${new Date(meeting.start).getTime()}`;
 }
 
 export function employeeAttendsMeeting(
@@ -47,7 +43,7 @@ export function dedupeMeetingsForEmployee(
   const deduped = new Map<string, IMeeting>();
 
   for (const meeting of relevant) {
-    const key = meetingSeriesKey(meeting);
+    const key = meetingInstanceDedupeKey(meeting);
     const existing = deduped.get(key);
     if (!existing) {
       deduped.set(key, meeting);

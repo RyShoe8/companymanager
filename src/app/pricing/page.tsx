@@ -3,8 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getPublicPricingPlans, isRecommendedPlan, sortPlansForPricingDisplay } from 'billing-engine';
 import Button from '@/components/ui/Button';
-import { PricingPlanMarketingCard } from '@/components/pricing/PricingPlanMarketingCard';
-import { EnterprisePricingCard } from '@/components/pricing/EnterprisePricingCard';
+import { PricingPlansSection } from '@/components/pricing/PricingPlansSection';
 import { NUCLEAS_PLATFORM_FEATURES } from '@/lib/marketing/nucleasPlatformFeatures';
 import { pricingPlanCtaHref } from '@/lib/billing/pricingPlanCta';
 import { getMarketingTrialCopy } from '@/lib/billing/marketingTrialCopy';
@@ -98,24 +97,11 @@ export default async function PricingPage() {
         {/* Plan Cards */}
         <section className="px-4 sm:px-6 lg:px-8 pb-16">
           <AnimateIn>
-            {plans.length === 0 ? (
-              <p className="text-center text-text-secondary max-w-md mx-auto">
-                No public plans are available right now. Please check back later or{' '}
-                <Link href="/contact" className="text-primary hover:text-primary-hover">contact us</Link>.
-              </p>
-            ) : (
-              <div className="max-w-7xl mx-auto grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
-                {plans.map((plan) => (
-                  <PricingPlanMarketingCard
-                    key={plan.id}
-                    plan={plan}
-                    href={ctaByPlanId[plan.id] ?? `/register?plan=${encodeURIComponent(plan.id)}`}
-                    className={isRecommendedPlan(plan) ? 'ring-2 ring-primary/40' : undefined}
-                  />
-                ))}
-                <EnterprisePricingCard />
-              </div>
-            )}
+            <PricingPlansSection
+              plans={plans}
+              ctaByPlanId={ctaByPlanId}
+              isRecommendedPlan={isRecommendedPlan}
+            />
           </AnimateIn>
         </section>
 
