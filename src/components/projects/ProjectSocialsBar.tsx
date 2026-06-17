@@ -105,20 +105,6 @@ export default function ProjectSocialsBar({
     }
   };
 
-  const handleClearCredentials = async (index: number) => {
-    const updatedLinks = [...socialLinks];
-    updatedLinks[index] = { ...updatedLinks[index], login: undefined, password: undefined };
-    setSaving(true);
-    try {
-      await onUpdate({ socialLinks: updatedLinks });
-      setSelectedIndex(null);
-    } catch {
-      alert('Failed to clear credentials.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleCopy = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -223,12 +209,6 @@ export default function ProjectSocialsBar({
       onRemovePlatform={isManagerOrAdmin ? () => {
         if (selectedIndex !== null) {
           return handleRemovePlatform(selectedIndex);
-        }
-        return Promise.resolve();
-      } : undefined}
-      onClearCredentials={isManagerOrAdmin ? () => {
-        if (selectedIndex !== null) {
-          return handleClearCredentials(selectedIndex);
         }
         return Promise.resolve();
       } : undefined}

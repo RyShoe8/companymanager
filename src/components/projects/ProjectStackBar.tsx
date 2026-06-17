@@ -120,20 +120,6 @@ export default function ProjectStackBar<C extends string>({
     }
   };
 
-  const handleClearCredentials = async (index: number) => {
-    const updatedItems = [...items];
-    updatedItems[index] = { ...updatedItems[index], login: undefined, password: undefined };
-    setSaving(true);
-    try {
-      await onSave(updatedItems);
-      setSelectedIndex(null);
-    } catch {
-      alert('Failed to clear credentials.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (!isManagerOrAdmin && items.length === 0) return null;
 
   const selectedItem = selectedIndex != null ? items[selectedIndex] : null;
@@ -284,12 +270,6 @@ export default function ProjectStackBar<C extends string>({
         onRemovePlatform={isManagerOrAdmin ? () => {
           if (selectedIndex !== null) {
             return handleRemovePlatform(selectedIndex);
-          }
-          return Promise.resolve();
-        } : undefined}
-        onClearCredentials={isManagerOrAdmin ? () => {
-          if (selectedIndex !== null) {
-            return handleClearCredentials(selectedIndex);
           }
           return Promise.resolve();
         } : undefined}

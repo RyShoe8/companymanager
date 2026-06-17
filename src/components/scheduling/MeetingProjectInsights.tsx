@@ -313,7 +313,6 @@ export default function MeetingProjectInsights({ resources, isManagerOrAdmin = f
           credentials={credentialModal.credentials}
           onSave={() => Promise.resolve()}
           onRemovePlatform={undefined}
-          onClearCredentials={undefined}
           canEdit={false}
           canViewPassword={isManagerOrAdmin}
         />
