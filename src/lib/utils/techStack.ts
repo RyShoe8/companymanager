@@ -13,6 +13,17 @@ export function getTechStackEntry(technologyId: string) {
   return getCatalogEntry(technologyId);
 }
 
+function readPlatformCredentialFields(
+  o: Record<string, unknown>
+): { login?: string; password?: string } {
+  const login = typeof o.login === 'string' ? o.login.trim() : undefined;
+  const password = typeof o.password === 'string' ? o.password : undefined;
+  const fields: { login?: string; password?: string } = {};
+  if (login) fields.login = login;
+  if (password) fields.password = password;
+  return fields;
+}
+
 export function sanitizeTechStack(raw: unknown): IProjectTechStackItem[] | null {
   if (!Array.isArray(raw)) return null;
   const out: IProjectTechStackItem[] = [];
@@ -27,7 +38,7 @@ export function sanitizeTechStack(raw: unknown): IProjectTechStackItem[] | null 
     if (!entry || entry.category !== category) continue;
     if (seen.has(technologyId)) continue;
     seen.add(technologyId);
-    out.push({ category: entry.category, technologyId: entry.id });
+    out.push({ category: entry.category, technologyId: entry.id, ...readPlatformCredentialFields(o) });
   }
   return out;
 }

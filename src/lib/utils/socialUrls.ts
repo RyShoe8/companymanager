@@ -54,7 +54,12 @@ export function detectSocialNetwork(raw: string): SocialNetwork {
   return 'other';
 }
 
-export type ProjectSocialLinkInput = { network: SocialNetwork; url: string };
+export type ProjectSocialLinkInput = {
+  network: SocialNetwork;
+  url: string;
+  login?: string;
+  password?: string;
+};
 
 export function parseSocialLinkInput(raw: string): ProjectSocialLinkInput | null {
   const url = normalizeSocialUrl(raw);
@@ -75,7 +80,13 @@ export function sanitizeSocialLinks(raw: unknown): ProjectSocialLinkInput[] | nu
     const key = `${parsed.network}::${parsed.url}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(parsed);
+    const login = typeof o.login === 'string' ? o.login.trim() : undefined;
+    const password = typeof o.password === 'string' ? o.password : undefined;
+    out.push({
+      ...parsed,
+      ...(login ? { login } : {}),
+      ...(password ? { password } : {}),
+    });
   }
   return out;
 }

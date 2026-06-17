@@ -83,7 +83,13 @@ export async function POST(request: NextRequest) {
     let taskIndex: number | undefined;
     if (linkedProjectTaskId && isValidObjectId(linkedProjectTaskId)) {
       linkedTaskId = linkedProjectTaskId;
-    } else if (linkedProjectTaskIndex !== null && linkedProjectTaskIndex !== undefined && linkedProjectTaskIndex !== '') {
+    }
+    if (
+      !linkedTaskId &&
+      linkedProjectTaskIndex !== null &&
+      linkedProjectTaskIndex !== undefined &&
+      linkedProjectTaskIndex !== ''
+    ) {
       const parsed = parseInt(linkedProjectTaskIndex);
       if (isNaN(parsed) || parsed < 0) {
         return NextResponse.json({ error: 'Invalid task index' }, { status: 400 });
@@ -170,8 +176,7 @@ export async function POST(request: NextRequest) {
     }
     if (linkedTaskId) {
       assetData.linkedProjectTaskId = linkedTaskId;
-    }
-    if (taskIndex !== undefined) {
+    } else if (taskIndex !== undefined) {
       assetData.linkedProjectTaskIndex = taskIndex;
     }
     if (linkedContentItemId) {

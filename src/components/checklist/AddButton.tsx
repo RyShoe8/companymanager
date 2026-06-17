@@ -13,7 +13,7 @@ export type { AddSmartButtonPayload, AssetLinkContext, PendingAssetPayload };
 interface AddButtonProps {
   projectId: string;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
-  onDocumentCreated?: () => void;
+  onDocumentCreated?: (asset?: unknown) => void;
   linkContext?: AssetLinkContext;
   mode?: 'live' | 'draft';
   onPendingAsset?: (asset: PendingAssetPayload) => void;

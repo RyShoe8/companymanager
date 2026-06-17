@@ -13,6 +13,7 @@ export interface PlatformCredentialItem {
 export function encryptPlatformCredentials<T extends Record<string, any>>(items: T[]): T[] {
   return items.map((item) => {
     if (!item.password) return item;
+    if (isEncryptedActionButtonPassword(item.password)) return item;
     return {
       ...item,
       password: encryptActionButtonPassword(item.password),

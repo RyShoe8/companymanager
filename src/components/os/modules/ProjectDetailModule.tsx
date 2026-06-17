@@ -96,9 +96,9 @@ export default function ProjectDetailModule({ windowId, payload }: ModuleRenderC
                     const data = (await res.json().catch(() => null)) as IProject | null;
                     if (data && typeof data === 'object' && data._id) {
                         setProject(data);
-                    } else {
-                        await refresh();
+                        return data;
                     }
+                    await refresh();
                 }}
                 onDelete={async () => {
                     const res = await fetch(`/api/projects/${project._id}`, { method: 'DELETE' });

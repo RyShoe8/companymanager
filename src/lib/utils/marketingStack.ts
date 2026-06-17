@@ -12,6 +12,17 @@ export function getMarketingStackEntry(toolId: string) {
   return getMarketingCatalogEntry(toolId);
 }
 
+function readPlatformCredentialFields(
+  o: Record<string, unknown>
+): { login?: string; password?: string } {
+  const login = typeof o.login === 'string' ? o.login.trim() : undefined;
+  const password = typeof o.password === 'string' ? o.password : undefined;
+  const fields: { login?: string; password?: string } = {};
+  if (login) fields.login = login;
+  if (password) fields.password = password;
+  return fields;
+}
+
 export function sanitizeMarketingStack(raw: unknown): IProjectMarketingStackItem[] | null {
   if (!Array.isArray(raw)) return null;
   const out: IProjectMarketingStackItem[] = [];
@@ -26,7 +37,7 @@ export function sanitizeMarketingStack(raw: unknown): IProjectMarketingStackItem
     if (!entry || entry.category !== category) continue;
     if (seen.has(toolId)) continue;
     seen.add(toolId);
-    out.push({ category: entry.category, toolId: entry.id });
+    out.push({ category: entry.category, toolId: entry.id, ...readPlatformCredentialFields(o) });
   }
   return out;
 }

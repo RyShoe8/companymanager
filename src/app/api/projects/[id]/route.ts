@@ -25,6 +25,7 @@ import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/s
 import { encryptPlatformCredentials, stripPlatformCredentialPasswords } from '@/lib/security/platformCredentialCrypto';
 import { diffNewLinkedCategorySlugs } from '@/lib/insights/getProjectLinkedCategorySlugs';
 import { syncInsightAutoCompletion } from '@/lib/insights/syncInsightAutoCompletion';
+import { relinkTaskAssets } from '@/lib/assets/relinkTaskAssets';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -649,6 +650,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (tasks !== undefined && Array.isArray(tasks)) {
       await cleanupNewlyCompletedTasks(id, previousTasksSnapshot ?? [], project.tasks ?? []);
+      await relinkTaskAssets(id, project.tasks ?? []);
     }
 
     await touchProjectActivity(id);

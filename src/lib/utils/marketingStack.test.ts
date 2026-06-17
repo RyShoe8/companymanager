@@ -43,4 +43,16 @@ describe('marketingStack utils', () => {
       { category: 'crm', toolId: 'hubspot' },
     ]);
   });
+
+  it('preserves login and password on sanitize', () => {
+    const stack = [
+      {
+        category: 'analytics',
+        toolId: 'posthog',
+        login: 'ops@example.com',
+        password: 'secret',
+      },
+    ];
+    expect(sanitizeMarketingStack(stack)).toEqual(stack);
+  });
 });

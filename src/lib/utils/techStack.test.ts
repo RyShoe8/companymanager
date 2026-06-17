@@ -43,4 +43,16 @@ describe('techStack utils', () => {
       { category: 'framework', technologyId: 'react' },
     ]);
   });
+
+  it('preserves login and password on sanitize', () => {
+    const stack = [
+      {
+        category: 'hosting',
+        technologyId: 'vercel',
+        login: 'admin@example.com',
+        password: 'secret',
+      },
+    ];
+    expect(sanitizeTechStack(stack)).toEqual(stack);
+  });
 });

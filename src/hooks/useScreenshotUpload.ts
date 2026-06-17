@@ -65,7 +65,7 @@ async function prepareFileForUpload(file: File): Promise<File> {
 
 export function useScreenshotUpload(
   target: ScreenshotUploadTarget | null,
-  onUploaded?: () => void
+  onUploaded?: (asset?: Awaited<ReturnType<typeof uploadScreenshotAsset>>) => void
 ) {
   const [status, setStatus] = useState<ScreenshotUploadStatus>('idle');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -131,17 +131,18 @@ export function useScreenshotUpload(
       const resolvedTarget = uploadTarget !== undefined ? uploadTarget : target;
 
       try {
+        let lastAsset: Awaited<ReturnType<typeof uploadScreenshotAsset>> | undefined;
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const compressed = await prepareFileForUpload(file);
           const assetName = files.length > 1 ? `${name} (${i + 1})` : name;
-          await uploadScreenshotAsset(compressed, resolvedTarget, { name: assetName });
+          lastAsset = await uploadScreenshotAsset(compressed, resolvedTarget, { name: assetName });
         }
 
         setStatus('success');
         setStatusMessage('✓ Screenshot attached');
         setPendingFiles([]);
-        onUploaded?.();
+        onUploaded?.(lastAsset);
 
         clearSuccessTimer();
         successTimerRef.current = window.setTimeout(() => {

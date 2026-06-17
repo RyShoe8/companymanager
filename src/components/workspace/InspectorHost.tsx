@@ -89,11 +89,13 @@ export default function InspectorHost({
                 throw new Error(await projectSaveErrorMessage(res));
             }
             const data = await res.json().catch(() => null);
-            if (data && typeof data === 'object' && data._id && onProjectPatched) {
-                onProjectPatched(data as IProject);
-            } else {
-                onRefresh();
+            if (data && typeof data === 'object' && data._id) {
+                if (onProjectPatched) {
+                    onProjectPatched(data as IProject);
+                }
+                return data as IProject;
             }
+            onRefresh();
         },
         [focusedProjectId, onProjectPatched, onRefresh]
     );

@@ -5,7 +5,6 @@ import Modal from '@/components/ui/Modal';
 import ModalAction from '@/components/ui/ModalAction';
 import Button from '@/components/ui/Button';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
-import { encryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
 
 export interface PlatformCredential {
   login?: string;
@@ -51,8 +50,10 @@ export default function PlatformCredentialModal({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const encryptedPassword = password ? encryptActionButtonPassword(password) : '';
-      await onSave({ login: login || undefined, password: encryptedPassword || undefined });
+      await onSave({
+        login: login.trim() || undefined,
+        password: password || undefined,
+      });
       onClose();
     } catch {
       alert('Failed to save credentials.');

@@ -232,7 +232,7 @@ export default function TaskLinkedAssets({
   return (
     <>
       <div className={lightSurface('mt-2 pt-2 border-t border-gray-100', 'dark:border-gray-700', light)}>
-        {!taskId ? (
+        {taskId == null && taskIndex == null ? (
           <p className="text-xs text-gray-500 mt-1">Save the task to attach assets.</p>
         ) : (
           <>
@@ -246,7 +246,14 @@ export default function TaskLinkedAssets({
                     linkedProjectTaskId: taskId,
                     linkedProjectTaskIndex: taskIndex,
                   }}
-                  onDocumentCreated={() => {
+                  onDocumentCreated={(uploaded) => {
+                    const chip = normalizeLinkedAssetChip(uploaded);
+                    if (chip) {
+                      setAssets((prev) => {
+                        if (prev.some((a) => a._id === chip._id)) return prev;
+                        return [...prev, chip];
+                      });
+                    }
                     void loadAssets();
                     onAssetsChanged?.();
                   }}

@@ -31,14 +31,25 @@ export default function ProjectMarketingStackBar({
   onUpdate,
 }: ProjectMarketingStackBarProps) {
   const items = useMemo<StackItem<MarketingStackCategory>[]>(
-    () => marketingStack.map((t) => ({ category: t.category, id: t.toolId })),
+    () =>
+      marketingStack.map((t) => ({
+        category: t.category,
+        id: t.toolId,
+        login: t.login,
+        password: t.password,
+      })),
     [marketingStack]
   );
 
   const handleSave = useCallback(
     (next: StackItem<MarketingStackCategory>[]) =>
       onUpdate({
-        marketingStack: next.map((t) => ({ category: t.category, toolId: t.id })),
+        marketingStack: next.map((t) => ({
+          category: t.category,
+          toolId: t.id,
+          login: t.login,
+          password: t.password,
+        })),
       }),
     [onUpdate]
   );

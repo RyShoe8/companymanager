@@ -6,6 +6,7 @@ export function screenshotAssetsUrl(params: {
 }): string {
   let url = '/api/assets?type=screenshot';
   if (params.entityType === 'projectTask') {
+    url += `&linkedProjectId=${encodeURIComponent(params.entityId)}`;
     if (params.taskId) {
       url += `&linkedProjectTaskId=${params.taskId}`;
     } else if (params.taskIndex !== undefined) {

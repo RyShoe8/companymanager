@@ -31,14 +31,25 @@ export default function ProjectTechStackBar({
   onUpdate,
 }: ProjectTechStackBarProps) {
   const items = useMemo<StackItem<TechStackCategory>[]>(
-    () => techStack.map((t) => ({ category: t.category, id: t.technologyId })),
+    () =>
+      techStack.map((t) => ({
+        category: t.category,
+        id: t.technologyId,
+        login: t.login,
+        password: t.password,
+      })),
     [techStack]
   );
 
   const handleSave = useCallback(
     (next: StackItem<TechStackCategory>[]) =>
       onUpdate({
-        techStack: next.map((t) => ({ category: t.category, technologyId: t.id })),
+        techStack: next.map((t) => ({
+          category: t.category,
+          technologyId: t.id,
+          login: t.login,
+          password: t.password,
+        })),
       }),
     [onUpdate]
   );

@@ -96,7 +96,9 @@ interface InlineProjectViewProps {
   employees: IEmployee[];
   isManagerOrAdmin: boolean;
   currentUserEmployeeId?: string | null;
-  onUpdate: (updates: Partial<IProject> & { allowBulkTaskExpand?: boolean }) => Promise<void>;
+  onUpdate: (
+    updates: Partial<IProject> & { allowBulkTaskExpand?: boolean }
+  ) => Promise<IProject | void>;
   /** Merge logo and other inspector edits into workspace project list without full reload. */
   onProjectPatched?: (project: IProject) => void;
   onDelete?: () => void;
@@ -300,6 +302,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [estimatingTaskIndices, setEstimatingTaskIndices] = useState<Set<number>>(() => new Set());
   const estimateTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const taskSaveInFlightRef = useRef(0);
+  const pendingProjectSyncRef = useRef<IProject | null>(null);
   const taskSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTaskSaveRef = useRef<{
     tasks: IProjectTask[];
@@ -909,7 +912,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       autoAddTaskAppliedKeyRef.current = null;
       return;
     }
-    if (taskSaveInFlightRef.current > 0) return;
+    if (taskSaveInFlightRef.current > 0) {
+      pendingProjectSyncRef.current = project;
+      return;
+    }
     setLocalProject((prev) => {
       const pAt = (project as { updatedAt?: string | Date }).updatedAt;
       const prevAt = (prev as { updatedAt?: string | Date }).updatedAt;
@@ -1304,7 +1310,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       try {
         const payload: Partial<IProject> & { allowBulkTaskExpand?: boolean } = { tasks };
         if (options?.allowBulkTaskExpand) payload.allowBulkTaskExpand = true;
-        await onUpdate(payload);
+        const saved = await onUpdate(payload);
+        if (saved?.tasks) {
+          setLocalProject((prev) => ({
+            ...prev,
+            tasks: saved.tasks,
+            updatedAt: saved.updatedAt ?? prev.updatedAt,
+          } as IProject));
+          onProjectPatched?.(saved);
+        }
+        setTaskAssetsRefreshToken((n) => n + 1);
         await options?.onSuccess?.();
       } catch (error) {
         console.error('Error saving tasks:', error);
@@ -1313,9 +1328,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         throw error;
       } finally {
         taskSaveInFlightRef.current -= 1;
+        if (taskSaveInFlightRef.current === 0 && pendingProjectSyncRef.current) {
+          const pending = pendingProjectSyncRef.current;
+          pendingProjectSyncRef.current = null;
+          setLocalProject(pending);
+        }
       }
     },
-    [onUpdate, project]
+    [onUpdate, onProjectPatched, project]
   );
 
   const queueProjectTasksSave = useCallback(

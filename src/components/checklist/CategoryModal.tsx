@@ -56,7 +56,7 @@ interface CategoryModalProps {
   projectId: string;
   onClose: () => void;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
-  onDocumentCreated?: () => void;
+  onDocumentCreated?: (asset?: unknown) => void;
   linkContext?: AssetLinkContext;
   mode?: 'live' | 'draft';
   onPendingAsset?: (asset: PendingAssetPayload) => void;
@@ -424,8 +424,8 @@ export default function CategoryModal({
                 ? 'Attach a screenshot to this content item.'
                 : 'Attach a screenshot to this project.'
           }
-          onUploaded={() => {
-            onDocumentCreated?.();
+          onUploaded={(asset) => {
+            onDocumentCreated?.(asset);
             onClose();
           }}
           onBack={() => setStep('type')}

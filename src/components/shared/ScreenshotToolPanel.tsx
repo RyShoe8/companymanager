@@ -18,7 +18,7 @@ interface ScreenshotToolPanelProps {
   uploadOnly?: boolean;
   downloadOnly?: boolean;
   description?: string;
-  onUploaded?: () => void;
+  onUploaded?: (asset?: unknown) => void;
   onBack?: () => void;
   showBack?: boolean;
 }
