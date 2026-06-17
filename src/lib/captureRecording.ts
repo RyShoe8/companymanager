@@ -192,15 +192,61 @@ export function isRecordingCaptureSupported(): boolean {
 
 export type PrepareRecordingSessionOptions = {
   audioSource: RecordingAudioSource;
+  /** Pre-acquired microphone stream from a permission preflight. */
+  micStream?: MediaStream | null;
   /** Called when the user stops screen sharing before recording begins. */
   onShareEnded?: () => void;
 };
+
+const MIC_CONSTRAINTS: MediaStreamConstraints = {
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+  },
+  video: false,
+};
+
+export function formatMicPermissionError(error: unknown): string {
+  const domError = error as DOMException;
+  if (domError?.name === 'NotAllowedError') {
+    return 'Microphone is blocked for this site. Open your browser’s site settings (lock icon in the address bar) and allow Microphone for Nucleas.';
+  }
+  if (domError?.name === 'NotFoundError') {
+    return 'No microphone detected. Connect a microphone or choose System audio instead.';
+  }
+  if (domError?.name === 'NotReadableError') {
+    return 'Microphone is in use by another app. Close other apps using the mic or choose System audio.';
+  }
+  return 'Microphone access failed. Check browser site settings or choose System audio.';
+}
+
+/** Request microphone access for recording preflight. Caller must stop tracks when done. */
+export async function requestMicrophoneForRecording(): Promise<MediaStream> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    throw new RecordingCaptureError(
+      'Microphone capture is unavailable in this browser.',
+      'unsupported'
+    );
+  }
+  try {
+    return await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+  } catch (error) {
+    throw new RecordingCaptureError(formatMicPermissionError(error), 'mic_denied');
+  }
+}
+
+async function acquireMicStream(existing?: MediaStream | null): Promise<MediaStream> {
+  if (existing && existing.getAudioTracks().some((t) => t.readyState === 'live')) {
+    return existing;
+  }
+  return requestMicrophoneForRecording();
+}
 
 /** Acquire screen share and prepare recorders. Call begin() to start capture. */
 export async function prepareRecordingSession(
   options: PrepareRecordingSessionOptions
 ): Promise<RecordingSession> {
-  const { audioSource, onShareEnded } = options;
+  const { audioSource, micStream: preflightMicStream, onShareEnded } = options;
 
   if (!isRecordingCaptureSupported()) {
     throw new RecordingCaptureError(
@@ -242,6 +288,10 @@ export async function prepareRecordingSession(
   };
 
   try {
+    if (audioSource === 'mic') {
+      micStream = await acquireMicStream(preflightMicStream);
+    }
+
     const controller = createCaptureController();
     if (controller) {
       try {
@@ -273,23 +323,6 @@ export async function prepareRecordingSession(
         videoTrack.contentHint = 'motion';
       } catch {
         // unsupported in some browsers
-      }
-    }
-
-    if (audioSource === 'mic') {
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-          video: false,
-        });
-      } catch {
-        throw new RecordingCaptureError(
-          'Microphone permission denied. Allow microphone access to record with your voice.',
-          'mic_denied'
-        );
       }
     }
 
@@ -485,6 +518,7 @@ export async function prepareRecordingSession(
     };
   } catch (error) {
     cleanup();
+    if (error instanceof RecordingCaptureError) throw error;
     throw mapCaptureError(error);
   }
 }
@@ -497,5 +531,5 @@ export function recordingAudioWarning(
   if (audioSource === 'system') {
     return 'System audio was not shared. Enable "Share tab/system audio" in the screen picker.';
   }
-  return 'Microphone was not available. Transcript may be limited without voice audio.';
+  return 'Voice audio was not captured. Transcript may be limited without a microphone track.';
 }

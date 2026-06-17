@@ -7,9 +7,12 @@ import {
 } from '@/lib/scheduling/extractMeetingJoinUrl';
 import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
 
-function joinCallLabel(platform?: MeetingJoinPlatform): string {
+function joinCallLabels(platform?: MeetingJoinPlatform): { full: string; compact: string } {
   const label = getJoinPlatformLabel(platform);
-  return label === 'Join Call' ? 'Join Call' : `Join Call — ${label}`;
+  if (label === 'Join Call') {
+    return { full: 'Join Call', compact: 'Join' };
+  }
+  return { full: `Join Call — ${label}`, compact: `Join ${label}` };
 }
 
 interface MeetingJoinCallButtonProps {
@@ -27,8 +30,10 @@ export default function MeetingJoinCallButton({
   agendaToken,
   onPopoutBlocked,
   size = 'sm',
-  className,
+  className = '',
 }: MeetingJoinCallButtonProps) {
+  const labels = joinCallLabels(joinPlatform);
+
   const handleClick = () => {
     window.open(joinUrl, '_blank', 'noopener,noreferrer');
 
@@ -45,10 +50,12 @@ export default function MeetingJoinCallButton({
       type="button"
       size={size}
       variant="secondary"
-      className={className}
+      title={labels.full}
+      className={`whitespace-nowrap ${className}`.trim()}
       onClick={handleClick}
     >
-      {joinCallLabel(joinPlatform)}
+      <span className="sm:hidden">{labels.compact}</span>
+      <span className="hidden sm:inline">{labels.full}</span>
     </Button>
   );
 }

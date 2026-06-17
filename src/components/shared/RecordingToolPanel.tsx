@@ -52,6 +52,10 @@ function RecordingToolPanelInner({
     statusMessage,
     errorMessage,
     micWarning,
+    micPermissionStatus,
+    micPermissionMessage,
+    requestMicPermission,
+    clearMicPreflight,
     isBusy,
     isPreparing,
     isStabilizing,
@@ -86,8 +90,19 @@ function RecordingToolPanelInner({
 
   const handleShareScreen = () => {
     if (!audioSource || isBusy) return;
+    if (audioSource === 'mic' && micPermissionStatus !== 'ready') return;
     void prepareRecording(audioSource);
   };
+
+  const handleAudioSourceChange = (source: RecordingAudioSource) => {
+    setAudioSource(source);
+    if (source === 'system') {
+      clearMicPreflight();
+    }
+  };
+
+  const shareScreenDisabled =
+    isBusy || !audioSource || (audioSource === 'mic' && micPermissionStatus !== 'ready');
 
   return (
     <>
@@ -119,7 +134,7 @@ function RecordingToolPanelInner({
                 name="recording-audio-source"
                 className="mt-1"
                 checked={audioSource === 'system'}
-                onChange={() => setAudioSource('system')}
+                onChange={() => handleAudioSourceChange('system')}
                 disabled={isBusy}
               />
               <span>
@@ -136,16 +151,41 @@ function RecordingToolPanelInner({
                 name="recording-audio-source"
                 className="mt-1"
                 checked={audioSource === 'mic'}
-                onChange={() => setAudioSource('mic')}
+                onChange={() => handleAudioSourceChange('mic')}
                 disabled={isBusy}
               />
               <span>
                 <span className="font-medium text-text-primary">Microphone</span>
                 <span className="block text-xs text-text-muted mt-0.5">
-                  Records your voice while you present. Microphone permission is required.
+                  Records your voice while you present. Allow microphone access before sharing your
+                  screen.
                 </span>
               </span>
             </label>
+            {audioSource === 'mic' && (
+              <div className="ml-6 space-y-2">
+                {micPermissionStatus === 'ready' ? (
+                  <p className="text-xs text-success">Microphone ready</p>
+                ) : micPermissionStatus === 'blocked' ? (
+                  <p className="text-xs text-warning">{micPermissionMessage}</p>
+                ) : (
+                  <p className="text-xs text-text-muted">
+                    Your browser will ask for microphone permission.
+                  </p>
+                )}
+                {micPermissionStatus !== 'ready' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={isBusy || micPermissionStatus === 'checking'}
+                    onClick={() => void requestMicPermission()}
+                  >
+                    {micPermissionStatus === 'checking' ? 'Checking…' : 'Allow microphone'}
+                  </Button>
+                )}
+              </div>
+            )}
           </fieldset>
         )}
 
@@ -178,7 +218,7 @@ function RecordingToolPanelInner({
               type="button"
               size="sm"
               onClick={handleShareScreen}
-              disabled={isBusy || !audioSource}
+              disabled={shareScreenDisabled}
             >
               Share screen
             </Button>

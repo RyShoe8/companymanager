@@ -206,31 +206,85 @@ export default function MeetingAgendaRow({
 
   return (
     <div className="px-4 py-3 text-sm">
-      <div className="flex items-start gap-3">
-        <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-background-elevated text-text-secondary flex-shrink-0">
-          Meeting
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-text-primary">{meeting.title}</span>
-            {seriesControls}
-            <span className="text-xs text-text-muted">{timeRange}</span>
-          </div>
-          <p className="text-xs text-text-secondary mt-0.5">
-            {start.toLocaleDateString(undefined, {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-            })}
-          </p>
-          {inviteeLine && <p className="text-xs text-text-muted mt-1">{inviteeLine}</p>}
-          {linkedCount > 0 && !isEditing && (
-            <p className="text-xs text-text-secondary mt-1">
-              {linkedCount} linked project{linkedCount === 1 ? '' : 's'}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-background-elevated text-text-secondary flex-shrink-0">
+            Meeting
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-text-primary">{meeting.title}</span>
+              {seriesControls}
+              <span className="text-xs text-text-muted">{timeRange}</span>
+            </div>
+            <p className="text-xs text-text-secondary mt-0.5">
+              {start.toLocaleDateString(undefined, {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+              })}
             </p>
-          )}
+            {inviteeLine && <p className="text-xs text-text-muted mt-1">{inviteeLine}</p>}
+            {linkedCount > 0 && !isEditing && (
+              <p className="text-xs text-text-secondary mt-1">
+                {linkedCount} linked project{linkedCount === 1 ? '' : 's'}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2 shrink-0">{actionButtons}</div>
+        <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:flex-wrap sm:shrink-0">
+          {meeting.joinUrl && (
+            <MeetingJoinCallButton
+              joinUrl={meeting.joinUrl}
+              joinPlatform={meeting.joinPlatform}
+              agendaToken={meeting.agendaToken}
+              onPopoutBlocked={onPopoutBlocked}
+              className="w-full justify-center sm:w-auto"
+            />
+          )}
+          {meeting.agendaToken && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="w-full justify-center whitespace-nowrap sm:w-auto"
+              onClick={handleOpenMeeting}
+            >
+              Open Meeting
+            </Button>
+          )}
+          {canManage && onEditMeeting && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="w-full justify-center whitespace-nowrap sm:w-auto"
+              onClick={onEditMeeting}
+            >
+              Edit
+            </Button>
+          )}
+          {canManage && onDeleteMeeting && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="w-full justify-center whitespace-nowrap sm:w-auto"
+              onClick={onDeleteMeeting}
+            >
+              Delete
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="w-full justify-center whitespace-nowrap sm:w-auto"
+            onClick={onStartEdit}
+          >
+            Link projects
+          </Button>
+        </div>
       </div>
       {isEditing && (
         <div className="mt-3 pt-3 border-t border-border ml-9">

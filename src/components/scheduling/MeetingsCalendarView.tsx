@@ -409,7 +409,7 @@ export default function MeetingsCalendarView({
 
   return (
     <div className="bg-background-card rounded-lg border border-border overflow-x-auto overflow-y-visible">
-      <div className="p-4 border-b border-border">
+      <div className="p-3 sm:p-4 border-b border-border">
         <CalendarPeriodHeader
           title={title}
           onPrev={() => handleNavigate('prev')}

@@ -28,7 +28,7 @@ import {
 import { meetingsForAgendaDay } from '@/lib/scheduling/meetingHours';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
 import ItemSeenTag from '@/components/workspace/ItemSeenTag';
-import PeriodNavButton from '@/components/ui/PeriodNavButton';
+import CalendarPeriodHeader from '@/components/planning-map/CalendarPeriodHeader';
 import { getPeriodViewTitle, shiftPeriodDate } from '@/lib/utils/periodNavigation';
 import {
     canUserContributeToProject,
@@ -490,18 +490,12 @@ export default function AgendaView({
     }, [undatedContent, projects]);
 
     const periodHeader = (
-        <div className="bg-background-card rounded-lg border border-border">
-            <div className="flex items-center gap-3 p-4 border-b border-border">
-                <PeriodNavButton
-                    direction="prev"
-                    onClick={() => onDateChange(shiftPeriodDate(timeframe, currentDate, 'prev'))}
-                />
-                <h3 className="text-lg font-semibold text-text-primary min-w-[220px] text-center flex-1">
-                    {getPeriodViewTitle(timeframe, currentDate)}
-                </h3>
-                <PeriodNavButton
-                    direction="next"
-                    onClick={() => onDateChange(shiftPeriodDate(timeframe, currentDate, 'next'))}
+        <div className="sm:bg-background-card sm:rounded-lg sm:border sm:border-border">
+            <div className="py-2 sm:p-4 sm:border-b sm:border-border">
+                <CalendarPeriodHeader
+                    title={getPeriodViewTitle(timeframe, currentDate)}
+                    onPrev={() => onDateChange(shiftPeriodDate(timeframe, currentDate, 'prev'))}
+                    onNext={() => onDateChange(shiftPeriodDate(timeframe, currentDate, 'next'))}
                 />
             </div>
         </div>
@@ -613,10 +607,11 @@ export default function AgendaView({
                     className="border border-border rounded-lg overflow-hidden bg-background-card"
                 >
                     <div
-                        className={`px-4 py-3 flex items-center justify-between ${day.isToday ? 'bg-primary/20 border-b border-primary/30' : 'bg-background-elevated border-b border-border'
-                            }`}
+                        className={`px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border ${
+                            day.isToday ? 'bg-primary/10 sm:bg-primary/20 border-primary/30' : 'sm:bg-background-elevated'
+                        }`}
                     >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                             <span className={`text-lg font-semibold ${day.isToday ? 'text-primary' : 'text-text-primary'}`}>
                                 {day.dateStr}
                             </span>
@@ -626,7 +621,7 @@ export default function AgendaView({
                                 </span>
                             )}
                         </div>
-                        <span className="text-sm text-text-secondary">
+                        <span className="text-sm text-text-secondary shrink-0">
                             {[
                                 day.meetings.length > 0
                                     ? `${day.meetings.length} meeting${day.meetings.length > 1 ? 's' : ''}`
@@ -651,23 +646,25 @@ export default function AgendaView({
                             return (
                                 <div
                                     key={meeting._id.toString()}
-                                    className="px-4 py-3 flex items-start gap-3 text-sm hover:bg-background-elevated transition-colors"
+                                    className="px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3 text-sm hover:bg-background-elevated transition-colors"
                                 >
-                                    <AgendaItemTypeBadge type="Meeting" />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-medium text-text-primary">{meeting.title}</span>
-                                            <span className="text-xs text-text-muted">
-                                                {formatMeetingTimeRange(start, end)}
-                                            </span>
+                                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                                        <AgendaItemTypeBadge type="Meeting" />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="font-medium text-text-primary">{meeting.title}</span>
+                                                <span className="text-xs text-text-muted">
+                                                    {formatMeetingTimeRange(start, end)}
+                                                </span>
+                                            </div>
+                                            {linkedCount > 0 ? (
+                                                <p className="text-xs text-text-secondary mt-1">
+                                                    {linkedCount} linked project{linkedCount === 1 ? '' : 's'}
+                                                </p>
+                                            ) : null}
                                         </div>
-                                        {linkedCount > 0 ? (
-                                            <p className="text-xs text-text-secondary mt-1">
-                                                {linkedCount} linked project{linkedCount === 1 ? '' : 's'}
-                                            </p>
-                                        ) : null}
                                     </div>
-                                    <div className="flex flex-wrap gap-2 shrink-0">
+                                    <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:flex-wrap sm:shrink-0">
                                         {meeting.joinUrl ? (
                                             <MeetingJoinCallButton
                                                 joinUrl={meeting.joinUrl}
@@ -676,6 +673,7 @@ export default function AgendaView({
                                                 onPopoutBlocked={() =>
                                                     setPopoutMessage(MEETING_POPUP_BLOCKED_MESSAGE)
                                                 }
+                                                className="w-full justify-center sm:w-auto"
                                             />
                                         ) : null}
                                         {meeting.agendaToken ? (
@@ -683,6 +681,7 @@ export default function AgendaView({
                                                 type="button"
                                                 size="sm"
                                                 variant="secondary"
+                                                className="w-full justify-center whitespace-nowrap sm:w-auto"
                                                 onClick={() => {
                                                     const result = openMeetingPopout(meeting.agendaToken);
                                                     if (result.blocked) {

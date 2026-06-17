@@ -5,6 +5,7 @@ import {
   prepareRecordingSession,
   RecordingCaptureError,
   recordingAudioWarning,
+  requestMicrophoneForRecording,
   MAX_RECORDING_SECONDS,
   STABILIZATION_SECONDS,
   type RecordingAudioSource,
@@ -48,6 +49,8 @@ export type RecordingUploadStatus =
   | 'success'
   | 'error';
 
+export type MicPermissionStatus = 'idle' | 'checking' | 'ready' | 'blocked';
+
 export function defaultRecordingName(): string {
   const d = new Date();
   return `Recording ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
@@ -82,8 +85,11 @@ export function useRecordingUpload(
   const [transcodeDebug, setTranscodeDebug] = useState<string | null>(null);
   const [stabilizeSecondsRemaining, setStabilizeSecondsRemaining] = useState(STABILIZATION_SECONDS);
   const [controlsInPopout, setControlsInPopout] = useState(false);
+  const [micPermissionStatus, setMicPermissionStatus] = useState<MicPermissionStatus>('idle');
+  const [micPermissionMessage, setMicPermissionMessage] = useState<string | null>(null);
 
   const sessionRef = useRef<RecordingSession | null>(null);
+  const micPreflightStreamRef = useRef<MediaStream | null>(null);
   const pendingVideoRef = useRef<File | null>(null);
   const pendingAudioRef = useRef<File | null>(null);
   const pendingDurationRef = useRef(0);
@@ -107,6 +113,13 @@ export function useRecordingUpload(
     closeRecordingControlsPopout(popoutRef.current);
     popoutRef.current = null;
     setControlsInPopout(false);
+  }, []);
+
+  const releaseMicPreflight = useCallback(() => {
+    micPreflightStreamRef.current?.getTracks().forEach((track) => track.stop());
+    micPreflightStreamRef.current = null;
+    setMicPermissionStatus('idle');
+    setMicPermissionMessage(null);
   }, []);
 
   const revokePreviewUrl = useCallback(() => {
@@ -145,6 +158,8 @@ export function useRecordingUpload(
       clearSuccessTimer();
       revokePreviewUrl();
       sessionRef.current?.cancel();
+      micPreflightStreamRef.current?.getTracks().forEach((track) => track.stop());
+      micPreflightStreamRef.current = null;
       closePopout();
     },
     [clearTimer, clearStabilizeTimer, clearSuccessTimer, revokePreviewUrl, closePopout]
@@ -157,6 +172,10 @@ export function useRecordingUpload(
     revokePreviewUrl();
     sessionRef.current?.cancel();
     sessionRef.current = null;
+    micPreflightStreamRef.current?.getTracks().forEach((track) => track.stop());
+    micPreflightStreamRef.current = null;
+    setMicPermissionStatus('idle');
+    setMicPermissionMessage(null);
     pendingVideoRef.current = null;
     pendingAudioRef.current = null;
     pendingDurationRef.current = 0;
@@ -417,10 +436,38 @@ export function useRecordingUpload(
     return unsubscribe;
   }, [status]);
 
+  const requestMicPermission = useCallback(async () => {
+    releaseMicPreflight();
+    setMicPermissionStatus('checking');
+    setMicPermissionMessage(null);
+    setErrorMessage(null);
+    try {
+      const stream = await requestMicrophoneForRecording();
+      micPreflightStreamRef.current = stream;
+      setMicPermissionStatus('ready');
+    } catch (error) {
+      micPreflightStreamRef.current = null;
+      setMicPermissionStatus('blocked');
+      setMicPermissionMessage(
+        error instanceof RecordingCaptureError
+          ? error.message
+          : 'Microphone access failed. Check browser site settings or choose System audio.'
+      );
+    }
+  }, [releaseMicPreflight]);
+
+  const clearMicPreflight = useCallback(() => {
+    releaseMicPreflight();
+  }, [releaseMicPreflight]);
+
   const prepareRecording = useCallback(
     async (audioSource: RecordingAudioSource) => {
       setStatus('preparing');
-      setStatusMessage('Select a screen or window to share…');
+      setStatusMessage(
+        audioSource === 'mic'
+          ? 'Select a screen or window to share…'
+          : 'Select a screen or window to share…'
+      );
       setErrorMessage(null);
       setElapsedSeconds(0);
       setControlsInPopout(false);
@@ -428,12 +475,16 @@ export function useRecordingUpload(
       try {
         const session = await prepareRecordingSession({
           audioSource,
+          micStream: audioSource === 'mic' ? micPreflightStreamRef.current : null,
           onShareEnded: () => {
             sessionRef.current = null;
             resetRef.current();
           },
         });
         sessionRef.current = session;
+        micPreflightStreamRef.current = null;
+        setMicPermissionStatus('idle');
+        setMicPermissionMessage(null);
         preloadFfmpeg();
 
         const popup = openRecordingControlsPopout();
@@ -602,6 +653,10 @@ export function useRecordingUpload(
     elapsedSeconds,
     stabilizeSecondsRemaining,
     elapsedLabel: formatElapsed(elapsedSeconds),
+    micPermissionStatus,
+    micPermissionMessage,
+    requestMicPermission,
+    clearMicPreflight,
     prepareRecording,
     skipStabilization,
     beginRecording,

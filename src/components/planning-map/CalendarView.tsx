@@ -1765,7 +1765,7 @@ export default function CalendarView({
   return (
     <div className="bg-background-card rounded-lg border border-border overflow-x-auto overflow-y-visible">
       {/* Calendar Header with Navigation */}
-      <div className="p-4 border-b border-border">
+      <div className="p-3 sm:p-4 border-b border-border">
         <CalendarPeriodHeader
           title={viewTitle}
           onPrev={() => navigatePeriod('prev')}
