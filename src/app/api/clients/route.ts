@@ -63,9 +63,61 @@ export async function POST(request: NextRequest) {
       userIds: [],
     });
 
+    const Project = (await import('@/lib/models/Project')).default;
+    await Project.create({
+      organizationId: user.organizationId,
+      name: body.name,
+      projectType: 'client-admin',
+      clientId: newClient._id,
+      status: 'planning',
+      category: 'generic',
+      color: body.color || '#3b82f6',
+    });
+
     return NextResponse.json(newClient, { status: 201 });
   } catch (error) {
     console.error('Failed to create client:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await requireAuth(request);
+    if (session instanceof NextResponse) return session;
+
+    await connectDB();
+
+    const User = (await import('@/lib/models/User')).default;
+    const user = await User.findById(session.userId);
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    if (currentUserEmployee?.role !== 'Administrator' && currentUserEmployee?.role !== 'Manager') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    if (!body._id) {
+      return NextResponse.json({ error: 'Client ID is required' }, { status: 400 });
+    }
+
+    const updatedClient = await Client.findOneAndUpdate(
+      { _id: body._id, organizationId: user.organizationId },
+      { $set: body },
+      { new: true }
+    );
+
+    if (!updatedClient) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(updatedClient);
+  } catch (error) {
+    console.error('Failed to update client:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

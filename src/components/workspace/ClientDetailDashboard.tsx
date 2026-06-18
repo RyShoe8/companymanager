@@ -1,17 +1,20 @@
 import React from 'react';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
-
+import EditableText from '@/components/ui/EditableText';
+import EditableSelect from '@/components/ui/EditableSelect';
 
 interface ClientDetailDashboardProps {
     client: IClient;
     projects: IProject[];
     onBack: () => void;
     onViewProject: (project: IProject) => void;
+    onUpdateClient?: (clientId: string, updates: Partial<IClient>) => void;
 }
 
-export default function ClientDetailDashboard({ client, projects, onBack, onViewProject }: ClientDetailDashboardProps) {
-    const activeProjects = projects.filter(p => p.status !== 'completed');
+export default function ClientDetailDashboard({ client, projects, onBack, onViewProject, onUpdateClient }: ClientDetailDashboardProps) {
+    const activeProjects = projects.filter(p => p.status !== 'completed' && p.projectType !== 'client-admin');
+    const adminProject = projects.find(p => p.projectType === 'client-admin');
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -33,12 +36,22 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                     {client.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                    <h2 className="text-2xl font-semibold text-text-primary">{client.name}</h2>
-                    {client.domain && (
-                        <a href={`https://${client.domain}`} target="_blank" rel="noopener noreferrer" className="text-sm text-text-secondary hover:text-primary hover:underline transition-colors">
-                            {client.domain}
-                        </a>
-                    )}
+                    <EditableText
+                        value={client.name}
+                        onSave={(v) => onUpdateClient?.(client._id as string, { name: v })}
+                        className="text-2xl font-semibold text-text-primary block"
+                        placeholder="Client Name"
+                        disabled={!onUpdateClient}
+                    />
+                    <div className="mt-1">
+                        <EditableText
+                            value={client.domain || ''}
+                            onSave={(v) => onUpdateClient?.(client._id as string, { domain: v })}
+                            className="text-sm text-text-secondary hover:text-primary transition-colors block"
+                            placeholder="Add domain (e.g. acme.com)..."
+                            disabled={!onUpdateClient}
+                        />
+                    </div>
                 </div>
                 <div className="ml-auto">
                     <button className="px-4 py-2 bg-background-elevated border border-border text-text-primary rounded-md text-sm font-medium hover:bg-background-accent transition-colors">
@@ -57,25 +70,38 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                         <div className="space-y-3">
                             <div>
                                 <p className="text-xs text-text-tertiary uppercase tracking-wider mb-1">Primary Contact</p>
-                                <p className="text-sm text-text-secondary">{client.contactName || 'Not specified'}</p>
+                                <EditableText
+                                    value={client.contactName || ''}
+                                    onSave={(v) => onUpdateClient?.(client._id as string, { contactName: v })}
+                                    className="text-sm text-text-secondary block"
+                                    placeholder="Add contact name..."
+                                    disabled={!onUpdateClient}
+                                />
                             </div>
                             <div>
                                 <p className="text-xs text-text-tertiary uppercase tracking-wider mb-1">Email</p>
-                                {client.contactEmail ? (
-                                    <a href={`mailto:${client.contactEmail}`} className="text-sm text-primary hover:underline">{client.contactEmail}</a>
-                                ) : (
-                                    <p className="text-sm text-text-secondary">Not specified</p>
-                                )}
+                                <EditableText
+                                    value={client.contactEmail || ''}
+                                    onSave={(v) => onUpdateClient?.(client._id as string, { contactEmail: v })}
+                                    className="text-sm text-primary block"
+                                    placeholder="Add email address..."
+                                    disabled={!onUpdateClient}
+                                />
                             </div>
                             <div>
                                 <p className="text-xs text-text-tertiary uppercase tracking-wider mb-1">Status</p>
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
-                                    client.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                    client.status === 'lead' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                    'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
-                                }`}>
-                                    {client.status}
-                                </span>
+                                <EditableSelect
+                                    value={client.status || 'active'}
+                                    options={[
+                                        { value: 'active', label: 'Active', color: 'green' },
+                                        { value: 'lead', label: 'Lead', color: 'yellow' },
+                                        { value: 'inactive', label: 'Inactive', color: 'gray' }
+                                    ]}
+                                    onSave={(v) => onUpdateClient?.(client._id as string, { status: v })}
+                                    disabled={!onUpdateClient}
+                                    showColorDot
+                                    className="text-xs"
+                                />
                             </div>
                         </div>
                     </div>
@@ -83,6 +109,31 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
 
                 {/* Right Column - Projects */}
                 <div className="lg:col-span-2 space-y-6">
+                    {adminProject && (
+                        <div className="bg-background-elevated rounded-xl border border-border p-5">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-medium text-text-primary">Client Headquarters</h3>
+                                <button 
+                                    onClick={() => onViewProject(adminProject)}
+                                    className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-md text-xs font-medium transition-colors"
+                                >
+                                    Open Headquarters
+                                </button>
+                            </div>
+                            <p className="text-sm text-text-secondary mb-4">Manage general tasks, content, and meetings for this client.</p>
+                            <div className="flex gap-4">
+                                <div className="bg-background p-3 rounded-lg border border-border flex-1">
+                                    <div className="text-xs text-text-tertiary mb-1 uppercase tracking-wider">Active Tasks</div>
+                                    <div className="text-xl font-semibold text-text-primary">{adminProject.tasks?.filter((t: any) => t.status !== 'completed').length || 0}</div>
+                                </div>
+                                <div className="bg-background p-3 rounded-lg border border-border flex-1">
+                                    <div className="text-xs text-text-tertiary mb-1 uppercase tracking-wider">Content Items</div>
+                                    <div className="text-xl font-semibold text-text-primary">{adminProject.contentItems?.length || 0}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-background-elevated rounded-xl border border-border p-5">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-medium text-text-primary">Active Projects ({activeProjects.length})</h3>

@@ -13,6 +13,7 @@ import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import AgendaView from '@/components/workspace/AgendaView';
 import ClientsView from '@/components/workspace/ClientsView';
+import ClientCreateModal from '@/components/workspace/ClientCreateModal';
 import OrganizationBrand from '@/components/organization/OrganizationBrand';
 import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
 import SchedulingCalendarBar from '@/components/scheduling/SchedulingCalendarBar';
@@ -89,6 +90,7 @@ export default function WorkspaceShell({
     const [editingProject, setEditingProject] = useState<IProject | undefined>();
     const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
     const [showContentCreateModal, setShowContentCreateModal] = useState(false);
+    const [showClientCreateModal, setShowClientCreateModal] = useState(false);
     const [projectPickerMode, setProjectPickerMode] = useState<'task' | 'content' | null>(null);
     const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
     const [addContentVoicePrefill, setAddContentVoicePrefill] = useState<{
@@ -424,6 +426,21 @@ export default function WorkspaceShell({
             }
         } catch {
             // Error saving project
+        }
+    };
+
+    const handleUpdateClient = async (clientId: string, updates: Partial<IClient>) => {
+        try {
+            const res = await fetch('/api/clients', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ _id: clientId, ...updates }),
+            });
+            if (res.ok) {
+                ws.fetchClients();
+            }
+        } catch (e) {
+            console.error('Failed to update client', e);
         }
     };
 
@@ -1005,7 +1022,8 @@ export default function WorkspaceShell({
                 assignedToEmployeeId: nextIds[0] as never,
                 assignedTo: names.join(', '),
             };
-            const r = await mergePatchProject(m.project._id.toString(), { tasks });
+            const r = await mergePatchProject(m.project.
+_id.toString(), { tasks });
             return r.ok ? { success: true, message: `Assigned task to ${emp.name}` } : { success: false, message: r.message };
         }
 
@@ -1251,7 +1269,7 @@ export default function WorkspaceShell({
         if (needsCalendarData && scheduleCalendar?.connected) {
             void handleScheduleSync();
         }
-    }, [needsCalendarData, scheduleCalendar?.connected, handleScheduleSync]);
+    }, [ws.lens, needsCalendarData, scheduleCalendar?.connected, handleScheduleSync]);
 
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
@@ -1347,6 +1365,7 @@ export default function WorkspaceShell({
                                     menuOpen={createMenuOpen}
                                     onMenuOpenChange={setCreateMenuOpen}
                                     onCreateProject={handleCreateProject}
+                                    onCreateClient={() => setShowClientCreateModal(true)}
                                     onCreateTask={() => setProjectPickerMode('task')}
                                     onCreateContent={() => setProjectPickerMode('content')}
                                     onCreateMeeting={() => setShowMeetingModal(true)}
@@ -1434,6 +1453,8 @@ export default function WorkspaceShell({
                                     clients={ws.clients}
                                     allProjects={ws.allProjects}
                                     onViewProject={handleViewProject}
+                                    onCreateClient={() => setShowClientCreateModal(true)}
+                                    onUpdateClient={handleUpdateClient}
                                 />
                             ) : isSchedulingPhase ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -1575,6 +1596,14 @@ export default function WorkspaceShell({
                     </div>
 
                     {/* ===== Modals & Sheets ===== */}
+                    <ClientCreateModal
+                        isOpen={showClientCreateModal}
+                        onClose={() => setShowClientCreateModal(false)}
+                        onSuccess={() => {
+                            ws.fetchClients();
+                        }}
+                    />
+
                     <CreateMeetingModal
                         isOpen={showMeetingModal}
                         onClose={() => setShowMeetingModal(false)}

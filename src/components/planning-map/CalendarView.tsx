@@ -912,9 +912,9 @@ export default function CalendarView({
                             <div className="flex items-center gap-2 pr-4 mt-0.5">
                               <div className="relative h-1 w-32 rounded-full overflow-hidden">
                                 <div className="absolute inset-0 bg-white opacity-20" />
-                                <div className="relative h-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                                <div className="relative h-full transition-all duration-500" style={{ width: `${progressPercent}%`, backgroundColor: 'currentColor' }} />
                               </div>
-                              <span className={`text-[10px] font-bold text-white shrink-0`}><AnimatedProgressNumber target={progressPercent} />%</span>
+                              <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}><AnimatedProgressNumber target={progressPercent} />%</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1416,9 +1416,9 @@ export default function CalendarView({
                                 <div className="flex items-center gap-2 pr-4 mt-0.5">
                                   <div className="relative h-1 flex-1 rounded-full overflow-hidden">
                                     <div className="absolute inset-0 bg-white opacity-20" />
-                                    <div className="relative h-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                                    <div className="relative h-full transition-all duration-500" style={{ width: `${progressPercent}%`, backgroundColor: 'currentColor' }} />
                                   </div>
-                                  <span className={`text-[10px] font-bold text-white shrink-0`}><AnimatedProgressNumber target={progressPercent} />%</span>
+                                  <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}><AnimatedProgressNumber target={progressPercent} />%</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">

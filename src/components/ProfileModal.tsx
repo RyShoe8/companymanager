@@ -312,8 +312,7 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
             </div>
           )}
 
-          {showPasswordChange && (
-            <form onSubmit={handlePasswordChange} className="space-y-4 bg-background-elevated p-4 rounded-lg border border-border">
+            <form onSubmit={handlePasswordChange} className="space-y-5 bg-background-elevated p-5 rounded-xl border border-border">
               {passwordChangeError && (
                 <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg text-sm">
                   {passwordChangeError}
@@ -335,19 +334,24 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
                 required
                 minLength={8}
               />
-              <Input
-                label="Confirm New Password"
-                type="password"
-                value={confirmNewPassword}
-                onChange={(e) => setConfirmNewPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-              <div className="flex gap-2 justify-end pt-2">
+              <div className="space-y-1">
+                <Input
+                  label="Confirm New Password"
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+                {confirmNewPassword && newPassword !== confirmNewPassword && (
+                  <p className="text-xs text-error">Passwords do not match.</p>
+                )}
+              </div>
+              <div className="flex gap-3 justify-end pt-3 border-t border-border mt-4">
                 <Button type="button" variant="secondary" onClick={() => setShowPasswordChange(false)} disabled={passwordChanging}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={passwordChanging}>
+                <Button type="submit" disabled={passwordChanging || (confirmNewPassword !== newPassword)}>
                   {passwordChanging ? 'Updating...' : 'Update Password'}
                 </Button>
               </div>
@@ -367,7 +371,7 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
         </Button>
       </div>
 
-      <div className="flex gap-2 justify-end pt-6 mt-8 border-t border-border">
+      <div className="flex gap-3 justify-end pt-6 mt-8 border-t border-border bg-background/50 -mx-6 -mb-6 px-6 py-4 rounded-b-2xl">
         <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
           Cancel
         </Button>

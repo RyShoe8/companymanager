@@ -7,9 +7,11 @@ interface ClientsViewProps {
     clients: IClient[];
     allProjects: IProject[];
     onViewProject: (project: IProject) => void;
+    onCreateClient?: () => void;
+    onUpdateClient?: (clientId: string, updates: Partial<IClient>) => void;
 }
 
-export default function ClientsView({ clients, allProjects, onViewProject }: ClientsViewProps) {
+export default function ClientsView({ clients, allProjects, onViewProject, onCreateClient, onUpdateClient }: ClientsViewProps) {
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
     const selectedClient = clients.find(c => c._id?.toString() === selectedClientId);
@@ -22,6 +24,7 @@ export default function ClientsView({ clients, allProjects, onViewProject }: Cli
                 projects={clientProjects} 
                 onBack={() => setSelectedClientId(null)} 
                 onViewProject={onViewProject}
+                onUpdateClient={onUpdateClient}
             />
         );
     }
@@ -33,7 +36,10 @@ export default function ClientsView({ clients, allProjects, onViewProject }: Cli
                     <h2 className="text-2xl font-semibold text-text-primary">Clients</h2>
                     <p className="text-sm text-text-secondary mt-1">Manage your clients and view their dedicated dashboards.</p>
                 </div>
-                <button className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors shadow-sm">
+                <button 
+                    onClick={onCreateClient}
+                    className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors shadow-sm"
+                >
                     New Client
                 </button>
             </div>
@@ -52,8 +58,11 @@ export default function ClientsView({ clients, allProjects, onViewProject }: Cli
                     <p className="text-sm text-text-secondary mt-1 max-w-sm text-center mb-6">
                         Start managing your external relationships by adding your first client.
                     </p>
-                    <button className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors shadow-sm">
-                        Add Client
+                    <button 
+                        onClick={onCreateClient}
+                        className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-hover transition-colors"
+                    >
+                        Add your first client
                     </button>
                 </div>
             ) : (

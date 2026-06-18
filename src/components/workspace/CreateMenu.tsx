@@ -9,6 +9,7 @@ interface CreateMenuProps {
     currentUserRole?: string;
     canCreateTaskOrContent: boolean;
     onCreateProject: () => void;
+    onCreateClient?: () => void;
     onCreateTask: () => void;
     onCreateContent: () => void;
     onCreateMeeting: () => void;
@@ -23,6 +24,7 @@ export default function CreateMenu({
     currentUserRole,
     canCreateTaskOrContent,
     onCreateProject,
+    onCreateClient,
     onCreateTask,
     onCreateContent,
     onCreateMeeting,
@@ -60,6 +62,7 @@ export default function CreateMenu({
 
     const items = [
         ...(isManagerOrAdmin ? [{ label: 'Project', onClick: onCreateProject }] : []),
+        ...(isManagerOrAdmin && onCreateClient ? [{ label: 'Client', onClick: onCreateClient }] : []),
         ...(canCreateTaskOrContent ? [{ label: 'Task', onClick: onCreateTask }] : []),
         ...(canCreateTaskOrContent ? [{ label: 'Content', onClick: onCreateContent }] : []),
         { label: 'Meeting', onClick: onCreateMeeting },

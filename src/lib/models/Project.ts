@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
-export type ProjectType = 'internal' | 'client';
+export type ProjectType = 'internal' | 'client' | 'client-admin';
 export type ProjectCategory = 'website' | 'store' | 'app' | 'generic';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
 
@@ -91,6 +91,7 @@ export interface IProject extends Document {
   /** Marketing & analytics tools (email, analytics, social management, CRM). */
   marketingStack?: IProjectMarketingStackItem[];
   projectType: ProjectType;
+  clientId?: Types.ObjectId | string;
   category: ProjectCategory;
   color: string;
   /** Ordered palette: [0] = primary (kept in sync with `color` on save). Hex or rgb()/rgba() strings. */
@@ -200,9 +201,13 @@ const ProjectSchema: Schema = new Schema(
     },
     projectType: {
       type: String,
-      enum: ['internal', 'client'],
+      enum: ['internal', 'client', 'client-admin'],
       required: true,
       default: 'client',
+    },
+    clientId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Client',
     },
     category: {
       type: String,

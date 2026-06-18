@@ -1577,12 +1577,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setViewTab('tasks');
       setTaskTab('active');
       setPendingScrollToTaskIndex(newIdx);
-      try {
-        const res = await fetch(`/api/projects/${localProject._id.toString()}/tasks`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tasks: tasksToAppend }),
-        });
+      fetch(`/api/projects/${localProject._id.toString()}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: tasksToAppend }),
+      }).then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(typeof data.error === 'string' ? data.error : 'Failed to add task');
@@ -1591,15 +1590,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         const nextProject = { ...localProject, tasks: data.tasks ?? localProject.tasks } as IProject;
         setLocalProject(nextProject);
         onProjectPatched?.(nextProject);
-        return;
-      } catch (error) {
+      }).catch((error) => {
         console.error('Error adding task:', error);
         setLocalProject(project);
         setPendingScrollToTaskIndex(null);
         setAutoEditTaskId(null);
         alert(error instanceof Error ? error.message : 'Failed to save');
-        throw error;
-      }
+      });
+      return;
     }
 
     const nextTasks = [...prevTasks, ...tasksToAppend];
@@ -1609,16 +1607,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setViewTab('tasks');
     setTaskTab('active');
     setPendingScrollToTaskIndex(addedIdx);
-    try {
-      await persistProjectTasks(tasksToSave);
-    } catch (error) {
+    persistProjectTasks(tasksToSave).catch((error) => {
       console.error('Error adding task:', error);
       setLocalProject(project);
       setPendingScrollToTaskIndex(null);
       setAutoEditTaskId(null);
       alert(error instanceof Error ? error.message : 'Failed to save');
-      throw error;
-    }
+    });
   };
 
   const applyTaskRecurrence = useCallback(
@@ -1746,7 +1741,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [reloadProjectContent]
   );
 
-  const handleAddTask = async () => {
+  const handleAddTask = () => {
     const newTask = {
       name: '',
       description: '',
@@ -1755,7 +1750,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       estimatedHours: 0,
     };
-    await commitAddTasks([newTask]);
+    commitAddTasks([newTask]);
   };
 
   useEffect(() => {
@@ -1770,7 +1765,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const key = project._id.toString();
     if (autoAddTaskAppliedKeyRef.current === key) return;
     autoAddTaskAppliedKeyRef.current = key;
-    void handleAddTask().finally(() => onAutoAddTaskConsumed?.());
+    handleAddTask();
+    onAutoAddTaskConsumed?.();
   }, [autoAddTaskOnOpen, isManagerOrAdmin, project._id, onAutoAddTaskConsumed]);
 
   const handleCopyPalette = async () => {

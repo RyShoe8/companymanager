@@ -75,6 +75,11 @@ export function getProjectsForStage(projects: any[], stage: ProjectStage): any[]
   today.setHours(0, 0, 0, 0);
   
   return projects.filter(project => {
+    // Hide client-admin projects from normal phase views
+    if (project.projectType === 'client-admin') {
+      return false;
+    }
+    
     // First check if project status matches the stage
     if (!statusMap[stage].includes(project.status)) {
       return false;
