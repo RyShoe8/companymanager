@@ -116,6 +116,7 @@ export interface IProject extends Document {
   clientPortalToken?: string;
   /** Emails to which a client invite was sent (display only). */
   invitedClientEmails?: string[];
+  clientId?: Types.ObjectId;
   userId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -368,6 +369,11 @@ const ProjectSchema: Schema = new Schema(
     clientPortalSlug: { type: String, trim: true },
     clientPortalToken: { type: String, trim: true },
     invitedClientEmails: { type: [String], default: [] },
+    clientId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Client',
+      index: true,
+    },
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',

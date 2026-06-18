@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, url, urls, devUrl, liveUrl, projectType, category, color, logo, status, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate, socialLinks, techStack, marketingStack } = body;
+    const { name, description, url, urls, devUrl, liveUrl, projectType, category, color, logo, status, clientId, estimatedHours, assignedTo, assignedToEmployeeId, assignedToEmployeeIds, assignedToNames, tasks, endDate, socialLinks, techStack, marketingStack } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
       color: color || '#3b82f6',
       logo: logo || undefined,
       status: status || 'planning',
+      clientId: clientId || undefined,
       userId: session.userId,
     };
 

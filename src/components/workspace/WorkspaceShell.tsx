@@ -1368,7 +1368,7 @@ export default function WorkspaceShell({
                         </div>
 
                         {/* Row 2: Lens bar + view toggles (hidden in Scheduling phase) */}
-                        {!isSchedulingPhase && (
+                        {!isSchedulingPhase && ws.phase !== 'Clients' && (
                         <div className="flex flex-wrap items-center gap-4 justify-between">
                             <LensBar
                                 selected={ws.lens}
@@ -1427,7 +1427,13 @@ export default function WorkspaceShell({
                     {/* ===== Main Content ===== */}
                     <div className="flex w-full gap-6">
                         <div className="flex-1 min-w-0">
-                            {isSchedulingPhase ? (
+                            {ws.phase === 'Clients' ? (
+                                <ClientsView
+                                    clients={ws.clients}
+                                    allProjects={ws.allProjects}
+                                    onViewProject={handleViewProject}
+                                />
+                            ) : isSchedulingPhase ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <SchedulingPanel
@@ -1771,6 +1777,7 @@ export default function WorkspaceShell({
                         >
                             <div className="p-4">
                                 <QuickProjectForm
+                                    clients={ws.clients}
                                     employees={ws.employees}
                                     defaultStatus={defaultStatus}
                                     onSubmit={handleSubmitProject}
@@ -1791,6 +1798,7 @@ export default function WorkspaceShell({
                             title="New Project"
                         >
                             <QuickProjectForm
+                                clients={ws.clients}
                                 employees={ws.employees}
                                 defaultStatus={defaultStatus}
                                 onSubmit={handleSubmitProject}

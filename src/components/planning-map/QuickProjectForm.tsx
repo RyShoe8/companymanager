@@ -1,18 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import Button from '@/components/ui/Button';
 
-interface QuickProjectFormProps { employees: IEmployee[]; defaultStatus?: 'planning' | 'in-development' | 'launched'; onSubmit: (data: any) => Promise<void>; onCancel: () => void; }
+interface QuickProjectFormProps { clients: IClient[]; employees: IEmployee[]; defaultStatus?: 'planning' | 'in-development' | 'launched'; onSubmit: (data: any) => Promise<void>; onCancel: () => void; }
 
 const colorPalette = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
 
-export default function QuickProjectForm({ employees, defaultStatus = 'planning', onSubmit, onCancel }: QuickProjectFormProps) {
+export default function QuickProjectForm({ clients, employees, defaultStatus = 'planning', onSubmit, onCancel }: QuickProjectFormProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(colorPalette[Math.floor(Math.random() * colorPalette.length)]);
   const [projectType, setProjectType] = useState<'internal' | 'client'>('client');
+  const [clientId, setClientId] = useState<string>('');
   const [category, setCategory] = useState<'website' | 'store' | 'app' | 'generic'>('generic');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [assignedToEmployeeIds, setAssignedToEmployeeIds] = useState<string[]>([]);
@@ -29,6 +31,7 @@ export default function QuickProjectForm({ employees, defaultStatus = 'planning'
         description: description.trim() || undefined,
         color,
         projectType,
+        clientId: projectType === 'client' && clientId ? clientId : undefined,
         category,
         status: defaultStatus,
         assignedToEmployeeIds: assignedToEmployeeIds.length > 0 ? assignedToEmployeeIds : undefined
@@ -50,6 +53,22 @@ export default function QuickProjectForm({ employees, defaultStatus = 'planning'
           </button>
         ))}
       </div></div>
+
+      {projectType === 'client' && (
+        <div className="flex flex-col gap-1">
+          <label className="text-sm text-gray-500">Client:</label>
+          <select 
+            value={clientId} 
+            onChange={(e) => setClientId(e.target.value)} 
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+          >
+            <option value="">Select a client...</option>
+            {clients.map(c => (
+              <option key={c._id?.toString()} value={c._id?.toString()}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex items-center gap-4"><span className="text-sm text-gray-500">Category:</span><div className="flex flex-wrap gap-2">
         {(['website', 'store', 'app', 'generic'] as const).map((cat) => (

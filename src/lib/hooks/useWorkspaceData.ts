@@ -5,17 +5,19 @@ import { useRouter } from 'next/navigation';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
+import { IClient } from '@/lib/models/Client';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
 export type LensType = 'schedule' | 'agenda' | 'projects' | 'capacity';
-export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule';
+export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule' | 'Clients';
 
 export interface WorkspaceState {
     // Data
     projects: IProject[];
     allProjects: IProject[];
+    clients: IClient[];
     employees: IEmployee[];
     contentItems: IContentItem[];
     loading: boolean;
@@ -82,6 +84,7 @@ export default function useWorkspaceData(
 
     // Data
     const [allProjects, setAllProjects] = useState<IProject[]>([]);
+    const [clients, setClients] = useState<IClient[]>([]);
     const [employees, setEmployees] = useState<IEmployee[]>([]);
     const [contentItems, setContentItems] = useState<IContentItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -110,8 +113,9 @@ export default function useWorkspaceData(
             setLoading(true);
         }
         try {
-            const [projectsRes, employeesRes, userResponse, contentRes] = await Promise.all([
+            const [projectsRes, clientsRes, employeesRes, userResponse, contentRes] = await Promise.all([
                 fetch('/api/projects'),
+                fetch('/api/clients'),
                 fetch('/api/employees'),
                 fetch('/api/auth/me'),
                 fetch('/api/content-items'),
@@ -123,6 +127,7 @@ export default function useWorkspaceData(
             }
 
             const projectsData = await projectsRes.json();
+            const clientsData = clientsRes.ok ? await clientsRes.json() : [];
             const employeesData = await employeesRes.json();
 
             // Get current user's role and employee info
@@ -160,6 +165,7 @@ export default function useWorkspaceData(
             }
 
             setAllProjects(projectsData);
+            setClients(clientsData);
             setEmployees(employeesData);
 
             if (contentRes.ok) {
@@ -280,6 +286,7 @@ export default function useWorkspaceData(
     return {
         projects,
         allProjects,
+        clients,
         employees,
         contentItems,
         loading,
