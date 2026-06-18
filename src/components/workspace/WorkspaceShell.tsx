@@ -1231,6 +1231,7 @@ export default function WorkspaceShell({
     const isSchedulingPhase = ws.phase === 'Schedule';
     const isAgendaLens = ws.lens === 'agenda';
     const isScheduleLens = ws.lens === 'schedule';
+    const isClientsLens = ws.lens === 'clients';
     const needsCalendarData = isSchedulingPhase || isAgendaLens || isScheduleLens;
 
     useEffect(() => {
@@ -1369,7 +1370,7 @@ export default function WorkspaceShell({
                         </div>
 
                         {/* Row 2: Lens bar + view toggles (hidden in Scheduling phase) */}
-                        {!isSchedulingPhase && ws.phase !== 'Clients' && (
+                        {!isSchedulingPhase && (
                         <div className="flex flex-wrap items-center gap-4 justify-between">
                             <LensBar
                                 selected={ws.lens}
@@ -1428,7 +1429,7 @@ export default function WorkspaceShell({
                     {/* ===== Main Content ===== */}
                     <div className="flex w-full gap-6">
                         <div className="flex-1 min-w-0">
-                            {ws.phase === 'Clients' ? (
+                            {isClientsLens ? (
                                 <ClientsView
                                     clients={ws.clients}
                                     allProjects={ws.allProjects}

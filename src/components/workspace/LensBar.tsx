@@ -13,6 +13,7 @@ interface LensBarProps {
 const allLenses: { value: LensType; label: string; icon: string }[] = [
     { value: 'schedule', label: 'Projects', icon: '📁' },
     { value: 'agenda', label: 'Agenda', icon: '📋' },
+    { value: 'clients', label: 'Clients', icon: '🏢' },
     { value: 'capacity', label: 'Capacity', icon: '👥' },
 ];
 

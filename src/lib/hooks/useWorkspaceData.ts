@@ -10,8 +10,8 @@ import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
-export type LensType = 'schedule' | 'agenda' | 'projects' | 'capacity';
-export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule' | 'Clients';
+export type LensType = 'schedule' | 'agenda' | 'projects' | 'clients' | 'capacity';
+export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule';
 
 export interface WorkspaceState {
     // Data
@@ -209,7 +209,7 @@ export default function useWorkspaceData(
     // Phase-filtered projects
     const projects = useMemo(() => {
         if (phase === 'All') return allProjects;
-        if (phase === 'Schedule' || phase === 'Clients') return [];
+        if (phase === 'Schedule') return [];
         return getProjectsForStage(allProjects, phase as ProjectStage);
     }, [allProjects, phase]);
 
