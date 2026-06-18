@@ -175,7 +175,7 @@ export default function EditableText({
   }
 
   if (isEditing) {
-    const editClassName = `${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full block`;
+    const editClassName = `${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500`;
     if (useMultiline) {
       return (
         <textarea
@@ -184,9 +184,9 @@ export default function EditableText({
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className={`${editClassName} resize-y min-h-[4.5rem]`}
+          className={`${editClassName} w-full block resize-y min-h-[2.5rem]`}
           placeholder={placeholder}
-          rows={3}
+          rows={1}
         />
       );
     }
@@ -198,7 +198,7 @@ export default function EditableText({
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleSave}
         onKeyDown={handleKeyDown}
-        className={editClassName}
+        className={`${editClassName} w-full`}
         placeholder={placeholder}
       />
     );
@@ -207,7 +207,7 @@ export default function EditableText({
   return (
     <span
       onClick={startEditing}
-      className={`${className} ${displayColorClass} cursor-pointer ${lightSurface('hover:bg-gray-100', 'dark:hover:bg-gray-700', light)} rounded px-1 py-0.5 transition-colors${preserveFormatting ? ' whitespace-pre-wrap' : ''}`}
+      className={`${className} ${displayColorClass} cursor-pointer ${lightSurface('hover:bg-gray-100', 'dark:hover:bg-gray-700', light)} rounded px-2 py-1 border border-transparent transition-colors${preserveFormatting ? ' whitespace-pre-wrap' : ''} inline-block min-w-[2rem]`}
     >
       {value || placeholder}
     </span>

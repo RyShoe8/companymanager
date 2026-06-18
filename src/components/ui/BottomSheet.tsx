@@ -123,7 +123,7 @@ export default function BottomSheet({
   const surfaceClass =
     surface === 'chrome'
       ? 'bg-transparent shadow-none'
-      : 'bg-white border-t border-gray-200 rounded-t-2xl shadow-2xl';
+      : 'bg-background-card border-t border-border rounded-t-2xl shadow-2xl';
 
   const sheetBody = (
     <>
@@ -138,12 +138,12 @@ export default function BottomSheet({
         </div>
       )}
       {title && (
-        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <div className="flex-shrink-0 px-4 py-2 border-b border-border flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
           {!hideCloseButton && (
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-900 p-1 -mr-1 transition-colors"
+              className="text-text-secondary hover:text-text-primary p-1 -mr-1 transition-colors"
               aria-label="Close"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,7 +179,7 @@ export default function BottomSheet({
           onClick={onClose}
         />
         <div
-          className={`flex flex-shrink-0 w-full items-end transition-transform duration-300 ease-out ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
+          className={`flex flex-shrink-0 w-full items-end ${dragOffset > 0 ? '' : 'transition-transform duration-300 ease-out'} ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
           style={{ transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined }}
         >
           <button
@@ -215,7 +215,7 @@ export default function BottomSheet({
       onWheel={isOpen ? handleBackdropWheel : undefined}
     >
       <div
-        className={`w-full transition-transform duration-300 ease-out flex flex-col ${surfaceClass} ${sheetClassName} ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`w-full ${dragOffset > 0 ? '' : 'transition-transform duration-300 ease-out'} flex flex-col ${surfaceClass} ${sheetClassName} ${isOpen && dragOffset === 0 ? 'translate-y-0' : 'translate-y-full'}`}
         style={{ maxHeight, transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined }}
         onClick={(e) => e.stopPropagation()}
         onWheel={handleSheetWheel}

@@ -14,7 +14,7 @@ const CATEGORIES = [
     desc: 'Manage projects end-to-end with tasks, timelines, team assignments, and AI-powered time estimation.',
     href: '/features/projects',
     icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
       </svg>
     ),
@@ -24,7 +24,7 @@ const CATEGORIES = [
     desc: 'Break down projects into clear tasks with status tracking, recurrence, linked assets, and assignments.',
     href: '/features/tasks',
     icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
       </svg>
     ),
@@ -34,7 +34,7 @@ const CATEGORIES = [
     desc: 'Plan, schedule, and distribute content across channels with targeting, assets, and team assignments.',
     href: '/features/content',
     icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
       </svg>
     ),
@@ -44,7 +44,7 @@ const CATEGORIES = [
     desc: 'Walk into calls with project context, agendas, insights, and one-click join.',
     href: '/features/meetings',
     icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
       </svg>
     ),
@@ -54,7 +54,7 @@ const CATEGORIES = [
     desc: 'Plan meetings on a workspace calendar with team availability and linked projects.',
     href: '/features/scheduling',
     icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     ),
@@ -64,7 +64,7 @@ const CATEGORIES = [
     desc: 'Built-in screenshot capture, screen recording, smart buttons, and assets linked to your tasks.',
     href: '/features/tools',
     icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
@@ -75,7 +75,7 @@ const CATEGORIES = [
     desc: 'Track capacity, assignments, workload, and roles. See how every project impacts your team.',
     href: '/features/team',
     icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
@@ -132,7 +132,7 @@ export default function HomePageClient({
   return (
     <div className="min-h-screen bg-background overflow-hidden">
       {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <section className="relative min-h-[95vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <section className="relative min-h-[80vh] sm:min-h-[95vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
         {/* Background effects */}
         <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
         <div className="absolute top-1/4 -left-32 w-96 h-96 bg-primary/15 rounded-full blur-3xl animate-float pointer-events-none" />
@@ -226,8 +226,8 @@ export default function HomePageClient({
           <div className="grid md:grid-cols-3 gap-6">
             {PAIN_POINTS.map((point, i) => (
               <AnimateIn key={point.title}>
-                <div className="bg-background-card border border-border rounded-2xl p-8 hover:border-red-500/30 transition-all duration-300 h-full">
-                  <span className="text-3xl mb-4 block">{point.icon}</span>
+                <div className="bg-background-card border border-border rounded-2xl p-8 hover:border-red-500/30 transition-all duration-300 h-full hover:-translate-y-1">
+                  <span className="text-3xl mb-4 block" role="img" aria-label={point.title + " icon"}>{point.icon}</span>
                   <h3 className="text-xl font-semibold text-text-primary mb-2">{point.title}</h3>
                   <p className="text-text-secondary">{point.desc}</p>
                 </div>
@@ -260,7 +260,7 @@ export default function HomePageClient({
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-48 h-48 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-2xl" />
               </div>
-              <div className="relative grid grid-cols-3 gap-4">
+              <div className="relative grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {['Projects', 'Tasks', 'Content', 'Meetings', 'Team', 'Tools'].map((label, i) => (
                   <div
                     key={label}
@@ -375,7 +375,7 @@ export default function HomePageClient({
           <div className="grid md:grid-cols-3 gap-6">
             {DIFFERENTIATORS.map((d) => (
               <AnimateIn key={d.vs}>
-                <div className="bg-background-card border border-border rounded-2xl p-8 h-full">
+                <div className="bg-background-card border border-border rounded-2xl p-8 h-full transition-all duration-300 hover:-translate-y-1 hover:border-primary/30">
                   <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-4">vs. {d.vs}</p>
                   <p className="text-text-secondary mb-1">{d.us}</p>
                   <p className="text-xl font-bold text-primary mb-4">{d.nucleas}</p>
@@ -402,8 +402,8 @@ export default function HomePageClient({
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {HIGHLIGHTS.map((h) => (
               <AnimateIn key={h.title}>
-                <div className="bg-background border border-border rounded-2xl p-6 hover:border-primary/20 transition-all duration-300 h-full">
-                  <span className="text-2xl mb-3 block">{h.icon}</span>
+                <div className="bg-background border border-border rounded-2xl p-6 hover:border-primary/20 transition-all duration-300 h-full hover:-translate-y-1">
+                  <span className="text-2xl mb-3 block" role="img" aria-label={h.title + " icon"}>{h.icon}</span>
                   <h3 className="text-lg font-semibold text-text-primary mb-2">{h.title}</h3>
                   <p className="text-sm text-text-secondary leading-relaxed">{h.desc}</p>
                 </div>
@@ -431,7 +431,7 @@ export default function HomePageClient({
           <div className="flex flex-wrap justify-center gap-4">
             {AUDIENCES.map((a) => (
               <AnimateIn key={a.label}>
-                <div className="bg-background border border-border rounded-2xl px-6 py-4 hover:border-primary/30 transition-all duration-300 max-w-xs">
+                <div className="bg-background border border-border rounded-2xl px-6 py-4 hover:border-primary/30 transition-all duration-300 max-w-xs hover:-translate-y-1">
                   <h3 className="text-base font-semibold text-text-primary mb-1">{a.label}</h3>
                   <p className="text-sm text-text-secondary">{a.desc}</p>
                 </div>

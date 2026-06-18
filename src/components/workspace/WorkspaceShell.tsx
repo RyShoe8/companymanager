@@ -58,6 +58,7 @@ import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 import { markProjectItemsSeen } from '@/lib/workspace/itemSeenState';
 import WorkspaceEmailDigestSelect from '@/components/workspace/WorkspaceEmailDigestSelect';
+import WorkspaceTeamFilter from '@/components/workspace/WorkspaceTeamFilter';
 import PlatformGuideWorkspaceBridge from '@/lib/platformGuide/PlatformGuideWorkspaceBridge';
 import { usePlatformGuideOptional } from '@/lib/platformGuide/PlatformGuideProvider';
 
@@ -1402,9 +1403,9 @@ export default function WorkspaceShell({
                                             onChange={ws.setShowMeetings}
                                         />
                                     ) : null}
-                                    <ContentChannelFilter
-                                        value={ws.contentChannelFilter}
-                                        onChange={ws.setContentChannelFilter}
+                                    <WorkspaceTeamFilter
+                                        value={ws.teamFilter}
+                                        onChange={ws.setTeamFilter}
                                     />
                                     </div>
                                 </WorkspaceLensToolbar>
@@ -1433,6 +1434,7 @@ export default function WorkspaceShell({
                                             onDateChange={ws.setCurrentDate}
                                             onRefreshMeetings={() => void refetchMeetings()}
                                             schedulingTimeZone={schedulingAvailability.timezone}
+                                            teamFilter={ws.teamFilter}
                                             externalMessage={scheduleHeaderMessage}
                                             onClearExternalMessage={() => {
                                                 setSchedulePanelMessage(null);
@@ -1475,6 +1477,7 @@ export default function WorkspaceShell({
                                                 currentUserId={ws.currentUserId}
                                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                                 showOnlyMyAssignments={ws.showOnlyMyAssignments}
+                                                teamFilter={ws.teamFilter}
                                                 onRefreshContent={ws.fetchContentItems}
                                                 onAddContent={(project, defaultDate) => {
                                                     setAddContentVoicePrefill(null);
@@ -1507,6 +1510,7 @@ export default function WorkspaceShell({
                                                 currentUserRole={ws.currentUserRole}
                                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                                 showOnlyMyAssignments={ws.showOnlyMyAssignments}
+                                                teamFilter={ws.teamFilter}
                                                 onAddContent={(project, defaultDate) => {
                                                     setAddContentVoicePrefill(null);
                                                     setAddContentProject(project);

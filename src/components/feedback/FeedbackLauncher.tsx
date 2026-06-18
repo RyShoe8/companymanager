@@ -8,6 +8,7 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import { formInputClass } from '@/components/ui/formClasses';
+import { useVoice } from '@/components/voice/VoiceProvider';
 
 export default function FeedbackLauncher() {
   const pathname = usePathname();
@@ -64,6 +65,9 @@ export default function FeedbackLauncher() {
     }
   };
 
+  const voice = useVoice();
+  const isVoiceEnabled = voice.enabled;
+
   return (
     <>
       <button
@@ -72,7 +76,9 @@ export default function FeedbackLauncher() {
           reset();
           setOpen(true);
         }}
-        className="fixed bottom-52 md:bottom-40 right-6 z-40 rounded-full bg-primary text-white shadow-lg px-4 py-3 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900"
+        className={`fixed right-6 z-40 rounded-full bg-primary text-white shadow-lg px-4 py-3 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900 ${
+          isVoiceEnabled ? 'bottom-52 md:bottom-40' : 'bottom-20 md:bottom-6'
+        }`}
         data-tour="feedback-button"
         aria-label="Report a bug or request a feature"
       >

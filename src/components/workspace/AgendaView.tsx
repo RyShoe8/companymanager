@@ -25,6 +25,8 @@ import {
     taskPassesAssignmentFilter,
     contentPassesAssignmentFilter,
 } from '@/lib/utils/assigneeDisplay';
+import { passesTeamFilter } from '@/lib/workspace/teamFilter';
+import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 import { meetingsForAgendaDay } from '@/lib/scheduling/meetingHours';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
 import ItemSeenTag from '@/components/workspace/ItemSeenTag';
@@ -70,9 +72,10 @@ interface AgendaViewProps {
     currentUserEmployeeId: string | null;
     currentUserId?: string | null;
     currentUserRole?: 'Administrator' | 'Manager' | 'User';
-    isManagerOrAdmin: boolean;
-    showOnlyMyAssignments: boolean;
-    onAddContent: (project: IProject, defaultDate?: Date) => void;
+    isManagerOrAdmin?: boolean;
+    showOnlyMyAssignments?: boolean;
+    teamFilter?: TeamFilterType;
+    onAddContent?: (project: IProject, defaultDate?: Date) => void;
     onAddTask?: (project: IProject) => void;
     onContentItemClick: (item: IContentItem) => void;
     itemSeenRefreshTrigger?: number;
@@ -197,8 +200,9 @@ export default function AgendaView({
     currentUserEmployeeId,
     currentUserId = null,
     currentUserRole,
-    isManagerOrAdmin,
-    showOnlyMyAssignments,
+    isManagerOrAdmin = false,
+    showOnlyMyAssignments = false,
+    teamFilter = 'All Teams',
     onAddContent,
     onAddTask,
     onContentItemClick,
@@ -319,6 +323,7 @@ export default function AgendaView({
                         const taskEnd = parseDateSafe(task.endDate);
                         if (!taskStart || !taskEnd) return;
                         if (!taskOverlapsViewDay(dayStart, taskStart, taskEnd)) return;
+                        if (teamFilter !== 'All Teams' && !passesTeamFilter(task, teamFilter, employees)) return;
                         if (!taskPassesAssignmentFilter(task, assignmentFilterOpts)) return;
                         tasksOnDay.push(task);
                     });
@@ -338,6 +343,7 @@ export default function AgendaView({
                             if (!isActiveWorkspaceContent(item)) return false;
                             if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                                 return false;
+                            if (teamFilter !== 'All Teams' && !passesTeamFilter(item, teamFilter, employees)) return false;
                             if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
                             if (!item.publishDate) return false;
                             const d = parseDateSafe(item.publishDate);
@@ -368,6 +374,7 @@ export default function AgendaView({
                     if (!isActiveWorkspaceContent(item)) return false;
                     if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                         return false;
+                    if (teamFilter !== 'All Teams' && !passesTeamFilter(item, teamFilter, employees)) return false;
                     if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
                     if (!item.publishDate) return false;
                     const d = parseDateSafe(item.publishDate);
@@ -772,24 +779,22 @@ export default function AgendaView({
 
                                 {canUserContributeToProject(project, currentUserEmployeeId, isManagerOrAdmin) && (
                                     <div className="ml-6 mt-1 flex items-center gap-3">
-                                        {onAddTask && (
-                                            <button
-                                                type="button"
-                                                className="text-xs text-text-muted hover:text-primary transition-colors"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onAddTask(project);
-                                                }}
-                                            >
-                                                + Add task
-                                            </button>
-                                        )}
                                         <button
                                             type="button"
                                             className="text-xs text-text-muted hover:text-primary transition-colors"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onAddContent(project, day.date);
+                                                onAddTask?.(project);
+                                            }}
+                                        >
+                                            + Add task
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="text-xs text-text-muted hover:text-primary transition-colors"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAddContent?.(project, day.date);
                                             }}
                                         >
                                             + Add content

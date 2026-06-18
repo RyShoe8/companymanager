@@ -16,8 +16,11 @@ export default function MobileBottomNav() {
     return pathname === href || pathname?.startsWith(href + '/');
   };
 
+  const isMarketingPage = pathname === '/' || pathname === '/about' || pathname === '/pricing' || pathname === '/features' || pathname === '/contact';
+  if (isMarketingPage) return null;
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-background-card border-t border-border md:hidden z-50 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16">
         {navItems.map((item) => (
           <Link
@@ -33,8 +36,8 @@ export default function MobileBottomNav() {
                     : undefined
             }
             className={`flex flex-col items-center justify-center flex-1 h-full ${isActive(item.href)
-                ? 'text-blue-600'
-                : 'text-gray-500'
+                ? 'text-primary'
+                : 'text-text-secondary hover:text-text-primary'
               }`}
           >
             <span className="text-xl mb-1">{item.icon}</span>

@@ -21,6 +21,7 @@ interface ScheduleLensProps {
     currentUserId?: string | null;
     isManagerOrAdmin: boolean;
     showOnlyMyAssignments: boolean;
+    teamFilter?: string;
     onRefreshContent: () => void;
     onAddContent: (project: IProject, defaultDate?: Date) => void;
     onAddTask?: (project: IProject) => void;
@@ -44,6 +45,7 @@ export default function ScheduleLens({
     currentUserId,
     isManagerOrAdmin,
     showOnlyMyAssignments,
+    teamFilter,
     onRefreshContent,
     onAddContent,
     onAddTask,
@@ -60,17 +62,18 @@ export default function ScheduleLens({
             timeframe={timeframe}
             currentDate={currentDate}
             onProjectClick={onProjectClick}
+            onTaskClick={onTaskClick}
             onDateChange={onDateChange}
             currentUserEmployeeName={currentUserEmployeeName}
             currentUserEmployeeId={currentUserEmployeeId}
             currentUserId={currentUserId}
             isManagerOrAdmin={isManagerOrAdmin}
             showOnlyMyAssignments={showOnlyMyAssignments}
+            teamFilter={teamFilter as any}
             onRefreshContent={onRefreshContent}
             onAddContent={onAddContent}
             onAddTask={onAddTask}
             onContentItemClick={onContentItemClick}
-            onTaskClick={onTaskClick}
             itemSeenRefreshTrigger={itemSeenRefreshTrigger}
         />
     );

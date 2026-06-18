@@ -48,7 +48,7 @@ export default function SwipeableCard({ children, leftActions = [], rightActions
       {rightActions.length > 0 && <div className="absolute right-0 top-0 bottom-0 flex items-stretch" style={{ width: maxRightOffset }}>
         {rightActions.map((action, idx) => <button key={idx} onClick={() => handleActionClick(action)} className="flex-1 flex flex-col items-center justify-center gap-1 text-xs font-medium" style={{ backgroundColor: action.color, color: action.textColor || 'white' }}>{action.icon}{action.label}</button>)}
       </div>}
-      <div className={`relative ${lightSurface('bg-white', 'dark:bg-gray-800', light)} transition-transform ${isDragging ? '' : 'duration-200'}`} style={{ transform: `translateX(${offset}px)` }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>{children}</div>
+      <div className={`relative ${lightSurface('bg-white', 'dark:bg-gray-800', light)} ${isDragging ? '' : 'transition-transform duration-200'}`} style={{ transform: `translateX(${offset}px)` }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>{children}</div>
     </div>
   );
 }

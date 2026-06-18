@@ -108,7 +108,7 @@ function FeaturesDropdown({ onNavigate }: { onNavigate?: () => void }) {
         </svg>
       </button>
       {open && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-[420px] bg-background-card border border-border rounded-2xl shadow-2xl shadow-black/30 p-3 grid grid-cols-2 gap-1 z-50 animate-fade-in">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-[420px] max-w-[calc(100vw-2rem)] bg-background-card border border-border rounded-2xl shadow-2xl shadow-black/30 p-3 grid grid-cols-2 gap-1 z-50 animate-fade-in">
           {categories.map((cat) => (
             <Link
               key={cat.href}
@@ -171,7 +171,7 @@ export default function Navigation() {
       }
     };
     fetchUser();
-  }, [pathname, isAuthPage]);
+  }, [isAuthPage]);
 
   const handleLogout = async () => {
     try {

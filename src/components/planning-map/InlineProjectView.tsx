@@ -1818,6 +1818,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           <div className="flex-1 min-w-0">
             <EditableText value={localProject.name} onSave={(v) => handleFieldUpdate('name', v)} className="text-xl font-bold text-gray-900 block w-full" placeholder="Project name" disabled={!isManagerOrAdmin} />
             <EditableText value={localProject.description || ''} onSave={(v) => handleFieldUpdate('description', v)} className="text-gray-600 mt-1 block w-full" placeholder="Add description..." multiline disabled={!isManagerOrAdmin} />
+            <div className="mt-3 w-full max-w-md">
+              <div className="flex justify-between items-end mb-1">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Progress</span>
+                <span className="text-xs font-medium text-gray-700">{localProject.tasks?.length ? Math.round((localProject.tasks.filter((t) => t.status === 'completed').length / localProject.tasks.length) * 100) : 0}%</span>
+              </div>
+              <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out" 
+                  style={{ width: `${localProject.tasks?.length ? Math.round((localProject.tasks.filter((t) => t.status === 'completed').length / localProject.tasks.length) * 100) : 0}%` }} 
+                />
+              </div>
+            </div>
           </div>
           <EditableSelect value={localProject.status} options={statusOptions} onSave={(v) => handleFieldUpdate('status', v)} showColorDot disabled={!isManagerOrAdmin} />
         </div>
@@ -2274,7 +2286,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
       {/* Tasks / Content – tabbed */}
       <div className="bg-white rounded-lg border border-gray-200">
-        <div className="flex items-center gap-1 p-2 border-b border-gray-100">
+        <div className="flex items-center gap-1 p-2 border-b border-gray-100 sticky top-0 bg-white z-10 shadow-sm rounded-t-lg">
           <button type="button" onClick={() => setViewTab('tasks')} className={`px-3 py-2 rounded text-sm font-medium ${viewTab === 'tasks' ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-100'}`}>Tasks ({localProject.tasks?.length || 0})</button>
           <button type="button" onClick={() => setViewTab('content')} className={`px-3 py-2 rounded text-sm font-medium ${viewTab === 'content' ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-100'}`}>Content ({projectContentItems.length})</button>
 
@@ -2590,6 +2602,33 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     </SwipeableCard>
                   )
                 })}
+                {canContributeToProject && taskTab === 'active' && (
+                  <div className="p-4 flex items-center group focus-within:bg-gray-50 transition-colors cursor-text" onClick={(e) => { const input = e.currentTarget.querySelector('input'); if (input) input.focus(); }}>
+                    <span className="w-4 h-4 rounded border-2 border-gray-300 shrink-0 mr-3 opacity-50" />
+                    <input
+                      type="text"
+                      placeholder="Add new task..."
+                      className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = e.currentTarget.value.trim();
+                          if (val) {
+                            const newTask = {
+                              name: val,
+                              description: '',
+                              status: 'active' as TaskStatus,
+                              startDate: new Date(),
+                              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                              estimatedHours: 0,
+                            };
+                            void commitAddTasks([newTask]);
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

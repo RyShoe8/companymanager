@@ -196,23 +196,23 @@ export default function CommandPalette({
             <div className="fixed inset-0 bg-black/60 z-[105]" onClick={onClose} aria-hidden="true" />
 
             <div
-                className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl z-[105]"
+                className="fixed top-[15%] left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] md:w-full max-w-xl z-[105]"
                 role="dialog"
                 aria-modal="true"
                 aria-label="Command palette"
             >
-                <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
-                    <div className="flex border-b border-gray-700">
+                <div className="bg-background-card border border-border rounded-xl shadow-2xl overflow-hidden">
+                    <div className="flex border-b border-border">
                         <button
                             type="button"
-                            className={`flex-1 py-2.5 text-sm font-medium ${mode === 'commands' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white'}`}
+                            className={`flex-1 py-2.5 text-sm font-medium ${mode === 'commands' ? 'bg-background-elevated text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                             onClick={() => setMode('commands')}
                         >
                             Commands
                         </button>
                         <button
                             type="button"
-                            className={`flex-1 py-2.5 text-sm font-medium ${mode === 'ask' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white'}`}
+                            className={`flex-1 py-2.5 text-sm font-medium ${mode === 'ask' ? 'bg-background-elevated text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                             onClick={() => setMode('ask')}
                         >
                             Ask
@@ -225,8 +225,8 @@ export default function CommandPalette({
                         </div>
                     )}
 
-                    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-700">
-                        <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+                        <svg className="w-5 h-5 text-text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                         <input
@@ -237,16 +237,16 @@ export default function CommandPalette({
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={mode === 'commands' ? handleKeyDown : handleAskKeyDown}
                             disabled={askBusy}
-                            className="w-full bg-transparent text-white placeholder-gray-500 text-lg focus:outline-none disabled:opacity-50"
+                            className="w-full bg-transparent text-text-primary placeholder-text-muted text-lg focus:outline-none disabled:opacity-50"
                         />
-                        <kbd className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 shrink-0">
+                        <kbd className="text-xs text-text-secondary bg-background-elevated px-1.5 py-0.5 rounded border border-border shrink-0">
                             ESC
                         </kbd>
                     </div>
 
                     {mode === 'ask' && !query.trim() && (
-                        <div className="px-4 py-3 text-sm text-gray-500 border-b border-gray-700 space-y-1">
-                            <p className="text-gray-400 text-xs uppercase tracking-wide mb-2">Examples</p>
+                        <div className="px-4 py-3 text-sm text-text-secondary border-b border-border space-y-1">
+                            <p className="text-text-muted text-xs uppercase tracking-wide mb-2">Examples</p>
                             <p>&ldquo;Create task review docs for next week&rdquo;</p>
                             <p>&ldquo;Add LinkedIn post announcing the launch tomorrow&rdquo;</p>
                             <p>&ldquo;Go to calendar view&rdquo;</p>
@@ -256,13 +256,13 @@ export default function CommandPalette({
                     {mode === 'commands' && (
                         <div ref={listRef} className="max-h-[360px] overflow-y-auto py-2">
                             {commands.length === 0 ? (
-                                <div className="px-4 py-8 text-center text-gray-500">
+                                <div className="px-4 py-8 text-center text-text-secondary">
                                     No commands match &ldquo;{query}&rdquo;
                                 </div>
                             ) : (
                                 Object.entries(grouped).map(([category, cmds]) => (
                                     <div key={category}>
-                                        <div className="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        <div className="px-4 py-1.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">
                                             {categoryIcons[category]} {categoryLabels[category] || category}
                                         </div>
                                         {cmds.map((cmd) => {
@@ -276,8 +276,8 @@ export default function CommandPalette({
                                                         onClose();
                                                     }}
                                                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${idx === selectedIndex
-                                                            ? 'bg-primary/20 text-white'
-                                                            : 'text-gray-300 hover:bg-gray-800'
+                                                            ? 'bg-primary/10 text-primary'
+                                                            : 'text-text-secondary hover:bg-background-elevated hover:text-text-primary'
                                                         }`}
                                                 >
                                                     <span className="text-sm">{cmd.label}</span>
@@ -291,16 +291,16 @@ export default function CommandPalette({
                     )}
 
                     {mode === 'ask' && (
-                        <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                        <div className="px-4 py-6 text-center text-text-secondary text-sm">
                             {askBusy ? (
-                                <span className="text-yellow-400">Parsing…</span>
+                                <span className="text-yellow-500">Parsing…</span>
                             ) : (
                                 <span>Press Enter to parse with AI (same flow as voice: confirm, then run).</span>
                             )}
                         </div>
                     )}
 
-                    <div className="px-4 py-2 border-t border-gray-700 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                    <div className="px-4 py-2 border-t border-border flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary">
                         {mode === 'commands' ? (
                             <>
                                 <span>↑↓ Navigate</span>

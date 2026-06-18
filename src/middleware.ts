@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
 
 function osRewriteResponse(url: URL, request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
@@ -12,6 +13,16 @@ export function middleware(request: NextRequest) {
   const { pathname } = url;
   const host = request.headers.get('host') || '';
   const isOsHost = host.startsWith('os.');
+
+  // Global API Rate Limiting (Edge Memory)
+  if (pathname.startsWith('/api/')) {
+    const rateLimitResponse = enforceRateLimit({
+      key: rateLimitKey(request, 'global-api'),
+      limit: 150, // 150 requests
+      windowMs: 60 * 1000, // per minute
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+  }
 
   // Block common WordPress and other CMS probe paths to reduce log noise
   const blockedPaths = [

@@ -48,7 +48,7 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   return (
     <button
       onClick={onClose}
-      className="text-gray-500 hover:text-gray-900 transition-colors p-1 -mr-1"
+      className="text-text-secondary hover:text-text-primary transition-colors p-1 -mr-1"
       aria-label="Close"
     >
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,11 +102,11 @@ export default function Modal({
         : 'z-50';
 
   const panelClass =
-    'inspector-light bg-white border border-gray-200 shadow-xl overflow-hidden flex flex-col';
+    'inspector-light bg-background-card border border-border shadow-xl overflow-hidden flex flex-col animate-fade-in animate-in slide-in-from-bottom-2 duration-200 ease-out';
 
   const header = title ? (
-    <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
-      <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{title}</h2>
+    <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border flex-shrink-0">
+      <h2 className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>
       <div className="flex items-center gap-2">
         {headerActions}
         {!hideCloseButton && <CloseButton onClose={onClose} />}
@@ -115,16 +115,16 @@ export default function Modal({
   ) : null;
 
   const bodyClass = bodyPadding
-    ? 'inspector-light flex-1 min-h-0 overflow-y-auto p-4 sm:p-6'
-    : 'inspector-light flex-1 min-h-0 overflow-y-auto';
+    ? 'inspector-light flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6'
+    : 'inspector-light flex-1 min-h-0 overflow-y-auto overscroll-contain';
 
   const content =
     maxWidth === 'full' ? (
       <div
-        className={`fixed inset-x-0 top-16 bottom-0 ${zClass} bg-black/50`}
+        className={`fixed inset-x-0 top-16 bottom-0 ${zClass} bg-black/50 animate-fade-in`}
         onClick={onClose}
         onWheel={(e) => e.stopPropagation()}
-        style={{ top: '4rem', height: 'calc(100vh - 4rem)' }}
+        style={{ top: '4rem', height: 'calc(100dvh - 4rem)' }}
       >
         <div
           className={`${panelClass} w-full h-full rounded-t-lg max-w-full`}
@@ -136,7 +136,7 @@ export default function Modal({
       </div>
     ) : (
       <div
-        className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black/50 p-2 sm:p-4`}
+        className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black/50 p-2 sm:p-4 animate-fade-in`}
         onClick={onClose}
         onWheel={(e) => e.stopPropagation()}
       >

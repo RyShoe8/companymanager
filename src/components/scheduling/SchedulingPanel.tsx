@@ -26,6 +26,7 @@ interface SchedulingPanelProps {
   onDateChange: (date: Date) => void;
   onRefreshMeetings: () => void;
   schedulingTimeZone: string;
+  teamFilter?: string;
   externalMessage?: string | null;
   onClearExternalMessage?: () => void;
   onSetMessage?: (message: string) => void;
@@ -59,6 +60,7 @@ export default function SchedulingPanel({
   onDateChange,
   onRefreshMeetings,
   schedulingTimeZone,
+  teamFilter = 'All Teams',
   externalMessage,
   onClearExternalMessage,
   onSetMessage,

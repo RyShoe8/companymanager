@@ -7,6 +7,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
+import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
 export type LensType = 'schedule' | 'agenda' | 'projects' | 'capacity';
 export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule';
@@ -45,6 +46,8 @@ export interface WorkspaceState {
     setShowMeetings: (v: boolean) => void;
     contentChannelFilter: string;
     setContentChannelFilter: (v: string) => void;
+    teamFilter: TeamFilterType;
+    setTeamFilter: (v: TeamFilterType) => void;
 
     // Filtered data
     filteredProjects: IProject[];
@@ -75,6 +78,7 @@ export default function useWorkspaceData(
     const [showContent, setShowContent] = useState(true);
     const [showMeetings, setShowMeetings] = useState(true);
     const [contentChannelFilter, setContentChannelFilter] = useState<string>('All');
+    const [teamFilter, setTeamFilter] = useState<TeamFilterType>('All Teams');
 
     // Data
     const [allProjects, setAllProjects] = useState<IProject[]>([]);
@@ -302,6 +306,8 @@ export default function useWorkspaceData(
         setShowMeetings,
         contentChannelFilter,
         setContentChannelFilter,
+        teamFilter,
+        setTeamFilter,
         filteredProjects,
         filteredContentItems,
         loadData,

@@ -51,6 +51,8 @@ import {
   isActiveWorkspaceContent,
   isActiveWorkspaceTask,
 } from '@/lib/workspace/activeWorkspaceItems';
+import { passesTeamFilter } from '@/lib/workspace/teamFilter';
+import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -92,6 +94,7 @@ interface CalendarViewProps {
   onRefreshContent?: () => void;
   onTaskClick?: (project: IProject, taskIndex: number) => void;
   itemSeenRefreshTrigger?: number;
+  teamFilter?: TeamFilterType;
 }
 
 export type MergedCalendarItem =
@@ -125,6 +128,7 @@ export default function CalendarView({
   onRefreshContent,
   onTaskClick,
   itemSeenRefreshTrigger,
+  teamFilter = 'All Teams',
 }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -415,7 +419,11 @@ export default function CalendarView({
     return getEmployeeName((task as { assignedToEmployeeId?: { toString(): string } }).assignedToEmployeeId?.toString(), task.assignedTo);
   }
 
-  function taskPassesAssignmentFilter(task: IProjectTask): boolean {
+  function localTaskPassesAssignmentFilter(task: IProjectTask): boolean {
+    if (teamFilter !== 'All Teams') {
+      if (!passesTeamFilter(task, teamFilter, employees)) return false;
+    }
+
     const assigneeIds = getTaskAssigneeEmployeeIds(task);
     if (showOnlyMyAssignments) {
       if (!currentUserEmployeeName && !currentUserEmployeeId) return true;
@@ -426,6 +434,16 @@ export default function CalendarView({
     if (currentUserEmployeeName || currentUserEmployeeId) {
       if (currentUserEmployeeId && assigneeIds.includes(currentUserEmployeeId)) return true;
       return task.assignedTo === currentUserEmployeeName;
+    }
+    return true;
+  }
+
+  function localContentPassesAssignmentFilter(content: IContentItem, options?: any): boolean {
+    if (teamFilter !== 'All Teams') {
+      if (!passesTeamFilter(content, teamFilter, employees)) return false;
+    }
+    if (options) {
+      return contentPassesAssignmentFilter(content, options);
     }
     return true;
   }
@@ -634,7 +652,7 @@ export default function CalendarView({
       contentInRange = displayContent.filter((item) => {
         if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
         if (
-          !contentPassesAssignmentFilter(item, {
+          !localContentPassesAssignmentFilter(item, {
             showOnlyMyAssignments,
             isManagerOrAdmin,
             currentUserEmployeeId: currentUserEmployeeId ?? null,
@@ -691,7 +709,7 @@ export default function CalendarView({
     const displayList = merged.filter(
       (item): item is MergedCalendarItem =>
         isActiveMergedCalendarItem(item) &&
-        (item.type === 'content' || taskPassesAssignmentFilter(item.task))
+        (item.type === 'content' ? localContentPassesAssignmentFilter(item.content) : localTaskPassesAssignmentFilter(item.task))
     );
     const activeTasks = taskItems.filter((item) => item.task.status !== 'completed');
     const openTasks = activeTasks.length;
@@ -929,7 +947,7 @@ export default function CalendarView({
                           const displayList = merged.filter(
                             (item): item is MergedCalendarItem =>
                               isActiveMergedCalendarItem(item) &&
-                              (item.type === 'content' || taskPassesAssignmentFilter(item.task))
+                              (item.type === 'content' ? localContentPassesAssignmentFilter(item.content) : localTaskPassesAssignmentFilter(item.task))
                           );
                           const visible = displayList.slice(0, 5);
                           const moreCount = displayList.length - 5;
@@ -1080,8 +1098,9 @@ export default function CalendarView({
     }
 
     return (
-      <>
-        <div className="grid grid-cols-7 border-b border-border">
+      <div className="overflow-x-auto overscroll-contain">
+        <div className="min-w-[800px]">
+          <div className="grid grid-cols-7 border-b border-border">
           {dayNames.map((day) => (
             <div
               key={day}
@@ -1405,21 +1424,29 @@ export default function CalendarView({
                             }).filter((task) => taskOverlapsWeek(task, days[0], days[6]))
                           : [];
 
+                        const totalTasks = project.tasks?.length || 0;
+                        const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
+                        const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
                         return (
                           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                             {project.description && (
                               <p className="text-white opacity-90 mb-3 mt-3 px-6 shrink-0">{project.description}</p>
                             )}
+                            <div className="px-6 pb-2 shrink-0">
+                              <div className="flex justify-between items-end mb-1">
+                                <span className={`text-[10px] font-semibold uppercase tracking-wider text-white opacity-80`}>Progress</span>
+                                <span className={`text-xs font-bold text-white`}>{progressPercent}%</span>
+                              </div>
+                              <div className="relative h-1 w-full rounded-full overflow-hidden">
+                                <div className="absolute inset-0 bg-white opacity-20" />
+                                <div className="relative h-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                              </div>
+                            </div>
 
                             {weekSummary.displayList.length > 0 ? (
                               <div className="mt-4 px-6 pb-6 flex flex-col flex-1 min-h-0">
-                                <p className={`text-sm font-semibold mb-2 shrink-0 ${headerTextClass}`}>
-                                  {weekSummary.displayList.some((i) => i.type === 'content')
-                                    ? weekSummary.displayList.some((i) => i.type === 'task')
-                                      ? 'Tasks & Content:'
-                                      : 'Content:'
-                                    : 'Tasks:'}
-                                </p>
+
                                 <div
                                   className="overflow-y-auto"
                                   style={{ maxHeight: WEEKLY_EXPANDED_LIST_MAX_HEIGHT }}
@@ -1436,7 +1463,7 @@ export default function CalendarView({
                               hasTasks &&
                               project.tasks!.length > 0 ? (
                               <div className="mt-4 px-6 pb-6 shrink-0">
-                                <p className={`text-sm font-semibold mb-2 ${headerTextClass}`}>Tasks:</p>
+
                                 <p className={`text-sm mb-2 ${headerTextClass} opacity-90`}>
                                   No tasks scheduled this week.
                                 </p>
@@ -1452,7 +1479,8 @@ export default function CalendarView({
             </div>
           </div>
         </div>
-      </>
+        </div>
+      </div>
     );
   };
 
@@ -1602,7 +1630,11 @@ export default function CalendarView({
                             `${projectId}-month-${weekIdx}`
                           )}
 
-                          {isExpanded ? (
+                          {isExpanded ? (() => {
+                            const totalTasks = project.tasks?.length || 0;
+                            const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
+                            const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                            return (
                             <div className="px-2 pb-2">
                               {project.description ? (
                                 <p className={`text-xs mb-2 ${headerTextClass} opacity-90`}>
@@ -1610,18 +1642,23 @@ export default function CalendarView({
                                 </p>
                               ) : null}
 
+                              <div className={`mb-3 shrink-0 ${headerTextClass}`}>
+                                <div className="flex justify-between items-end mb-1">
+                                  <span className={`text-[10px] font-semibold uppercase tracking-wider opacity-80`}>Progress</span>
+                                  <span className={`text-xs font-bold`}>{progressPercent}%</span>
+                                </div>
+                                <div className="relative h-1 w-full rounded-full overflow-hidden">
+                                  <div className="absolute inset-0 bg-current opacity-20" />
+                                  <div className="relative h-full bg-current transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                                </div>
+                              </div>
+
                               {summary.displayList.length > 0 ? (
                                 <div
                                   className="overflow-y-auto"
                                   style={{ maxHeight: MONTHLY_EXPANDED_LIST_MAX_HEIGHT }}
                                 >
-                                  <p className={`text-xs font-semibold mb-1 ${headerTextClass}`}>
-                                    {summary.displayList.some((i) => i.type === 'content')
-                                      ? summary.displayList.some((i) => i.type === 'task')
-                                        ? 'Tasks & Content:'
-                                        : 'Content:'
-                                      : 'Tasks:'}
-                                  </p>
+
                                   {renderExpandedRangeItems(
                                     project,
                                     summary.displayList,
@@ -1633,14 +1670,15 @@ export default function CalendarView({
                                 hasTasks &&
                                 project.tasks!.length > 0 ? (
                                 <div className="mb-2">
-                                  <p className={`text-xs font-semibold mb-1 ${headerTextClass}`}>Tasks:</p>
+
                                   <p className={`text-xs mb-1 ${headerTextClass} opacity-90`}>
                                     No tasks scheduled this week.
                                   </p>
                                 </div>
                               ) : null}
                             </div>
-                          ) : null}
+                          );
+                          })() : null}
                         </div>
                       );
                     })
@@ -1721,7 +1759,7 @@ export default function CalendarView({
 
     return (
       <div className="p-4">
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             // Get all projects - projects always exist in their stage without date filtering
             const monthProjects = projects;
