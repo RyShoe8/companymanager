@@ -51,14 +51,30 @@ describe('meetingInstanceDedupeKey', () => {
     expect(new Set(keys).size).toBe(1);
   });
 
-  it('uses iCalUID when present', () => {
+  it('uses iCalUID when present for standalone events', () => {
     const key = meetingInstanceDedupeKey({
       iCalUID: 'ical-abc',
       googleEventId: 'different-per-user',
       start,
       end,
     });
-    expect(key).toBe(`ical:ical-abc:${normalizeMeetingTimestampMs(start)}`);
+    expect(key).toBe('ical:ical-abc');
+  });
+
+  it('collapses standalone copies after a time move', () => {
+    const wednesday = new Date('2026-06-10T14:00:00.000Z');
+    const thursday = new Date('2026-06-11T14:00:00.000Z');
+    const keyWed = meetingInstanceDedupeKey({
+      iCalUID: 'ical-moved',
+      start: wednesday,
+      end: new Date('2026-06-10T15:00:00.000Z'),
+    });
+    const keyThu = meetingInstanceDedupeKey({
+      iCalUID: 'ical-moved',
+      start: thursday,
+      end: new Date('2026-06-11T15:00:00.000Z'),
+    });
+    expect(keyWed).toBe(keyThu);
   });
 
   it('collapses copies with start/end off by seconds', () => {

@@ -20,11 +20,13 @@ export type OrgMeetingRecord = {
   iCalUID?: string;
   agendaToken: string;
   linkedProjectIds?: Types.ObjectId[];
+  linkedClientIds?: Types.ObjectId[];
   attendeeEmployeeIds?: Types.ObjectId[];
   joinUrl?: string;
   joinPlatform?: MeetingJoinPlatform;
   createdInNucleas?: boolean;
   seriesRecurrenceCount?: number;
+  updatedAt?: Date;
 };
 
 export type OrgMeetingsViewer = {
@@ -68,6 +70,30 @@ async function getVisibleEmployeeIds(viewer: OrgMeetingsViewer): Promise<string[
   return viewer.employeeId ? [viewer.employeeId] : [];
 }
 
+function linkScore(meeting: OrgMeetingRecord): number {
+  return (meeting.linkedProjectIds?.length || 0) + (meeting.linkedClientIds?.length || 0);
+}
+
+function preferOrgMeeting(
+  candidate: OrgMeetingRecord,
+  existing: OrgMeetingRecord,
+  viewerUserId: string
+): boolean {
+  const candidateIsViewer = candidate.userId?.toString() === viewerUserId;
+  const existingIsViewer = existing.userId?.toString() === viewerUserId;
+  if (candidateIsViewer && !existingIsViewer) return true;
+  if (existingIsViewer && !candidateIsViewer) return false;
+
+  const candidateLinks = linkScore(candidate);
+  const existingLinks = linkScore(existing);
+  if (candidateLinks > existingLinks) return true;
+  if (candidateLinks < existingLinks) return false;
+
+  const candidateUpdated = candidate.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
+  const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+  return candidateUpdated >= existingUpdated;
+}
+
 export async function listOrgMeetingsInRange(
   viewer: OrgMeetingsViewer,
   organizationId: string,
@@ -102,9 +128,7 @@ export async function listOrgMeetingsInRange(
       deduped.set(key, meeting);
       continue;
     }
-    const preferCurrent =
-      meeting.userId?.toString() === viewer.userId ||
-      (meeting.linkedProjectIds?.length || 0) > (existing.linkedProjectIds?.length || 0);
+    const preferCurrent = preferOrgMeeting(meeting, existing, viewer.userId);
     if (preferCurrent) {
       deduped.set(key, meeting);
     }

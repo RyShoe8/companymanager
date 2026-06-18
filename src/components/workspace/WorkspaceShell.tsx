@@ -1266,11 +1266,31 @@ _id.toString(), { tasks });
         }
     }, [handleScheduleCalendarSync]);
 
+    const scheduleSyncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     useEffect(() => {
-        if (needsCalendarData && scheduleCalendar?.connected) {
-            void handleScheduleSync();
+        if (!needsCalendarData || !scheduleCalendar?.connected) return;
+
+        if (scheduleSyncDebounceRef.current) {
+            clearTimeout(scheduleSyncDebounceRef.current);
         }
-    }, [ws.lens, needsCalendarData, scheduleCalendar?.connected, handleScheduleSync]);
+        scheduleSyncDebounceRef.current = setTimeout(() => {
+            void handleScheduleSync();
+        }, 2000);
+
+        return () => {
+            if (scheduleSyncDebounceRef.current) {
+                clearTimeout(scheduleSyncDebounceRef.current);
+            }
+        };
+    }, [
+        ws.lens,
+        ws.timeframe,
+        ws.currentDate,
+        needsCalendarData,
+        scheduleCalendar?.connected,
+        handleScheduleSync,
+    ]);
 
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
@@ -1321,13 +1341,15 @@ _id.toString(), { tasks });
                                     }}
                                 />
                                 <div className="flex gap-2 flex-shrink-0 ml-auto items-center flex-wrap justify-end">
+                                {needsCalendarData ? (
+                                    <SchedulingCalendarBar
+                                        calendar={scheduleCalendar}
+                                        syncing={scheduleSyncing}
+                                        onSync={() => void handleScheduleSync()}
+                                    />
+                                ) : null}
                                 {isSchedulingPhase && (
                                     <>
-                                        <SchedulingCalendarBar
-                                            calendar={scheduleCalendar}
-                                            syncing={scheduleSyncing}
-                                            onSync={() => void handleScheduleSync()}
-                                        />
                                         <Button
                                             type="button"
                                             variant="secondary"

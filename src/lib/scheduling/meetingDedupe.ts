@@ -15,14 +15,19 @@ export function normalizeMeetingTimestampMs(date: Date | string): number {
 
 /**
  * Stable key for one calendar event instance across per-user Meeting rows.
- * Priority: iCalUID → recurring series + start → start+end → googleEventId + start.
+ * Standalone events: iCalUID only (time moves keep one logical instance).
+ * Recurring instances: iCalUID + series id + start minute.
  */
 export function meetingInstanceDedupeKey(meeting: MeetingInstanceIdentity): string {
   const startMs = normalizeMeetingTimestampMs(meeting.start);
   const endMs = normalizeMeetingTimestampMs(meeting.end);
 
   if (meeting.iCalUID?.trim()) {
-    return `ical:${meeting.iCalUID.trim()}:${startMs}`;
+    const uid = meeting.iCalUID.trim();
+    if (meeting.googleRecurringEventId?.trim()) {
+      return `ical:${uid}:${meeting.googleRecurringEventId.trim()}:${startMs}`;
+    }
+    return `ical:${uid}`;
   }
 
   if (meeting.googleRecurringEventId?.trim()) {

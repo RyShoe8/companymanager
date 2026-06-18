@@ -51,6 +51,7 @@ export async function syncMeetingsForUser(
   );
   const removed = await removeMeetingsMissingFromGoogleSync(
     ctx.userId,
+    ctx.organizationId,
     rangeStart,
     rangeEnd,
     googleEventIds

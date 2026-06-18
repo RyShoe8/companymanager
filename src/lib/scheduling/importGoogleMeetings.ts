@@ -10,6 +10,7 @@ import {
   findSeriesProjectDefaults,
   resolveAttendeesFromGoogleEmails,
 } from '@/lib/scheduling/seriesProjectLinks';
+import { propagateMeetingInstanceToOrgCopies } from '@/lib/scheduling/propagateMeetingInstance';
 import { Types } from 'mongoose';
 
 export type UpsertGoogleMeetingsOptions = {
@@ -134,6 +135,18 @@ export async function upsertMeetingsFromGoogleEvents(
         }
       }
       await Meeting.updateOne({ _id: found._id }, { $set: payload });
+      await propagateMeetingInstanceToOrgCopies({
+        organizationId: ctx.organizationId,
+        ev,
+        fields: {
+          title: payload.title as string,
+          start: times.start,
+          end: times.end,
+          googleRecurringEventId: seriesFields.googleRecurringEventId,
+          joinUrl: (payload.joinUrl as string | null) ?? undefined,
+          joinPlatform: (payload.joinPlatform as string | null) ?? undefined,
+        },
+      });
       updated++;
     } else {
       const seriesDefaults = await findSeriesProjectDefaults(ctx.organizationId, seriesFields);
@@ -153,6 +166,18 @@ export async function upsertMeetingsFromGoogleEvents(
       );
 
       await Meeting.create(createPayload);
+      await propagateMeetingInstanceToOrgCopies({
+        organizationId: ctx.organizationId,
+        ev,
+        fields: {
+          title: payload.title as string,
+          start: times.start,
+          end: times.end,
+          googleRecurringEventId: seriesFields.googleRecurringEventId,
+          joinUrl: (payload.joinUrl as string | null) ?? undefined,
+          joinPlatform: (payload.joinPlatform as string | null) ?? undefined,
+        },
+      });
       imported++;
     }
   }
@@ -167,23 +192,48 @@ export async function upsertMeetingsFromGoogleEvents(
  */
 export async function removeMeetingsMissingFromGoogleSync(
   userId: Types.ObjectId,
+  organizationId: string,
   rangeStart: Date,
   rangeEnd: Date,
   googleEventIdsPresent: Set<string>
 ): Promise<number> {
-  const googleEventId: Record<string, unknown> = {
+  const windowFilter = {
+    start: { $lt: rangeEnd },
+    end: { $gt: rangeStart },
+  };
+
+  const missingIdFilter: Record<string, unknown> = {
     $exists: true,
     $ne: null,
   };
   if (googleEventIdsPresent.size > 0) {
-    googleEventId.$nin = [...googleEventIdsPresent];
+    missingIdFilter.$nin = [...googleEventIdsPresent];
+  }
+
+  const orphaned = await Meeting.find({
+    userId,
+    googleEventId: missingIdFilter,
+    ...windowFilter,
+  })
+    .select('googleEventId')
+    .lean();
+
+  const orphanedGoogleEventIds = [
+    ...new Set(
+      orphaned
+        .map((m) => m.googleEventId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    ),
+  ];
+
+  if (orphanedGoogleEventIds.length === 0) {
+    return 0;
   }
 
   const result = await Meeting.deleteMany({
-    userId,
-    googleEventId,
-    start: { $lt: rangeEnd },
-    end: { $gt: rangeStart },
+    organizationId,
+    googleEventId: { $in: orphanedGoogleEventIds },
+    ...windowFilter,
   });
 
   return result.deletedCount ?? 0;
