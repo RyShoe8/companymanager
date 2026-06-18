@@ -209,7 +209,7 @@ export default function useWorkspaceData(
     // Phase-filtered projects
     const projects = useMemo(() => {
         if (phase === 'All') return allProjects;
-        if (phase === 'Schedule') return [];
+        if (phase === 'Schedule' || phase === 'Clients') return [];
         return getProjectsForStage(allProjects, phase as ProjectStage);
     }, [allProjects, phase]);
 
