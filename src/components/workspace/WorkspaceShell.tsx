@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
+import { IClient } from '@/lib/models/Client';
 import useWorkspaceData, { PhaseType, LensType } from '@/lib/hooks/useWorkspaceData';
 import useWorkspaceMeetings from '@/lib/hooks/useWorkspaceMeetings';
 import useIsMobile from '@/lib/hooks/useIsMobile';
