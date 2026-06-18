@@ -58,7 +58,7 @@ export default function OrganizationBrand() {
   }
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3 min-w-0" data-tour="org-brand">
+    <div className="flex items-center gap-2 sm:gap-3 min-w-0 max-w-full" data-tour="org-brand">
       <OrganizationLogo logo={logo} isAdmin={isAdmin} onLogoUpdate={setLogo} />
       <EditableText
         value={name}

@@ -1264,27 +1264,32 @@ export default function WorkspaceShell({
             }}
         >
             <VoiceProvider
-                isAdministrator={ws.currentUserRole === 'Administrator'}
+                isPlatformAdmin={isPlatformAdmin}
                 getWorkspaceContext={() => workspaceIntentContext}
             >
                 <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
                     <div className="w-full mx-auto pt-[30px] pb-8">
                     {/* ===== Workspace Header ===== */}
                     <div className="mb-4">
-                        {/* Row 1: Title + Phase + Timeframe + Actions */}
-                        <div className="flex flex-row items-center gap-4 flex-wrap lg:flex-nowrap mb-3">
-                            <OrganizationBrand />
-                            <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
-                            <TimeHorizonSelector
-                                selected={ws.timeframe}
-                                onSelect={(newTimeframe) => {
-                                    ws.setTimeframe(newTimeframe);
-                                    if (newTimeframe === 'today') {
-                                        ws.setCurrentDate(new Date());
-                                    }
-                                }}
-                            />
-                            <div className="flex gap-2 flex-shrink-0 ml-auto items-center flex-wrap justify-end">
+                        {/* Row 1: Org brand + controls */}
+                        <div className="flex flex-col gap-3 lg:gap-4 mb-3">
+                            <div className="w-full min-w-0 lg:max-w-none">
+                                <OrganizationBrand />
+                            </div>
+                            <div className="flex flex-row flex-wrap items-center gap-3 lg:gap-4">
+                                <div className="flex-shrink-0">
+                                    <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
+                                </div>
+                                <TimeHorizonSelector
+                                    selected={ws.timeframe}
+                                    onSelect={(newTimeframe) => {
+                                        ws.setTimeframe(newTimeframe);
+                                        if (newTimeframe === 'today') {
+                                            ws.setCurrentDate(new Date());
+                                        }
+                                    }}
+                                />
+                                <div className="flex gap-2 flex-shrink-0 ml-auto items-center flex-wrap justify-end">
                                 {isSchedulingPhase && (
                                     <>
                                         <SchedulingCalendarBar
@@ -1348,6 +1353,7 @@ export default function WorkspaceShell({
                                         setShowRecordingModal(true);
                                     }}
                                 />
+                            </div>
                             </div>
                         </div>
 

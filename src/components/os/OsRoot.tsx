@@ -173,7 +173,7 @@ function OsIntentLayer({ children }: { children: ReactNode }) {
     return (
         <IntentConfirmationProvider executeIntent={handleOsIntent} onExecuted={onPaletteExecuted}>
             <VoiceProvider
-                isAdministrator={auth.role === 'Administrator'}
+                isPlatformAdmin={auth.isAdmin}
                 getWorkspaceContext={getOsVoiceContext}
             >
                 <OsCommandPaletteProvider
