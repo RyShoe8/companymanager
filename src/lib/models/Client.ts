@@ -1,16 +1,19 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+import {
+  type IPlatformOperationsFields,
+  platformOperationsSchemaFields,
+} from '@/lib/models/platformFields';
 
 export type ClientStatus = 'active' | 'inactive' | 'lead';
 
-export interface IClient extends Document {
+export interface IClient extends Document, IPlatformOperationsFields {
   organizationId: Types.ObjectId;
-  userIds: Types.ObjectId[]; // Users who can access this client (e.g. external client users)
+  userIds: Types.ObjectId[];
   name: string;
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
   domain?: string;
-  logo?: string;
   color: string;
   status: ClientStatus;
   createdAt: Date;
@@ -60,7 +63,7 @@ const ClientSchema: Schema = new Schema(
     },
     color: {
       type: String,
-      default: '#3b82f6', // Default blue
+      default: '#3b82f6',
       trim: true,
     },
     status: {
@@ -68,14 +71,17 @@ const ClientSchema: Schema = new Schema(
       enum: ['active', 'inactive', 'lead'],
       default: 'active',
     },
+    ...platformOperationsSchemaFields,
   },
   {
     timestamps: true,
   }
 );
 
-// Indexes for fast lookup
 ClientSchema.index({ organizationId: 1, name: 1 });
+ClientSchema.index({ clientPortalSlug: 1 }, { sparse: true });
+ClientSchema.index({ 'techStack.technologyId': 1 });
+ClientSchema.index({ 'marketingStack.toolId': 1 });
 
 const Client: Model<IClient> =
   mongoose.models.Client || mongoose.model<IClient>('Client', ClientSchema);

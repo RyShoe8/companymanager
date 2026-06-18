@@ -5,6 +5,7 @@ import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { validateAssetLinkExclusivity } from '@/lib/assets/validateAssetLinks';
 import {
   assertCanLinkAsset,
   buildAssetAccessScope,
@@ -59,7 +60,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedContentItemId, clientAccessible } = body;
+    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedClientId, linkedProjectTaskIndex, linkedProjectTaskId, linkedContentItemId, clientAccessible } = body;
 
     await connectDB();
     const { id } = await params;
@@ -69,7 +70,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid asset ID' }, { status: 400 });
     }
 
-    // Validate linked IDs if provided
+    if (linkedClientId && !isValidObjectId(linkedClientId)) {
+      return NextResponse.json({ error: 'Invalid client ID' }, { status: 400 });
+    }
     if (linkedProjectId && !isValidObjectId(linkedProjectId)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
     }
@@ -78,11 +81,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     if (linkedContentItemId && !isValidObjectId(linkedContentItemId)) {
       return NextResponse.json({ error: 'Invalid content item ID' }, { status: 400 });
-    }
-
-    // Validate ObjectId format
-    if (!isValidObjectId(id)) {
-      return NextResponse.json({ error: 'Invalid asset ID' }, { status: 400 });
     }
 
     // Get user's organizationId
@@ -128,7 +126,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
       asset.tags = tags.map((tag: any) => sanitizeString(String(tag), 50)).filter((tag: string) => tag.length > 0);
     }
-    if (linkedProjectId !== undefined) asset.linkedProjectId = linkedProjectId;
+    if (linkedClientId !== undefined) {
+      if (linkedClientId === null || linkedClientId === '') {
+        asset.linkedClientId = undefined;
+      } else {
+        asset.linkedClientId = linkedClientId;
+      }
+    }
+    if (linkedProjectId !== undefined) {
+      if (linkedProjectId === null || linkedProjectId === '') {
+        asset.linkedProjectId = undefined;
+      } else {
+        asset.linkedProjectId = linkedProjectId;
+      }
+    }
     // Prefer stable taskId over taskIndex
     if (linkedProjectTaskId !== undefined && linkedProjectTaskId !== null && linkedProjectTaskId !== '') {
       asset.linkedProjectTaskId = linkedProjectTaskId;
@@ -146,12 +157,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     if (clientAccessible !== undefined) asset.clientAccessible = !!clientAccessible;
 
+    const linkError = validateAssetLinkExclusivity({
+      linkedClientId: asset.linkedClientId,
+      linkedProjectId: asset.linkedProjectId,
+      linkedProjectTaskId: asset.linkedProjectTaskId,
+      linkedProjectTaskIndex: asset.linkedProjectTaskIndex,
+      linkedContentItemId: asset.linkedContentItemId,
+    });
+    if (linkError) {
+      return NextResponse.json({ error: linkError }, { status: 400 });
+    }
+
     if (!ctx.isManagerOrAdmin) {
       const scope = await buildAssetAccessScope(ctx);
       const linkDenied = await assertCanLinkAsset(
         ctx,
         {
           linkedProjectId: asset.linkedProjectId,
+          linkedClientId: asset.linkedClientId,
           linkedProjectTaskId: asset.linkedProjectTaskId,
           linkedProjectTaskIndex: asset.linkedProjectTaskIndex,
           linkedContentItemId: asset.linkedContentItemId,

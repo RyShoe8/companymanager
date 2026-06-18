@@ -9,15 +9,17 @@ import Button from '@/components/ui/Button';
 interface AssetFormProps {
   asset?: IAsset;
   projects?: Array<{ _id: string; name: string }>;
+  clients?: Array<{ _id: string; name: string }>;
   linkedProjectId?: string;
+  linkedClientId?: string;
   linkedProjectTaskIndex?: number;
   /** Stable task reference (prefer over linkedProjectTaskIndex). */
   linkedProjectTaskId?: string;
-  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId'> & { linkedProjectId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string; file?: File }) => void;
+  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedClientId'> & { linkedProjectId?: string; linkedClientId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string; file?: File }) => void;
   onCancel: () => void;
 }
 
-export default function AssetForm({ asset, projects = [], linkedProjectId: initialLinkedProjectId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedProjectTaskId: initialLinkedProjectTaskId, onSubmit, onCancel }: AssetFormProps) {
+export default function AssetForm({ asset, projects = [], clients = [], linkedProjectId: initialLinkedProjectId, linkedClientId: initialLinkedClientId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedProjectTaskId: initialLinkedProjectTaskId, onSubmit, onCancel }: AssetFormProps) {
   const [name, setName] = useState(asset?.name || '');
   const [type, setType] = useState<AssetType>(asset?.type || 'link');
   const [url, setUrl] = useState(asset?.url || '');
@@ -27,6 +29,7 @@ export default function AssetForm({ asset, projects = [], linkedProjectId: initi
   const [category, setCategory] = useState(asset?.category || '');
   const [tags, setTags] = useState(asset?.tags?.join(', ') || '');
   const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || initialLinkedProjectId || '');
+  const [linkedClientId, setLinkedClientId] = useState(asset?.linkedClientId?.toString() || initialLinkedClientId || '');
   const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() ?? asset?.linkedProjectTaskId ? '' : initialLinkedProjectTaskIndex?.toString() || '');
   const [linkedProjectTaskId, setLinkedProjectTaskId] = useState(asset?.linkedProjectTaskId?.toString() || initialLinkedProjectTaskId || '');
   const [clientAccessible, setClientAccessible] = useState(asset?.clientAccessible ?? false);
@@ -89,10 +92,11 @@ export default function AssetForm({ asset, projects = [], linkedProjectId: initi
       description: description || undefined,
       category: category || undefined,
       tags: tagArray,
-      linkedProjectId: linkedProjectId || undefined,
-      linkedProjectTaskId: linkedProjectTaskId || undefined,
-      linkedProjectTaskIndex: linkedProjectTaskIndex ? parseInt(linkedProjectTaskIndex) : undefined,
-      clientAccessible: linkedProjectId ? clientAccessible : undefined,
+      linkedProjectId: linkedClientId ? undefined : linkedProjectId || undefined,
+      linkedClientId: linkedProjectId ? undefined : linkedClientId || undefined,
+      linkedProjectTaskId: linkedClientId ? undefined : linkedProjectTaskId || undefined,
+      linkedProjectTaskIndex: linkedClientId ? undefined : linkedProjectTaskIndex ? parseInt(linkedProjectTaskIndex) : undefined,
+      clientAccessible: linkedProjectId || linkedClientId ? clientAccessible : undefined,
     };
 
     // Add content based on type
@@ -122,12 +126,15 @@ export default function AssetForm({ asset, projects = [], linkedProjectId: initi
     { value: 'other', label: 'Other' },
   ];
 
+  const clientOptions = [
+    { value: '', label: 'None' },
+    ...clients.map((c) => ({ value: c._id.toString(), label: c.name })),
+  ];
+
   const projectOptions = [
     { value: '', label: 'None' },
     ...projects.map((p) => ({ value: p._id.toString(), label: p.name })),
   ];
-
-
   const showUrlInput = type !== 'file' && type !== 'text';
   const showFileInput = type === 'file';
   const showTextInput = type === 'text';
@@ -211,10 +218,30 @@ export default function AssetForm({ asset, projects = [], linkedProjectId: initi
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
+          label="Linked Client (optional)"
+          value={linkedClientId}
+          onChange={(e) => {
+            setLinkedClientId(e.target.value);
+            if (e.target.value) {
+              setLinkedProjectId('');
+              setLinkedProjectTaskId('');
+              setLinkedProjectTaskIndex('');
+            }
+          }}
+          options={clientOptions}
+          disabled={!!linkedProjectId}
+        />
+        <Select
           label="Linked Project (optional)"
           value={linkedProjectId}
-          onChange={(e) => setLinkedProjectId(e.target.value)}
+          onChange={(e) => {
+            setLinkedProjectId(e.target.value);
+            if (e.target.value) {
+              setLinkedClientId('');
+            }
+          }}
           options={projectOptions}
+          disabled={!!linkedClientId}
         />
         {linkedProjectId && selectedProjectTasks.length > 0 && (
           <Select
@@ -245,7 +272,7 @@ export default function AssetForm({ asset, projects = [], linkedProjectId: initi
           />
         )}
       </div>
-      {linkedProjectId && (
+      {(linkedProjectId || linkedClientId) && (
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import Client from '@/lib/models/Client';
 import { requireAuth } from '@/lib/auth/middleware';
+import { applyClientUpdates, sanitizeClientForResponse } from '@/lib/clients/clientApiHelpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,15 @@ export async function GET(request: NextRequest) {
 
     const clients = await Client.find({ organizationId: user.organizationId }).sort({ name: 1 }).lean();
 
-    return NextResponse.json(clients);
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
+    const isManagerOrAdmin = employee?.role === 'Administrator' || employee?.role === 'Manager';
+
+    const sanitized = clients.map((c) =>
+      sanitizeClientForResponse(c as object, isManagerOrAdmin)
+    );
+
+    return NextResponse.json(sanitized);
   } catch (error) {
     console.error('Failed to get clients:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const Project = (await import('@/lib/models/Project')).default;
     await Project.create({
-      organizationId: user.organizationId,
+      userId: session.userId,
       name: body.name,
       projectType: 'client-admin',
       clientId: newClient._id,
@@ -105,17 +114,19 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Client ID is required' }, { status: 400 });
     }
 
-    const updatedClient = await Client.findOneAndUpdate(
-      { _id: body._id, organizationId: user.organizationId },
-      { $set: body },
-      { new: true }
-    );
-
-    if (!updatedClient) {
+    const client = await Client.findOne({ _id: body._id, organizationId: user.organizationId });
+    if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    return NextResponse.json(updatedClient);
+    const result = applyClientUpdates(client, body, true);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    await client.save();
+    const lean = client.toObject();
+    return NextResponse.json(sanitizeClientForResponse(lean, true));
   } catch (error) {
     console.error('Failed to update client:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

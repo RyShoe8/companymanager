@@ -16,11 +16,13 @@ function AssetsPageContent() {
   const [assets, setAssets] = useState<IAsset[]>([]);
   const [filteredAssets, setFilteredAssets] = useState<IAsset[]>([]);
   const [projects, setProjects] = useState<Array<{ _id: string; name: string }>>([]);
+  const [clients, setClients] = useState<Array<{ _id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState<string | null>(null);
   const [taskIndexFilter, setTaskIndexFilter] = useState<number | null>(null);
   const [taskIdFilter, setTaskIdFilter] = useState<string | null>(null);
   const [showAssetForm, setShowAssetForm] = useState(false);
@@ -29,8 +31,13 @@ function AssetsPageContent() {
   useEffect(() => {
     // Get filter parameters from URL
     const projectId = searchParams?.get('projectId');
+    const clientId = searchParams?.get('clientId');
+    const linkedClientId = searchParams?.get('linkedClientId');
     const taskIndex = searchParams?.get('taskIndex');
     const taskId = searchParams?.get('taskId');
+    if (clientId || linkedClientId) {
+      setClientFilter(clientId || linkedClientId);
+    }
     if (projectId) {
       setProjectFilter(projectId);
     }
@@ -49,26 +56,29 @@ function AssetsPageContent() {
 
   useEffect(() => {
     filterAssets();
-  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, taskIndexFilter, taskIdFilter]);
+  }, [assets, searchQuery, typeFilter, categoryFilter, projectFilter, clientFilter, taskIndexFilter, taskIdFilter]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [assetsRes, projectsRes] = await Promise.all([
+      const [assetsRes, projectsRes, clientsRes] = await Promise.all([
         fetch('/api/assets'),
         fetch('/api/projects'),
+        fetch('/api/clients'),
       ]);
 
-      if (assetsRes.status === 401 || projectsRes.status === 401) {
+      if (assetsRes.status === 401 || projectsRes.status === 401 || clientsRes.status === 401) {
         router.push('/login');
         return;
       }
 
       const assetsData = await assetsRes.json();
       const projectsData = await projectsRes.json();
+      const clientsData = await clientsRes.json();
 
       setAssets(assetsData);
       setProjects(projectsData);
+      setClients(clientsData);
     } catch (error) {
       // Error loading data
     } finally {
@@ -78,6 +88,10 @@ function AssetsPageContent() {
 
   const filterAssets = async () => {
     let filtered = [...assets];
+
+    if (clientFilter) {
+      filtered = filtered.filter((asset) => asset.linkedClientId?.toString() === clientFilter);
+    }
 
     // Apply project filter
     if (projectFilter) {
@@ -144,7 +158,14 @@ function AssetsPageContent() {
     }
   };
 
-  const handleSubmitAsset = async (data: Omit<Partial<IAsset>, 'linkedProjectId'> & { linkedProjectId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string }) => {
+  const handleSubmitAsset = async (
+    data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedClientId'> & {
+      linkedProjectId?: string;
+      linkedClientId?: string;
+      linkedProjectTaskIndex?: number;
+      linkedProjectTaskId?: string;
+    }
+  ) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';
@@ -166,6 +187,14 @@ function AssetsPageContent() {
   };
 
   const categories = Array.from(new Set(assets.map((a) => a.category).filter(Boolean))) as string[];
+
+  const clientNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const client of clients) {
+      map.set(client._id, client.name);
+    }
+    return map;
+  }, [clients]);
 
   const projectNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -204,6 +233,7 @@ function AssetsPageContent() {
               setTypeFilter('');
               setCategoryFilter('');
               setProjectFilter(null);
+              setClientFilter(null);
               setTaskIndexFilter(null);
               setTaskIdFilter(null);
               router.push('/assets');
@@ -252,6 +282,9 @@ function AssetsPageContent() {
           <AssetForm
             asset={editingAsset}
             projects={projects}
+            clients={clients}
+            linkedClientId={clientFilter ?? undefined}
+            linkedProjectId={projectFilter ?? undefined}
             onSubmit={handleSubmitAsset}
             onCancel={() => {
               setShowAssetForm(false);

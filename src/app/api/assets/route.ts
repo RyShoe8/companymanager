@@ -4,6 +4,7 @@ import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { validateAssetLinkExclusivity } from '@/lib/assets/validateAssetLinks';
 import {
   applyAssetAccessFilter,
   assertCanLinkAsset,
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
     const category = searchParams.get('category');
     const linkedProjectId = searchParams.get('linkedProjectId');
+    const linkedClientId = searchParams.get('linkedClientId');
     const linkedScope = searchParams.get('linkedScope');
     const linkedProjectTaskIndex = searchParams.get('linkedProjectTaskIndex');
     const linkedProjectTaskId = searchParams.get('linkedProjectTaskId');
@@ -45,6 +47,14 @@ export async function GET(request: NextRequest) {
     }
     if (category) {
       query.category = category;
+    }
+    if (linkedClientId && Types.ObjectId.isValid(linkedClientId)) {
+      query.linkedClientId = new Types.ObjectId(linkedClientId);
+      query.$and = [
+        ...(Array.isArray(query.$and) ? query.$and : []),
+        { $or: [{ linkedProjectId: { $exists: false } }, { linkedProjectId: null }] },
+        { $or: [{ linkedContentItemId: { $exists: false } }, { linkedContentItemId: null }] },
+      ];
     }
     if (linkedProjectId && Types.ObjectId.isValid(linkedProjectId)) {
       query.linkedProjectId = new Types.ObjectId(linkedProjectId);
@@ -83,10 +93,21 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedProjectTaskIndex, linkedProjectTaskId, linkedContentItemId, clientAccessible } = body;
+    const { name, type, url, fileUrl, textContent, description, category, tags, linkedProjectId, linkedClientId, linkedProjectTaskIndex, linkedProjectTaskId, linkedContentItemId, clientAccessible } = body;
 
     if (!name || !type) {
       return NextResponse.json({ error: 'Name and type are required' }, { status: 400 });
+    }
+
+    const linkError = validateAssetLinkExclusivity({
+      linkedClientId,
+      linkedProjectId,
+      linkedProjectTaskId,
+      linkedProjectTaskIndex,
+      linkedContentItemId,
+    });
+    if (linkError) {
+      return NextResponse.json({ error: linkError }, { status: 400 });
     }
 
     await connectDB();
@@ -99,6 +120,7 @@ export async function POST(request: NextRequest) {
       ctx,
       {
         linkedProjectId,
+        linkedClientId,
         linkedProjectTaskId,
         linkedProjectTaskIndex,
         linkedContentItemId,
@@ -119,6 +141,9 @@ export async function POST(request: NextRequest) {
       clientAccessible: clientAccessible === true,
       userId: session.userId,
     };
+    if (linkedClientId && Types.ObjectId.isValid(linkedClientId)) {
+      assetData.linkedClientId = new Types.ObjectId(linkedClientId);
+    }
     if (linkedProjectId && Types.ObjectId.isValid(linkedProjectId)) {
       assetData.linkedProjectId = new Types.ObjectId(linkedProjectId);
     }

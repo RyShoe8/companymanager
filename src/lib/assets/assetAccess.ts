@@ -14,6 +14,7 @@ import {
 
 export type AssetAccessScope = {
   accessibleProjectIds: string[];
+  accessibleClientIds: string[];
   accessibleTaskIds: string[];
   accessibleContentItemIds: string[];
   accessibleLegacyTasks: { projectId: string; taskIndex: number }[];
@@ -21,6 +22,7 @@ export type AssetAccessScope = {
 
 export type AssetLinkFields = {
   linkedProjectId?: string | Types.ObjectId | null;
+  linkedClientId?: string | Types.ObjectId | null;
   linkedProjectTaskId?: string | Types.ObjectId | null;
   linkedProjectTaskIndex?: number | null;
   linkedContentItemId?: string | Types.ObjectId | null;
@@ -33,6 +35,10 @@ export type AssetAccessRecord = AssetLinkFields & {
 function idStr(value: string | Types.ObjectId | null | undefined): string | null {
   if (value == null || value === '') return null;
   return typeof value === 'string' ? value : value.toString();
+}
+
+function isClientLevelAsset(asset: AssetLinkFields): boolean {
+  return !!idStr(asset.linkedClientId) && !idStr(asset.linkedProjectId) && !idStr(asset.linkedContentItemId);
 }
 
 function isProjectLevelAsset(asset: AssetLinkFields): boolean {
@@ -61,6 +67,7 @@ export async function buildAssetAccessScope(
   if (!ctx.employeeId) {
     return {
       accessibleProjectIds,
+      accessibleClientIds: [],
       accessibleTaskIds,
       accessibleContentItemIds: [],
       accessibleLegacyTasks,
@@ -71,19 +78,25 @@ export async function buildAssetAccessScope(
   if (!employee) {
     return {
       accessibleProjectIds,
+      accessibleClientIds: [],
       accessibleTaskIds,
       accessibleContentItemIds: [],
       accessibleLegacyTasks,
     };
   }
 
+  const accessibleClientIds = new Set<string>();
+
   const projects = await Project.find({ userId: { $in: ctx.orgUserIds } })
-    .select('assignedToEmployeeIds assignedToEmployeeId tasks userId')
+    .select('assignedToEmployeeIds assignedToEmployeeId tasks userId clientId')
     .lean();
 
   for (const project of projects) {
     if (!canUserContributeToProject(project, ctx.employeeId, false)) continue;
     accessibleProjectIds.push(project._id.toString());
+    if (project.clientId) {
+      accessibleClientIds.add(project.clientId.toString());
+    }
 
     (project.tasks ?? []).forEach((task, idx) => {
       if (!isTaskAssignedToEmployee(task, employee)) return;
@@ -105,6 +118,7 @@ export async function buildAssetAccessScope(
 
   return {
     accessibleProjectIds,
+    accessibleClientIds: [...accessibleClientIds],
     accessibleTaskIds,
     accessibleContentItemIds: contentItems.map((item) => item._id.toString()),
     accessibleLegacyTasks,
@@ -141,6 +155,11 @@ export function canAccessAsset(
     if (legacyOk) return true;
   }
 
+  const clientId = idStr(asset.linkedClientId);
+  if (clientId && isClientLevelAsset(asset)) {
+    return scope.accessibleClientIds.includes(clientId);
+  }
+
   if (isProjectLevelAsset(asset)) {
     return projectId != null && scope.accessibleProjectIds.includes(projectId);
   }
@@ -156,6 +175,16 @@ export function applyAssetAccessFilter(
   if (ctx.isManagerOrAdmin) return baseQuery;
 
   const orConditions: Record<string, unknown>[] = [{ userId: new Types.ObjectId(ctx.userId) }];
+
+  if (scope.accessibleClientIds.length > 0) {
+    orConditions.push({
+      linkedClientId: { $in: scope.accessibleClientIds.map((id) => new Types.ObjectId(id)) },
+      $and: [
+        { $or: [{ linkedProjectId: { $exists: false } }, { linkedProjectId: null }] },
+        { $or: [{ linkedContentItemId: { $exists: false } }, { linkedContentItemId: null }] },
+      ],
+    });
+  }
 
   if (scope.accessibleProjectIds.length > 0) {
     orConditions.push({
@@ -252,6 +281,23 @@ export async function assertCanLinkAsset(
   if (ctx.isManagerOrAdmin) return null;
 
   const builtScope = scope ?? (await buildAssetAccessScope(ctx));
+
+  const clientId = idStr(links.linkedClientId);
+  if (clientId) {
+    if (links.linkedProjectId || links.linkedContentItemId || links.linkedProjectTaskId) {
+      return NextResponse.json(
+        { error: 'Client-linked assets cannot also link to projects, tasks, or content' },
+        { status: 400 }
+      );
+    }
+    if (!ctx.isManagerOrAdmin && !builtScope.accessibleClientIds.includes(clientId)) {
+      return NextResponse.json(
+        { error: 'You do not have permission to link assets to this client' },
+        { status: 403 }
+      );
+    }
+    return null;
+  }
 
   const contentId = idStr(links.linkedContentItemId);
   if (contentId) {

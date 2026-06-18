@@ -21,7 +21,8 @@ export type PendingAssetPayload = {
   type: 'text' | 'link';
   url?: string;
   textContent?: string;
-  linkedProjectId: string;
+  linkedProjectId?: string;
+  linkedClientId?: string;
   linkedContentItemId?: string;
   linkedProjectTaskId?: string;
   linkedProjectTaskIndex?: number;
@@ -29,7 +30,8 @@ export type PendingAssetPayload = {
 };
 
 export type AssetLinkContext = {
-  linkedProjectId: string;
+  linkedProjectId?: string;
+  linkedClientId?: string;
   linkedContentItemId?: string;
   linkedProjectTaskId?: string;
   linkedProjectTaskIndex?: number;
@@ -53,7 +55,8 @@ async function readApiErrorMessage(res: Response, fallback: string): Promise<str
 }
 
 interface CategoryModalProps {
-  projectId: string;
+  projectId?: string;
+  clientId?: string;
   onClose: () => void;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: (asset?: unknown) => void;
@@ -69,6 +72,7 @@ interface CategoryModalProps {
 
 export default function CategoryModal({
   projectId,
+  clientId,
   onClose,
   onAddButton,
   onDocumentCreated,
@@ -94,15 +98,23 @@ export default function CategoryModal({
   const [socialUrl, setSocialUrl] = useState('');
   const [addingSocial, setAddingSocial] = useState(false);
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
+  const effectiveClientId = linkContext?.linkedClientId ?? clientId;
+  const defaultMediaTarget: MediaUploadTarget | null = effectiveProjectId
+    ? { entityType: 'project', entityId: effectiveProjectId }
+    : effectiveClientId
+      ? { entityType: 'project', entityId: effectiveClientId }
+      : null;
 
   const screenshotTarget = useMemo<MediaUploadTarget | null>(() => {
     if (
       linkContext?.linkedProjectTaskId ||
       linkContext?.linkedProjectTaskIndex != null
     ) {
+      const entityId = linkContext.linkedProjectId ?? projectId;
+      if (!entityId) return null;
       return {
         entityType: 'projectTask',
-        entityId: linkContext.linkedProjectId ?? projectId,
+        entityId,
         taskId: linkContext.linkedProjectTaskId,
         taskIndex: linkContext.linkedProjectTaskIndex,
       };
@@ -117,8 +129,12 @@ export default function CategoryModal({
     if (pid) {
       return { entityType: 'project', entityId: pid };
     }
+    const cid = linkContext?.linkedClientId ?? clientId;
+    if (cid) {
+      return { entityType: 'project', entityId: cid };
+    }
     return null;
-  }, [linkContext, projectId]);
+  }, [linkContext, projectId, clientId]);
 
   const isEntityContext = !!(
     linkContext?.linkedContentItemId ||
@@ -133,14 +149,26 @@ export default function CategoryModal({
         ? 'Add asset'
         : 'Add to project';
 
-  const buildAssetPayload = (partial: Omit<PendingAssetPayload, 'linkedProjectId'>): PendingAssetPayload => ({
-    linkedProjectId: effectiveProjectId,
-    linkedContentItemId: linkContext?.linkedContentItemId,
-    linkedProjectTaskId: linkContext?.linkedProjectTaskId,
-    linkedProjectTaskIndex: linkContext?.linkedProjectTaskIndex,
-    tags: [],
-    ...partial,
-  });
+  const buildAssetPayload = (partial: Omit<PendingAssetPayload, 'linkedProjectId' | 'linkedClientId'>): PendingAssetPayload => {
+    if (effectiveClientId && !effectiveProjectId && !linkContext?.linkedContentItemId && !linkContext?.linkedProjectTaskId && linkContext?.linkedProjectTaskIndex == null) {
+      return {
+        linkedClientId: effectiveClientId,
+        linkedContentItemId: linkContext?.linkedContentItemId,
+        linkedProjectTaskId: linkContext?.linkedProjectTaskId,
+        linkedProjectTaskIndex: linkContext?.linkedProjectTaskIndex,
+        tags: [],
+        ...partial,
+      };
+    }
+    return {
+      linkedProjectId: effectiveProjectId!,
+      linkedContentItemId: linkContext?.linkedContentItemId,
+      linkedProjectTaskId: linkContext?.linkedProjectTaskId,
+      linkedProjectTaskIndex: linkContext?.linkedProjectTaskIndex,
+      tags: [],
+      ...partial,
+    };
+  };
 
   const saveAsset = async (payload: PendingAssetPayload): Promise<boolean> => {
     if (mode === 'draft') {
@@ -416,7 +444,7 @@ export default function CategoryModal({
     if (step === 'screenshot') {
       return (
         <ScreenshotToolPanel
-          target={screenshotTarget ?? { entityType: 'project', entityId: projectId }}
+          target={screenshotTarget ?? defaultMediaTarget!}
           description={
             linkContext?.linkedProjectTaskId
               ? 'Attach a screenshot to this task.'
@@ -437,7 +465,7 @@ export default function CategoryModal({
     if (step === 'recording') {
       return (
         <RecordingToolPanel
-          target={screenshotTarget ?? { entityType: 'project', entityId: projectId }}
+          target={screenshotTarget ?? defaultMediaTarget!}
           description={
             linkContext?.linkedProjectTaskId
               ? 'Attach a recording to this task.'

@@ -430,7 +430,7 @@ export default function WorkspaceShell({
         }
     };
 
-    const handleUpdateClient = async (clientId: string, updates: Partial<IClient>) => {
+    const handleUpdateClient = async (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => {
         try {
             const res = await fetch('/api/clients', {
                 method: 'PATCH',
@@ -1478,6 +1478,8 @@ _id.toString(), { tasks });
                                     onViewProject={handleViewProject}
                                     onCreateClient={() => setShowClientCreateModal(true)}
                                     onUpdateClient={handleUpdateClient}
+                                    isManagerOrAdmin={ws.isManagerOrAdmin}
+                                    currentUserId={ws.currentUserId ?? undefined}
                                 />
                             ) : isSchedulingPhase ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

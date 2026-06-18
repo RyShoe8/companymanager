@@ -3,18 +3,25 @@ import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
 import EditableText from '@/components/ui/EditableText';
 import EditableSelect from '@/components/ui/EditableSelect';
+import ClientOperationsPanel from '@/components/workspace/ClientOperationsPanel';
 
 interface ClientDetailDashboardProps {
     client: IClient;
     projects: IProject[];
     onBack: () => void;
     onViewProject: (project: IProject) => void;
-    onUpdateClient?: (clientId: string, updates: Partial<IClient>) => void;
+    onUpdateClient?: (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => void | Promise<void>;
+    isManagerOrAdmin?: boolean;
+    currentUserId?: string;
 }
 
-export default function ClientDetailDashboard({ client, projects, onBack, onViewProject, onUpdateClient }: ClientDetailDashboardProps) {
+export default function ClientDetailDashboard({ client, projects, onBack, onViewProject, onUpdateClient, isManagerOrAdmin = false, currentUserId }: ClientDetailDashboardProps) {
     const activeProjects = projects.filter(p => p.status !== 'completed' && p.projectType !== 'client-admin');
     const adminProject = projects.find(p => p.projectType === 'client-admin');
+
+    const handleUpdate = async (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => {
+        await onUpdateClient?.(clientId, updates);
+    };
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -109,6 +116,14 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
 
                 {/* Right Column - Projects */}
                 <div className="lg:col-span-2 space-y-6">
+                    <ClientOperationsPanel
+                        client={client}
+                        projects={projects}
+                        isManagerOrAdmin={isManagerOrAdmin}
+                        currentUserId={currentUserId}
+                        onUpdateClient={handleUpdate}
+                        onViewProject={onViewProject}
+                    />
                     {adminProject && (
                         <div className="bg-background-elevated rounded-xl border border-border p-5">
                             <div className="flex items-center justify-between mb-2">

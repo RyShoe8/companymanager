@@ -11,7 +11,8 @@ import CategoryModal, {
 export type { AddSmartButtonPayload, AssetLinkContext, PendingAssetPayload };
 
 interface AddButtonProps {
-  projectId: string;
+  projectId?: string;
+  clientId?: string;
   onAddButton: (payload: AddSmartButtonPayload) => Promise<void>;
   onDocumentCreated?: (asset?: unknown) => void;
   linkContext?: AssetLinkContext;
@@ -25,6 +26,7 @@ interface AddButtonProps {
 
 export default function AddButton({
   projectId,
+  clientId,
   onAddButton,
   onDocumentCreated,
   linkContext,
@@ -62,6 +64,7 @@ export default function AddButton({
       {showModal && (
         <CategoryModal
           projectId={projectId}
+          clientId={clientId}
           onClose={() => setShowModal(false)}
           onAddButton={onAddButton}
           onDocumentCreated={onDocumentCreated}

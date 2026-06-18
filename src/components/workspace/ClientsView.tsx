@@ -8,16 +8,18 @@ interface ClientsViewProps {
     allProjects: IProject[];
     onViewProject: (project: IProject) => void;
     onCreateClient?: () => void;
-    onUpdateClient?: (clientId: string, updates: Partial<IClient>) => void;
+    onUpdateClient?: (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => void | Promise<void>;
+    isManagerOrAdmin?: boolean;
+    currentUserId?: string;
 }
 
-export default function ClientsView({ clients, allProjects, onViewProject, onCreateClient, onUpdateClient }: ClientsViewProps) {
+export default function ClientsView({ clients, allProjects, onViewProject, onCreateClient, onUpdateClient, isManagerOrAdmin = false, currentUserId }: ClientsViewProps) {
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
     const selectedClient = clients.find(c => c._id?.toString() === selectedClientId);
 
     if (selectedClient) {
-        const clientProjects = allProjects.filter(p => p.clientId === selectedClient._id);
+        const clientProjects = allProjects.filter(p => String(p.clientId) === String(selectedClient._id));
         return (
             <ClientDetailDashboard 
                 client={selectedClient} 
@@ -25,6 +27,8 @@ export default function ClientsView({ clients, allProjects, onViewProject, onCre
                 onBack={() => setSelectedClientId(null)} 
                 onViewProject={onViewProject}
                 onUpdateClient={onUpdateClient}
+                isManagerOrAdmin={isManagerOrAdmin}
+                currentUserId={currentUserId}
             />
         );
     }
@@ -68,7 +72,7 @@ export default function ClientsView({ clients, allProjects, onViewProject, onCre
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {clients.map(client => {
-                        const activeProjectsCount = allProjects.filter(p => p.clientId === client._id && p.status !== 'completed').length;
+                        const activeProjectsCount = allProjects.filter(p => String(p.clientId) === String(client._id) && p.status !== 'completed').length;
                         
                         return (
                             <div 

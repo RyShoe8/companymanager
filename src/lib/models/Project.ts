@@ -1,46 +1,34 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+import {
+  type SocialNetwork,
+  type IProjectSocialLink,
+  type TechStackCategory,
+  type IProjectTechStackItem,
+  type MarketingStackCategory,
+  type IProjectMarketingStackItem,
+  type ProjectActionButtonKind,
+  type IProjectActionButton,
+  socialLinksSchemaDefinition,
+  techStackSchemaDefinition,
+  marketingStackSchemaDefinition,
+  actionButtonsSchemaDefinition,
+} from '@/lib/models/platformFields';
+
+export type {
+  SocialNetwork,
+  IProjectSocialLink,
+  TechStackCategory,
+  IProjectTechStackItem,
+  MarketingStackCategory,
+  IProjectMarketingStackItem,
+  ProjectActionButtonKind,
+  IProjectActionButton,
+};
 
 export type ProjectStatus = 'planning' | 'in-development' | 'launched' | 'in-review' | 'completed';
 export type ProjectType = 'internal' | 'client' | 'client-admin';
 export type ProjectCategory = 'website' | 'store' | 'app' | 'generic';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
-
-export type SocialNetwork =
-  | 'x'
-  | 'linkedin'
-  | 'instagram'
-  | 'tiktok'
-  | 'reddit'
-  | 'bluesky'
-  | 'youtube'
-  | 'facebook'
-  | 'github'
-  | 'other';
-
-export interface IProjectSocialLink {
-  network: SocialNetwork;
-  url: string;
-  login?: string;
-  password?: string;
-}
-
-export type TechStackCategory = 'hosting' | 'database' | 'api' | 'framework' | 'payments';
-
-export interface IProjectTechStackItem {
-  category: TechStackCategory;
-  technologyId: string;
-  login?: string;
-  password?: string;
-}
-
-export type MarketingStackCategory = 'email' | 'analytics' | 'social' | 'crm';
-
-export interface IProjectMarketingStackItem {
-  category: MarketingStackCategory;
-  toolId: string;
-  login?: string;
-  password?: string;
-}
 
 export interface IProjectTask {
   _id?: Types.ObjectId; // Mongoose adds by default; use for stable task references (project.tasks.id(taskId))
@@ -59,18 +47,6 @@ export interface IProjectTask {
   recurrenceSeriesId?: string;
   /** Repeat interval for this series (daily, weekly, biweekly, monthly). */
   recurrencePreset?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
-}
-
-export type ProjectActionButtonKind = 'link' | 'email';
-
-/** Smart button on a project (Available vs Active lists; referralSourceId links to catalog). */
-export interface IProjectActionButton {
-  label: string;
-  url: string;
-  referralSourceId?: Types.ObjectId; // FK to PartnerCatalog or catalog entry
-  /** Default/skip = normal URL link. `email` stores mailto URL + optional mailbox password. */
-  kind?: ProjectActionButtonKind;
-  password?: string;
 }
 
 export interface IProject extends Document {
@@ -149,55 +125,13 @@ const ProjectSchema: Schema = new Schema(
       type: String,
       trim: true,
     },
-    socialLinks: {
-      type: [
-        {
-          network: {
-            type: String,
-            enum: ['x', 'linkedin', 'instagram', 'tiktok', 'reddit', 'bluesky', 'youtube', 'facebook', 'github', 'other'],
-            required: true,
-          },
-          url: { type: String, trim: true, required: true },
-          login: { type: String, trim: true },
-          password: { type: String, trim: true },
-        },
-      ],
-      default: [],
-    },
+    socialLinks: socialLinksSchemaDefinition,
     socialsToolbarVisible: {
       type: Boolean,
       default: true,
     },
-    techStack: {
-      type: [
-        {
-          category: {
-            type: String,
-            enum: ['hosting', 'database', 'api', 'framework', 'payments'],
-            required: true,
-          },
-          technologyId: { type: String, trim: true, required: true },
-          login: { type: String, trim: true },
-          password: { type: String, trim: true },
-        },
-      ],
-      default: [],
-    },
-    marketingStack: {
-      type: [
-        {
-          category: {
-            type: String,
-            enum: ['email', 'analytics', 'social', 'crm'],
-            required: true,
-          },
-          toolId: { type: String, trim: true, required: true },
-          login: { type: String, trim: true },
-          password: { type: String, trim: true },
-        },
-      ],
-      default: [],
-    },
+    techStack: techStackSchemaDefinition,
+    marketingStack: marketingStackSchemaDefinition,
     projectType: {
       type: String,
       enum: ['internal', 'client', 'client-admin'],
@@ -353,19 +287,7 @@ const ProjectSchema: Schema = new Schema(
         },
       },
     ],
-    actionButtons: [
-      {
-        label: { type: String, required: true, trim: true },
-        url: { type: String, required: true, trim: true },
-        referralSourceId: { type: Schema.Types.ObjectId, ref: 'PartnerCatalog' },
-        kind: {
-          type: String,
-          enum: ['link', 'email'],
-          default: 'link',
-        },
-        password: { type: String, trim: true },
-      },
-    ],
+    actionButtons: actionButtonsSchemaDefinition,
     clientPortalSlug: { type: String, trim: true },
     clientPortalToken: { type: String, trim: true },
     invitedClientEmails: { type: [String], default: [] },

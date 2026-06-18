@@ -3,6 +3,8 @@ import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import Client from '@/lib/models/Client';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { ensureClientHubProject } from '@/lib/clients/transitionClientHubWork';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,12 +25,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only administrators can migrate data' }, { status: 403 });
     }
 
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
+    const orgProjects = await Project.find({ userId: { $in: orgUserIds } });
+
     // Find all projects that are of type 'client' but have no clientId
-    const projectsToMigrate = await Project.find({
-      organizationId: user.organizationId,
-      projectType: 'client',
-      clientId: { $exists: false },
-    });
+    const projectsToMigrate = orgProjects.filter(
+      (p) => p.projectType === 'client' && !p.clientId
+    );
 
     let migratedCount = 0;
 
@@ -52,6 +55,10 @@ export async function POST(request: NextRequest) {
       // Link project to client
       project.clientId = client._id;
       await project.save();
+
+      const ownerUserId = project.userId ?? session.userId;
+      await ensureClientHubProject(client, ownerUserId, [...orgProjects, project]);
+
       migratedCount++;
     }
 
