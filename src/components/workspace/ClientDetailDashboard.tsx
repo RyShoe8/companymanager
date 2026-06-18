@@ -38,7 +38,7 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                 <div>
                     <EditableText
                         value={client.name}
-                        onSave={(v) => onUpdateClient?.(client._id as string, { name: v })}
+                        onSave={(v) => onUpdateClient?.(String(client._id), { name: v })}
                         className="text-2xl font-semibold text-text-primary block"
                         placeholder="Client Name"
                         disabled={!onUpdateClient}
@@ -46,7 +46,7 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                     <div className="mt-1">
                         <EditableText
                             value={client.domain || ''}
-                            onSave={(v) => onUpdateClient?.(client._id as string, { domain: v })}
+                            onSave={(v) => onUpdateClient?.(String(client._id), { domain: v })}
                             className="text-sm text-text-secondary hover:text-primary transition-colors block"
                             placeholder="Add domain (e.g. acme.com)..."
                             disabled={!onUpdateClient}
@@ -72,7 +72,7 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                                 <p className="text-xs text-text-tertiary uppercase tracking-wider mb-1">Primary Contact</p>
                                 <EditableText
                                     value={client.contactName || ''}
-                                    onSave={(v) => onUpdateClient?.(client._id as string, { contactName: v })}
+                                    onSave={(v) => onUpdateClient?.(String(client._id), { contactName: v })}
                                     className="text-sm text-text-secondary block"
                                     placeholder="Add contact name..."
                                     disabled={!onUpdateClient}
@@ -82,7 +82,7 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                                 <p className="text-xs text-text-tertiary uppercase tracking-wider mb-1">Email</p>
                                 <EditableText
                                     value={client.contactEmail || ''}
-                                    onSave={(v) => onUpdateClient?.(client._id as string, { contactEmail: v })}
+                                    onSave={(v) => onUpdateClient?.(String(client._id), { contactEmail: v })}
                                     className="text-sm text-primary block"
                                     placeholder="Add email address..."
                                     disabled={!onUpdateClient}
@@ -97,7 +97,7 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                                         { value: 'lead', label: 'Lead', color: 'yellow' },
                                         { value: 'inactive', label: 'Inactive', color: 'gray' }
                                     ]}
-                                    onSave={(v) => onUpdateClient?.(client._id as string, { status: v })}
+                                    onSave={(v) => onUpdateClient?.(String(client._id), { status: v })}
                                     disabled={!onUpdateClient}
                                     showColorDot
                                     className="text-xs"
