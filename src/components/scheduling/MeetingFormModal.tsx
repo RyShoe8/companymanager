@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { IProject } from '@/lib/models/Project';
+import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
@@ -24,6 +25,7 @@ export type MeetingFormMeeting = {
   start: string;
   end: string;
   linkedProjectIds: string[];
+  linkedClientIds?: string[];
   attendeeEmployeeIds?: string[];
   externalAttendeeEmails?: string[];
   googleRecurringEventId?: string;
@@ -38,6 +40,7 @@ interface MeetingFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   projects: IProject[];
+  clients: IClient[];
   employees: IEmployee[];
   currentUserEmployeeId?: string | null;
   schedulingTimeZone?: string;
@@ -46,6 +49,18 @@ interface MeetingFormModalProps {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+function projectsForMeetingLink(projects: IProject[], selectedClientIds: string[]): IProject[] {
+  let pool = projects;
+  if (selectedClientIds.length > 0) {
+    pool = projects.filter(
+      (p) => p.clientId != null && selectedClientIds.includes(p.clientId.toString())
+    );
+  }
+  const withoutAdmin = pool.filter((p) => p.projectType !== 'client-admin');
+  if (withoutAdmin.length > 0) return withoutAdmin;
+  return pool.filter((p) => p.projectType === 'client-admin');
+}
 
 function employeeHasInviteEmail(emp: IEmployee): boolean {
   return !!(emp.email?.trim() || emp.userId);
@@ -63,6 +78,7 @@ export default function MeetingFormModal({
   isOpen,
   onClose,
   projects,
+  clients,
   employees,
   currentUserEmployeeId,
   schedulingTimeZone,
@@ -74,6 +90,7 @@ export default function MeetingFormModal({
   const [end, setEnd] = useState('');
   const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
   const [linkedProjectIds, setLinkedProjectIds] = useState<string[]>([]);
+  const [linkedClientIds, setLinkedClientIds] = useState<string[]>([]);
   const [attendeeEmployeeIds, setAttendeeEmployeeIds] = useState<string[]>([]);
   const [externalEmails, setExternalEmails] = useState<string[]>([]);
   const [externalEmailInput, setExternalEmailInput] = useState('');
@@ -84,6 +101,11 @@ export default function MeetingFormModal({
   const [error, setError] = useState<string | null>(null);
 
   const isRecurringEdit = mode === 'edit' && !!meeting?.googleRecurringEventId;
+
+  const linkableProjects = useMemo(
+    () => projectsForMeetingLink(projects, linkedClientIds),
+    [projects, linkedClientIds]
+  );
 
   const inviteableEmployees = useMemo(
     () =>
@@ -113,6 +135,7 @@ export default function MeetingFormModal({
       setStart(toDatetimeLocal(meeting.start));
       setEnd(toDatetimeLocal(meeting.end));
       setLinkedProjectIds(meeting.linkedProjectIds || []);
+      setLinkedClientIds(meeting.linkedClientIds || []);
       setAttendeeEmployeeIds(meeting.attendeeEmployeeIds || []);
       setExternalEmails(meeting.externalAttendeeEmails || []);
       const inferred = inferVideoModeFromMeeting(meeting);
@@ -126,6 +149,7 @@ export default function MeetingFormModal({
       setEnd('');
       setRepeatPreset('none');
       setLinkedProjectIds([]);
+      setLinkedClientIds([]);
       setAttendeeEmployeeIds([]);
       setExternalEmails([]);
       setVideoMode('none');
@@ -135,6 +159,12 @@ export default function MeetingFormModal({
     setExternalEmailInput('');
     setError(null);
   }, [isOpen, mode, meeting]);
+
+  const toggleClient = (id: string) => {
+    setLinkedClientIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  };
 
   const toggleProject = (id: string) => {
     setLinkedProjectIds((prev) =>
@@ -197,6 +227,7 @@ export default function MeetingFormModal({
           start: startDate.toISOString(),
           end: endDate.toISOString(),
           linkedProjectIds,
+          linkedClientIds,
           attendeeEmployeeIds,
           externalAttendeeEmails: externalEmails,
           videoMode,
@@ -225,6 +256,7 @@ export default function MeetingFormModal({
         start: startDate.toISOString(),
         end: endDate.toISOString(),
         linkedProjectIds,
+        linkedClientIds,
         attendeeEmployeeIds,
         externalAttendeeEmails: externalEmails,
         syncToGoogle: true,
@@ -452,12 +484,39 @@ export default function MeetingFormModal({
         </div>
 
         <div>
+          <p className="text-sm font-medium text-text-primary mb-2">Link clients (optional)</p>
+          <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto rounded-lg border border-border p-3 bg-background-card">
+            {clients.length === 0 ? (
+              <p className="text-sm text-text-secondary">No clients available.</p>
+            ) : (
+              clients.map((client) => (
+                <label
+                  key={client._id?.toString()}
+                  className="flex items-center gap-1.5 text-sm text-text-primary cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={linkedClientIds.includes(client._id?.toString() ?? '')}
+                    onChange={() => toggleClient(client._id?.toString() ?? '')}
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: client.color || '#3b82f6' }}
+                  />
+                  {client.name}
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div>
           <p className="text-sm font-medium text-text-primary mb-2">Link projects (optional)</p>
           <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto rounded-lg border border-border p-3 bg-background-card">
-            {projects.length === 0 ? (
+            {linkableProjects.length === 0 ? (
               <p className="text-sm text-text-secondary">No projects available.</p>
             ) : (
-              projects.map((p) => (
+              linkableProjects.map((p) => (
                 <label
                   key={p._id.toString()}
                   className="flex items-center gap-1.5 text-sm text-text-primary cursor-pointer"

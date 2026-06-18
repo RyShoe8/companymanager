@@ -13,6 +13,8 @@ export interface IMeeting extends Document {
   iCalUID?: string;
   agendaToken: string;
   linkedProjectIds: Types.ObjectId[];
+  /** Clients associated with this meeting (CRM link). */
+  linkedClientIds?: Types.ObjectId[];
   /** Org employees invited to this meeting. */
   attendeeEmployeeIds?: Types.ObjectId[];
   /** External guest emails (normalized lowercase). */
@@ -38,6 +40,7 @@ const MeetingSchema = new Schema(
     iCalUID: { type: String, trim: true, sparse: true },
     agendaToken: { type: String, required: true, index: true },
     linkedProjectIds: [{ type: Schema.Types.ObjectId, ref: 'Project' }],
+    linkedClientIds: [{ type: Schema.Types.ObjectId, ref: 'Client' }],
     attendeeEmployeeIds: [{ type: Schema.Types.ObjectId, ref: 'Employee' }],
     externalAttendeeEmails: [{ type: String, trim: true, lowercase: true }],
     createdInNucleas: { type: Boolean, default: true },
@@ -55,6 +58,7 @@ MeetingSchema.index({ userId: 1, start: 1 });
 MeetingSchema.index({ userId: 1, googleRecurringEventId: 1 }, { sparse: true });
 MeetingSchema.index({ organizationId: 1, iCalUID: 1 }, { sparse: true });
 MeetingSchema.index({ organizationId: 1, googleRecurringEventId: 1 }, { sparse: true });
+MeetingSchema.index({ organizationId: 1, linkedClientIds: 1 }, { sparse: true });
 
 const Meeting: Model<IMeeting> =
   mongoose.models.Meeting || mongoose.model<IMeeting>('Meeting', MeetingSchema);

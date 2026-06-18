@@ -5,6 +5,7 @@ export interface IMeetingSeriesSettings extends Document {
   googleRecurringEventId?: string;
   iCalUID?: string;
   linkedProjectIds: Types.ObjectId[];
+  linkedClientIds?: Types.ObjectId[];
   agendaToken: string;
   attendeeEmployeeIds: Types.ObjectId[];
   externalAttendeeEmails: string[];
@@ -20,6 +21,7 @@ const MeetingSeriesSettingsSchema = new Schema(
     googleRecurringEventId: { type: String, trim: true, sparse: true },
     iCalUID: { type: String, trim: true, sparse: true },
     linkedProjectIds: [{ type: Schema.Types.ObjectId, ref: 'Project' }],
+    linkedClientIds: [{ type: Schema.Types.ObjectId, ref: 'Client' }],
     agendaToken: { type: String, required: true },
     attendeeEmployeeIds: [{ type: Schema.Types.ObjectId, ref: 'Employee' }],
     externalAttendeeEmails: [{ type: String, trim: true, lowercase: true }],

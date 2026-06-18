@@ -18,6 +18,7 @@ export type MeetingRow = {
   end: string;
   agendaToken: string;
   linkedProjectIds: string[];
+  linkedClientIds?: string[];
   attendeeEmployeeIds?: string[];
   externalAttendeeEmails?: string[];
   googleRecurringEventId?: string;

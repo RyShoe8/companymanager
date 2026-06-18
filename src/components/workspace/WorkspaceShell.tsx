@@ -37,7 +37,7 @@ import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
 import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
 import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import CreateMenu from '@/components/workspace/CreateMenu';
-import SelectProjectModal from '@/components/workspace/SelectProjectModal';
+import LinkTargetPickerModal from '@/components/workspace/LinkTargetPickerModal';
 import { filterContributableProjects } from '@/lib/utils/projectTeam';
 import InspectorHost from '@/components/workspace/InspectorHost';
 import Modal from '@/components/ui/Modal';
@@ -1462,6 +1462,7 @@ _id.toString(), { tasks });
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <SchedulingPanel
                                             projects={ws.allProjects}
+                                            clients={ws.clients}
                                             employees={ws.employees}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
                                             currentUserId={ws.currentUserId}
@@ -1609,6 +1610,7 @@ _id.toString(), { tasks });
                         isOpen={showMeetingModal}
                         onClose={() => setShowMeetingModal(false)}
                         projects={ws.allProjects}
+                        clients={ws.clients}
                         employees={ws.employees}
                         currentUserEmployeeId={ws.currentUserEmployeeId}
                         schedulingTimeZone={schedulingAvailability.timezone}
@@ -1626,14 +1628,15 @@ _id.toString(), { tasks });
                         saving={schedulingAvailability.saving}
                     />
 
-                    <SelectProjectModal
+                    <LinkTargetPickerModal
                         isOpen={projectPickerMode !== null}
-                        title={projectPickerMode === 'task' ? 'Add task to project' : 'Add content to project'}
+                        title={projectPickerMode === 'task' ? 'Add task' : 'Add content'}
+                        clients={ws.clients}
                         projects={ws.allProjects}
                         currentUserEmployeeId={ws.currentUserEmployeeId}
                         isManagerOrAdmin={ws.isManagerOrAdmin}
                         onClose={() => setProjectPickerMode(null)}
-                        onSelect={(project) => {
+                        onSelectProject={(project) => {
                             const mode = projectPickerMode;
                             setProjectPickerMode(null);
                             if (mode === 'task') {
@@ -1734,6 +1737,7 @@ _id.toString(), { tasks });
                             setAddContentVoicePrefill(null);
                         }}
                         project={addContentProject}
+                        clients={ws.clients}
                         defaultPublishDate={addContentDefaultDate}
                         initialTitle={addContentVoicePrefill?.title}
                         initialChannel={addContentVoicePrefill?.channel}

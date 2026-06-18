@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { IMeeting } from '@/lib/models/Meeting';
 import { IProject } from '@/lib/models/Project';
+import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import CreateMeetingModal, { type MeetingCreateSuccessInfo } from '@/components/scheduling/CreateMeetingModal';
 import MeetingFormModal, { type MeetingFormMeeting } from '@/components/scheduling/MeetingFormModal';
@@ -15,6 +16,7 @@ import type { TimeframeType } from '@/lib/utils/dateUtils';
 import type { MeetingUpdateScope } from '@/components/scheduling/MeetingFormModal';
 interface SchedulingPanelProps {
   projects: IProject[];
+  clients: IClient[];
   employees?: IEmployee[];
   currentUserEmployeeId?: string | null;
   currentUserId?: string | null;
@@ -39,6 +41,7 @@ function meetingRowToFormMeeting(row: MeetingRow): MeetingFormMeeting {
     start: row.start,
     end: row.end,
     linkedProjectIds: row.linkedProjectIds,
+    linkedClientIds: row.linkedClientIds,
     attendeeEmployeeIds: row.attendeeEmployeeIds,
     externalAttendeeEmails: row.externalAttendeeEmails,
     googleRecurringEventId: row.googleRecurringEventId,
@@ -49,6 +52,7 @@ function meetingRowToFormMeeting(row: MeetingRow): MeetingFormMeeting {
 
 export default function SchedulingPanel({
   projects,
+  clients,
   employees = [],
   currentUserEmployeeId,
   currentUserId,
@@ -196,6 +200,7 @@ export default function SchedulingPanel({
         isOpen={showMeetingModal}
         onClose={() => setShowMeetingModal(false)}
         projects={projects}
+        clients={clients}
         employees={employees}
         currentUserEmployeeId={currentUserEmployeeId}
         schedulingTimeZone={schedulingTimeZone}
@@ -208,6 +213,7 @@ export default function SchedulingPanel({
         onClose={() => setEditingMeeting(null)}
         meeting={editingMeeting}
         projects={projects}
+        clients={clients}
         employees={employees}
         currentUserEmployeeId={currentUserEmployeeId}
         schedulingTimeZone={schedulingTimeZone}

@@ -1,6 +1,7 @@
 import Meeting, { IMeeting } from '@/lib/models/Meeting';
 import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
 import Project from '@/lib/models/Project';
+import Client from '@/lib/models/Client';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
 import { extractMeetingJoinUrl } from '@/lib/scheduling/extractMeetingJoinUrl';
 import {
@@ -39,6 +40,7 @@ export type MeetingUpdateInput = {
   end?: string;
   description?: string;
   linkedProjectIds?: string[];
+  linkedClientIds?: string[];
   attendeeEmployeeIds?: string[];
   externalAttendeeEmails?: string[];
   videoMode?: MeetingVideoMode;
@@ -46,6 +48,17 @@ export type MeetingUpdateInput = {
   scope?: MeetingUpdateScope;
   timeZone?: string;
 };
+
+async function loadOrgClients(organizationId: string, clientIds: Types.ObjectId[]) {
+  if (!clientIds.length) return [];
+  const clients = await Client.find({
+    _id: { $in: clientIds },
+    organizationId,
+  })
+    .select('_id')
+    .lean();
+  return clients.map((c) => c._id as Types.ObjectId);
+}
 
 async function loadOrgProjects(
   userId: string,
@@ -155,12 +168,31 @@ export async function updateMeetingRecord(params: {
 
   const linkedProjectsChanged =
     body.linkedProjectIds !== undefined && Array.isArray(body.linkedProjectIds);
+  const linkedClientsChanged =
+    body.linkedClientIds !== undefined && Array.isArray(body.linkedClientIds);
 
-  if (linkedProjectsChanged && Object.keys(body).length === 1) {
-    const projectIds = body.linkedProjectIds!
-      .filter((pid) => Types.ObjectId.isValid(pid))
-      .map((pid) => new Types.ObjectId(pid));
+  const linkOnlyKeys = ['linkedProjectIds', 'linkedClientIds'];
+  const isLinkOnlyUpdate =
+    (linkedProjectsChanged || linkedClientsChanged) &&
+    Object.keys(body).every((k) => linkOnlyKeys.includes(k));
+
+  if (isLinkOnlyUpdate) {
+    const projectIds = linkedProjectsChanged
+      ? body.linkedProjectIds!
+          .filter((pid) => Types.ObjectId.isValid(pid))
+          .map((pid) => new Types.ObjectId(pid))
+      : meeting.linkedProjectIds || [];
+    const clientIdsRaw = linkedClientsChanged
+      ? body.linkedClientIds!
+          .filter((cid) => Types.ObjectId.isValid(cid))
+          .map((cid) => new Types.ObjectId(cid))
+      : meeting.linkedClientIds || [];
+    const clientIds = linkedClientsChanged
+      ? await loadOrgClients(organizationId, clientIdsRaw)
+      : meeting.linkedClientIds || [];
+
     meeting.linkedProjectIds = projectIds;
+    meeting.linkedClientIds = clientIds;
     await meeting.save();
     const migrated = await loadOrgProjects(userId, organizationId, projectIds);
     const result = await propagateMeetingProjectsAndCalendars({
@@ -175,6 +207,7 @@ export async function updateMeetingRecord(params: {
       googleRecurringEventId: meeting.googleRecurringEventId,
       iCalUID: meeting.iCalUID,
       linkedProjectIds: projectIds,
+      linkedClientIds: clientIds,
       agendaToken: meeting.agendaToken,
       attendeeEmployeeIds: meeting.attendeeEmployeeIds,
       externalAttendeeEmails: meeting.externalAttendeeEmails,
@@ -200,6 +233,13 @@ export async function updateMeetingRecord(params: {
       .map((pid) => new Types.ObjectId(pid));
   }
 
+  if (linkedClientsChanged) {
+    const clientIdsRaw = body.linkedClientIds!
+      .filter((cid) => Types.ObjectId.isValid(cid))
+      .map((cid) => new Types.ObjectId(cid));
+    meeting.linkedClientIds = await loadOrgClients(organizationId, clientIdsRaw);
+  }
+
   let invitees;
   if (body.attendeeEmployeeIds !== undefined || body.externalAttendeeEmails !== undefined) {
     invitees = await resolveMeetingInvitees(
@@ -218,6 +258,7 @@ export async function updateMeetingRecord(params: {
 
   const timeZone = await getUserSchedulingTimezone(new Types.ObjectId(userId), body.timeZone);
   const projectIds = meeting.linkedProjectIds || [];
+  const clientIds = meeting.linkedClientIds || [];
   const migrated = await loadOrgProjects(userId, organizationId, projectIds);
   const fullDescription = buildMeetingFullDescription(meeting, migrated, baseUrl);
   const googleAttendees = invitees?.googleAttendees ?? [];
@@ -274,6 +315,7 @@ export async function updateMeetingRecord(params: {
       target.attendeeEmployeeIds = [...(meeting.attendeeEmployeeIds || [])];
       target.externalAttendeeEmails = [...(meeting.externalAttendeeEmails || [])];
       target.linkedProjectIds = [...projectIds];
+      target.linkedClientIds = [...clientIds];
       if (video?.videoMode === 'manual') {
         target.joinUrl = video.joinUrl;
         target.joinPlatform = video.joinPlatform;
@@ -293,6 +335,7 @@ export async function updateMeetingRecord(params: {
       googleRecurringEventId: meeting.googleRecurringEventId,
       iCalUID: meeting.iCalUID,
       linkedProjectIds: projectIds,
+      linkedClientIds: clientIds,
       agendaToken: meeting.agendaToken,
       attendeeEmployeeIds: meeting.attendeeEmployeeIds,
       externalAttendeeEmails: meeting.externalAttendeeEmails,

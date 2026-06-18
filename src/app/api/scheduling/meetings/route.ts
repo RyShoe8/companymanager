@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import { requireAuth } from '@/lib/auth/middleware';
 import Meeting from '@/lib/models/Meeting';
 import Project from '@/lib/models/Project';
+import Client from '@/lib/models/Client';
 import { getSchedulingContext, getUserSchedulingTimezone } from '@/lib/scheduling/schedulingContext';
 import { generateAgendaToken } from '@/lib/scheduling/tokenCrypto';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
@@ -107,6 +108,7 @@ export async function POST(request: NextRequest) {
       start,
       end,
       linkedProjectIds,
+      linkedClientIds,
       description,
       syncToGoogle,
       recurrence,
@@ -133,7 +135,22 @@ export async function POST(request: NextRequest) {
       ? linkedProjectIds.filter((id: string) => Types.ObjectId.isValid(id)).map((id: string) => new Types.ObjectId(id))
       : [];
 
+    const clientIdsRaw = Array.isArray(linkedClientIds)
+      ? linkedClientIds.filter((id: string) => Types.ObjectId.isValid(id)).map((id: string) => new Types.ObjectId(id))
+      : [];
+
     await connectDB();
+
+    let clientIds: Types.ObjectId[] = [];
+    if (clientIdsRaw.length > 0) {
+      const orgClients = await Client.find({
+        _id: { $in: clientIdsRaw },
+        organizationId: ctx.organizationId,
+      })
+        .select('_id')
+        .lean();
+      clientIds = orgClients.map((c) => c._id as Types.ObjectId);
+    }
 
     const schedulingTimeZone = await getUserSchedulingTimezone(ctx.userId, bodyTimeZone);
 
@@ -190,6 +207,7 @@ export async function POST(request: NextRequest) {
 
     const upsertInviteOptions = {
       linkedProjectIds: projectIds,
+      linkedClientIds: clientIds,
       attendeeEmployeeIds: invitees.attendeeEmployeeIds,
       externalAttendeeEmails: invitees.externalAttendeeEmails,
       createdInNucleas: true,
@@ -266,12 +284,13 @@ export async function POST(request: NextRequest) {
         upsertOptions: upsertInviteOptions,
       });
 
-      if (projectIds.length > 0) {
+      if (projectIds.length > 0 || clientIds.length > 0) {
         await upsertMeetingSeriesSettings({
           organizationId: ctx.organizationId,
           googleRecurringEventId: created.id,
           iCalUID: created.iCalUID,
           linkedProjectIds: projectIds,
+          linkedClientIds: clientIds,
           agendaToken,
           attendeeEmployeeIds: invitees.attendeeEmployeeIds,
           externalAttendeeEmails: invitees.externalAttendeeEmails,
@@ -367,6 +386,7 @@ export async function POST(request: NextRequest) {
       iCalUID,
       agendaToken,
       linkedProjectIds: projectIds,
+      linkedClientIds: clientIds,
       attendeeEmployeeIds: invitees.attendeeEmployeeIds,
       externalAttendeeEmails: invitees.externalAttendeeEmails,
       createdInNucleas: true,

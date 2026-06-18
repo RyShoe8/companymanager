@@ -6,6 +6,7 @@ import { Types } from 'mongoose';
 
 export type SeriesProjectDefaults = {
   linkedProjectIds: Types.ObjectId[];
+  linkedClientIds: Types.ObjectId[];
   agendaToken: string;
   attendeeEmployeeIds: Types.ObjectId[];
   externalAttendeeEmails: string[];
@@ -22,13 +23,17 @@ function hasSeriesKey(identity: SeriesIdentity): boolean {
 
 function mapDefaults(doc: {
   linkedProjectIds?: Types.ObjectId[];
+  linkedClientIds?: Types.ObjectId[];
   agendaToken: string;
   attendeeEmployeeIds?: Types.ObjectId[];
   externalAttendeeEmails?: string[];
 }): SeriesProjectDefaults | null {
-  if (!doc.linkedProjectIds?.length) return null;
+  const linkedProjectIds = doc.linkedProjectIds || [];
+  const linkedClientIds = doc.linkedClientIds || [];
+  if (!linkedProjectIds.length && !linkedClientIds.length) return null;
   return {
-    linkedProjectIds: [...doc.linkedProjectIds],
+    linkedProjectIds: [...linkedProjectIds],
+    linkedClientIds: [...linkedClientIds],
     agendaToken: doc.agendaToken,
     attendeeEmployeeIds: [...(doc.attendeeEmployeeIds || [])],
     externalAttendeeEmails: [...(doc.externalAttendeeEmails || [])],
@@ -58,7 +63,10 @@ export async function findSeriesProjectDefaults(
 
   const meetingQuery: Record<string, unknown> = {
     organizationId,
-    linkedProjectIds: { $exists: true, $ne: [] },
+    $or: [
+      { linkedProjectIds: { $exists: true, $ne: [] } },
+      { linkedClientIds: { $exists: true, $ne: [] } },
+    ],
   };
   if (identity.googleRecurringEventId) {
     meetingQuery.googleRecurringEventId = identity.googleRecurringEventId;
@@ -76,12 +84,14 @@ export async function upsertMeetingSeriesSettings(params: {
   googleRecurringEventId?: string;
   iCalUID?: string;
   linkedProjectIds: Types.ObjectId[];
+  linkedClientIds?: Types.ObjectId[];
   agendaToken: string;
   attendeeEmployeeIds?: Types.ObjectId[];
   externalAttendeeEmails?: string[];
 }): Promise<void> {
-  const { organizationId, googleRecurringEventId, iCalUID, linkedProjectIds, agendaToken } = params;
-  if (!linkedProjectIds.length) return;
+  const { organizationId, googleRecurringEventId, iCalUID, linkedProjectIds, linkedClientIds = [], agendaToken } =
+    params;
+  if (!linkedProjectIds.length && !linkedClientIds.length) return;
   if (!googleRecurringEventId?.trim() && !iCalUID?.trim()) return;
 
   const filter: Record<string, unknown> = { organizationId };
@@ -98,6 +108,7 @@ export async function upsertMeetingSeriesSettings(params: {
     {
       $set: {
         linkedProjectIds,
+        linkedClientIds,
         agendaToken,
         attendeeEmployeeIds: params.attendeeEmployeeIds || [],
         externalAttendeeEmails: params.externalAttendeeEmails || [],
@@ -110,14 +121,18 @@ export async function upsertMeetingSeriesSettings(params: {
 export function applySeriesDefaultsToNewMeeting(
   createPayload: Record<string, unknown>,
   defaults: SeriesProjectDefaults | null,
-  explicitLinkedProjectIds: Types.ObjectId[]
+  explicitLinkedProjectIds: Types.ObjectId[],
+  explicitLinkedClientIds: Types.ObjectId[] = []
 ): Record<string, unknown> {
   const linkedProjectIds =
     explicitLinkedProjectIds.length > 0 ? explicitLinkedProjectIds : defaults?.linkedProjectIds || [];
+  const linkedClientIds =
+    explicitLinkedClientIds.length > 0 ? explicitLinkedClientIds : defaults?.linkedClientIds || [];
 
   const next: Record<string, unknown> = {
     ...createPayload,
     linkedProjectIds,
+    linkedClientIds,
   };
 
   if (defaults) {

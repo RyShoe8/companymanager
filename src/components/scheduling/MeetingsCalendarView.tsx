@@ -22,6 +22,7 @@ function toMeetingRow(meeting: IMeeting): MeetingRow {
     end: new Date(meeting.end).toISOString(),
     agendaToken: meeting.agendaToken,
     linkedProjectIds: (meeting.linkedProjectIds || []).map((id) => id.toString()),
+    linkedClientIds: (meeting.linkedClientIds || []).map((id) => id.toString()),
     attendeeEmployeeIds: meeting.attendeeEmployeeIds?.map((id) => id.toString()),
     externalAttendeeEmails: meeting.externalAttendeeEmails,
     googleRecurringEventId: meeting.googleRecurringEventId,

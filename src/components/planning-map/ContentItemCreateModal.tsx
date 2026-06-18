@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { IProject } from '@/lib/models/Project';
+import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import Modal from '@/components/ui/Modal';
@@ -46,6 +47,7 @@ interface ContentItemCreateModalProps {
   initialChannel?: string;
   initialNotes?: string;
   employees: IEmployee[];
+  clients?: IClient[];
   isManagerOrAdmin?: boolean;
   onSuccess: () => void;
 }
@@ -59,6 +61,7 @@ export default function ContentItemCreateModal({
   initialChannel,
   initialNotes,
   employees,
+  clients = [],
   isManagerOrAdmin = true,
   onSuccess,
 }: ContentItemCreateModalProps) {
@@ -192,9 +195,17 @@ export default function ContentItemCreateModal({
 
   if (!project) return null;
 
+  const clientName =
+    project.clientId != null
+      ? clients.find((c) => c._id?.toString() === project.clientId?.toString())?.name
+      : undefined;
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add Content" maxWidth="full" elevated>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {clientName ? (
+          <p className="text-sm text-text-secondary">Client: {clientName}</p>
+        ) : null}
         <p className="text-sm text-text-secondary">Project: {project.name}</p>
         <ContentItemFormFields
           title={title}

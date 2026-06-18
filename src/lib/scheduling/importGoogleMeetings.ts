@@ -14,6 +14,7 @@ import { Types } from 'mongoose';
 
 export type UpsertGoogleMeetingsOptions = {
   linkedProjectIds?: Types.ObjectId[];
+  linkedClientIds?: Types.ObjectId[];
   attendeeEmployeeIds?: Types.ObjectId[];
   externalAttendeeEmails?: string[];
   createdInNucleas?: boolean;
@@ -27,20 +28,21 @@ export type UpsertGoogleMeetingsResult = {
 
 export async function loadExistingMeetingsByGoogleEventId(
   userId: Types.ObjectId
-): Promise<Map<string, { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[] }>> {
+): Promise<Map<string, { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[]; linkedClientIds: Types.ObjectId[] }>> {
   const existingByGoogleId = new Map<
     string,
-    { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[] }
+    { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[]; linkedClientIds: Types.ObjectId[] }
   >();
   const existing = await Meeting.find({
     userId,
     googleEventId: { $exists: true, $ne: null },
-  }).select('googleEventId linkedProjectIds');
+  }).select('googleEventId linkedProjectIds linkedClientIds');
   for (const m of existing) {
     if (m.googleEventId) {
       existingByGoogleId.set(m.googleEventId, {
         _id: m._id,
         linkedProjectIds: m.linkedProjectIds || [],
+        linkedClientIds: m.linkedClientIds || [],
       });
     }
   }
@@ -54,6 +56,7 @@ export async function upsertMeetingsFromGoogleEvents(
 ): Promise<UpsertGoogleMeetingsResult> {
   const {
     linkedProjectIds = [],
+    linkedClientIds = [],
     attendeeEmployeeIds = [],
     externalAttendeeEmails = [],
     createdInNucleas = false,
@@ -117,8 +120,18 @@ export async function upsertMeetingsFromGoogleEvents(
     const found = existingByGoogleId.get(ev.id);
     if (found) {
       const hasLinkedProjects = found.linkedProjectIds.length > 0;
+      const hasLinkedClients = found.linkedClientIds.length > 0;
       if (!hasLinkedProjects) {
         payload.description = ev.description ?? defaultDescription;
+      }
+      if (!hasLinkedProjects && !hasLinkedClients) {
+        // preserve explicit links from options when meeting has none yet
+        if (linkedProjectIds.length > 0) {
+          payload.linkedProjectIds = linkedProjectIds;
+        }
+        if (linkedClientIds.length > 0) {
+          payload.linkedClientIds = linkedClientIds;
+        }
       }
       await Meeting.updateOne({ _id: found._id }, { $set: payload });
       updated++;
@@ -135,7 +148,8 @@ export async function upsertMeetingsFromGoogleEvents(
           createdInNucleas,
         },
         seriesDefaults,
-        linkedProjectIds
+        linkedProjectIds,
+        linkedClientIds
       );
 
       await Meeting.create(createPayload);
