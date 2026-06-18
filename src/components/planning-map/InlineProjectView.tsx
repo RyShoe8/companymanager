@@ -50,6 +50,7 @@ import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/
 import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
 import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import ContentLinkedAssets from '@/components/planning-map/ContentLinkedAssets';
+import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
 import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/lib/utils/linkedAssets';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import ProjectTechStackBar from '@/components/projects/ProjectTechStackBar';
@@ -2303,7 +2304,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <button onClick={() => setContentTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedContentDisplayCount})</button>
             </div>
             {visibleContentItems.length === 0 ? (
-              <div className="text-center text-gray-500 py-6">No {contentTab} content yet. Add content from the calendar or here.</div>
+              <EmptyStateIllustration
+                title={`No ${contentTab} content`}
+                description={`You don't have any ${contentTab} content items yet. Add content from the calendar or right here.`}
+              />
             ) : (
               <div className="divide-y divide-gray-100 space-y-0">
                 {visibleContentItems.map((item, visibleIndex) => {
@@ -2455,7 +2459,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedTaskDisplayCount})</button>
             </div>
             {visibleTaskEntries.length === 0 ? (
-              <div className="text-center text-gray-500 py-6">No {taskTab} tasks yet.</div>
+              <EmptyStateIllustration
+                title={`No ${taskTab} tasks`}
+                description={`There are no ${taskTab} tasks. Add a task to start tracking work.`}
+              />
             ) : (
               <div className="divide-y divide-gray-100">
                 {visibleTaskEntries.map(({ task, idx }, visibleIndex) => {

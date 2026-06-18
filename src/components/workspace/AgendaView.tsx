@@ -27,6 +27,7 @@ import {
 } from '@/lib/utils/assigneeDisplay';
 import { passesTeamFilter } from '@/lib/workspace/teamFilter';
 import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
+import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
 import { meetingsForAgendaDay } from '@/lib/scheduling/meetingHours';
 import AssigneeTag from '@/components/workspace/AssigneeTag';
 import ItemSeenTag from '@/components/workspace/ItemSeenTag';
@@ -512,12 +513,10 @@ export default function AgendaView({
         return (
             <div className="space-y-4">
                 {periodHeader}
-                <div className="text-center py-16 text-text-secondary">
-                    <p className="text-lg mb-2 text-text-primary">No items scheduled for this period</p>
-                    <p className="text-sm">
-                        Try the Schedule lens, turn on Show Content or Show Meetings, or adjust your timeframe.
-                    </p>
-                </div>
+                <EmptyStateIllustration
+                    title="No items scheduled for this period"
+                    description="Try the Schedule lens, turn on Show Content or Show Meetings, or adjust your timeframe."
+                />
             </div>
         );
     }

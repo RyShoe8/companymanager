@@ -146,6 +146,15 @@ export default function Navigation() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showOrganizationModal, setShowOrganizationModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
   const isOnMarketingPage = isMarketingPage(pathname);
@@ -277,7 +286,7 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className={`border-b border-border ${showMarketingNav ? 'bg-background/80 backdrop-blur-xl sticky top-0 z-40' : 'bg-background-card'}`}>
+      <nav className={`transition-all duration-300 ${showMarketingNav ? `sticky top-0 z-50 ${scrolled ? 'bg-background/80 backdrop-blur-xl border-b border-white/10 shadow-lg' : 'bg-transparent border-transparent'}` : 'bg-background-card border-b border-border'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}

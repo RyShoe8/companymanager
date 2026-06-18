@@ -6,6 +6,7 @@ import AnimateIn from '@/components/home/AnimateIn';
 import HomeFAQ from '@/components/home/HomeFAQ';
 import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
 import HeroWorkspaceScreenshot from '@/components/marketing/screenshots/HeroWorkspaceScreenshot';
+import RoiCalculator from '@/components/marketing/RoiCalculator';
 
 /* ─── Feature category cards for the overview section ─── */
 const CATEGORIES = [
@@ -438,6 +439,21 @@ export default function HomePageClient({
               </AnimateIn>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════ ROI CALCULATOR ═══════════════════════ */}
+      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto">
+          <AnimateIn>
+            <div className="text-center mb-16">
+              <p className="text-sm font-semibold uppercase tracking-wider text-accent mb-3">Your Return on Investment</p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary mb-4">
+                What is your time worth?
+              </h2>
+            </div>
+            <RoiCalculator />
+          </AnimateIn>
         </div>
       </section>
 

@@ -38,6 +38,7 @@ import {
 } from '@/lib/utils/projectLatestActivity';
 import ActionMenu from '@/components/ui/ActionMenu';
 import ItemSeenTag from '@/components/workspace/ItemSeenTag';
+import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
 import {
   buildContentItemKey,
   buildTaskItemKey,
@@ -53,6 +54,35 @@ import {
 } from '@/lib/workspace/activeWorkspaceItems';
 import { passesTeamFilter } from '@/lib/workspace/teamFilter';
 import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
+
+function AnimatedProgressNumber({ target }: { target: number }) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const duration = 600;
+    const increment = target / (duration / 16);
+    
+    if (target === 0) {
+      setValue(0);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= target) {
+        setValue(target);
+        clearInterval(timer);
+      } else {
+        setValue(Math.floor(start));
+      }
+    }, 16);
+
+    return () => clearInterval(timer);
+  }, [target]);
+
+  return <>{value}</>;
+}
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -837,10 +867,12 @@ export default function CalendarView({
       <div className="p-8 min-h-[600px]">
 
         {todayProjects.length === 0 ? (
-          <div className="text-center py-16 text-text-secondary">
-            <p className="text-lg mb-2">No projects or content scheduled for today</p>
-            <p className="text-sm">Create a project or content item to get started!</p>
-          </div>
+          <EmptyStateIllustration
+            title="No projects scheduled for today"
+            description="You don't have any projects or content planned for today. Enjoy your free time or start something new!"
+            actionLabel="Create Project"
+            onAction={() => window.dispatchEvent(new CustomEvent('open-project-modal'))}
+          />
         ) : (
           <div className="space-y-4">
             {todayProjects.length > 0 && (
@@ -955,7 +987,6 @@ export default function CalendarView({
                           if (!hasAny) return null;
                           return (
                             <div className="mt-4">
-                              <p className="text-sm font-semibold text-white mb-2">Tasks &amp; Content</p>
                               {isExpanded ? (
                                 <div className="space-y-2">
                                   {visible.map((item, idx) => {
@@ -1312,7 +1343,7 @@ export default function CalendarView({
                   return (
                     <div
                       key={`${pos.project!._id.toString()}-weekly`}
-                      className={`absolute rounded-lg border-2 border-border flex flex-col overflow-hidden ${status === 'completed' ? 'line-through opacity-60' : ''}`}
+                      className={`absolute rounded-lg border-2 border-border flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                       style={{
                         backgroundColor: displayColor + 'F0',
                         borderColor: displayColor,
@@ -1360,18 +1391,6 @@ export default function CalendarView({
                                   </h4>
                                   {showMetricsSummary ? (
                                     <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
-                                      <span>
-                                        Tasks {summary.openTasks}/{summary.totalTasks}
-                                      </span>
-                                      <span className="mx-1.5 opacity-60" aria-hidden>
-                                        ·
-                                      </span>
-                                      <span>
-                                        Content {summary.openContent}/{summary.totalContent}
-                                      </span>
-                                      <span className="mx-1.5 opacity-60" aria-hidden>
-                                        ·
-                                      </span>
                                       <span>Hours Scheduled: {summary.hours}h</span>
                                     </p>
                                   ) : null}
@@ -1386,7 +1405,7 @@ export default function CalendarView({
                                     <div className="absolute inset-0 bg-white opacity-20" />
                                     <div className="relative h-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
                                   </div>
-                                  <span className={`text-[10px] font-bold text-white shrink-0`}>{progressPercent}%</span>
+                                  <span className={`text-[10px] font-bold text-white shrink-0`}><AnimatedProgressNumber target={progressPercent} />%</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
@@ -1546,7 +1565,10 @@ export default function CalendarView({
                 </h3>
                 <div className="space-y-2">
                   {weekProjects.length === 0 ? (
-                    <p className="text-sm text-text-secondary">No projects this week</p>
+                    <EmptyStateIllustration
+                      title="No projects this week"
+                      description="There are no projects or content scheduled for this week. Enjoy your free time or start something new!"
+                    />
                   ) : (
                     weekProjects.map((project) => {
                       const projectId = project._id.toString();
@@ -1572,7 +1594,7 @@ export default function CalendarView({
                       return (
                         <div
                           key={projectId}
-                          className={`flex flex-col rounded-lg border-2 overflow-hidden ${isExpanded ? 'h-full bg-opacity-100' : 'bg-opacity-90'} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          className={`flex flex-col rounded-lg border-2 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isExpanded ? 'h-full bg-opacity-100' : 'bg-opacity-90'} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
                           style={{
                             backgroundColor: isExpanded ? projectColor : projectColor + 'E6',
                             borderColor: projectColor
@@ -1589,18 +1611,6 @@ export default function CalendarView({
                                 </div>
                                 {!isExpanded && summary.showWeekMetrics ? (
                                   <p className={`text-xs truncate min-w-0 ${headerTextClass} opacity-90`}>
-                                    <span>
-                                      Tasks {summary.openTasks}/{summary.totalTasks}
-                                    </span>
-                                    <span className="mx-1 opacity-60" aria-hidden>
-                                      ·
-                                    </span>
-                                    <span>
-                                      Content {summary.openContent}/{summary.totalContent}
-                                    </span>
-                                    <span className="mx-1 opacity-60" aria-hidden>
-                                      ·
-                                    </span>
                                     <span>{summary.hours}h</span>
                                   </p>
                                 ) : null}
@@ -1610,7 +1620,7 @@ export default function CalendarView({
                                   <div className="absolute inset-0 opacity-20" style={{ backgroundColor: 'currentColor' }} />
                                   <div className="relative h-full transition-all duration-500" style={{ width: `${progressPercent}%`, backgroundColor: 'currentColor' }} />
                                 </div>
-                                <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}>{progressPercent}%</span>
+                                <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}><AnimatedProgressNumber target={progressPercent} />%</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
