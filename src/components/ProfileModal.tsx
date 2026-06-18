@@ -23,6 +23,14 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordChangeError, setPasswordChangeError] = useState('');
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState('');
+  const [passwordChanging, setPasswordChanging] = useState(false);
+
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState('');
@@ -117,6 +125,41 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
       setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmNewPassword) {
+      setPasswordChangeError('New passwords do not match');
+      return;
+    }
+    setPasswordChanging(true);
+    setPasswordChangeError('');
+    setPasswordChangeSuccess('');
+
+    try {
+      const response = await fetch('/api/profile/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update password');
+      }
+
+      setPasswordChangeSuccess('Password updated successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setShowPasswordChange(false);
+    } catch (err: unknown) {
+      setPasswordChangeError(err instanceof Error ? err.message : 'Failed to update password');
+    } finally {
+      setPasswordChanging(false);
     }
   };
 
@@ -258,8 +301,70 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
             {loading ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
+      </form>
 
-        <div className="pt-4 border-t border-border space-y-2">
+      {hasPassword && (
+        <div className="pt-4 border-t border-border space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Password</h3>
+            {!showPasswordChange && (
+              <Button type="button" variant="secondary" onClick={() => setShowPasswordChange(true)}>
+                Change Password
+              </Button>
+            )}
+          </div>
+
+          {passwordChangeSuccess && (
+            <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg text-sm border border-green-200">
+              {passwordChangeSuccess}
+            </div>
+          )}
+
+          {showPasswordChange && (
+            <form onSubmit={handlePasswordChange} className="space-y-4 bg-background-elevated p-4 rounded-lg border border-border">
+              {passwordChangeError && (
+                <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg text-sm">
+                  {passwordChangeError}
+                </div>
+              )}
+              
+              <Input
+                label="Current Password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+              <Input
+                label="New Password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+              <Input
+                label="Confirm New Password"
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="secondary" onClick={() => setShowPasswordChange(false)} disabled={passwordChanging}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={passwordChanging}>
+                  {passwordChanging ? 'Updating...' : 'Update Password'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-border space-y-2">
           <h3 className="text-sm font-semibold text-error">Danger zone</h3>
           <p className="text-sm text-text-secondary">
             Permanently delete your account. If you are the only member of your organization, all projects and
@@ -269,8 +374,6 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
             Delete account
           </Button>
         </div>
-      </form>
-
       <ConfirmModal
         isOpen={showDeleteWarning}
         title="Delete your account?"
