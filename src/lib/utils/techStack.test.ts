@@ -55,4 +55,10 @@ describe('techStack utils', () => {
     ];
     expect(sanitizeTechStack(stack)).toEqual(stack);
   });
+
+  it('does not add credentials for catalog-only entries', () => {
+    expect(sanitizeTechStack([{ category: 'hosting', technologyId: 'vercel' }])).toEqual([
+      { category: 'hosting', technologyId: 'vercel' },
+    ]);
+  });
 });

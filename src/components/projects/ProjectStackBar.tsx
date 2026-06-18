@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import ModalAction from '@/components/ui/ModalAction';
-import PlatformCredentialModal, { PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
+import PlatformCredentialModal, { applyPlatformCredentials, PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 export type StackItem<C extends string> = { category: C; id: string; login?: string; password?: string };
@@ -95,7 +95,7 @@ export default function ProjectStackBar<C extends string>({
 
   const handleSaveCredentials = async (index: number, credentials: PlatformCredential) => {
     const updatedItems = [...items];
-    updatedItems[index] = { ...updatedItems[index], ...credentials };
+    updatedItems[index] = applyPlatformCredentials(updatedItems[index], credentials);
     setSaving(true);
     try {
       await onSave(updatedItems);
@@ -250,6 +250,7 @@ export default function ProjectStackBar<C extends string>({
       )}
 
       <PlatformCredentialModal
+        key={selectedIndex !== null ? `${selectedItem?.id}-${selectedIndex}` : 'closed'}
         isOpen={selectedIndex !== null && !!selectedItem && !!selectedEntry}
         onClose={() => setSelectedIndex(null)}
         platform={{

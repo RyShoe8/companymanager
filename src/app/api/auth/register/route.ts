@@ -7,6 +7,7 @@ import Invitation from '@/lib/models/Invitation';
 import { createSession } from '@/lib/auth/session';
 import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
 import { isValidEmail } from '@/lib/utils/security';
+import { validatePasswordStrength } from '@/lib/auth/passwordPolicy';
 import {
   syncRegisteredUserToBrevoInBackground,
   syncUserToBrevoInBackground,
@@ -30,11 +31,9 @@ export async function POST(request: NextRequest) {
     if (!isValidEmail(String(email))) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
-    if (String(password).length < 8 || String(password).length > 128) {
-      return NextResponse.json(
-        { error: 'Password must be between 8 and 128 characters' },
-        { status: 400 }
-      );
+    const passwordError = validatePasswordStrength(String(password));
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
     await connectDB();

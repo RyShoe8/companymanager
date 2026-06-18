@@ -154,6 +154,10 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-white/10">
+          <p className="text-xs text-slate-500 leading-relaxed max-w-3xl mb-6">
+            Some links on this site are affiliate links. If you sign up or purchase through them, we may earn a
+            commission at no additional cost to you. This helps support Nucleas.
+          </p>
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-slate-500">
               © {new Date().getFullYear()} Nucleas. All rights reserved. Built by{' '}

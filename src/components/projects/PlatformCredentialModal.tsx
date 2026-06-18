@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import ModalAction from '@/components/ui/ModalAction';
 import Button from '@/components/ui/Button';
@@ -9,6 +9,21 @@ import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContex
 export interface PlatformCredential {
   login?: string;
   password?: string;
+}
+
+/** Merge saved credentials onto a stack/social item, clearing keys when empty. */
+export function applyPlatformCredentials<T extends PlatformCredential>(
+  item: T,
+  credentials: PlatformCredential
+): T {
+  const login = credentials.login?.trim();
+  const password = credentials.password;
+  const next = { ...item };
+  if (login) next.login = login;
+  else delete next.login;
+  if (password) next.password = password;
+  else delete next.password;
+  return next;
 }
 
 export interface PlatformInfo {
@@ -44,6 +59,14 @@ export default function PlatformCredentialModal({
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLogin(credentials.login || '');
+    setPassword(credentials.password || '');
+    setShowPassword(false);
+    setCopyFeedback(false);
+  }, [isOpen, platform.name, credentials.login, credentials.password]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -137,6 +160,7 @@ export default function PlatformCredentialModal({
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
                 placeholder="Enter login or username"
+                autoComplete="off"
                 disabled={saving}
                 className={`w-full px-3 py-2 border rounded-lg text-sm ${lightSurface(
                   'border-gray-200 bg-white text-gray-900',
@@ -160,6 +184,7 @@ export default function PlatformCredentialModal({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
+                  autoComplete="new-password"
                   disabled={saving}
                   className={`w-full px-3 py-2 pr-10 border rounded-lg text-sm ${lightSurface(
                     'border-gray-200 bg-white text-gray-900',

@@ -7,6 +7,11 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
 import { persistSelectedPlanId } from '@/lib/billing/selectedPlanStorage';
+import {
+  getPasswordRuleStatus,
+  PASSWORD_REQUIREMENTS_MESSAGE,
+  validatePasswordStrength,
+} from '@/lib/auth/passwordPolicy';
 
 interface InvitationData {
   email: string;
@@ -76,8 +81,9 @@ function RegisterForm() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -116,6 +122,8 @@ function RegisterForm() {
       setLoading(false);
     }
   };
+
+  const passwordRules = getPasswordRuleStatus(password);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
@@ -159,14 +167,30 @@ function RegisterForm() {
               autoComplete="email"
               disabled={!!invitation} // Disable email if from invitation
             />
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-            />
+            <div>
+              <Input
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+              />
+              <p className="mt-1.5 text-xs text-text-muted">{PASSWORD_REQUIREMENTS_MESSAGE}</p>
+              {password.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-text-muted">
+                  <li className={passwordRules.minLength ? 'text-success' : undefined}>
+                    {passwordRules.minLength ? '✓' : '○'} 8–128 characters
+                  </li>
+                  <li className={passwordRules.hasDigit ? 'text-success' : undefined}>
+                    {passwordRules.hasDigit ? '✓' : '○'} Includes a number
+                  </li>
+                  <li className={passwordRules.hasSpecial ? 'text-success' : undefined}>
+                    {passwordRules.hasSpecial ? '✓' : '○'} Includes a special character
+                  </li>
+                </ul>
+              )}
+            </div>
             <Input
               label="Confirm Password"
               type="password"

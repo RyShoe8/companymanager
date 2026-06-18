@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import ModalAction from '@/components/ui/ModalAction';
 import SocialIcon from '@/components/projects/SocialIcon';
-import PlatformCredentialModal, { PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
+import PlatformCredentialModal, { applyPlatformCredentials, PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import {
   detectSocialNetwork,
@@ -80,7 +80,7 @@ export default function ProjectSocialsBar({
 
   const handleSaveCredentials = async (index: number, credentials: PlatformCredential) => {
     const updatedLinks = [...socialLinks];
-    updatedLinks[index] = { ...updatedLinks[index], ...credentials };
+    updatedLinks[index] = applyPlatformCredentials(updatedLinks[index], credentials);
     setSaving(true);
     try {
       await onUpdate({ socialLinks: updatedLinks });
@@ -189,6 +189,7 @@ export default function ProjectSocialsBar({
     )}
 
     <PlatformCredentialModal
+      key={selectedIndex !== null ? `${selectedLink?.network}-${selectedIndex}` : 'closed'}
       isOpen={selectedIndex !== null && !!selectedLink}
       onClose={() => setSelectedIndex(null)}
       platform={{
