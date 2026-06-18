@@ -1574,6 +1574,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         ...prev,
         tasks: [...prevTasks, ...tasksToAppend],
       } as IProject));
+      setViewTab('tasks');
+      setTaskTab('active');
+      setPendingScrollToTaskIndex(newIdx);
       try {
         const res = await fetch(`/api/projects/${localProject._id.toString()}/tasks`, {
           method: 'POST',
@@ -1588,9 +1591,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         const nextProject = { ...localProject, tasks: data.tasks ?? localProject.tasks } as IProject;
         setLocalProject(nextProject);
         onProjectPatched?.(nextProject);
-        setViewTab('tasks');
-        setTaskTab('active');
-        setPendingScrollToTaskIndex(data.addedFromIndex ?? newIdx);
         return;
       } catch (error) {
         console.error('Error adding task:', error);
@@ -1606,11 +1606,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, nextTasks);
     const addedIdx = tasksToSave.length - 1;
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
+    setViewTab('tasks');
+    setTaskTab('active');
+    setPendingScrollToTaskIndex(addedIdx);
     try {
       await persistProjectTasks(tasksToSave);
-      setViewTab('tasks');
-      setTaskTab('active');
-      setPendingScrollToTaskIndex(addedIdx);
     } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);

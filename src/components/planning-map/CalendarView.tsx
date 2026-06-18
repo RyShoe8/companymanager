@@ -1341,40 +1341,53 @@ export default function CalendarView({
                           ? filterUnseenItems(project, summary.displayList)
                           : [];
 
+                        const totalTasks = project.tasks?.length || 0;
+                        const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
+                        const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
                         return (
                           <>
                             <div
                               className="flex items-center justify-between gap-2 min-w-0 cursor-pointer px-6 py-4 shrink-0"
                               onClick={() => onProjectClick(pos.project!)}
                             >
-                              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                                <h4
-                                  className={`text-xl font-bold truncate min-w-0 ${headerTextClass} ${status === 'completed' ? 'line-through opacity-60' : ''}`}
-                                >
-                                  {name}
-                                </h4>
-                                {showMetricsSummary ? (
-                                  <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
-                                    <span>
-                                      Tasks {summary.openTasks}/{summary.totalTasks}
-                                    </span>
-                                    <span className="mx-1.5 opacity-60" aria-hidden>
-                                      ·
-                                    </span>
-                                    <span>
-                                      Content {summary.openContent}/{summary.totalContent}
-                                    </span>
-                                    <span className="mx-1.5 opacity-60" aria-hidden>
-                                      ·
-                                    </span>
-                                    <span>Hours Scheduled: {summary.hours}h</span>
-                                  </p>
-                                ) : null}
-                                {showEmptyWeekSummary ? (
-                                  <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
-                                    <span>No tasks this week</span>
-                                  </p>
-                                ) : null}
+                              <div className="flex flex-col gap-1 min-w-0 flex-1 overflow-hidden">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <h4
+                                    className={`text-xl font-bold truncate min-w-0 ${headerTextClass} ${status === 'completed' ? 'line-through opacity-60' : ''}`}
+                                  >
+                                    {name}
+                                  </h4>
+                                  {showMetricsSummary ? (
+                                    <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
+                                      <span>
+                                        Tasks {summary.openTasks}/{summary.totalTasks}
+                                      </span>
+                                      <span className="mx-1.5 opacity-60" aria-hidden>
+                                        ·
+                                      </span>
+                                      <span>
+                                        Content {summary.openContent}/{summary.totalContent}
+                                      </span>
+                                      <span className="mx-1.5 opacity-60" aria-hidden>
+                                        ·
+                                      </span>
+                                      <span>Hours Scheduled: {summary.hours}h</span>
+                                    </p>
+                                  ) : null}
+                                  {showEmptyWeekSummary ? (
+                                    <p className={`text-sm whitespace-nowrap truncate min-w-0 ${headerTextClass} opacity-90`}>
+                                      <span>No tasks this week</span>
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="flex items-center gap-2 pr-4 mt-0.5">
+                                  <div className="relative h-1 flex-1 rounded-full overflow-hidden">
+                                    <div className="absolute inset-0 bg-white opacity-20" />
+                                    <div className="relative h-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                                  </div>
+                                  <span className={`text-[10px] font-bold text-white shrink-0`}>{progressPercent}%</span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 <span
@@ -1424,25 +1437,11 @@ export default function CalendarView({
                             }).filter((task) => taskOverlapsWeek(task, days[0], days[6]))
                           : [];
 
-                        const totalTasks = project.tasks?.length || 0;
-                        const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
-                        const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
                         return (
                           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                             {project.description && (
                               <p className="text-white opacity-90 mb-3 mt-3 px-6 shrink-0">{project.description}</p>
                             )}
-                            <div className="px-6 pb-2 shrink-0">
-                              <div className="flex justify-between items-end mb-1">
-                                <span className={`text-[10px] font-semibold uppercase tracking-wider text-white opacity-80`}>Progress</span>
-                                <span className={`text-xs font-bold text-white`}>{progressPercent}%</span>
-                              </div>
-                              <div className="relative h-1 w-full rounded-full overflow-hidden">
-                                <div className="absolute inset-0 bg-white opacity-20" />
-                                <div className="relative h-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
-                              </div>
-                            </div>
 
                             {weekSummary.displayList.length > 0 ? (
                               <div className="mt-4 px-6 pb-6 flex flex-col flex-1 min-h-0">
@@ -1566,41 +1565,53 @@ export default function CalendarView({
                             referenceDate: currentDate,
                           }).filter((task) => taskOverlapsWeek(task, week[0], week[6]))
                         : [];
+                      const totalTasks = project.tasks?.length || 0;
+                      const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
+                      const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
                       return (
                         <div
                           key={projectId}
-                          className={`rounded-lg border-2 border-border overflow-hidden ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          className={`flex flex-col rounded-lg border-2 overflow-hidden ${isExpanded ? 'h-full bg-opacity-100' : 'bg-opacity-90'} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
                           style={{
-                            backgroundColor: projectColor + 'F0',
-                            borderColor: projectColor,
+                            backgroundColor: isExpanded ? projectColor : projectColor + 'E6',
+                            borderColor: projectColor
                           }}
                         >
                           <div
                             className="flex items-center justify-between gap-2 min-w-0 cursor-pointer p-2"
                             onClick={() => onProjectClick(project)}
                           >
-                            <div className="min-w-0 flex-1 overflow-hidden">
-                              <div className={`font-medium truncate ${headerTextClass}`}>
-                                {project.name}
+                            <div className="flex flex-col gap-0.5 min-w-0 flex-1 overflow-hidden">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className={`font-medium truncate ${headerTextClass}`}>
+                                  {project.name}
+                                </div>
+                                {!isExpanded && summary.showWeekMetrics ? (
+                                  <p className={`text-xs truncate min-w-0 ${headerTextClass} opacity-90`}>
+                                    <span>
+                                      Tasks {summary.openTasks}/{summary.totalTasks}
+                                    </span>
+                                    <span className="mx-1 opacity-60" aria-hidden>
+                                      ·
+                                    </span>
+                                    <span>
+                                      Content {summary.openContent}/{summary.totalContent}
+                                    </span>
+                                    <span className="mx-1 opacity-60" aria-hidden>
+                                      ·
+                                    </span>
+                                    <span>{summary.hours}h</span>
+                                  </p>
+                                ) : null}
                               </div>
-                              {!isExpanded && summary.showWeekMetrics ? (
-                                <p className={`text-xs truncate min-w-0 ${headerTextClass} opacity-90`}>
-                                  <span>
-                                    Tasks {summary.openTasks}/{summary.totalTasks}
-                                  </span>
-                                  <span className="mx-1 opacity-60" aria-hidden>
-                                    ·
-                                  </span>
-                                  <span>
-                                    Content {summary.openContent}/{summary.totalContent}
-                                  </span>
-                                  <span className="mx-1 opacity-60" aria-hidden>
-                                    ·
-                                  </span>
-                                  <span>{summary.hours}h</span>
-                                </p>
-                              ) : null}
+                              <div className="flex items-center gap-1.5 pr-2 mt-0.5">
+                                <div className="relative h-1 flex-1 rounded-full overflow-hidden">
+                                  <div className="absolute inset-0 opacity-20" style={{ backgroundColor: 'currentColor' }} />
+                                  <div className="relative h-full transition-all duration-500" style={{ width: `${progressPercent}%`, backgroundColor: 'currentColor' }} />
+                                </div>
+                                <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}>{progressPercent}%</span>
+                              </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <span
@@ -1631,9 +1642,6 @@ export default function CalendarView({
                           )}
 
                           {isExpanded ? (() => {
-                            const totalTasks = project.tasks?.length || 0;
-                            const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
-                            const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                             return (
                             <div className="px-2 pb-2">
                               {project.description ? (
@@ -1643,14 +1651,6 @@ export default function CalendarView({
                               ) : null}
 
                               <div className={`mb-3 shrink-0 ${headerTextClass}`}>
-                                <div className="flex justify-between items-end mb-1">
-                                  <span className={`text-[10px] font-semibold uppercase tracking-wider opacity-80`}>Progress</span>
-                                  <span className={`text-xs font-bold`}>{progressPercent}%</span>
-                                </div>
-                                <div className="relative h-1 w-full rounded-full overflow-hidden">
-                                  <div className="absolute inset-0 bg-current opacity-20" />
-                                  <div className="relative h-full bg-current transition-all duration-500" style={{ width: `${progressPercent}%` }} />
-                                </div>
                               </div>
 
                               {summary.displayList.length > 0 ? (
