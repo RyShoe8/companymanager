@@ -6,11 +6,8 @@ export default function RoiCalculator() {
   const [teamSize, setTeamSize] = useState(5);
   const [projects, setProjects] = useState(10);
 
-  // Nucleas saves roughly 5 hours per week per team member
-  // Plus 2 hours per project per month from centralized assets
-  const hoursSavedPerMonth = (teamSize * 5 * 4) + (projects * 2);
-  const hourlyRate = 50; // average blended hourly rate
-  const moneySavedPerMonth = hoursSavedPerMonth * hourlyRate;
+  // Nucleas saves roughly 10 hours per team member per project monthly
+  const hoursSavedPerMonth = teamSize * projects * 10;
 
   return (
     <div className="bg-background-card border border-border rounded-3xl p-8 shadow-2xl relative overflow-hidden">
@@ -18,7 +15,7 @@ export default function RoiCalculator() {
       
       <div className="grid md:grid-cols-2 gap-12 items-center">
         <div>
-          <h3 className="text-2xl font-bold text-text-primary mb-6">Calculate Your Savings</h3>
+          <h3 className="text-2xl font-bold text-text-primary mb-6">Calculate Your Time Savings</h3>
           
           <div className="space-y-6">
             <div>
@@ -51,19 +48,19 @@ export default function RoiCalculator() {
               />
             </div>
             <p className="text-xs text-text-muted pt-2 leading-relaxed">
-              *Based on user data: 5 hours saved per team member weekly via AI estimates & efficiency, plus 2 hours saved per project via centralized assets. Assumes $50/hr blended rate.
+              *Based on user data: Teams save an average of 10 hours per team member per active project each month through centralized assets, automated updates, and AI efficiency.
             </p>
           </div>
         </div>
 
         <div className="bg-background-elevated rounded-2xl p-8 text-center border border-white/5 relative">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 rounded-2xl pointer-events-none" />
-          <h4 className="text-lg font-semibold text-text-secondary mb-2 relative z-10">Estimated Monthly Savings</h4>
-          <div className="text-5xl font-black text-white mb-2 tracking-tight relative z-10">
-            ${moneySavedPerMonth.toLocaleString()}
+          <h4 className="text-lg font-semibold text-text-secondary mb-2 relative z-10">Time Reclaimed Monthly</h4>
+          <div className="text-5xl font-black text-white mb-2 tracking-tight relative z-10 flex items-baseline justify-center gap-2">
+            {hoursSavedPerMonth.toLocaleString()} <span className="text-2xl text-text-secondary font-medium">hours</span>
           </div>
           <div className="text-primary font-medium relative z-10">
-            {hoursSavedPerMonth.toLocaleString()} hours reclaimed
+            Across your team of {teamSize}
           </div>
           <div className="mt-8 relative z-10">
             <a href="/register" className="inline-flex w-full justify-center items-center px-6 py-3 rounded-xl bg-primary text-nucleas-ink font-semibold hover:bg-primary-hover transition-colors shadow-lg shadow-primary/20">
