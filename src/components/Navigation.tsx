@@ -87,6 +87,7 @@ function FeaturesDropdown({ onNavigate }: { onNavigate?: () => void }) {
 
   const categories = [
     { href: '/features/projects', label: 'Projects', desc: 'Manage projects end to end' },
+    { href: '/features/clients', label: 'Clients', desc: 'Client dashboards and HQ hubs' },
     { href: '/features/tasks', label: 'Tasks', desc: 'Break down and track work' },
     { href: '/features/content', label: 'Content', desc: 'Plan and schedule content' },
     { href: '/features/meetings', label: 'Meetings', desc: 'Run prepared meetings' },

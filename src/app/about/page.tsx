@@ -65,7 +65,7 @@ export default function AboutPage() {
                   We&apos;re not another project manager — we&apos;re the management layer that brings it all together.
                 </p>
                 <p className="text-text-secondary leading-relaxed mb-4">
-                  Nucleas connects your projects, team, content, meetings, and tools into one operating system.
+                  Nucleas connects your projects, clients, team, content, meetings, and tools into one operating system.
                   Instead of juggling ten different apps and losing context between them, you run everything from a single platform
                   that understands how all the pieces of your business fit together.
                 </p>

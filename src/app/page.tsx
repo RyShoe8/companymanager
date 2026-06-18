@@ -75,6 +75,7 @@ export default async function HomePage() {
           description: 'The smart operating system for building and running a business. Manage projects, team, content, meetings, and tools from one place.',
           featureList: [
             'Project Management with AI Time Estimation',
+            'Client Management and Dashboards',
             'Task Management with Recurrence',
             'Content Planning and Scheduling',
             'Meeting Management with Project Insights',

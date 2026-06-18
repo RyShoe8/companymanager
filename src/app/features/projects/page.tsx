@@ -80,6 +80,7 @@ export default function ProjectsFeaturePage() {
         </section>
 
         <section className="px-4 sm:px-6 lg:px-8 py-16"><div className="max-w-3xl mx-auto flex flex-wrap justify-center gap-4">
+          <Link href="/features/clients" className="px-6 py-3 rounded-xl border border-border text-text-secondary hover:text-primary hover:border-primary/30 transition-all text-sm font-medium">Explore Clients →</Link>
           <Link href="/features/tasks" className="px-6 py-3 rounded-xl border border-border text-text-secondary hover:text-primary hover:border-primary/30 transition-all text-sm font-medium">Explore Tasks →</Link>
           <Link href="/features/team" className="px-6 py-3 rounded-xl border border-border text-text-secondary hover:text-primary hover:border-primary/30 transition-all text-sm font-medium">Explore Team →</Link>
         </div></section>

@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import type { IAsset } from '@/lib/models/Asset';
+import type { IClient } from '@/lib/models/Client';
 import type { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import type { IEmployee } from '@/lib/models/Employee';
 import type { IMeeting } from '@/lib/models/Meeting';
@@ -23,6 +24,14 @@ export const MARKETING_PROJECT_IDS = {
   relaunch: new Types.ObjectId('674a00000000000000000101'),
   mobile: new Types.ObjectId('674a00000000000000000102'),
   contentPush: new Types.ObjectId('674a00000000000000000103'),
+  northwindHub: new Types.ObjectId('674a00000000000000000104'),
+  northwindPortal: new Types.ObjectId('674a00000000000000000105'),
+  summitHub: new Types.ObjectId('674a00000000000000000106'),
+} as const;
+
+export const MARKETING_CLIENT_IDS = {
+  northwind: new Types.ObjectId('674a00000000000000000601'),
+  summit: new Types.ObjectId('674a00000000000000000602'),
 } as const;
 
 export const MARKETING_EMPLOYEE_IDS = {
@@ -146,11 +155,13 @@ export const MARKETING_PROJECTS = [
     projectType: 'client',
     category: 'app',
     status: 'in-review',
+    clientId: MARKETING_CLIENT_IDS.northwind,
     techStack: [
       { category: 'framework', technologyId: 'react' },
       { category: 'payments', technologyId: 'stripe' },
     ],
     marketingStack: [{ category: 'social', toolId: 'buffer' }],
+    socialLinks: [{ network: 'linkedin', url: 'https://linkedin.com/company/northwind-digital' }],
     assignedToEmployeeIds: [MARKETING_EMPLOYEE_IDS.sam],
     tasks: [
       task('TestFlight build', { assigneeId: MARKETING_EMPLOYEE_IDS.sam, startDay: 9, endDay: 12, estimatedHours: 10 }),
@@ -177,6 +188,132 @@ export const MARKETING_PROJECTS = [
     updatedAt: now,
   },
 ] as unknown as IProject[];
+
+export const MARKETING_CLIENT_PROJECTS = [
+  {
+    _id: MARKETING_PROJECT_IDS.northwindHub,
+    name: 'Northwind Digital HQ',
+    description: 'Client headquarters for general work.',
+    color: '#0ea5e9',
+    projectType: 'client-admin',
+    category: 'generic',
+    status: 'in-development',
+    clientId: MARKETING_CLIENT_IDS.northwind,
+    assignedToEmployeeIds: [MARKETING_EMPLOYEE_IDS.alex],
+    tasks: [
+      task('Monthly status email', { assigneeId: MARKETING_EMPLOYEE_IDS.priya, startDay: 8, endDay: 9, estimatedHours: 2 }),
+      task('Review analytics dashboard', { assigneeId: MARKETING_EMPLOYEE_IDS.alex, startDay: 10, endDay: 11, status: 'active', estimatedHours: 3 }),
+    ],
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_PROJECT_IDS.northwindPortal,
+    name: 'Customer Portal',
+    description: 'Self-service portal for Northwind clients.',
+    color: '#0284c7',
+    projectType: 'client',
+    category: 'website',
+    status: 'in-development',
+    clientId: MARKETING_CLIENT_IDS.northwind,
+    devUrl: 'https://portal.northwind.dev',
+    techStack: [
+      { category: 'framework', technologyId: 'nextjs' },
+      { category: 'hosting', technologyId: 'vercel' },
+    ],
+    marketingStack: [{ category: 'analytics', toolId: 'googleanalytics' }],
+    assignedToEmployeeIds: [MARKETING_EMPLOYEE_IDS.jordan, MARKETING_EMPLOYEE_IDS.sam],
+    tasks: [
+      task('Auth flow wireframes', { assigneeId: MARKETING_EMPLOYEE_IDS.jordan, startDay: 8, endDay: 10, estimatedHours: 6 }),
+    ],
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_PROJECT_IDS.mobile,
+    name: 'Mobile App Beta',
+    description: 'Beta release for iOS and Android.',
+    color: '#7a22e0',
+    projectType: 'client',
+    category: 'app',
+    status: 'in-review',
+    clientId: MARKETING_CLIENT_IDS.northwind,
+    techStack: [
+      { category: 'framework', technologyId: 'react' },
+      { category: 'payments', technologyId: 'stripe' },
+    ],
+    marketingStack: [{ category: 'social', toolId: 'buffer' }],
+    socialLinks: [{ network: 'linkedin', url: 'https://linkedin.com/company/northwind-digital' }],
+    assignedToEmployeeIds: [MARKETING_EMPLOYEE_IDS.sam],
+    tasks: [
+      task('TestFlight build', { assigneeId: MARKETING_EMPLOYEE_IDS.sam, startDay: 9, endDay: 12, estimatedHours: 10 }),
+    ],
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_PROJECT_IDS.summitHub,
+    name: 'Summit Labs HQ',
+    description: 'Client headquarters for Summit Labs.',
+    color: '#10b981',
+    projectType: 'client-admin',
+    category: 'generic',
+    status: 'planning',
+    clientId: MARKETING_CLIENT_IDS.summit,
+    assignedToEmployeeIds: [MARKETING_EMPLOYEE_IDS.priya],
+    tasks: [
+      task('Discovery kickoff', { assigneeId: MARKETING_EMPLOYEE_IDS.priya, startDay: 12, endDay: 14, estimatedHours: 4 }),
+    ],
+    userId: USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  },
+] as unknown as IProject[];
+
+export const MARKETING_CLIENTS = [
+  {
+    _id: MARKETING_CLIENT_IDS.northwind,
+    organizationId: USER_ID,
+    userIds: [USER_ID],
+    name: 'Northwind Digital',
+    contactName: 'Morgan Ellis',
+    contactEmail: 'morgan@northwind.digital',
+    domain: 'northwind.digital',
+    color: '#0ea5e9',
+    status: 'active',
+    socialLinks: [{ network: 'linkedin', url: 'https://linkedin.com/company/northwind-digital' }],
+    techStack: [{ category: 'hosting', technologyId: 'vercel' }],
+    marketingStack: [{ category: 'analytics', toolId: 'googleanalytics' }],
+    actionButtons: [{ label: 'Client Drive', url: 'https://drive.google.com', kind: 'link' }],
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: MARKETING_CLIENT_IDS.summit,
+    organizationId: USER_ID,
+    userIds: [USER_ID],
+    name: 'Summit Labs',
+    contactName: 'Jamie Park',
+    contactEmail: 'jamie@summitlabs.io',
+    domain: 'summitlabs.io',
+    color: '#10b981',
+    status: 'lead',
+    createdAt: now,
+    updatedAt: now,
+  },
+] as unknown as IClient[];
+
+export function marketingClientProjects(clientId: Types.ObjectId | string): IProject[] {
+  const id = clientId.toString();
+  return MARKETING_CLIENT_PROJECTS.filter((p) => p.clientId?.toString() === id) as IProject[];
+}
+
+export function marketingPrimaryClient(): IClient {
+  return MARKETING_CLIENTS[0];
+}
 
 export const MARKETING_CONTENT_ITEMS = [
   {
@@ -225,6 +362,19 @@ export const MARKETING_CONTENT_ITEMS = [
     channel: 'Email',
     status: 'published',
     publishDate: utcDay(2026, 6, 5),
+    assignedToEmployeeId: MARKETING_EMPLOYEE_IDS.priya,
+    userId: USER_ID,
+    distributionMethods: ['Email'],
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    _id: new Types.ObjectId('674a00000000000000000305'),
+    projectId: MARKETING_PROJECT_IDS.northwindHub,
+    title: 'Q2 client newsletter',
+    channel: 'Email',
+    status: 'planned',
+    publishDate: utcDay(2026, 6, 14),
     assignedToEmployeeId: MARKETING_EMPLOYEE_IDS.priya,
     userId: USER_ID,
     distributionMethods: ['Email'],

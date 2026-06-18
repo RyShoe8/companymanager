@@ -7,7 +7,7 @@ const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
 export const metadata = {
   title: 'Features — Everything You Need to Run Your Business',
-  description: 'Explore the full Nucleas platform: Projects, Tasks, Content, Meetings, Tools, Team management, and Efficiency features. The smart operating system for building and running a business.',
+  description: 'Explore the full Nucleas platform: Projects, Clients, Tasks, Content, Meetings, Tools, Team management, and Efficiency features. The smart operating system for building and running a business.',
   keywords: ['business features', 'project management features', 'team management', 'content planning', 'meeting scheduling', 'business tools'],
   alternates: { canonical: '/features' },
   openGraph: {
@@ -25,6 +25,7 @@ export const metadata = {
 
 const CATEGORIES = [
   { title: 'Projects', desc: 'Manage projects end-to-end with tasks, timelines, team assignments, and AI-powered time estimation.', href: '/features/projects', icon: '📁' },
+  { title: 'Clients', desc: 'Dedicated client dashboards with HQ hubs, project rollups, platforms and links, and impact reports.', href: '/features/clients', icon: '🏢' },
   { title: 'Tasks', desc: 'Break down projects into clear tasks with status tracking, recurrence, linked assets, and time estimation.', href: '/features/tasks', icon: '✅' },
   { title: 'Content', desc: 'Plan, schedule, and distribute content across channels with targeting, assets, and team coordination.', href: '/features/content', icon: '📝' },
   { title: 'Meetings', desc: 'Walk into calls with project context, agendas, insights, and one-click join.', href: '/features/meetings', icon: '📹' },
@@ -53,7 +54,7 @@ export default function FeaturesPage() {
                 <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">run your business</span>
               </h1>
               <p className="text-lg text-text-secondary max-w-2xl mx-auto mb-10">
-                Eight integrated modules that work together as one operating system. Not another project manager — the business management layer.
+                Nine integrated modules that work together as one operating system. Not another project manager — the business management layer.
               </p>
             </AnimateIn>
           </div>

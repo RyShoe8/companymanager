@@ -99,6 +99,59 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
     ],
   },
   {
+    id: 'clients',
+    title: 'Clients',
+    tagline: 'Every client, one dashboard',
+    description:
+      'Manage client relationships with dedicated dashboards, HQ hubs, project rollups, platforms and links, and printable impact reports.',
+    href: '/features/clients',
+    icon: 'building',
+    features: [
+      {
+        title: 'Client Directory',
+        description:
+          'Browse clients in a visual grid with status, domain, and active project counts.',
+        icon: 'grid',
+      },
+      {
+        title: 'Client Dashboard',
+        description:
+          'Dedicated detail view per client with contacts, status, and relationship context.',
+        icon: 'layout',
+      },
+      {
+        title: 'Client Headquarters',
+        description:
+          'HQ hub project for general tasks, content, and meetings separate from deliverables.',
+        icon: 'home',
+      },
+      {
+        title: 'Platforms & Links',
+        description:
+          'Aggregate social, tech, and marketing stacks across all client projects.',
+        icon: 'link',
+      },
+      {
+        title: 'Active Project Rollups',
+        description:
+          'Group deliverable projects under each client with status and quick navigation.',
+        icon: 'folder',
+      },
+      {
+        title: 'Impact Reports',
+        description:
+          'Generate printable summaries of tasks, content, meetings, and hours by timeframe.',
+        icon: 'file-text',
+      },
+      {
+        title: 'Client Status Tracking',
+        description:
+          'Track active, lead, and inactive clients to match your sales and delivery pipeline.',
+        icon: 'activity',
+      },
+    ],
+  },
+  {
     id: 'tasks',
     title: 'Tasks',
     tagline: 'Break it down, get it done',

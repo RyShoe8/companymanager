@@ -6,6 +6,7 @@ import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
 
 const featureLinks = [
   { href: '/features/projects', label: 'Projects' },
+  { href: '/features/clients', label: 'Clients' },
   { href: '/features/tasks', label: 'Tasks' },
   { href: '/features/content', label: 'Content' },
   { href: '/features/meetings', label: 'Meetings' },

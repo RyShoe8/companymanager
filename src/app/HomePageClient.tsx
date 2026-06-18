@@ -10,18 +10,28 @@ import RoiCalculator from '@/components/marketing/RoiCalculator';
 
 /* ─── Feature category cards for the overview section ─── */
 const CATEGORIES = [
-  {
-    title: 'Projects',
-    desc: 'Manage projects end-to-end with tasks, timelines, team assignments, and AI-powered time estimation.',
-    href: '/features/projects',
-    icon: (
-      <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Tasks',
+    {
+      title: 'Projects',
+      desc: 'Manage projects end-to-end with tasks, timelines, team assignments, and AI-powered time estimation.',
+      href: '/features/projects',
+      icon: (
+        <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Clients',
+      desc: 'Dedicated client dashboards with HQ hubs, project rollups, platforms and links, and impact reports.',
+      href: '/features/clients',
+      icon: (
+        <svg className="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+    },
+    {
+      title: 'Tasks',
     desc: 'Break down projects into clear tasks with status tracking, recurrence, linked assets, and assignments.',
     href: '/features/tasks',
     icon: (
@@ -250,7 +260,7 @@ export default function HomePageClient({
               </span>
             </h2>
             <p className="text-lg text-text-secondary max-w-3xl mx-auto mb-12">
-              Projects, tasks, content, meetings, team capacity, and tools — all wired together in one operating system.
+              Projects, clients, tasks, content, meetings, team capacity, and tools — all wired together in one operating system.
               Not replacing your tools, but connecting them.
             </p>
           </AnimateIn>
@@ -262,13 +272,13 @@ export default function HomePageClient({
                 <div className="w-48 h-48 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-2xl" />
               </div>
               <div className="relative grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {['Projects', 'Tasks', 'Content', 'Meetings', 'Team', 'Tools'].map((label, i) => (
+                {['Projects', 'Clients', 'Tasks', 'Content', 'Meetings', 'Team', 'Tools'].map((label, i) => (
                   <div
                     key={label}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background-card border border-border hover:border-primary/40 transition-all duration-300 hover:translate-y-[-2px]"
                   >
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-lg">
-                      {['📁', '✅', '📝', '📹', '👥', '⚡'][i]}
+                      {['📁', '🏢', '✅', '📝', '📹', '👥', '⚡'][i]}
                     </div>
                     <span className="text-sm font-medium text-text-primary">{label}</span>
                   </div>
@@ -296,7 +306,7 @@ export default function HomePageClient({
                 Everything you need to run your business
               </h2>
               <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-                Seven integrated modules that work together as one operating system.
+                Eight integrated modules that work together as one operating system.
               </p>
             </div>
           </AnimateIn>
