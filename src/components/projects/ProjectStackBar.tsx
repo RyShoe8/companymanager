@@ -68,6 +68,7 @@ export default function ProjectStackBar<C extends string>({
 
       setSaving(true);
       try {
+        setSelectedIndex(null);
         await onSave([...items, { category, id }]);
         return true;
       } catch {

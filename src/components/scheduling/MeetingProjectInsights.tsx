@@ -307,6 +307,7 @@ export default function MeetingProjectInsights({ resources, isManagerOrAdmin = f
 
       {credentialModal && (
         <PlatformCredentialModal
+          key={credentialModal.platform.name}
           isOpen={!!credentialModal}
           onClose={() => setCredentialModal(null)}
           platform={credentialModal.platform}

@@ -21,6 +21,7 @@ export const TECH_STACK_CATALOG: TechStackCatalogEntry[] = [
   { id: 'cloudflare', name: 'Cloudflare', category: 'hosting', homepageUrl: 'https://www.cloudflare.com', simpleIconSlug: 'cloudflare' },
   { id: 'heroku', name: 'Heroku', category: 'hosting', homepageUrl: 'https://www.heroku.com', simpleIconSlug: 'heroku' },
   { id: 'flyio', name: 'Fly.io', category: 'hosting', homepageUrl: 'https://fly.io', simpleIconSlug: 'flydotio' },
+  { id: 'laravelcloud', name: 'Laravel Cloud', category: 'hosting', homepageUrl: 'https://cloud.laravel.com', simpleIconSlug: 'laravel' },
 
   // Database
   { id: 'mongodb', name: 'MongoDB', category: 'database', homepageUrl: 'https://www.mongodb.com', simpleIconSlug: 'mongodb' },
@@ -57,6 +58,7 @@ export const TECH_STACK_CATALOG: TechStackCatalogEntry[] = [
   { id: 'nuxt', name: 'Nuxt', category: 'framework', homepageUrl: 'https://nuxt.com', simpleIconSlug: 'nuxt' },
   { id: 'express', name: 'Express', category: 'framework', homepageUrl: 'https://expressjs.com', simpleIconSlug: 'express' },
   { id: 'django', name: 'Django', category: 'framework', homepageUrl: 'https://www.djangoproject.com', simpleIconSlug: 'django' },
+  { id: 'laravel', name: 'Laravel', category: 'framework', homepageUrl: 'https://laravel.com', simpleIconSlug: 'laravel' },
 
   // Payments
   { id: 'stripe', name: 'Stripe', category: 'payments', homepageUrl: 'https://stripe.com', simpleIconSlug: 'stripe' },

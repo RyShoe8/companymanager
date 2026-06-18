@@ -6,6 +6,8 @@ describe('techStack utils', () => {
     const stack = [
       { category: 'hosting', technologyId: 'vercel' },
       { category: 'framework', technologyId: 'nextjs' },
+      { category: 'framework', technologyId: 'laravel' },
+      { category: 'hosting', technologyId: 'laravelcloud' },
     ];
     expect(validateTechStackUpdate(stack)).toBeNull();
     expect(sanitizeTechStack(stack)).toEqual(stack);

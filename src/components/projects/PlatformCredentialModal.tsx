@@ -54,18 +54,30 @@ export default function PlatformCredentialModal({
   canViewPassword,
 }: PlatformCredentialModalProps) {
   const light = useInspectorLight();
-  const [login, setLogin] = useState(credentials.login || '');
-  const [password, setPassword] = useState(credentials.password || '');
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  /** Blocks browser autofill until the user focuses an empty credential field. */
+  const [blockAutofill, setBlockAutofill] = useState(true);
 
   useEffect(() => {
-    if (!isOpen) return;
-    setLogin(credentials.login || '');
-    setPassword(credentials.password || '');
+    if (!isOpen) {
+      setLogin('');
+      setPassword('');
+      setShowPassword(false);
+      setCopyFeedback(false);
+      setBlockAutofill(true);
+      return;
+    }
+    const savedLogin = credentials.login?.trim() || '';
+    const savedPassword = credentials.password || '';
+    setLogin(savedLogin);
+    setPassword(savedPassword);
     setShowPassword(false);
     setCopyFeedback(false);
+    setBlockAutofill(!savedLogin && !savedPassword);
   }, [isOpen, platform.name, credentials.login, credentials.password]);
 
   const handleSave = async () => {
@@ -146,7 +158,11 @@ export default function PlatformCredentialModal({
         </div>
 
         {canEdit ? (
-          <div className="space-y-3">
+          <form
+            autoComplete="off"
+            onSubmit={(e) => e.preventDefault()}
+            className="space-y-3"
+          >
             <div>
               <label className={`block text-xs font-medium mb-1.5 ${lightSurface(
                 'text-gray-700',
@@ -157,10 +173,16 @@ export default function PlatformCredentialModal({
               </label>
               <input
                 type="text"
+                name="platform-credential-login"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
+                onFocus={() => setBlockAutofill(false)}
                 placeholder="Enter login or username"
                 autoComplete="off"
+                readOnly={blockAutofill}
+                data-1p-ignore
+                data-lpignore="true"
+                data-form-type="other"
                 disabled={saving}
                 className={`w-full px-3 py-2 border rounded-lg text-sm ${lightSurface(
                   'border-gray-200 bg-white text-gray-900',
@@ -181,10 +203,16 @@ export default function PlatformCredentialModal({
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  name="platform-credential-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setBlockAutofill(false)}
                   placeholder="Enter password"
-                  autoComplete="new-password"
+                  autoComplete="off"
+                  readOnly={blockAutofill}
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-form-type="other"
                   disabled={saving}
                   className={`w-full px-3 py-2 pr-10 border rounded-lg text-sm ${lightSurface(
                     'border-gray-200 bg-white text-gray-900',
@@ -215,7 +243,7 @@ export default function PlatformCredentialModal({
                 </button>
               </div>
             </div>
-          </div>
+          </form>
         ) : (
           <div className="space-y-2">
             {credentials.login && (
