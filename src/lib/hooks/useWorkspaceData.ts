@@ -8,6 +8,7 @@ import { IContentItem } from '@/lib/models/ContentItem';
 import { IClient } from '@/lib/models/Client';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
+import { excludeClientHubProjects } from '@/lib/clients/clientProjectHelpers';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
 export type LensType = 'schedule' | 'agenda' | 'projects' | 'clients' | 'capacity';
@@ -17,6 +18,8 @@ export interface WorkspaceState {
     // Data
     projects: IProject[];
     allProjects: IProject[];
+    /** All org projects minus client HQ hubs — for project/schedule lenses. */
+    projectsForLens: IProject[];
     clients: IClient[];
     employees: IEmployee[];
     contentItems: IContentItem[];
@@ -206,12 +209,17 @@ export default function useWorkspaceData(
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Phase-filtered projects
+    // Phase-filtered projects (client HQ hubs excluded from project lenses)
+    const projectsForLens = useMemo(
+        () => excludeClientHubProjects(allProjects),
+        [allProjects]
+    );
+
     const projects = useMemo(() => {
-        if (phase === 'All') return allProjects;
+        if (phase === 'All') return projectsForLens;
         if (phase === 'Schedule') return [];
-        return getProjectsForStage(allProjects, phase as ProjectStage);
-    }, [allProjects, phase]);
+        return getProjectsForStage(projectsForLens, phase as ProjectStage);
+    }, [projectsForLens, phase]);
 
 
 
@@ -286,6 +294,7 @@ export default function useWorkspaceData(
     return {
         projects,
         allProjects,
+        projectsForLens,
         clients,
         employees,
         contentItems,

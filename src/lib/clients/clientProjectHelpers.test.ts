@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   activeClientProjects,
   countActiveClientProjects,
+  excludeClientHubProjects,
   isClientHubProject,
 } from '@/lib/clients/clientProjectHelpers';
 import type { IProject } from '@/lib/models/Project';
@@ -32,5 +33,14 @@ describe('clientProjectHelpers', () => {
       project({ _id: '2', projectType: 'client', status: 'in-development' }),
     ];
     expect(activeClientProjects(projects).map((p) => p._id)).toEqual(['2']);
+  });
+
+  it('excludeClientHubProjects removes client-admin only', () => {
+    const projects = [
+      project({ _id: '1', projectType: 'client-admin', name: 'Acme HQ' }),
+      project({ _id: '2', projectType: 'client', name: 'Acme Website' }),
+      project({ _id: '3', projectType: 'internal', name: 'Internal' }),
+    ];
+    expect(excludeClientHubProjects(projects).map((p) => p._id)).toEqual(['2', '3']);
   });
 });

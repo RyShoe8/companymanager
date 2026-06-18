@@ -1493,7 +1493,7 @@ _id.toString(), { tasks });
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <SchedulingPanel
-                                            projects={ws.allProjects}
+                                            projects={ws.projectsForLens}
                                             clients={ws.clients}
                                             employees={ws.employees}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
@@ -1519,7 +1519,7 @@ _id.toString(), { tasks });
                                         <EmployeeSidebar
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
-                                            allProjects={ws.allProjects}
+                                            allProjects={ws.projectsForLens}
                                             contentItems={ws.filteredContentItems}
                                             meetings={workspaceMeetings}
                                             timeframe={ws.timeframe}
@@ -1599,7 +1599,7 @@ _id.toString(), { tasks });
                                         <EmployeeSidebar
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
-                                            allProjects={ws.allProjects}
+                                            allProjects={ws.projectsForLens}
                                             contentItems={ws.filteredContentItems}
                                             meetings={workspaceMeetings}
                                             timeframe={ws.timeframe}
@@ -1616,7 +1616,7 @@ _id.toString(), { tasks });
                                     <EmployeeSidebar
                                         employees={ws.employees}
                                         projects={ws.filteredProjects}
-                                        allProjects={ws.allProjects}
+                                        allProjects={ws.projectsForLens}
                                         contentItems={ws.filteredContentItems}
                                         meetings={workspaceMeetings}
                                         timeframe={ws.timeframe}
