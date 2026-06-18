@@ -114,8 +114,23 @@ export default function WorkspaceShell({
     const [showScreenshotModal, setShowScreenshotModal] = useState(false);
     const [showRecordingModal, setShowRecordingModal] = useState(false);
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
+    const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
     const platformGuide = usePlatformGuideOptional();
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) return;
+                const data = await res.json();
+                setIsPlatformAdmin(!!data?.isAdmin);
+            } catch {
+                // ignore
+            }
+        };
+        void load();
+    }, []);
 
     const createScreenshot = useScreenshotUpload(null);
     const createRecording = useRecordingUpload(null, undefined, () => setShowRecordingModal(false));
@@ -1194,8 +1209,9 @@ export default function WorkspaceShell({
         return () => CommandRegistry.unregister('close-inspector');
     }, [inspectorFocus, closeInspector]);
 
-    // Global keyboard shortcuts
+    // Global keyboard shortcuts (command palette — platform admins only)
     useEffect(() => {
+        if (!isPlatformAdmin) return;
         const onKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
@@ -1204,7 +1220,7 @@ export default function WorkspaceShell({
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, []);
+    }, [isPlatformAdmin]);
 
     useEffect(() => {
         if (isCommandPaletteOpen) setPaletteNlError(null);
@@ -1296,6 +1312,7 @@ export default function WorkspaceShell({
                                         ) : null}
                                     </>
                                 )}
+                                {isPlatformAdmin ? (
                                 <button
                                     type="button"
                                     data-tour="command-palette-trigger"
@@ -1305,6 +1322,7 @@ export default function WorkspaceShell({
                                 >
                                     <span>⌘K</span>
                                 </button>
+                                ) : null}
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}
@@ -1765,12 +1783,14 @@ export default function WorkspaceShell({
                         </Modal>
                     )}
 
+                    {isPlatformAdmin ? (
                     <CommandPalette
                         isOpen={isCommandPaletteOpen}
                         onClose={() => setIsCommandPaletteOpen(false)}
                         workspaceIntentContext={workspaceIntentContext}
                         nlError={paletteNlError}
                     />
+                    ) : null}
                     <PlatformGuideWorkspaceBridge
                         currentUserRole={ws.currentUserRole}
                         allProjects={ws.allProjects}

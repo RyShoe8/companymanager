@@ -128,6 +128,7 @@ function OsIntentLayer({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
+        if (!auth.isAdmin) return;
         const onKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
@@ -136,7 +137,7 @@ function OsIntentLayer({ children }: { children: ReactNode }) {
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [togglePalette]);
+    }, [auth.isAdmin, togglePalette]);
 
     useEffect(() => {
         const cleanup = registerOsCommands({
@@ -181,12 +182,14 @@ function OsIntentLayer({ children }: { children: ReactNode }) {
                 >
                     {children}
                 </OsCommandPaletteProvider>
+                {auth.isAdmin ? (
                 <CommandPalette
                     isOpen={paletteOpen}
                     onClose={() => setPaletteOpen(false)}
                     workspaceIntentContext={voiceContextSnapshot}
                     nlError={paletteNlError}
                 />
+                ) : null}
                 <VoiceOverlay />
             </VoiceProvider>
         </IntentConfirmationProvider>

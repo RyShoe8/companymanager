@@ -28,7 +28,7 @@ export const PLATFORM_GUIDE_STEPS: GuideStep[] = [
   {
     id: 'org-brand',
     title: 'Your organization',
-    body: 'Your company name and logo appear here. Admins can click the name to edit it.',
+    body: 'Your company name and logo appear here. Admins can click the name to edit it and upload their logo.',
     target: 'org-brand',
     placement: 'bottom',
     routePrefix: '/workspace',
@@ -194,25 +194,6 @@ export const PLATFORM_GUIDE_STEPS: GuideStep[] = [
     onExit: ({ workspaceActions }) => {
       workspaceActions?.setPhase('Plan');
     },
-  },
-  {
-    id: 'command-palette',
-    title: 'Command palette',
-    body: 'Press Ctrl+K (or ⌘K on Mac) to jump anywhere, create items, or run actions without clicking through menus.',
-    target: 'command-palette-trigger',
-    placement: 'bottom',
-    routePrefix: '/workspace',
-    onEnter: ({ workspaceActions }) => {
-      workspaceActions?.setPhase('Plan');
-    },
-  },
-  {
-    id: 'voice',
-    title: 'Voice commands',
-    body: 'Use the microphone button for hands-free navigation and creation. Hold V as a shortcut when voice is enabled.',
-    target: 'voice-button',
-    placement: 'left',
-    routePrefix: '/workspace',
   },
   {
     id: 'feedback',

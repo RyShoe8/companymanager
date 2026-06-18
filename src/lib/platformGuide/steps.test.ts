@@ -28,4 +28,10 @@ describe('filterStepsForRole', () => {
     expect(steps.some((s) => s.id === 'create-project')).toBe(false);
     expect(steps.length).toBeLessThan(PLATFORM_GUIDE_STEPS.length);
   });
+
+  it('does not include removed command palette or voice steps', () => {
+    const ids = PLATFORM_GUIDE_STEPS.map((s) => s.id);
+    expect(ids).not.toContain('command-palette');
+    expect(ids).not.toContain('voice');
+  });
 });

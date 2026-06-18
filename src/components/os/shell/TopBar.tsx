@@ -2,6 +2,7 @@
 
 import { VoiceButton } from '@/components/voice/VoiceOverlay';
 import { useWindowManager } from '@/hooks/os/useWindowManager';
+import { useOsAuth } from '@/hooks/os/useOsAuth';
 import ModuleLauncher from './ModuleLauncher';
 import OsInstallButton from './OsInstallButton';
 import OsAccountMenu from './OsAccountMenu';
@@ -12,6 +13,7 @@ import {
 
 export default function TopBar() {
     const wm = useWindowManager();
+    const auth = useOsAuth();
     const { openCommandPalette } = useOsCommandPalette();
     const shortcutLabel = getCommandPaletteShortcutLabel();
     const activeProjectWindow = wm.windows.find(
@@ -33,6 +35,7 @@ export default function TopBar() {
             <div className="flex items-center gap-2">
                 <OsInstallButton />
                 <ModuleLauncher />
+                {auth.isAdmin ? (
                 <button
                     type="button"
                     onClick={openCommandPalette}
@@ -42,6 +45,7 @@ export default function TopBar() {
                 >
                     {shortcutLabel}
                 </button>
+                ) : null}
                 <OsAccountMenu />
                 <VoiceButton />
             </div>
