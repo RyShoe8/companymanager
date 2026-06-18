@@ -438,7 +438,7 @@ export default function WorkspaceShell({
                 body: JSON.stringify({ _id: clientId, ...updates }),
             });
             if (res.ok) {
-                ws.fetchClients();
+                ws.loadData({ silent: true });
             }
         } catch (e) {
             console.error('Failed to update client', e);
@@ -1601,7 +1601,7 @@ _id.toString(), { tasks });
                         isOpen={showClientCreateModal}
                         onClose={() => setShowClientCreateModal(false)}
                         onSuccess={() => {
-                            ws.fetchClients();
+                            ws.loadData({ silent: true });
                         }}
                     />
 
