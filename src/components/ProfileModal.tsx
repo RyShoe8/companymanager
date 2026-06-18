@@ -312,6 +312,7 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
             </div>
           )}
 
+          {showPasswordChange && (
             <form onSubmit={handlePasswordChange} className="space-y-5 bg-background-elevated p-5 rounded-xl border border-border">
               {passwordChangeError && (
                 <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg text-sm">
