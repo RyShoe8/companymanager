@@ -108,6 +108,11 @@ function RegisterForm() {
         return;
       }
 
+      if (data.needsEmailVerification) {
+        router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
       // Check if user needs to set up organization
       const userData = data.user;
       if (!userData.organizationSetupComplete) {

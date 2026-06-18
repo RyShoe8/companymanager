@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
     // Get user's organizationId
     const User = (await import('@/lib/models/User')).default;
     const user = await User.findById(session.userId);
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!user || !user.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
     // Return all employees (including pending invitations)

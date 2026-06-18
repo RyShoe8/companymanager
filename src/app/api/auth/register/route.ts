@@ -12,6 +12,13 @@ import {
   syncRegisteredUserToBrevoInBackground,
   syncUserToBrevoInBackground,
 } from '@/lib/services/brevoContactSync';
+import {
+  generateEmailVerificationToken,
+  getEmailVerificationExpiresAt,
+  getEmailVerificationLink,
+  hashEmailVerificationToken,
+} from '@/lib/auth/emailVerification';
+import { sendVerificationEmail } from '@/lib/services/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,11 +100,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user
+    const soloSignup = !invitationToken;
+    const verificationToken = soloSignup ? generateEmailVerificationToken() : null;
+
     const user = await User.create({
       email: email.toLowerCase(),
       password: hashedPassword,
       name,
       organizationId,
+      emailVerified: !soloSignup,
+      ...(verificationToken
+        ? {
+            emailVerificationTokenHash: hashEmailVerificationToken(verificationToken),
+            emailVerificationExpires: getEmailVerificationExpiresAt(),
+          }
+        : {}),
     });
 
     // If no invitation, set organizationId to user's own ID (they are the organization admin)
@@ -173,7 +190,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create session
+    if (soloSignup) {
+      try {
+        await sendVerificationEmail({
+          recipientEmail: user.email,
+          recipientName: user.name,
+          verificationLink: getEmailVerificationLink(verificationToken!),
+        });
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        await User.findByIdAndDelete(user._id);
+        return NextResponse.json(
+          { error: 'Could not send verification email. Please try again later.' },
+          { status: 503 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          needsEmailVerification: true,
+          message: 'Check your email to verify your account before signing in.',
+          user: {
+            id: user._id.toString(),
+            email: user.email,
+            name: user.name,
+          },
+        },
+        { status: 201 }
+      );
+    }
+
+    // Create session (invited users skip email verification)
     await createSession(user._id.toString(), user.email);
 
     if (invitationToken) {

@@ -6,6 +6,10 @@ import Employee from '@/lib/models/Employee';
 import { createSession } from '@/lib/auth/session';
 import { isValidEmail, sanitizeString } from '@/lib/utils/security';
 import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
+import {
+  isEmailVerificationPending,
+  migrateLegacyEmailVerified,
+} from '@/lib/auth/emailVerification';
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,6 +97,19 @@ export async function POST(request: NextRequest) {
       await user.save();
     }
 
+    await migrateLegacyEmailVerified(user);
+
+    if (isEmailVerificationPending(user)) {
+      return NextResponse.json(
+        {
+          error: 'Please verify your email before signing in.',
+          needsEmailVerification: true,
+          email: user.email,
+        },
+        { status: 403 }
+      );
+    }
+
     // Create admin employee record if it doesn't exist
     const existingEmployee = await Employee.findOne({ userId: user._id });
     if (!existingEmployee) {
@@ -102,7 +119,7 @@ export async function POST(request: NextRequest) {
         weeklyHours: 0,
         employeeType: 'full-time',
         userId: user._id,
-        organizationId: user._id.toString(),
+        organizationId: user.organizationId,
       });
     }
 

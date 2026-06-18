@@ -50,6 +50,10 @@ function LoginForm() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.needsEmailVerification) {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          return;
+        }
         setError(data.error || 'Login failed');
         return;
       }

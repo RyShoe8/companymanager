@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import Image from 'next/image';
+import Modal from '@/components/ui/Modal';
+import ConfirmModal from '@/components/shared/ConfirmModal';
 
 interface ProfileModalProps {
   onUpdate: () => void;
@@ -11,13 +13,22 @@ interface ProfileModalProps {
 }
 
 export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [profilePictureError, setProfilePictureError] = useState(false);
+  const [hasPassword, setHasPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showDeleteWarning, setShowDeleteWarning] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -30,9 +41,10 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
             setEmail(data.email || '');
             setProfilePicture(data.profilePicture || null);
             setProfilePictureError(false);
+            setHasPassword(!!data.hasPassword);
           }
         }
-      } catch (error) {
+      } catch {
         // Error fetching profile
       }
     };
@@ -74,8 +86,8 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
       setProfilePicture(data.url);
       setProfilePictureError(false);
       onUpdate();
-    } catch (error: any) {
-      setError(error.message || 'Failed to upload image');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to upload image');
     } finally {
       setLoading(false);
     }
@@ -101,92 +113,239 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
 
       onUpdate();
       onClose();
-    } catch (error: any) {
-      setError(error.message || 'Failed to update profile');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDeleteFlow = () => {
+    setDeleteError('');
+    setConfirmEmail('');
+    setDeletePassword('');
+    setShowDeleteWarning(true);
+  };
+
+  const proceedToDeleteConfirm = () => {
+    setShowDeleteWarning(false);
+    setShowDeleteConfirm(true);
+  };
+
+  const canConfirmDelete =
+    confirmEmail.trim().toLowerCase() === email.trim().toLowerCase() &&
+    (!hasPassword || deletePassword.length > 0);
+
+  const handleDeleteAccount = async () => {
+    if (!canConfirmDelete) return;
+
+    setDeleting(true);
+    setDeleteError('');
+
+    try {
+      const response = await fetch('/api/account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmEmail: confirmEmail.trim(),
+          ...(hasPassword ? { password: deletePassword } : {}),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete account');
+      }
+
+      setShowDeleteConfirm(false);
+      onClose();
+      router.push('/login');
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete account');
+    } finally {
+      setDeleting(false);
     }
   };
 
   const userInitials = name
     ? name
         .split(' ')
-        .map(n => n[0])
+        .map((n) => n[0])
         .join('')
         .toUpperCase()
         .slice(0, 2)
     : email?.[0]?.toUpperCase() || 'U';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
+            {error}
+          </div>
+        )}
 
-      <div className="flex flex-col items-center gap-4">
-        <div className="relative">
-          {profilePicture && !profilePictureError ? (
-            <img
-              src={profilePicture}
-              alt={name || email}
-              width={96}
-              height={96}
-              className="w-24 h-24 rounded-full object-cover"
-              onError={() => setProfilePictureError(true)}
-            />
-          ) : (
-            <div className="w-24 h-24 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-medium">
-              {userInitials}
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            {profilePicture && !profilePictureError ? (
+              <img
+                src={profilePicture}
+                alt={name || email}
+                width={96}
+                height={96}
+                className="w-24 h-24 rounded-full object-cover"
+                onError={() => setProfilePictureError(true)}
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-medium">
+                {userInitials}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 hover:bg-primary-hover transition-colors"
+              disabled={loading}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <p className="text-sm text-text-secondary">Click the camera icon to upload a profile picture</p>
+        </div>
+
+        <Input
+          label="Name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+
+        <div className="flex gap-2 justify-end pt-4 border-t border-border">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
+
+        <div className="pt-4 border-t border-border space-y-2">
+          <h3 className="text-sm font-semibold text-error">Danger zone</h3>
+          <p className="text-sm text-text-secondary">
+            Permanently delete your account. If you are the only member of your organization, all projects and
+            organization data will be removed.
+          </p>
+          <Button type="button" variant="danger" onClick={openDeleteFlow} disabled={loading || deleting}>
+            Delete account
+          </Button>
+        </div>
+      </form>
+
+      <ConfirmModal
+        isOpen={showDeleteWarning}
+        title="Delete your account?"
+        message={
+          <p>
+            This action is permanent. Your profile will be removed. If you are the only member of your
+            organization, all projects, tasks, meetings, and billing data for that organization will also be
+            deleted.
+          </p>
+        }
+        confirmLabel="Continue"
+        confirmVariant="danger"
+        onCancel={() => setShowDeleteWarning(false)}
+        onConfirm={proceedToDeleteConfirm}
+        elevated
+        stackAboveOverlays
+      />
+
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={deleting ? () => {} : () => setShowDeleteConfirm(false)}
+        title="Confirm account deletion"
+        maxWidth="sm"
+        elevated
+        stackAboveOverlays
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Type your email address{hasPassword ? ' and password' : ''} to confirm.
+          </p>
+
+          {deleteError && (
+            <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg text-sm">
+              {deleteError}
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 hover:bg-primary-hover transition-colors"
-            disabled={loading}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
+
+          <Input
+            label="Email"
+            type="email"
+            value={confirmEmail}
+            onChange={(e) => setConfirmEmail(e.target.value)}
+            autoComplete="off"
+          />
+
+          {hasPassword && (
+            <Input
+              label="Password"
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          )}
+
+          <div className="flex gap-2 justify-end pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => void handleDeleteAccount()}
+              disabled={!canConfirmDelete || deleting}
+            >
+              {deleting ? 'Deleting…' : 'Delete my account'}
+            </Button>
+          </div>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <p className="text-sm text-text-secondary">Click the camera icon to upload a profile picture</p>
-      </div>
-
-      <Input
-        label="Name"
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-      />
-
-      <Input
-        label="Email"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-
-      <div className="flex gap-2 justify-end pt-4 border-t border-border">
-        <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
-    </form>
+      </Modal>
+    </>
   );
 }

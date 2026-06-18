@@ -245,7 +245,7 @@ export default function useWorkspaceData(
 
     // User-role + "my assignments" filter
     const filteredProjects = useMemo(() => {
-        if (!currentUserRole) return projects;
+        if (!currentUserRole) return [];
 
         const list = shouldRestrictToMyAssignments
             ? filterProjectsToMyAssignments(projects)

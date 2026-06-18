@@ -3,6 +3,7 @@ import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
+import { buildProjectsListQuery } from '@/lib/utils/projectsListQuery';
 import { getDefaultTaskDates, resolveTaskDateInput } from '@/lib/utils/dateUtils';
 import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
 import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
@@ -34,67 +35,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    // Don't filter by timeframeType - projects should appear based on their date range
-    // timeframeType is just metadata about the view they were created in
-    const query: any = { userId: { $in: orgUserIds } };
-    if (status) {
-      query.status = status;
-    }
-
-    // Role-based filtering:
-    // - Administrators: see all projects in organization (already filtered by userId: { $in: orgUserIds })
-    // - Managers: see all projects in organization (same as Administrators)
-    // - Users: see only projects they're assigned to
-    if (userRole === 'Administrator' || userRole === 'Manager') {
-      // Administrators and Managers see all projects in their organization
-      // The userId: { $in: orgUserIds } filter already ensures they only see org projects
-      // But if they have an employee record, also include projects assigned to them (even if created outside org)
-      if (currentUserEmployee) {
-        const employeeId = currentUserEmployee._id;
-        // Use $or to include both org projects AND projects assigned to them
-        query.$or = [
-          { userId: { $in: orgUserIds } },
-          { assignedToEmployeeId: employeeId },
-          { assignedToEmployeeIds: employeeId },
-          { 'tasks.assignedToEmployeeId': employeeId },
-          { 'tasks.assignedToEmployeeIds': employeeId },
-          // Legacy support for name-based assignments
-          { assignedTo: currentUserEmployee.name },
-          { assignedToNames: currentUserEmployee.name },
-          { 'tasks.assignedTo': currentUserEmployee.name },
-          { 'stages.assignedTo': currentUserEmployee.name }
-        ];
-        // Remove the userId filter from top level since it's now in $or
-        delete query.userId;
-      }
-    } else {
-      // Users see only projects they're assigned to
-      if (currentUserEmployee) {
-        const employeeId = currentUserEmployee._id;
-        // Keep the userId filter and add assignment filters
-        query.$and = [
-          { userId: { $in: orgUserIds } },
-          {
-            $or: [
-              { assignedToEmployeeId: employeeId },
-              { assignedToEmployeeIds: employeeId },
-              { 'tasks.assignedToEmployeeId': employeeId },
-              { 'tasks.assignedToEmployeeIds': employeeId },
-              // Legacy support for name-based assignments
-              { assignedTo: currentUserEmployee.name },
-              { assignedToNames: currentUserEmployee.name },
-              { 'tasks.assignedTo': currentUserEmployee.name },
-              { 'stages.assignedTo': currentUserEmployee.name }
-            ]
-          }
-        ];
-        // Remove the userId filter from top level since it's now in $and
-        delete query.userId;
-      } else {
-        // If no employee record, return empty array
-        query._id = { $exists: false };
-      }
-    }
+    const query = buildProjectsListQuery({
+      orgUserIds,
+      status,
+      userRole,
+      currentUserEmployee: currentUserEmployee
+        ? { _id: currentUserEmployee._id as Types.ObjectId, name: currentUserEmployee.name }
+        : null,
+    });
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
     const migratedProjects = projects.map((project: any) => {

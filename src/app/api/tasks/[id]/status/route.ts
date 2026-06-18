@@ -8,6 +8,7 @@ import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
 import { normalizeTaskStatus } from '@/lib/projects/projectCleanup';
 import { resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
+import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 
 type TaskLike = {
   status?: TaskStatus;
@@ -72,12 +73,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid task status' }, { status: 400 });
     }
 
-    const project = await Project.findById(projectId);
+    const user = await User.findById(session.userId);
+    if (!user?.organizationId) {
+      return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
+    }
+
+    const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
+    const project = await Project.findOne({ _id: projectId, userId: { $in: orgUserIds } });
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const user = await User.findById(session.userId);
     const employee = await Employee.findOne({
       userId: session.userId,
       organizationId: user?.organizationId,

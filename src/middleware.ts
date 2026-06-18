@@ -59,6 +59,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/sales-calls') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
+    pathname.startsWith('/verify-email') ||
     pathname === '/setup-organization' ||
     pathname === '/about' ||
     pathname === '/contact' ||

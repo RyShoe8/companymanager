@@ -448,9 +448,9 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     // Filter to only employees with userId (registered users)
     const employeesWithUserId = employees.filter(employee => employee.userId != null);
 
-    // If role is not set yet, show all employees with userId (safer default)
+    // If role is not set yet, show nothing until role resolves
     if (!currentUserRole) {
-      return employeesWithUserId;
+      return [];
     }
 
     // Role-based filtering:

@@ -5,6 +5,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
 import { isValidObjectId } from '@/lib/utils/security';
+import { teardownOrganization } from '@/lib/account/deleteUserAccount';
 
 /**
  * Update user (admin only)
@@ -82,6 +83,24 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const targetUser = await User.findById(id);
     if (!targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (targetUser._id.toString() === session.userId) {
+      return NextResponse.json(
+        { error: 'You cannot delete your own account from the admin panel.' },
+        { status: 400 }
+      );
+    }
+
+    const orgId = targetUser.organizationId;
+    const orgUserCount = await User.countDocuments({ organizationId: orgId });
+
+    if (orgUserCount === 1) {
+      await teardownOrganization(orgId);
+      return NextResponse.json({
+        message: 'User and organization deleted successfully',
+        organizationRemoved: true,
+      });
     }
 
     // Delete invitations sent by or to this user

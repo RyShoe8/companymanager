@@ -10,6 +10,9 @@ export interface IUser extends Document {
   authProvider?: 'google' | 'email'; // Track authentication provider
   googleId?: string; // Google OAuth ID
   isAdmin?: boolean; // System admin flag
+  emailVerified?: boolean;
+  emailVerificationTokenHash?: string;
+  emailVerificationExpires?: Date;
   createdAt: Date;
 }
 
@@ -59,6 +62,17 @@ const UserSchema: Schema = new Schema(
       type: Boolean,
       default: false,
       index: true,
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationTokenHash: {
+      type: String,
+      trim: true,
+    },
+    emailVerificationExpires: {
+      type: Date,
     },
   },
   {

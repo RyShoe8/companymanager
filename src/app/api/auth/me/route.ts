@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession, deleteSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
 import User, { isAdminEmail } from '@/lib/models/User';
+import { migrateLegacyEmailVerified } from '@/lib/auth/emailVerification';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +22,8 @@ export async function GET(request: NextRequest) {
       await deleteSession();
       return NextResponse.json(null, { status: 200 });
     }
+
+    await migrateLegacyEmailVerified(user);
 
     // Auto-complete organization setup for existing users who have an organization
     // This fixes the redirect loop for users created before organization setup was required
@@ -46,6 +49,8 @@ export async function GET(request: NextRequest) {
       organizationSetupComplete: user.organizationSetupComplete,
       isAdmin,
       isOrgOwner,
+      emailVerified: user.emailVerified === true,
+      hasPassword: !!user.password,
     });
   } catch (error) {
     // Get user error

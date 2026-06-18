@@ -234,14 +234,26 @@ export default function AdminPage() {
     }
   };
 
-  const handleDelete = async (userId: string, userEmail: string) => {
-    if (!confirm(`Are you sure you want to delete user ${userEmail}? This action cannot be undone.`)) {
+  const handleDelete = async (user: User, orgMemberCount: number) => {
+    const soleOrgMember = orgMemberCount === 1;
+    const firstMessage = soleOrgMember
+      ? `Delete ${user.email}? This is the only member of their organization — all projects, meetings, billing, and org data will be permanently removed.`
+      : `Are you sure you want to delete user ${user.email}? This action cannot be undone.`;
+
+    if (!confirm(firstMessage)) {
       return;
     }
 
-    setDeletingId(userId);
+    if (soleOrgMember) {
+      const typed = prompt('Type DELETE to confirm permanent organization removal:');
+      if (typed !== 'DELETE') {
+        return;
+      }
+    }
+
+    setDeletingId(user.id);
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
         method: 'DELETE',
       });
 
@@ -250,8 +262,16 @@ export default function AdminPage() {
         throw new Error(data.error || 'Failed to delete user');
       }
 
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      setTotalUsers((n) => n - 1);
+      const data = await response.json();
+      setUsers((prev) =>
+        soleOrgMember
+          ? prev.filter((u) => u.organizationId !== user.organizationId)
+          : prev.filter((u) => u.id !== user.id)
+      );
+      setTotalUsers((n) => (soleOrgMember ? n - orgMemberCount : n - 1));
+      if (data.organizationRemoved) {
+        // no-op; state already updated
+      }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to delete user');
     } finally {
@@ -483,7 +503,7 @@ export default function AdminPage() {
                                       {!user.isAdmin && (
                                         <button
                                           type="button"
-                                          onClick={() => handleDelete(user.id, user.email)}
+                                          onClick={() => handleDelete(user, group.members.length)}
                                           disabled={deletingId === user.id}
                                           className="text-error hover:text-error-dark transition-colors disabled:opacity-50"
                                         >
@@ -567,7 +587,7 @@ export default function AdminPage() {
                                     {!user.isAdmin && (
                                       <button
                                         type="button"
-                                        onClick={() => handleDelete(user.id, user.email)}
+                                        onClick={() => handleDelete(user, group.members.length)}
                                         disabled={deletingId === user.id}
                                         className="text-xs px-3 py-1.5 rounded text-error hover:bg-error-light transition-colors disabled:opacity-50"
                                       >

@@ -156,6 +156,7 @@ export async function GET(request: NextRequest) {
         authProvider: 'google',
         organizationId: organizationId!,
         organizationSetupComplete: orgSetupComplete,
+        emailVerified: true,
       });
 
       // If no invitation and not joining existing org, set organizationId to user's own ID
@@ -249,15 +250,25 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Existing user - update Google info if needed
+      let userChanged = false;
       if (!user.googleId) {
         user.googleId = googleId;
         user.authProvider = 'google';
+        userChanged = true;
         if (picture && !user.profilePicture) {
           user.profilePicture = picture;
         }
         if (name && !user.name) {
           user.name = name;
         }
+      }
+      if (!user.emailVerified) {
+        user.emailVerified = true;
+        user.emailVerificationTokenHash = undefined;
+        user.emailVerificationExpires = undefined;
+        userChanged = true;
+      }
+      if (userChanged) {
         await user.save();
       }
     }

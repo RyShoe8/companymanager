@@ -195,6 +195,29 @@ export interface InvitationEmailData {
   expiresInDays: number;
 }
 
+export interface VerificationEmailData {
+  recipientEmail: string;
+  recipientName?: string;
+  verificationLink: string;
+}
+
+export async function sendVerificationEmail(data: VerificationEmailData): Promise<void> {
+  const name = data.recipientName || 'there';
+  await sendEmail({
+    to: data.recipientEmail,
+    subject: 'Verify your Nucleas email address',
+    html: `
+      <p>Hi ${name},</p>
+      <p>Thanks for signing up for Nucleas. Please verify your email address to activate your account.</p>
+      <p><a href="${data.verificationLink}" style="background-color:#347AF6;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:600;">Verify email</a></p>
+      <p>This link expires in 24 hours.</p>
+      <p>If you did not create an account, you can ignore this email.</p>
+      <p style="word-break:break-all;color:#5E677D;font-size:14px;">${data.verificationLink}</p>
+    `,
+    text: `Hi ${name},\n\nVerify your Nucleas account: ${data.verificationLink}\n\nThis link expires in 24 hours.`,
+  });
+}
+
 /**
  * Send an invitation email via Brevo
  */
