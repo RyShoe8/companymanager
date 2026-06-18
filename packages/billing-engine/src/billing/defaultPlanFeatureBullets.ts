@@ -1,6 +1,6 @@
 /** Default marketing bullets when host does not override via createBillingEngine. */
 export const DEFAULT_PLAN_FEATURE_BULLETS = [
-  'Team-wide subscription management',
-  'Flexible seat pricing on supported plans',
-  'Secure Stripe checkout and billing portal',
+  'Full platform access without feature limits',
+  'Unlimited projects, content, and meetings',
+  'Centralized team and billing management',
 ] as const;

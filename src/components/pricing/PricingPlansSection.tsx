@@ -34,7 +34,10 @@ export function PricingPlansSection({ plans, ctaByPlanId }: Props) {
   return (
     <div className="max-w-7xl mx-auto">
       {showGlobalToggle ? (
-        <div className="mb-8 flex justify-center">
+        <div className="mb-8 flex flex-col items-center">
+          <span className="text-sm font-semibold text-green-400 mb-3 bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full animate-in fade-in zoom-in duration-500">
+            🎉 Get 2 months free with yearly
+          </span>
           <BillingIntervalToggleShell
             value={billingInterval}
             onChange={setBillingInterval}
