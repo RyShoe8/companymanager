@@ -1,19 +1,35 @@
 import React, { useState } from 'react';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
+import { IContentItem } from '@/lib/models/ContentItem';
 import ClientDetailDashboard from './ClientDetailDashboard';
+import { countActiveClientProjects } from '@/lib/clients/clientProjectHelpers';
 
 interface ClientsViewProps {
     clients: IClient[];
     allProjects: IProject[];
+    contentItems?: IContentItem[];
     onViewProject: (project: IProject) => void;
+    onAddTask?: (project: IProject) => void;
+    onAddContent?: (project: IProject, defaultDate?: Date) => void;
     onCreateClient?: () => void;
     onUpdateClient?: (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => void | Promise<void>;
     isManagerOrAdmin?: boolean;
     currentUserId?: string;
 }
 
-export default function ClientsView({ clients, allProjects, onViewProject, onCreateClient, onUpdateClient, isManagerOrAdmin = false, currentUserId }: ClientsViewProps) {
+export default function ClientsView({
+    clients,
+    allProjects,
+    contentItems = [],
+    onViewProject,
+    onAddTask,
+    onAddContent,
+    onCreateClient,
+    onUpdateClient,
+    isManagerOrAdmin = false,
+    currentUserId,
+}: ClientsViewProps) {
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
     const selectedClient = clients.find(c => c._id?.toString() === selectedClientId);
@@ -23,9 +39,12 @@ export default function ClientsView({ clients, allProjects, onViewProject, onCre
         return (
             <ClientDetailDashboard 
                 client={selectedClient} 
-                projects={clientProjects} 
+                projects={clientProjects}
+                contentItems={contentItems}
                 onBack={() => setSelectedClientId(null)} 
                 onViewProject={onViewProject}
+                onAddTask={onAddTask}
+                onAddContent={onAddContent}
                 onUpdateClient={onUpdateClient}
                 isManagerOrAdmin={isManagerOrAdmin}
                 currentUserId={currentUserId}
@@ -72,7 +91,7 @@ export default function ClientsView({ clients, allProjects, onViewProject, onCre
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {clients.map(client => {
-                        const activeProjectsCount = allProjects.filter(p => String(p.clientId) === String(client._id) && p.status !== 'completed').length;
+                        const activeProjectsCount = countActiveClientProjects(allProjects, String(client._id));
                         
                         return (
                             <div 

@@ -6,6 +6,9 @@ import Link from 'next/link';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
+import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
 import { persistSelectedPlanId } from '@/lib/billing/selectedPlanStorage';
 import {
   getPasswordRuleStatus,
@@ -37,6 +40,7 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [loadingInvitation, setLoadingInvitation] = useState(false);
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
+  const { executeRecaptcha } = useRecaptcha();
 
   // Load invitation details if token is present
   useEffect(() => {
@@ -90,6 +94,7 @@ function RegisterForm() {
     setLoading(true);
 
     try {
+      const recaptchaToken = await executeRecaptcha(RECAPTCHA_ACTIONS.register);
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -98,6 +103,7 @@ function RegisterForm() {
           email,
           password,
           invitationToken: invitationToken || undefined,
+          recaptchaToken,
         }),
       });
 
@@ -209,6 +215,7 @@ function RegisterForm() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Creating account...' : 'Register'}
             </Button>
+            <RecaptchaNotice className="text-xs text-text-muted text-center" />
           </div>
           
           <div className="relative">

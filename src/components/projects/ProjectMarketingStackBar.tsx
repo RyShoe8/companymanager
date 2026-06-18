@@ -11,6 +11,7 @@ interface ProjectMarketingStackBarProps {
   marketingStack: IProjectMarketingStackItem[];
   isManagerOrAdmin: boolean;
   onUpdate: (updates: Partial<IProject>) => Promise<void>;
+  surface?: import('@/lib/ui/surfaceStyles').ControlSurface;
 }
 
 const CONFIG = {
@@ -29,6 +30,7 @@ export default function ProjectMarketingStackBar({
   marketingStack,
   isManagerOrAdmin,
   onUpdate,
+  surface = 'inspector',
 }: ProjectMarketingStackBarProps) {
   const items = useMemo<StackItem<MarketingStackCategory>[]>(
     () =>
@@ -60,6 +62,7 @@ export default function ProjectMarketingStackBar({
       isManagerOrAdmin={isManagerOrAdmin}
       onSave={handleSave}
       config={CONFIG}
+      surface={surface}
     />
   );
 }

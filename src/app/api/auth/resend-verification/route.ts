@@ -11,6 +11,8 @@ import {
   isEmailVerificationPending,
 } from '@/lib/auth/emailVerification';
 import { sendVerificationEmail } from '@/lib/services/email';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
+import { recaptchaFailureResponse, verifyRecaptchaToken } from '@/lib/recaptcha/verifyRecaptcha';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,6 +24,13 @@ export async function POST(request: NextRequest) {
     if (limit) return limit;
 
     const body = await request.json();
+
+    const captcha = await verifyRecaptchaToken({
+      token: body.recaptchaToken,
+      expectedAction: RECAPTCHA_ACTIONS.resendVerification,
+    });
+    if (!captcha.ok) return recaptchaFailureResponse(captcha);
+
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 
     if (!email || !isValidEmail(email)) {

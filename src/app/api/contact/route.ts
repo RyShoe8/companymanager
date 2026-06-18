@@ -4,6 +4,8 @@ import { escapeHtml, isValidEmail, sanitizeString } from '@/lib/utils/security';
 import connectDB from '@/lib/db/mongodb';
 import FeedbackSubmission from '@/lib/models/FeedbackSubmission';
 import { enforceRateLimit, rateLimitKey } from '@/lib/security/rateLimit';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
+import { recaptchaFailureResponse, verifyRecaptchaToken } from '@/lib/recaptcha/verifyRecaptcha';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +17,13 @@ export async function POST(request: NextRequest) {
     if (limit) return limit;
 
     const body = await request.json();
+
+    const captcha = await verifyRecaptchaToken({
+      token: body.recaptchaToken,
+      expectedAction: RECAPTCHA_ACTIONS.contactSubmit,
+    });
+    if (!captcha.ok) return recaptchaFailureResponse(captcha);
+
     let { type, name, email, subject, message } = body;
 
     // Validate required fields

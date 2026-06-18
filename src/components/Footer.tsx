@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { BLOG_NAME } from '@/lib/blog/blogConstants';
+import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
 
 const featureLinks = [
   { href: '/features/projects', label: 'Projects' },
@@ -161,10 +162,11 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-white/10">
-          <p className="text-xs text-slate-500 leading-relaxed max-w-3xl mb-6">
+          <p className="text-xs text-slate-500 leading-relaxed max-w-3xl mb-4">
             Some links on this site are affiliate links. If you sign up or purchase through them, we may earn a
             commission at no additional cost to you. This helps support Nucleas.
           </p>
+          <RecaptchaNotice className="text-xs text-slate-500 leading-relaxed max-w-3xl mb-6" />
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-slate-500">
               © {new Date().getFullYear()} Nucleas. All rights reserved. Built by{' '}

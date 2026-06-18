@@ -1475,7 +1475,15 @@ _id.toString(), { tasks });
                                 <ClientsView
                                     clients={ws.clients}
                                     allProjects={ws.allProjects}
+                                    contentItems={ws.contentItems}
                                     onViewProject={handleViewProject}
+                                    onAddTask={handleAddTaskToProject}
+                                    onAddContent={(project, defaultDate) => {
+                                        setAddContentVoicePrefill(null);
+                                        setAddContentProject(project);
+                                        setAddContentDefaultDate(defaultDate);
+                                        setShowContentCreateModal(true);
+                                    }}
                                     onCreateClient={() => setShowClientCreateModal(true)}
                                     onUpdateClient={handleUpdateClient}
                                     isManagerOrAdmin={ws.isManagerOrAdmin}

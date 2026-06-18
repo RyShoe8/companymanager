@@ -6,6 +6,16 @@ import Modal from '@/components/ui/Modal';
 import ModalAction from '@/components/ui/ModalAction';
 import PlatformCredentialModal, { applyPlatformCredentials, PlatformCredential, PlatformInfo } from '@/components/projects/PlatformCredentialModal';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+import type { ControlSurface } from '@/lib/ui/surfaceStyles';
+import {
+  WORKSPACE_CATALOG_ITEM_CLASS,
+  WORKSPACE_CATALOG_ITEM_DISABLED_CLASS,
+  WORKSPACE_CATEGORY_CHIP_CLASS,
+  WORKSPACE_CATEGORY_CHIP_SELECTED_CLASS,
+  WORKSPACE_ICON_PILL_CLASS,
+  WORKSPACE_PANEL_CLASS,
+  WORKSPACE_TOOLBAR_BUTTON_CLASS,
+} from '@/lib/ui/surfaceStyles';
 
 export type StackItem<C extends string> = { category: C; id: string; login?: string; password?: string };
 
@@ -30,6 +40,7 @@ interface ProjectStackBarProps<C extends string> {
   isManagerOrAdmin: boolean;
   onSave: (next: StackItem<C>[]) => Promise<void>;
   config: ProjectStackBarConfig<C>;
+  surface?: ControlSurface;
 }
 
 /** Shared stack toolbar (tech stack, marketing stack): icon pills + category browser + detail modal. */
@@ -38,6 +49,7 @@ export default function ProjectStackBar<C extends string>({
   isManagerOrAdmin,
   onSave,
   config,
+  surface = 'inspector',
 }: ProjectStackBarProps<C>) {
   const light = useInspectorLight();
   const [expanded, setExpanded] = useState(false);
@@ -130,35 +142,56 @@ export default function ProjectStackBar<C extends string>({
     <>
       <div className="flex flex-wrap items-center gap-2 text-sm min-w-0">
         {isManagerOrAdmin && (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={saving}
-            onClick={() => {
-              setExpanded((v) => {
-                const next = !v;
-                if (!next) setSelectedCategory(null);
-                return next;
-              });
-            }}
-          >
-            {config.buttonLabel}
-          </Button>
+          surface === 'workspace' ? (
+            <button
+              type="button"
+              disabled={saving}
+              className={WORKSPACE_TOOLBAR_BUTTON_CLASS}
+              onClick={() => {
+                setExpanded((v) => {
+                  const next = !v;
+                  if (!next) setSelectedCategory(null);
+                  return next;
+                });
+              }}
+            >
+              {config.buttonLabel}
+            </button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={saving}
+              onClick={() => {
+                setExpanded((v) => {
+                  const next = !v;
+                  if (!next) setSelectedCategory(null);
+                  return next;
+                });
+              }}
+            >
+              {config.buttonLabel}
+            </Button>
+          )
         )}
         {items.map((item, index) => {
           const entry = config.getEntry(item.id);
+          const iconClass =
+            surface === 'workspace'
+              ? WORKSPACE_ICON_PILL_CLASS
+              : `inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${lightSurface(
+                  'border border-gray-200 bg-white hover:bg-gray-50',
+                  'dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600',
+                  light
+                )}`;
           return (
             <button
               key={`${item.id}-${index}`}
               type="button"
               title={entry?.name ?? item.id}
               onClick={() => setSelectedIndex(index)}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${lightSurface(
-                'border border-gray-200 bg-white hover:bg-gray-50',
-                'dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600',
-                light
-              )}`}
+              className={iconClass}
             >
               {config.renderIcon(item.id, 18)}
             </button>
@@ -168,11 +201,15 @@ export default function ProjectStackBar<C extends string>({
 
       {expanded && isManagerOrAdmin && (
         <div
-          className={`w-full basis-full space-y-3 rounded-lg border p-3 ${lightSurface(
-            'border-gray-200 bg-gray-50',
-            'dark:border-gray-600 dark:bg-gray-800/50',
-            light
-          )}`}
+          className={
+            surface === 'workspace'
+              ? WORKSPACE_PANEL_CLASS
+              : `w-full basis-full space-y-3 rounded-lg border p-3 ${lightSurface(
+                  'border-gray-200 bg-gray-50',
+                  'dark:border-gray-600 dark:bg-gray-800/50',
+                  light
+                )}`
+          }
         >
           <div className="flex flex-wrap gap-2">
             {categoryOptions.map((cat) => (
@@ -181,15 +218,21 @@ export default function ProjectStackBar<C extends string>({
                 type="button"
                 disabled={saving}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${lightSurface(
-                  selectedCategory === cat.id
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
-                  selectedCategory === cat.id
-                    ? 'dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-200'
-                    : 'dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600',
-                  light
-                )}`}
+                className={
+                  surface === 'workspace'
+                    ? selectedCategory === cat.id
+                      ? WORKSPACE_CATEGORY_CHIP_SELECTED_CLASS
+                      : WORKSPACE_CATEGORY_CHIP_CLASS
+                    : `rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${lightSurface(
+                        selectedCategory === cat.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                        selectedCategory === cat.id
+                          ? 'dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-200'
+                          : 'dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600',
+                        light
+                      )}`
+                }
               >
                 {cat.label}
               </button>
@@ -207,18 +250,30 @@ export default function ProjectStackBar<C extends string>({
                     disabled={saving || alreadyAdded}
                     title={alreadyAdded ? `${entry.name} (added)` : entry.name}
                     onClick={() => void appendItem(selectedCategory, entry.id)}
-                    className={`flex flex-col items-center gap-1.5 rounded-lg border p-2 text-center transition-colors ${lightSurface(
-                      alreadyAdded
-                        ? 'border-gray-100 bg-gray-100 opacity-50 cursor-not-allowed'
-                        : 'border-gray-200 bg-white hover:bg-gray-50',
-                      alreadyAdded
-                        ? 'dark:border-gray-700 dark:bg-gray-800 opacity-50'
-                        : 'dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600',
-                      light
-                    )}`}
+                    className={
+                      surface === 'workspace'
+                        ? alreadyAdded
+                          ? WORKSPACE_CATALOG_ITEM_DISABLED_CLASS
+                          : WORKSPACE_CATALOG_ITEM_CLASS
+                        : `flex flex-col items-center gap-1.5 rounded-lg border p-2 text-center transition-colors ${lightSurface(
+                            alreadyAdded
+                              ? 'border-gray-100 bg-gray-100 opacity-50 cursor-not-allowed'
+                              : 'border-gray-200 bg-white hover:bg-gray-50',
+                            alreadyAdded
+                              ? 'dark:border-gray-700 dark:bg-gray-800 opacity-50'
+                              : 'dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600',
+                            light
+                          )}`
+                    }
                   >
                     {config.renderIcon(entry.id, 22)}
-                    <span className={`text-[10px] leading-tight line-clamp-2 ${lightSurface('text-gray-600', 'dark:text-gray-300', light)}`}>
+                    <span
+                      className={`text-[10px] leading-tight line-clamp-2 ${
+                        surface === 'workspace'
+                          ? 'text-text-secondary'
+                          : lightSurface('text-gray-600', 'dark:text-gray-300', light)
+                      }`}
+                    >
                       {entry.name}
                     </span>
                   </button>
@@ -228,7 +283,13 @@ export default function ProjectStackBar<C extends string>({
           )}
 
           {!selectedCategory && (
-            <p className={`text-xs ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
+            <p
+              className={`text-xs ${
+                surface === 'workspace'
+                  ? 'text-text-tertiary'
+                  : lightSurface('text-gray-500', 'dark:text-gray-400', light)
+              }`}
+            >
               {config.browsePrompt}
             </p>
           )}

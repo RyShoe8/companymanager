@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Button from '@/components/ui/Button';
+import type { ControlSurface } from '@/lib/ui/surfaceStyles';
+import { WORKSPACE_TOOLBAR_BUTTON_CLASS } from '@/lib/ui/surfaceStyles';
 import CategoryModal, {
   type AddSmartButtonPayload,
   type AssetLinkContext,
@@ -22,6 +24,7 @@ interface AddButtonProps {
   socialsToolbarHidden?: boolean;
   onAddSocial?: (url: string) => Promise<void>;
   stackAboveLightbox?: boolean;
+  surface?: ControlSurface;
 }
 
 export default function AddButton({
@@ -36,6 +39,7 @@ export default function AddButton({
   socialsToolbarHidden = false,
   onAddSocial,
   stackAboveLightbox = false,
+  surface = 'inspector',
 }: AddButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -58,9 +62,15 @@ export default function AddButton({
 
   return (
     <>
-      <Button variant="secondary" size="sm" onClick={() => setShowModal(true)}>
-        {label}
-      </Button>
+      {surface === 'workspace' ? (
+        <button type="button" className={WORKSPACE_TOOLBAR_BUTTON_CLASS} onClick={() => setShowModal(true)}>
+          {label}
+        </button>
+      ) : (
+        <Button variant="secondary" size="sm" onClick={() => setShowModal(true)}>
+          {label}
+        </Button>
+      )}
       {showModal && (
         <CategoryModal
           projectId={projectId}

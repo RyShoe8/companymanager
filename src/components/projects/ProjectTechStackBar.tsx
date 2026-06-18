@@ -11,6 +11,7 @@ interface ProjectTechStackBarProps {
   techStack: IProjectTechStackItem[];
   isManagerOrAdmin: boolean;
   onUpdate: (updates: Partial<IProject>) => Promise<void>;
+  surface?: import('@/lib/ui/surfaceStyles').ControlSurface;
 }
 
 const CONFIG = {
@@ -29,6 +30,7 @@ export default function ProjectTechStackBar({
   techStack,
   isManagerOrAdmin,
   onUpdate,
+  surface = 'inspector',
 }: ProjectTechStackBarProps) {
   const items = useMemo<StackItem<TechStackCategory>[]>(
     () =>
@@ -60,6 +62,7 @@ export default function ProjectTechStackBar({
       isManagerOrAdmin={isManagerOrAdmin}
       onSave={handleSave}
       config={CONFIG}
+      surface={surface}
     />
   );
 }

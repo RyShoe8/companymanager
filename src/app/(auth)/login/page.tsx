@@ -6,6 +6,9 @@ import Link from 'next/link';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import GoogleSignInButton from '@/components/ui/GoogleSignInButton';
+import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
 
 const errorMessages: Record<string, string> = {
   oauth_not_configured: 'Google OAuth is not configured. Please contact support or use email/password to sign in.',
@@ -24,6 +27,7 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { executeRecaptcha } = useRecaptcha();
 
   // Check for error in URL params
   useEffect(() => {
@@ -41,10 +45,11 @@ function LoginForm() {
     setLoading(true);
 
     try {
+      const recaptchaToken = await executeRecaptcha(RECAPTCHA_ACTIONS.login);
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, recaptchaToken }),
       });
 
       const data = await response.json();
@@ -108,6 +113,7 @@ function LoginForm() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign in'}
             </Button>
+            <RecaptchaNotice className="text-xs text-text-muted text-center" />
           </div>
           
           <div className="relative">

@@ -8,6 +8,9 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/Select';
 import MarketingPageHeader from '@/components/home/MarketingPageHeader';
+import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
 
 function ContactForm() {
   const searchParams = useSearchParams();
@@ -22,6 +25,7 @@ function ContactForm() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const { executeRecaptcha } = useRecaptcha();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,10 +33,11 @@ function ContactForm() {
     setLoading(true);
 
     try {
+      const recaptchaToken = await executeRecaptcha(RECAPTCHA_ACTIONS.contactSubmit);
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, name, email, subject, message }),
+        body: JSON.stringify({ type, name, email, subject, message, recaptchaToken }),
       });
 
       const data = await response.json();
@@ -134,6 +139,7 @@ function ContactForm() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Sending...' : 'Send Message'}
               </Button>
+              <RecaptchaNotice className="text-xs text-text-muted text-center" />
             </form>
             </>
           )}

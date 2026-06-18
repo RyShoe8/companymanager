@@ -225,35 +225,40 @@ export default function ClientOperationsPanel({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <ProjectSocialsBar
-          socialLinks={(localClient.socialLinks ?? []) as IProjectSocialLink[]}
-          socialsToolbarVisible={localClient.socialsToolbarVisible !== false}
-          isManagerOrAdmin={isManagerOrAdmin}
-          onUpdate={async (updates) => {
-            setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
-            await onUpdateClient(clientId, updates as Partial<IClient>);
-          }}
-        />
-        <ProjectTechStackBar
-          techStack={(localClient.techStack ?? []) as IProjectTechStackItem[]}
-          isManagerOrAdmin={isManagerOrAdmin}
-          onUpdate={async (updates) => {
-            setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
-            await onUpdateClient(clientId, updates as Partial<IClient>);
-          }}
-        />
-        <ProjectMarketingStackBar
-          marketingStack={(localClient.marketingStack ?? []) as IProjectMarketingStackItem[]}
-          isManagerOrAdmin={isManagerOrAdmin}
-          onUpdate={async (updates) => {
-            setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
-            await onUpdateClient(clientId, updates as Partial<IClient>);
-          }}
-        />
-      </div>
+      <div className="rounded-lg border border-border bg-background p-3 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Platforms &amp; links</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <ProjectSocialsBar
+            socialLinks={(localClient.socialLinks ?? []) as IProjectSocialLink[]}
+            socialsToolbarVisible={localClient.socialsToolbarVisible !== false}
+            isManagerOrAdmin={isManagerOrAdmin}
+            surface="workspace"
+            onUpdate={async (updates) => {
+              setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
+              await onUpdateClient(clientId, updates as Partial<IClient>);
+            }}
+          />
+          <ProjectTechStackBar
+            techStack={(localClient.techStack ?? []) as IProjectTechStackItem[]}
+            isManagerOrAdmin={isManagerOrAdmin}
+            surface="workspace"
+            onUpdate={async (updates) => {
+              setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
+              await onUpdateClient(clientId, updates as Partial<IClient>);
+            }}
+          />
+          <ProjectMarketingStackBar
+            marketingStack={(localClient.marketingStack ?? []) as IProjectMarketingStackItem[]}
+            isManagerOrAdmin={isManagerOrAdmin}
+            surface="workspace"
+            onUpdate={async (updates) => {
+              setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
+              await onUpdateClient(clientId, updates as Partial<IClient>);
+            }}
+          />
+        </div>
 
-      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
         {actionButtons.map((btn, idx) => {
           const isEmail = btn.kind === 'email';
           const linkHref = isEmail ? (emailSmartButtonHref(btn.url)?.href ?? '#') : (normalizeProjectUrlHref(btn.url) ?? '#');
@@ -293,6 +298,8 @@ export default function ClientOperationsPanel({
             clientId={clientId}
             linkContext={{ linkedClientId: clientId }}
             socialsToolbarHidden={localClient.socialsToolbarVisible === false}
+            surface="workspace"
+            label="+ Add"
             onAddSocial={async (url) => {
               const parsed = parseSocialLinkInput(url);
               if (!parsed) throw new Error('Invalid URL');
@@ -326,6 +333,7 @@ export default function ClientOperationsPanel({
             onDocumentCreated={() => void loadAssets()}
           />
         )}
+        </div>
       </div>
 
       <div className="pt-2 border-t border-border">

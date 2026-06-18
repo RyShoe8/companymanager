@@ -4,7 +4,6 @@ import Project from '@/lib/models/Project';
 import Client from '@/lib/models/Client';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
-import { ensureClientHubProject } from '@/lib/clients/transitionClientHubWork';
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,10 +54,6 @@ export async function POST(request: NextRequest) {
       // Link project to client
       project.clientId = client._id;
       await project.save();
-
-      const ownerUserId = project.userId ?? session.userId;
-      await ensureClientHubProject(client, ownerUserId, [...orgProjects, project]);
-
       migratedCount++;
     }
 

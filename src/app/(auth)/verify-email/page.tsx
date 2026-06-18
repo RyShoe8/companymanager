@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
 
 function VerifyEmailContent() {
   const router = useRouter();
@@ -25,6 +28,7 @@ function VerifyEmailContent() {
           : ''
   );
   const [sending, setSending] = useState(false);
+  const { executeRecaptcha } = useRecaptcha();
 
   if (verifiedParam === '1') {
     return (
@@ -47,10 +51,11 @@ function VerifyEmailContent() {
     }
     setSending(true);
     try {
+      const recaptchaToken = await executeRecaptcha(RECAPTCHA_ACTIONS.resendVerification);
       const res = await fetch('/api/auth/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), recaptchaToken }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -98,6 +103,7 @@ function VerifyEmailContent() {
           <Button type="button" onClick={() => void handleResend()} disabled={sending} className="w-full">
             {sending ? 'Sending…' : 'Resend verification email'}
           </Button>
+          <RecaptchaNotice className="text-xs text-text-muted text-center" />
         </div>
 
         <p className="text-center text-sm text-text-secondary">

@@ -10,6 +10,7 @@ import MobileBottomNav from "@/components/ui/MobileBottomNav";
 import { StructuredData } from "@/components/StructuredData";
 import PostHogProvider from "@/components/analytics/PostHogProvider";
 import PlatformGuideLayoutWrapper from "@/components/platformGuide/PlatformGuideLayoutWrapper";
+import RecaptchaScript from "@/components/recaptcha/RecaptchaScript";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -137,6 +138,7 @@ export default async function RootLayout({
               data-key="D3V+ZYBYBWGuq2N1WcMRgg"
               strategy="afterInteractive"
             />
+            {!isBareShell ? <RecaptchaScript /> : null}
           </>
         )}
         <PostHogProvider>

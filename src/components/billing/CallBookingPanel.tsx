@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
+import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
 
 type Slot = { start: string; end: string; hostIds: string[] };
 
@@ -67,6 +70,7 @@ export function CallBookingPanel({
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { executeRecaptcha } = useRecaptcha();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,6 +118,10 @@ export function CallBookingPanel({
       if (requireAttendeeFields) {
         body.attendeeName = attendeeName.trim();
         body.attendeeEmail = attendeeEmail.trim();
+        const recaptchaToken = await executeRecaptcha(RECAPTCHA_ACTIONS.bookCall);
+        if (recaptchaToken) {
+          body.recaptchaToken = recaptchaToken;
+        }
       }
       const res = await fetch(`${apiBase}/bookings`, {
         method: 'POST',
@@ -237,6 +245,9 @@ export function CallBookingPanel({
       >
         {pending ? 'Booking…' : bookButtonLabel}
       </Button>
+      {requireAttendeeFields ? (
+        <RecaptchaNotice className="text-xs text-text-muted text-center" />
+      ) : null}
       {error ? (
         <p className="text-sm text-error" role="alert">
           {error}

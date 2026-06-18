@@ -166,3 +166,8 @@ body.nucleas-minimal {
   height: 100dvh;
   overflow: hidden;
 }
+
+/* reCAPTCHA v3 badge hidden per Google policy when disclosure text is shown in the UI */
+.grecaptcha-badge {
+  visibility: hidden;
+}

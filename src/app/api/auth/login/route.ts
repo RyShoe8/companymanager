@@ -10,6 +10,8 @@ import {
   isEmailVerificationPending,
   migrateLegacyEmailVerified,
 } from '@/lib/auth/emailVerification';
+import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
+import { recaptchaFailureResponse, verifyRecaptchaToken } from '@/lib/recaptcha/verifyRecaptcha';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +23,13 @@ export async function POST(request: NextRequest) {
     if (limit) return limit;
 
     const body = await request.json();
+
+    const captcha = await verifyRecaptchaToken({
+      token: body.recaptchaToken,
+      expectedAction: RECAPTCHA_ACTIONS.login,
+    });
+    if (!captcha.ok) return recaptchaFailureResponse(captcha);
+
     let { email, password } = body;
 
     if (!email || !password) {

@@ -1,23 +1,52 @@
-import React from 'react';
+'use client';
+
+import React, { useMemo, useState } from 'react';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
+import { IContentItem } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
 import EditableSelect from '@/components/ui/EditableSelect';
 import ClientOperationsPanel from '@/components/workspace/ClientOperationsPanel';
+import ClientImpactReportModal from '@/components/workspace/ClientImpactReportModal';
+import {
+  activeClientProjects,
+  clientHubProject,
+} from '@/lib/clients/clientProjectHelpers';
 
 interface ClientDetailDashboardProps {
     client: IClient;
     projects: IProject[];
+    contentItems?: IContentItem[];
     onBack: () => void;
     onViewProject: (project: IProject) => void;
+    onAddTask?: (project: IProject) => void;
+    onAddContent?: (project: IProject, defaultDate?: Date) => void;
     onUpdateClient?: (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => void | Promise<void>;
     isManagerOrAdmin?: boolean;
     currentUserId?: string;
 }
 
-export default function ClientDetailDashboard({ client, projects, onBack, onViewProject, onUpdateClient, isManagerOrAdmin = false, currentUserId }: ClientDetailDashboardProps) {
-    const activeProjects = projects.filter(p => p.status !== 'completed' && p.projectType !== 'client-admin');
-    const adminProject = projects.find(p => p.projectType === 'client-admin');
+export default function ClientDetailDashboard({
+    client,
+    projects,
+    contentItems = [],
+    onBack,
+    onViewProject,
+    onAddTask,
+    onAddContent,
+    onUpdateClient,
+    isManagerOrAdmin = false,
+    currentUserId,
+}: ClientDetailDashboardProps) {
+    const [showImpactReport, setShowImpactReport] = useState(false);
+    const activeProjects = activeClientProjects(projects);
+    const adminProject = clientHubProject(projects);
+
+    const hubContentCount = useMemo(() => {
+        if (!adminProject?._id) return 0;
+        const hubId = String(adminProject._id);
+        return contentItems.filter((c) => String(c.projectId) === hubId).length;
+    }, [adminProject?._id, contentItems]);
 
     const handleUpdate = async (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => {
         await onUpdateClient?.(clientId, updates);
@@ -25,7 +54,6 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* Header */}
             <div className="flex items-center gap-4">
                 <button
                     onClick={onBack}
@@ -61,16 +89,17 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                     </div>
                 </div>
                 <div className="ml-auto">
-                    <button className="px-4 py-2 bg-background-elevated border border-border text-text-primary rounded-md text-sm font-medium hover:bg-background-accent transition-colors">
+                    <button
+                        type="button"
+                        onClick={() => setShowImpactReport(true)}
+                        className="px-4 py-2 bg-background-elevated border border-border text-text-primary rounded-md text-sm font-medium hover:bg-background-accent transition-colors"
+                    >
                         Generate Impact Report
                     </button>
                 </div>
             </div>
 
-            {/* Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Left Column - Contact & Details */}
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-background-elevated rounded-xl border border-border p-5">
                         <h3 className="text-sm font-medium text-text-primary mb-4">Client Details</h3>
@@ -107,14 +136,14 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                                     onSave={(v) => onUpdateClient?.(String(client._id), { status: v as IClient['status'] })}
                                     disabled={!onUpdateClient}
                                     showColorDot
-                                    className="text-xs"
+                                    surface="workspace"
+                                    className="text-sm"
                                 />
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Column - Projects */}
                 <div className="lg:col-span-2 space-y-6">
                     <ClientOperationsPanel
                         client={client}
@@ -126,24 +155,47 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                     />
                     {adminProject && (
                         <div className="bg-background-elevated rounded-xl border border-border p-5">
-                            <div className="flex items-center justify-between mb-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                 <h3 className="text-sm font-medium text-text-primary">Client Headquarters</h3>
-                                <button 
-                                    onClick={() => onViewProject(adminProject)}
-                                    className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-md text-xs font-medium transition-colors"
-                                >
-                                    Open Headquarters
-                                </button>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {onAddTask && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onAddTask(adminProject)}
+                                            className="px-3 py-1.5 border border-border bg-background text-text-primary hover:bg-background-accent rounded-md text-xs font-medium transition-colors"
+                                        >
+                                            + Task
+                                        </button>
+                                    )}
+                                    {onAddContent && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onAddContent(adminProject, new Date())}
+                                            className="px-3 py-1.5 border border-border bg-background text-text-primary hover:bg-background-accent rounded-md text-xs font-medium transition-colors"
+                                        >
+                                            + Content
+                                        </button>
+                                    )}
+                                    <button 
+                                        type="button"
+                                        onClick={() => onViewProject(adminProject)}
+                                        className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-md text-xs font-medium transition-colors"
+                                    >
+                                        Open Headquarters
+                                    </button>
+                                </div>
                             </div>
                             <p className="text-sm text-text-secondary mb-4">Manage general tasks, content, and meetings for this client.</p>
                             <div className="flex gap-4">
                                 <div className="bg-background p-3 rounded-lg border border-border flex-1">
                                     <div className="text-xs text-text-tertiary mb-1 uppercase tracking-wider">Active Tasks</div>
-                                    <div className="text-xl font-semibold text-text-primary">{adminProject.tasks?.filter((t: any) => t.status !== 'completed').length || 0}</div>
+                                    <div className="text-xl font-semibold text-text-primary">
+                                        {adminProject.tasks?.filter((t) => t.status !== 'completed').length || 0}
+                                    </div>
                                 </div>
                                 <div className="bg-background p-3 rounded-lg border border-border flex-1">
                                     <div className="text-xs text-text-tertiary mb-1 uppercase tracking-wider">Content Items</div>
-                                    <div className="text-xl font-semibold text-text-primary">{(adminProject as any).contentItems?.length || 0}</div>
+                                    <div className="text-xl font-semibold text-text-primary">{hubContentCount}</div>
                                 </div>
                             </div>
                         </div>
@@ -187,8 +239,14 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                         )}
                     </div>
                 </div>
-
             </div>
+
+            <ClientImpactReportModal
+                isOpen={showImpactReport}
+                clientId={String(client._id)}
+                clientName={client.name}
+                onClose={() => setShowImpactReport(false)}
+            />
         </div>
     );
 }
