@@ -38,7 +38,7 @@ const WorkspaceNotificationEventSchema: Schema = new Schema(
     projectName: { type: String, required: true, trim: true },
     entityKind: {
       type: String,
-      enum: ['task', 'content', 'project'],
+      enum: ['task', 'content', 'project', 'client'],
       required: true,
     },
     entityId: { type: String, trim: true },

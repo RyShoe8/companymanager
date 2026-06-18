@@ -26,7 +26,7 @@ async function getSessionContext(request: NextRequest) {
   const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
   const isManagerOrAdmin = employee?.role === 'Administrator' || employee?.role === 'Manager';
 
-  return { session, user, isManagerOrAdmin };
+  return { session, user, isManagerOrAdmin, employee };
 }
 
 export async function GET(
@@ -80,6 +80,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
+    const beforeClient = client.toObject();
+
     const result = applyClientUpdates(client, body, ctx.isManagerOrAdmin);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
@@ -87,6 +89,19 @@ export async function PUT(
 
     await client.save();
     const lean = client.toObject();
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyClientChange, clientChanged }) => {
+      if (!clientChanged(beforeClient, lean)) return;
+      void notifyClientChange({
+        client: lean,
+        actorUserId: ctx.session.userId,
+        actorEmployeeId: ctx.employee?._id?.toString() ?? null,
+        organizationId: ctx.user.organizationId!.toString(),
+        isNew: false,
+        changeLabel: 'Client updated',
+      }).catch((err) => console.error('[workspaceNotifications] client_update', err));
+    });
+
     return NextResponse.json(sanitizeClientForResponse(lean, ctx.isManagerOrAdmin));
   } catch (error) {
     console.error('Failed to update client:', error);

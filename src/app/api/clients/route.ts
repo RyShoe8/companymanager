@@ -83,6 +83,17 @@ export async function POST(request: NextRequest) {
       color: body.color || '#3b82f6',
     });
 
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyClientChange }) => {
+      void notifyClientChange({
+        client: newClient,
+        actorUserId: session.userId,
+        actorEmployeeId: currentUserEmployee?._id?.toString() ?? null,
+        organizationId: user.organizationId!.toString(),
+        isNew: true,
+        changeLabel: 'New client added',
+      }).catch((err) => console.error('[workspaceNotifications] client_new', err));
+    });
+
     return NextResponse.json(newClient, { status: 201 });
   } catch (error) {
     console.error('Failed to create client:', error);
@@ -119,6 +130,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
+    const beforeClient = client.toObject();
+
     const result = applyClientUpdates(client, body, true);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
@@ -126,6 +139,19 @@ export async function PATCH(request: NextRequest) {
 
     await client.save();
     const lean = client.toObject();
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyClientChange, clientChanged }) => {
+      if (!clientChanged(beforeClient, lean)) return;
+      void notifyClientChange({
+        client: lean,
+        actorUserId: session.userId,
+        actorEmployeeId: currentUserEmployee?._id?.toString() ?? null,
+        organizationId: user.organizationId!.toString(),
+        isNew: false,
+        changeLabel: 'Client updated',
+      }).catch((err) => console.error('[workspaceNotifications] client_update', err));
+    });
+
     return NextResponse.json(sanitizeClientForResponse(lean, true));
   } catch (error) {
     console.error('Failed to update client:', error);

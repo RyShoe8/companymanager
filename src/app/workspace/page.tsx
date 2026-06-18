@@ -6,7 +6,7 @@ import WorkspaceShell from '@/components/workspace/WorkspaceShell';
 import { PhaseType, LensType } from '@/lib/hooks/useWorkspaceData';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 
-const VALID_LENSES: LensType[] = ['schedule', 'agenda', 'projects', 'capacity'];
+const VALID_LENSES: LensType[] = ['schedule', 'agenda', 'projects', 'clients', 'capacity'];
 
 function resolveLens(raw: string | null): LensType {
     const lens = (raw as LensType) || 'schedule';
@@ -23,6 +23,7 @@ function WorkspaceContent() {
     const initialDeepLinkProjectId = searchParams.get('project');
     const initialDeepLinkTaskId = searchParams.get('task');
     const initialDeepLinkContentId = searchParams.get('content');
+    const initialDeepLinkClientId = searchParams.get('client');
 
     return (
         <WorkspaceShell
@@ -31,6 +32,7 @@ function WorkspaceContent() {
             initialDeepLinkProjectId={initialDeepLinkProjectId}
             initialDeepLinkTaskId={initialDeepLinkTaskId}
             initialDeepLinkContentId={initialDeepLinkContentId}
+            initialDeepLinkClientId={initialDeepLinkClientId}
         />
     );
 }

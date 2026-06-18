@@ -20,11 +20,13 @@ export const WORKSPACE_NOTIFICATION_EVENT_TYPES = [
   'content_comment',
   'project_new',
   'project_update',
+  'client_new',
+  'client_update',
 ] as const;
 
 export type WorkspaceNotificationEventType = (typeof WORKSPACE_NOTIFICATION_EVENT_TYPES)[number];
 
-export type WorkspaceEntityKind = 'task' | 'content' | 'project';
+export type WorkspaceEntityKind = 'task' | 'content' | 'project' | 'client';
 
 export function isWorkspaceDigestInterval(value: unknown): value is WorkspaceDigestInterval {
   return (

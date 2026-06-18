@@ -18,6 +18,8 @@ function entityKindLabel(kind: DigestEventRow['entityKind']): string {
       return 'Content';
     case 'project':
       return 'Project';
+    case 'client':
+      return 'Client';
     default:
       return 'Item';
   }
@@ -91,7 +93,7 @@ export async function sendWorkspaceDigestEmail(options: {
             ${count} workspace update${count === 1 ? '' : 's'}
           </h1>
           <p style="margin: 10px 0 0 0; color: #5E677D; font-size: 15px;">
-            Here is what changed across your assigned projects, tasks, and content.
+            Here is what changed across your assigned projects, tasks, content, and clients.
           </p>
         </div>
         <div style="padding: 28px;">

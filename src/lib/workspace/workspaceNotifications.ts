@@ -54,6 +54,31 @@ type ContentLike = {
   estimatedHours?: number | null;
 };
 
+type ClientLike = {
+  _id?: { toString(): string } | string;
+  name?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  domain?: string;
+  logo?: string;
+  color?: string;
+  status?: string;
+  url?: string;
+  urls?: string[];
+  devUrl?: string;
+  liveUrl?: string;
+  socialLinks?: unknown[];
+  socialsToolbarVisible?: boolean;
+  techStack?: unknown[];
+  marketingStack?: unknown[];
+  colorPalette?: string[];
+  fontPalette?: string[];
+  actionButtons?: unknown[];
+  clientPortalSlug?: string;
+  invitedClientEmails?: string[];
+};
+
 export type DigestEventRow = {
   eventType: WorkspaceNotificationEventType;
   projectId: string;
@@ -141,6 +166,42 @@ export function contentChanged(
   });
 }
 
+function clientSignature(client: ClientLike): string {
+  const actionButtons = (client.actionButtons ?? []) as Array<{ label?: string; url?: string }>;
+  const socialLinks = (client.socialLinks ?? []) as Array<{ label?: string; url?: string }>;
+  const techStack = (client.techStack ?? []) as Array<{ name?: string; technologyId?: string }>;
+  const marketingStack = (client.marketingStack ?? []) as Array<{ name?: string; toolId?: string }>;
+
+  return JSON.stringify({
+    name: client.name ?? '',
+    contactName: client.contactName ?? '',
+    contactEmail: client.contactEmail ?? '',
+    contactPhone: client.contactPhone ?? '',
+    domain: client.domain ?? '',
+    logo: client.logo ?? '',
+    color: client.color ?? '',
+    status: client.status ?? '',
+    url: client.url ?? '',
+    urls: [...(client.urls ?? [])].sort(),
+    devUrl: client.devUrl ?? '',
+    liveUrl: client.liveUrl ?? '',
+    socialsToolbarVisible: client.socialsToolbarVisible !== false,
+    socialLinkLabels: socialLinks.map((s) => s.label ?? s.url ?? '').sort(),
+    techStackIds: techStack.map((t) => t.technologyId ?? t.name ?? '').sort(),
+    marketingStackIds: marketingStack.map((t) => t.toolId ?? t.name ?? '').sort(),
+    colorPalette: [...(client.colorPalette ?? [])],
+    fontPalette: [...(client.fontPalette ?? [])],
+    actionButtonLabels: actionButtons.map((b) => b.label ?? b.url ?? '').sort(),
+    clientPortalSlug: client.clientPortalSlug ?? '',
+    invitedClientEmails: [...(client.invitedClientEmails ?? [])].sort(),
+  });
+}
+
+export function clientChanged(before: ClientLike | null | undefined, after: ClientLike): boolean {
+  if (!before) return true;
+  return clientSignature(before) !== clientSignature(after);
+}
+
 export function resolveTaskRecipientEmployeeIds(task: TaskLike): string[] {
   return getTaskAssigneeEmployeeIds(task as Parameters<typeof getTaskAssigneeEmployeeIds>[0]);
 }
@@ -172,6 +233,16 @@ export function resolveProjectRecipientEmployeeIds(
   });
 }
 
+/** All Managers and Administrators in the org (client edits are manager-only). */
+export async function resolveClientRecipientEmployeeIds(organizationId: string): Promise<string[]> {
+  await connectDB();
+  const employees = await Employee.find({
+    organizationId,
+    role: { $in: ['Manager', 'Administrator'] },
+  }).select('_id');
+  return employees.map((e) => e._id.toString());
+}
+
 export function buildWorkspaceDeepLink(options: {
   baseUrl: string;
   projectId: string;
@@ -182,6 +253,13 @@ export function buildWorkspaceDeepLink(options: {
   url.searchParams.set('project', options.projectId);
   if (options.taskId) url.searchParams.set('task', options.taskId);
   if (options.contentId) url.searchParams.set('content', options.contentId);
+  return url.toString();
+}
+
+export function buildClientDeepLink(options: { baseUrl: string; clientId: string }): string {
+  const url = new URL('/workspace', options.baseUrl);
+  url.searchParams.set('lens', 'clients');
+  url.searchParams.set('client', options.clientId);
   return url.toString();
 }
 
@@ -201,11 +279,13 @@ export function eventToDigestRow(
 ): DigestEventRow {
   const projectId = normalizeId(event.projectId) ?? '';
   const href =
-    event.entityKind === 'project'
-      ? buildWorkspaceDeepLink({ baseUrl, projectId })
-      : event.entityKind === 'task'
-        ? buildWorkspaceDeepLink({ baseUrl, projectId, taskId: event.entityId ?? undefined })
-        : buildWorkspaceDeepLink({ baseUrl, projectId, contentId: event.entityId ?? undefined });
+    event.entityKind === 'client'
+      ? buildClientDeepLink({ baseUrl, clientId: event.entityId ?? '' })
+      : event.entityKind === 'project'
+        ? buildWorkspaceDeepLink({ baseUrl, projectId })
+        : event.entityKind === 'task'
+          ? buildWorkspaceDeepLink({ baseUrl, projectId, taskId: event.entityId ?? undefined })
+          : buildWorkspaceDeepLink({ baseUrl, projectId, contentId: event.entityId ?? undefined });
 
   return {
     eventType: event.eventType,
@@ -400,6 +480,44 @@ export async function notifyProjectChange(options: {
     entityId: projectId,
     entityLabel: options.project.name,
     changeLabel: options.changeLabel ?? (options.isNew ? 'New project assigned' : 'Project updated'),
+  });
+}
+
+export async function notifyClientChange(options: {
+  client: ClientLike & { name: string };
+  actorUserId: string;
+  actorEmployeeId?: string | null;
+  organizationId: string;
+  isNew: boolean;
+  changeLabel?: string;
+}): Promise<void> {
+  const clientId = normalizeId(options.client._id);
+  if (!clientId || !options.client.name) return;
+
+  await connectDB();
+  const Project = (await import('@/lib/models/Project')).default;
+  const hub = await Project.findOne({ clientId, projectType: 'client-admin' })
+    .select('_id name')
+    .lean();
+  if (!hub?._id || !hub.name) {
+    console.warn('[workspaceNotifications] client notify skipped: no hub project', clientId);
+    return;
+  }
+
+  const recipients = await resolveClientRecipientEmployeeIds(options.organizationId);
+
+  await enqueueForEmployeeIds({
+    employeeIds: recipients,
+    actorUserId: options.actorUserId,
+    actorEmployeeId: options.actorEmployeeId,
+    organizationId: options.organizationId,
+    eventType: options.isNew ? 'client_new' : 'client_update',
+    projectId: hub._id.toString(),
+    projectName: hub.name,
+    entityKind: 'client',
+    entityId: clientId,
+    entityLabel: options.client.name.trim() || 'Untitled client',
+    changeLabel: options.changeLabel ?? (options.isNew ? 'New client added' : 'Client updated'),
   });
 }
 

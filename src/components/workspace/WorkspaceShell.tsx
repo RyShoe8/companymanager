@@ -71,6 +71,7 @@ interface WorkspaceShellProps {
     initialDeepLinkProjectId?: string | null;
     initialDeepLinkTaskId?: string | null;
     initialDeepLinkContentId?: string | null;
+    initialDeepLinkClientId?: string | null;
 }
 
 export default function WorkspaceShell({
@@ -79,6 +80,7 @@ export default function WorkspaceShell({
     initialDeepLinkProjectId = null,
     initialDeepLinkTaskId = null,
     initialDeepLinkContentId = null,
+    initialDeepLinkClientId = null,
 }: WorkspaceShellProps) {
     const isMobile = useIsMobile();
     const router = useRouter();
@@ -361,6 +363,11 @@ export default function WorkspaceShell({
         },
         [markOpenedProjectSeen]
     );
+
+    useEffect(() => {
+        if (!initialDeepLinkClientId || ws.clients.length === 0) return;
+        ws.setLens('clients');
+    }, [initialDeepLinkClientId, ws.clients.length, ws.setLens]);
 
     useEffect(() => {
         if (deepLinkHandledRef.current || !initialDeepLinkProjectId || ws.allProjects.length === 0) return;
@@ -1476,6 +1483,7 @@ _id.toString(), { tasks });
                                     clients={ws.clients}
                                     allProjects={ws.allProjects}
                                     contentItems={ws.contentItems}
+                                    initialSelectedClientId={initialDeepLinkClientId}
                                     onViewProject={handleViewProject}
                                     onAddTask={handleAddTaskToProject}
                                     onAddContent={(project, defaultDate) => {

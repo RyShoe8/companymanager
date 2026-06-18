@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildClientDeepLink,
   buildWorkspaceDeepLink,
+  clientChanged,
   contentChanged,
   eventToDigestRow,
   groupDigestRowsByProject,
@@ -85,6 +87,23 @@ describe('workspaceNotifications', () => {
     expect(contentChanged({ title: 'A', status: 'planned' }, { title: 'A', status: 'planned' })).toBe(false);
   });
 
+  it('detects client field changes and ignores token-only updates', () => {
+    const before = { name: 'Acme', status: 'active', contactEmail: 'a@acme.com' };
+    const afterStatus = { name: 'Acme', status: 'lead', contactEmail: 'a@acme.com' };
+    expect(clientChanged(before, afterStatus)).toBe(true);
+    expect(clientChanged(afterStatus, afterStatus)).toBe(false);
+
+    const withTokenBefore = { name: 'Acme', clientPortalSlug: 'slug-a', clientPortalToken: 'secret-1' };
+    const withTokenAfter = { name: 'Acme', clientPortalSlug: 'slug-a', clientPortalToken: 'secret-2' };
+    expect(clientChanged(withTokenBefore, withTokenAfter)).toBe(false);
+  });
+
+  it('builds client deep links', () => {
+    expect(buildClientDeepLink({ baseUrl: 'https://nucleas.app', clientId: 'c1' })).toBe(
+      'https://nucleas.app/workspace?lens=clients&client=c1'
+    );
+  });
+
   it('builds workspace deep links', () => {
     expect(buildWorkspaceDeepLink({ baseUrl: 'https://nucleas.app', projectId: 'p1' })).toBe(
       'https://nucleas.app/workspace?project=p1'
@@ -136,6 +155,25 @@ describe('workspaceNotifications', () => {
       'https://nucleas.app'
     );
     expect(contentRow.href).toBe('https://nucleas.app/workspace?project=p1&content=c1');
+
+    const clientRow = eventToDigestRow(
+      {
+        eventType: 'client_update',
+        projectId: 'hub1',
+        projectName: 'Acme HQ',
+        entityKind: 'client',
+        entityId: 'c1',
+        entityLabel: 'Acme',
+        changeLabel: 'Client updated',
+      },
+      'https://nucleas.app'
+    );
+    expect(clientRow.href).toBe('https://nucleas.app/workspace?lens=clients&client=c1');
+  });
+
+  it('labels client events in digest emails', () => {
+    expect(eventTypeLabel('client_new')).toBe('New');
+    expect(eventTypeLabel('client_update')).toBe('Update');
   });
 
   it('labels comment events in digest emails', () => {

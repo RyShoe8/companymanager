@@ -128,6 +128,18 @@ export async function POST(
     }
     client.actionButtons = actionButtons;
     await client.save();
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyClientChange }) => {
+      void notifyClientChange({
+        client,
+        actorUserId: session.userId,
+        actorEmployeeId: employee._id.toString(),
+        organizationId: user.organizationId!.toString(),
+        isNew: false,
+        changeLabel: 'Client action button added',
+      }).catch((err) => console.error('[workspaceNotifications] client_update', err));
+    });
+
     return NextResponse.json(serializeActionButtons(client.actionButtons, true), { status: 201 });
   } catch (error) {
     console.error('Error adding client button:', error);
@@ -172,6 +184,18 @@ export async function DELETE(
     actionButtons.splice(index, 1);
     client.actionButtons = actionButtons;
     await client.save();
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyClientChange }) => {
+      void notifyClientChange({
+        client,
+        actorUserId: session.userId,
+        actorEmployeeId: employee._id.toString(),
+        organizationId: user.organizationId!.toString(),
+        isNew: false,
+        changeLabel: 'Client action button removed',
+      }).catch((err) => console.error('[workspaceNotifications] client_update', err));
+    });
+
     return NextResponse.json(serializeActionButtons(client.actionButtons, true));
   } catch (error) {
     console.error('Error deleting client button:', error);
@@ -248,6 +272,18 @@ export async function PATCH(
     actionButtons[index] = updatedButton;
     client.actionButtons = actionButtons;
     await client.save();
+
+    void import('@/lib/workspace/workspaceNotifications').then(({ notifyClientChange }) => {
+      void notifyClientChange({
+        client,
+        actorUserId: session.userId,
+        actorEmployeeId: employee._id.toString(),
+        organizationId: user.organizationId!.toString(),
+        isNew: false,
+        changeLabel: 'Client action button updated',
+      }).catch((err) => console.error('[workspaceNotifications] client_update', err));
+    });
+
     return NextResponse.json(serializeActionButtons(client.actionButtons, true));
   } catch (error) {
     console.error('Error updating client button:', error);

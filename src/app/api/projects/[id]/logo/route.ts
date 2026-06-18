@@ -108,6 +108,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     migrateProjectFields(project);
     await project.save();
 
+    if (project.projectType === 'client-admin' && project.clientId) {
+      const Client = (await import('@/lib/models/Client')).default;
+      await Client.updateOne({ _id: project.clientId }, { $set: { logo: url } });
+    }
+
     return NextResponse.json({
       message: 'Project logo uploaded successfully',
       url,
@@ -165,6 +170,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     project.logo = undefined;
     migrateProjectFields(project);
     await project.save();
+
+    if (project.projectType === 'client-admin' && project.clientId) {
+      const Client = (await import('@/lib/models/Client')).default;
+      await Client.updateOne({ _id: project.clientId }, { $unset: { logo: 1 } });
+    }
 
     return NextResponse.json({
       message: 'Project logo deleted successfully',

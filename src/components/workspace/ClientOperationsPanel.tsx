@@ -213,18 +213,6 @@ export default function ClientOperationsPanel({
         )}
       </div>
 
-      {isManagerOrAdmin && (
-        <div className="text-sm">
-          <p className="text-xs text-text-tertiary uppercase tracking-wider mb-1">Logo URL</p>
-          <EditableText
-            value={localClient.logo ?? ''}
-            onSave={(v) => handleFieldUpdate('logo', v.trim())}
-            className="text-text-secondary block"
-            placeholder="https://..."
-          />
-        </div>
-      )}
-
       <div className="rounded-lg border border-border bg-background p-3 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Platforms &amp; links</p>
         <div className="flex flex-wrap items-center gap-2">

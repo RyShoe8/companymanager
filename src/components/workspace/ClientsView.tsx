@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
@@ -9,6 +10,7 @@ interface ClientsViewProps {
     clients: IClient[];
     allProjects: IProject[];
     contentItems?: IContentItem[];
+    initialSelectedClientId?: string | null;
     onViewProject: (project: IProject) => void;
     onAddTask?: (project: IProject) => void;
     onAddContent?: (project: IProject, defaultDate?: Date) => void;
@@ -22,6 +24,7 @@ export default function ClientsView({
     clients,
     allProjects,
     contentItems = [],
+    initialSelectedClientId = null,
     onViewProject,
     onAddTask,
     onAddContent,
@@ -30,7 +33,13 @@ export default function ClientsView({
     isManagerOrAdmin = false,
     currentUserId,
 }: ClientsViewProps) {
-    const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+    const [selectedClientId, setSelectedClientId] = useState<string | null>(initialSelectedClientId);
+
+    useEffect(() => {
+        if (initialSelectedClientId) {
+            setSelectedClientId(initialSelectedClientId);
+        }
+    }, [initialSelectedClientId]);
 
     const selectedClient = clients.find(c => c._id?.toString() === selectedClientId);
 
@@ -102,11 +111,22 @@ export default function ClientsView({
                                 <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: client.color || '#3b82f6' }} />
                                 
                                 <div className="flex items-start justify-between mb-4 mt-1">
-                                    <div 
-                                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-sm"
-                                        style={{ backgroundColor: client.color || '#3b82f6' }}
+                                    <div
+                                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-sm overflow-hidden"
+                                        style={client.logo ? undefined : { backgroundColor: client.color || '#3b82f6' }}
                                     >
-                                        {client.name.charAt(0).toUpperCase()}
+                                        {client.logo ? (
+                                            <Image
+                                                src={client.logo}
+                                                alt=""
+                                                width={40}
+                                                height={40}
+                                                className="w-full h-full object-cover"
+                                                unoptimized
+                                            />
+                                        ) : (
+                                            client.name.charAt(0).toUpperCase()
+                                        )}
                                     </div>
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
                                         client.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :

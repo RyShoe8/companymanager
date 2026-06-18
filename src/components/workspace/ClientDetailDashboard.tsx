@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
 import EditableSelect from '@/components/ui/EditableSelect';
+import ClientLogo from '@/components/clients/ClientLogo';
 import ClientOperationsPanel from '@/components/workspace/ClientOperationsPanel';
 import ClientImpactReportModal from '@/components/workspace/ClientImpactReportModal';
 import {
@@ -39,8 +40,13 @@ export default function ClientDetailDashboard({
     currentUserId,
 }: ClientDetailDashboardProps) {
     const [showImpactReport, setShowImpactReport] = useState(false);
+    const [logo, setLogo] = useState(client.logo);
     const activeProjects = activeClientProjects(projects);
     const adminProject = clientHubProject(projects);
+
+    useEffect(() => {
+        setLogo(client.logo ?? adminProject?.logo);
+    }, [client.logo, adminProject?.logo, client._id]);
 
     const hubContentCount = useMemo(() => {
         if (!adminProject?._id) return 0;
@@ -64,12 +70,14 @@ export default function ClientDetailDashboard({
                         <path d="M19 12H5M12 19l-7-7 7-7" />
                     </svg>
                 </button>
-                <div 
-                    className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-xl font-bold shadow-sm"
-                    style={{ backgroundColor: client.color || '#3b82f6' }}
-                >
-                    {client.name.charAt(0).toUpperCase()}
-                </div>
+                <ClientLogo
+                    clientId={String(client._id)}
+                    logo={logo}
+                    color={client.color || '#3b82f6'}
+                    name={client.name}
+                    isManagerOrAdmin={isManagerOrAdmin}
+                    onLogoUpdate={setLogo}
+                />
                 <div>
                     <EditableText
                         value={client.name}
