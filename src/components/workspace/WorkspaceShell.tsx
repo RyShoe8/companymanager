@@ -12,6 +12,7 @@ import LensBar from '@/components/workspace/LensBar';
 import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import AgendaView from '@/components/workspace/AgendaView';
+import ClientsView from '@/components/workspace/ClientsView';
 import OrganizationBrand from '@/components/organization/OrganizationBrand';
 import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
 import SchedulingCalendarBar from '@/components/scheduling/SchedulingCalendarBar';
