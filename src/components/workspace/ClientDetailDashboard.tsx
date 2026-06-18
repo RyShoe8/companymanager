@@ -128,7 +128,7 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                                 </div>
                                 <div className="bg-background p-3 rounded-lg border border-border flex-1">
                                     <div className="text-xs text-text-tertiary mb-1 uppercase tracking-wider">Content Items</div>
-                                    <div className="text-xl font-semibold text-text-primary">{adminProject.contentItems?.length || 0}</div>
+                                    <div className="text-xl font-semibold text-text-primary">{(adminProject as any).contentItems?.length || 0}</div>
                                 </div>
                             </div>
                         </div>
