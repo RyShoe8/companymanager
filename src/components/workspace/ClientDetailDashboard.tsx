@@ -97,7 +97,7 @@ export default function ClientDetailDashboard({ client, projects, onBack, onView
                                         { value: 'lead', label: 'Lead', color: 'yellow' },
                                         { value: 'inactive', label: 'Inactive', color: 'gray' }
                                     ]}
-                                    onSave={(v) => onUpdateClient?.(String(client._id), { status: v })}
+                                    onSave={(v) => onUpdateClient?.(String(client._id), { status: v as IClient['status'] })}
                                     disabled={!onUpdateClient}
                                     showColorDot
                                     className="text-xs"
