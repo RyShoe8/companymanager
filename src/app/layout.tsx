@@ -9,6 +9,7 @@ import OrganizationSetupCheck from "@/components/OrganizationSetupCheck";
 import MobileBottomNav from "@/components/ui/MobileBottomNav";
 import { StructuredData } from "@/components/StructuredData";
 import PostHogProvider from "@/components/analytics/PostHogProvider";
+import PlatformGuideLayoutWrapper from "@/components/platformGuide/PlatformGuideLayoutWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -139,6 +140,7 @@ export default async function RootLayout({
           </>
         )}
         <PostHogProvider>
+          <PlatformGuideLayoutWrapper>
           <OrganizationSetupCheck>
             {isBareShell ? (
               children
@@ -153,6 +155,7 @@ export default async function RootLayout({
               </>
             )}
           </OrganizationSetupCheck>
+          </PlatformGuideLayoutWrapper>
         </PostHogProvider>
       </body>
     </html>

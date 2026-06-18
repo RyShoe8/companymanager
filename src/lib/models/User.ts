@@ -13,6 +13,7 @@ export interface IUser extends Document {
   emailVerified?: boolean;
   emailVerificationTokenHash?: string;
   emailVerificationExpires?: Date;
+  platformGuideCompletedAt?: Date;
   createdAt: Date;
 }
 
@@ -72,6 +73,9 @@ const UserSchema: Schema = new Schema(
       trim: true,
     },
     emailVerificationExpires: {
+      type: Date,
+    },
+    platformGuideCompletedAt: {
       type: Date,
     },
   },

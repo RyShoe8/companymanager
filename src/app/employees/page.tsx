@@ -185,7 +185,7 @@ export default function EmployeesPage() {
               </Button>
             )}
             {currentUserEmployee?.role === 'Administrator' && (
-              <Button onClick={handleCreateEmployee}>+ New Team Member</Button>
+              <Button onClick={handleCreateEmployee} data-tour="team-invite">+ New Team Member</Button>
             )}
           </div>
         </div>
@@ -212,12 +212,12 @@ export default function EmployeesPage() {
         ) : null}
 
         {employees.length === 0 ? (
-          <div className="text-center py-12 bg-background-card rounded-lg border border-border">
+          <div className="text-center py-12 bg-background-card rounded-lg border border-border" data-tour="team-list">
             <p className="text-text-secondary mb-4">No team members yet. Create your first team member!</p>
             <Button onClick={handleCreateEmployee}>Create Team Member</Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour="team-list">
             {employees.map((employee) => (
               <Card key={employee._id.toString()} className="p-4">
                 <div className="flex items-start justify-between">

@@ -17,7 +17,7 @@ const phases: { value: PhaseType; label: string }[] = [
 
 export default function PhaseFilter({ selected, onSelect }: PhaseFilterProps) {
     return (
-        <div className="flex items-center bg-muted/40 rounded-lg p-0.5 border border-border" role="tablist" aria-label="Phase filter">
+        <div className="flex items-center bg-muted/40 rounded-lg p-0.5 border border-border" role="tablist" aria-label="Phase filter" data-tour="phase-filter">
             {phases.map((p) => (
                 <button
                     key={p.value}

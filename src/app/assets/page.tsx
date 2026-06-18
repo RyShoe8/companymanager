@@ -188,12 +188,13 @@ function AssetsPageContent() {
       <div className="w-full mx-auto px-4 sm:px-6 lg:px-[100px]">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-text-primary mb-4">Assets</h1>
-          <div className="flex gap-4 mb-4">
+          <div className="flex gap-4 mb-4" data-tour="assets-upload">
             <div className="flex-1">
               <AssetSearch value={searchQuery} onChange={setSearchQuery} />
             </div>
             <Button onClick={handleCreateAsset}>+ New Asset</Button>
           </div>
+          <div data-tour="assets-filters">
           <AssetFilters
             type={typeFilter}
             category={categoryFilter}
@@ -209,10 +210,11 @@ function AssetsPageContent() {
             }}
             categories={categories}
           />
+          </div>
         </div>
 
         {filteredAssets.length === 0 ? (
-          <div className="text-center py-12 bg-background-card rounded-lg border border-border">
+          <div className="text-center py-12 bg-background-card rounded-lg border border-border" data-tour="assets-grid">
             <p className="text-text-secondary">
               {searchQuery || typeFilter || categoryFilter
                 ? 'No assets match your filters'
@@ -220,7 +222,7 @@ function AssetsPageContent() {
             </p>
           </div>
         ) : (
-          <div>
+          <div data-tour="assets-grid">
             {filteredAssets.map((asset) => {
               const linkedProjectId = asset.linkedProjectId?.toString();
               return (

@@ -58,6 +58,8 @@ import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 import { markProjectItemsSeen } from '@/lib/workspace/itemSeenState';
 import WorkspaceEmailDigestSelect from '@/components/workspace/WorkspaceEmailDigestSelect';
+import PlatformGuideWorkspaceBridge from '@/lib/platformGuide/PlatformGuideWorkspaceBridge';
+import { usePlatformGuideOptional } from '@/lib/platformGuide/PlatformGuideProvider';
 
 interface WorkspaceShellProps {
     initialPhase?: PhaseType;
@@ -81,6 +83,7 @@ export default function WorkspaceShell({
 
     // Inspector / form state
     const [showProjectForm, setShowProjectForm] = useState(false);
+    const [createMenuOpen, setCreateMenuOpen] = useState(false);
     const [editingProject, setEditingProject] = useState<IProject | undefined>();
     const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
     const [showContentCreateModal, setShowContentCreateModal] = useState(false);
@@ -111,6 +114,8 @@ export default function WorkspaceShell({
     const [showScreenshotModal, setShowScreenshotModal] = useState(false);
     const [showRecordingModal, setShowRecordingModal] = useState(false);
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
+
+    const platformGuide = usePlatformGuideOptional();
 
     const createScreenshot = useScreenshotUpload(null);
     const createRecording = useRecordingUpload(null, undefined, () => setShowRecordingModal(false));
@@ -1291,10 +1296,21 @@ export default function WorkspaceShell({
                                         ) : null}
                                     </>
                                 )}
+                                <button
+                                    type="button"
+                                    data-tour="command-palette-trigger"
+                                    onClick={() => setIsCommandPaletteOpen(true)}
+                                    className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors"
+                                    title="Open command palette (Ctrl+K)"
+                                >
+                                    <span>⌘K</span>
+                                </button>
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}
                                     canCreateTaskOrContent={canCreateTaskOrContent}
+                                    menuOpen={createMenuOpen}
+                                    onMenuOpenChange={setCreateMenuOpen}
                                     onCreateProject={handleCreateProject}
                                     onCreateTask={() => setProjectPickerMode('task')}
                                     onCreateContent={() => setProjectPickerMode('content')}
@@ -1338,6 +1354,17 @@ export default function WorkspaceShell({
                             />
                             {(ws.lens === 'schedule' || ws.lens === 'agenda') && (
                                 <WorkspaceLensToolbar className="ml-auto">
+                                    {platformGuide?.showRestartGuide ? (
+                                        <button
+                                            type="button"
+                                            data-tour="restart-guide"
+                                            onClick={() => platformGuide.restartGuide()}
+                                            className="text-xs font-medium text-primary hover:text-primary-hover whitespace-nowrap"
+                                        >
+                                            Platform guide
+                                        </button>
+                                    ) : null}
+                                    <div data-tour="lens-toggles" className="flex flex-wrap items-center gap-4">
                                     <Toggle label="Show Tasks" checked={ws.showTasks} onChange={ws.setShowTasks} />
                                     <Toggle
                                         label="Show Content"
@@ -1355,6 +1382,7 @@ export default function WorkspaceShell({
                                         value={ws.contentChannelFilter}
                                         onChange={ws.setContentChannelFilter}
                                     />
+                                    </div>
                                 </WorkspaceLensToolbar>
                             )}
                         </div>
@@ -1405,7 +1433,7 @@ export default function WorkspaceShell({
                                 </div>
                             ) : ws.lens === 'schedule' || ws.lens === 'agenda' ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                                    <div className="xl:col-span-2 min-h-0 min-w-0">
+                                    <div className="xl:col-span-2 min-h-0 min-w-0" data-tour="schedule-main">
                                         {ws.lens === 'schedule' ? (
                                             <ScheduleLens
                                                 projects={ws.filteredProjects}
@@ -1742,6 +1770,26 @@ export default function WorkspaceShell({
                         onClose={() => setIsCommandPaletteOpen(false)}
                         workspaceIntentContext={workspaceIntentContext}
                         nlError={paletteNlError}
+                    />
+                    <PlatformGuideWorkspaceBridge
+                        currentUserRole={ws.currentUserRole}
+                        allProjects={ws.allProjects}
+                        setPhase={ws.setPhase}
+                        setLens={ws.setLens}
+                        createMenuOpen={createMenuOpen}
+                        setCreateMenuOpen={setCreateMenuOpen}
+                        showProjectForm={showProjectForm}
+                        setShowProjectForm={setShowProjectForm}
+                        setEditingProject={setEditingProject}
+                        setProjectPickerMode={setProjectPickerMode}
+                        inspectorFocus={inspectorFocus}
+                        setInspectorFocus={setInspectorFocus}
+                        setInspectorAutoAddTask={setInspectorAutoAddTask}
+                        setInspectorOpenTaskIndex={setInspectorOpenTaskIndex}
+                        setInspectorOpenContentId={setInspectorOpenContentId}
+                        isCommandPaletteOpen={isCommandPaletteOpen}
+                        setIsCommandPaletteOpen={setIsCommandPaletteOpen}
+                        onViewProject={handleViewProject}
                     />
                     <FeedbackLauncher />
                         <VoiceOverlay />

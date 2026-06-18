@@ -23,7 +23,7 @@ export default function TimeHorizonSelector({ selected, onSelect }: TimeHorizonS
 
   return (
     <>
-      <div className="hidden md:flex gap-2">
+      <div className="hidden md:flex gap-2" data-tour="time-horizon">
         {timeframes.map((timeframe) => {
           const isSelected = selected === timeframe.value;
           return (
@@ -40,7 +40,7 @@ export default function TimeHorizonSelector({ selected, onSelect }: TimeHorizonS
         })}
       </div>
 
-      <div className="md:hidden min-w-[120px]">
+      <div className="md:hidden min-w-[120px]" data-tour="time-horizon">
         <Select
           value={selected}
           onChange={(e) => onSelect(e.target.value as TimeframeType)}

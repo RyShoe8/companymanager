@@ -20,6 +20,7 @@ export function VoiceButton() {
                         : 'bg-indigo-600 text-white hover:bg-indigo-500 hover:scale-125'
                 }`}
             aria-label={voice.state === 'listening' ? 'Stop listening' : 'Start voice command'}
+            data-tour="voice-button"
             title="Voice command (hold V)"
         >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

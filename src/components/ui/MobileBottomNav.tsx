@@ -23,6 +23,15 @@ export default function MobileBottomNav() {
           <Link
             key={item.href}
             href={item.href}
+            data-tour={
+              item.href === '/workspace'
+                ? 'nav-workspace'
+                : item.href === '/assets'
+                  ? 'nav-assets'
+                  : item.href === '/employees'
+                    ? 'nav-team'
+                    : undefined
+            }
             className={`flex flex-col items-center justify-center flex-1 h-full ${isActive(item.href)
                 ? 'text-blue-600'
                 : 'text-gray-500'

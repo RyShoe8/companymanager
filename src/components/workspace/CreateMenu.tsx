@@ -14,6 +14,8 @@ interface CreateMenuProps {
     onCreateMeeting: () => void;
     onCreateScreenshot: () => void;
     onCreateRecord: () => void;
+    menuOpen?: boolean;
+    onMenuOpenChange?: (open: boolean) => void;
 }
 
 export default function CreateMenu({
@@ -26,8 +28,17 @@ export default function CreateMenu({
     onCreateMeeting,
     onCreateScreenshot,
     onCreateRecord,
+    menuOpen,
+    onMenuOpenChange,
 }: CreateMenuProps) {
-    const [isOpen, setIsOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+    const isControlled = menuOpen !== undefined;
+    const isOpen = isControlled ? menuOpen : internalOpen;
+
+    const setOpen = (next: boolean) => {
+        if (!isControlled) setInternalOpen(next);
+        onMenuOpenChange?.(next);
+    };
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
@@ -40,12 +51,12 @@ export default function CreateMenu({
                     return;
                 }
                 e.preventDefault();
-                setIsOpen((prev) => !prev);
+                setOpen(!isOpen);
             }
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, []);
+    }, [isOpen]);
 
     const items = [
         ...(isManagerOrAdmin ? [{ label: 'Project', onClick: onCreateProject }] : []),
@@ -60,9 +71,10 @@ export default function CreateMenu({
     ];
 
     return (
+        <div data-tour="create-menu">
         <ActionMenu
             isOpen={isOpen}
-            onOpenChange={setIsOpen}
+            onOpenChange={setOpen}
             items={items}
             align="right"
             trigger={({ toggle }) => (
@@ -79,5 +91,6 @@ export default function CreateMenu({
                 </Button>
             )}
         />
+        </div>
     );
 }

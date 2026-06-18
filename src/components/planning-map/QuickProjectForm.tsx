@@ -38,7 +38,7 @@ export default function QuickProjectForm({ employees, defaultStatus = 'planning'
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" data-tour="quick-project-form">
       <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name" className="w-full text-lg font-medium px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white" autoFocus />
       <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" rows={2} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white resize-none" />
       <div className="flex items-center gap-2"><span className="text-sm text-gray-500">Color:</span><div className="flex gap-1.5">{colorPalette.map((c) => (<button key={c} type="button" onClick={() => setColor(c)} className={`w-6 h-6 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : ''}`} style={{ backgroundColor: c }} />))}</div></div>

@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
       isOrgOwner,
       emailVerified: user.emailVerified === true,
       hasPassword: !!user.password,
+      platformGuideCompletedAt: user.platformGuideCompletedAt?.toISOString() ?? null,
+      createdAt: user.createdAt?.toISOString() ?? null,
     });
   } catch (error) {
     // Get user error

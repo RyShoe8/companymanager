@@ -323,6 +323,15 @@ export default function Navigation() {
                   <Link
                     key={link.href}
                     href={link.href}
+                    data-tour={
+                      link.href === '/workspace'
+                        ? 'nav-workspace'
+                        : link.href === '/assets'
+                          ? 'nav-assets'
+                          : link.href === '/employees'
+                            ? 'nav-team'
+                            : undefined
+                    }
                     className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
                       ? 'border-primary text-text-primary'
                       : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
@@ -479,6 +488,15 @@ export default function Navigation() {
                   <Link
                     key={link.href}
                     href={link.href}
+                    data-tour={
+                      link.href === '/workspace'
+                        ? 'nav-workspace'
+                        : link.href === '/assets'
+                          ? 'nav-assets'
+                          : link.href === '/employees'
+                            ? 'nav-team'
+                            : undefined
+                    }
                     onClick={() => setMobileMenuOpen(false)}
                     className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
                       ? 'bg-background-elevated text-text-primary'

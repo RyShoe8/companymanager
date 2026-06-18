@@ -516,7 +516,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
   const utilizationCardSurface = 'p-4 bg-background-elevated border-border';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-tour="employee-sidebar">
       {/* Team Overview Card */}
       <Card className={utilizationCardSurface}>
         <h3 className="font-bold text-text-primary mb-3 flex items-center justify-between text-sm uppercase tracking-wider">

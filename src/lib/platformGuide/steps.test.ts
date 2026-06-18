@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest';
+import { filterStepsForRole, PLATFORM_GUIDE_STEPS } from '@/lib/platformGuide/steps';
+
+describe('filterStepsForRole', () => {
+  it('includes manager project steps for administrators', () => {
+    const steps = filterStepsForRole(PLATFORM_GUIDE_STEPS, 'Administrator');
+    expect(steps.some((s) => s.id === 'create-project')).toBe(true);
+    expect(steps.some((s) => s.id === 'team-invite')).toBe(true);
+  });
+
+  it('includes manager project steps for managers', () => {
+    const steps = filterStepsForRole(PLATFORM_GUIDE_STEPS, 'Manager');
+    expect(steps.some((s) => s.id === 'create-project')).toBe(true);
+    expect(steps.some((s) => s.id === 'team-invite')).toBe(false);
+  });
+
+  it('excludes admin-only steps for standard users', () => {
+    const steps = filterStepsForRole(PLATFORM_GUIDE_STEPS, 'User');
+    expect(steps.some((s) => s.id === 'create-project')).toBe(false);
+    expect(steps.some((s) => s.id === 'project-form')).toBe(false);
+    expect(steps.some((s) => s.id === 'team-invite')).toBe(false);
+    expect(steps.some((s) => s.id === 'welcome')).toBe(true);
+    expect(steps.some((s) => s.id === 'create-task')).toBe(true);
+  });
+
+  it('excludes role-gated steps when role is unknown', () => {
+    const steps = filterStepsForRole(PLATFORM_GUIDE_STEPS, undefined);
+    expect(steps.some((s) => s.id === 'create-project')).toBe(false);
+    expect(steps.length).toBeLessThan(PLATFORM_GUIDE_STEPS.length);
+  });
+});
