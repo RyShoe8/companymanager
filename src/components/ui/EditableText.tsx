@@ -63,8 +63,10 @@ export default function EditableText({
   }, [value, valueForEdit]);
 
   useEffect(() => {
-    setEditValue(value);
-  }, [value]);
+    if (!isEditing) {
+      setEditValue(value);
+    }
+  }, [value, isEditing]);
 
   useEffect(() => {
     if (!autoEditOnMount || disabled || autoEditAppliedRef.current) return;

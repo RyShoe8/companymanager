@@ -986,8 +986,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const idx = pendingScrollToTaskIndex;
     const tasks = localProject.tasks || [];
     if (idx < 0 || idx >= tasks.length) return;
-    const taskId = taskIdString(tasks[idx]);
-    if (!taskId) return;
+    const taskId = taskIdString(tasks[idx]) ?? `task-${idx}`;
     setPendingScrollToTaskIndex(null);
     scrollElementIntoContainerAfterLayout(
       () => document.getElementById(`inspector-task-row-${idx}`),
@@ -2470,9 +2469,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   const taskSeenStatus: ItemSeenStatus = canShowTaskNewIndicator(task)
                     ? (itemStatusByKey[taskKey] ?? 'none')
                     : 'none';
-                  const rowKey =
-                    (task as { _id?: { toString?: () => string } })._id?.toString?.() ?? `index:${idx}`;
-                  const taskRowId = taskIdString(task);
+                  const rowKey = `task-${idx}`;
+                  const taskRowId = taskIdString(task) ?? rowKey;
 
                   return (
                     <SwipeableCard key={rowKey} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>

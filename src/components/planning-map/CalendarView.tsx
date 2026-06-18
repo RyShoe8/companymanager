@@ -888,10 +888,14 @@ export default function CalendarView({
                     const isExpanded = expandedProjects.has(projectId);
                     const headerTextClass = getProjectCardHeaderTextClass(displayColor);
 
+                    const totalTasks = project.tasks?.length || 0;
+                    const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
+                    const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
                     return (
                       <div
                         key={projectId}
-                        className="p-6 rounded-lg border-2 border-border"
+                        className="p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
                         style={{
                           backgroundColor: displayColor + 'F0',
                           borderColor: displayColor,
@@ -901,9 +905,18 @@ export default function CalendarView({
                           className="flex items-start justify-between cursor-pointer"
                           onClick={() => onProjectClick(project)}
                         >
-                          <h4 className={`text-xl font-bold ${headerTextClass} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}>
-                            {project.name}
-                          </h4>
+                          <div className="flex flex-col gap-1 min-w-0 flex-1">
+                            <h4 className={`text-xl font-bold truncate ${headerTextClass} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                              {project.name}
+                            </h4>
+                            <div className="flex items-center gap-2 pr-4 mt-0.5">
+                              <div className="relative h-1 w-32 rounded-full overflow-hidden">
+                                <div className="absolute inset-0 bg-white opacity-20" />
+                                <div className="relative h-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                              </div>
+                              <span className={`text-[10px] font-bold text-white shrink-0`}><AnimatedProgressNumber target={progressPercent} />%</span>
+                            </div>
+                          </div>
                           <div className="flex items-center gap-2">
                             {onAddContent && canAddContentToProject(project) && (
                               <div onClick={(e) => e.stopPropagation()}>
@@ -1343,7 +1356,7 @@ export default function CalendarView({
                   return (
                     <div
                       key={`${pos.project!._id.toString()}-weekly`}
-                      className={`absolute rounded-lg border-2 border-border flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${status === 'completed' ? 'line-through opacity-60' : ''}`}
+                      className={`absolute rounded-lg border-2 border-border flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                       style={{
                         backgroundColor: displayColor + 'F0',
                         borderColor: displayColor,
@@ -1594,7 +1607,7 @@ export default function CalendarView({
                       return (
                         <div
                           key={projectId}
-                          className={`flex flex-col rounded-lg border-2 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isExpanded ? 'h-full bg-opacity-100' : 'bg-opacity-90'} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          className={`flex flex-col rounded-lg border-2 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative ${isExpanded ? 'h-full bg-opacity-100' : 'bg-opacity-90'} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
                           style={{
                             backgroundColor: isExpanded ? projectColor : projectColor + 'E6',
                             borderColor: projectColor

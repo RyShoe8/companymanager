@@ -222,7 +222,8 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-8">
+        <form id="profile-form" onSubmit={handleSubmit} className="space-y-6">
         {error && (
           <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
             {error}
@@ -292,19 +293,10 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-
-        <div className="flex gap-2 justify-end pt-4 border-t border-border">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
       </form>
 
       {hasPassword && (
-        <div className="pt-4 border-t border-border space-y-4">
+        <div className="space-y-4 pt-4 border-t border-border">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Password</h3>
             {!showPasswordChange && (
@@ -364,16 +356,26 @@ export default function ProfileModal({ onUpdate, onClose }: ProfileModalProps) {
         </div>
       )}
 
-      <div className="pt-4 border-t border-border space-y-2">
-          <h3 className="text-sm font-semibold text-error">Danger zone</h3>
-          <p className="text-sm text-text-secondary">
-            Permanently delete your account. If you are the only member of your organization, all projects and
-            organization data will be removed.
-          </p>
-          <Button type="button" variant="danger" onClick={openDeleteFlow} disabled={loading || deleting}>
-            Delete account
-          </Button>
-        </div>
+      <div className="pt-6 mt-6 border-t border-error/20 space-y-3">
+        <h3 className="text-sm font-semibold text-error">Danger zone</h3>
+        <p className="text-sm text-text-secondary">
+          Permanently delete your account. If you are the only member of your organization, all projects and
+          organization data will be removed.
+        </p>
+        <Button type="button" variant="danger" onClick={openDeleteFlow} disabled={loading || deleting}>
+          Delete account
+        </Button>
+      </div>
+
+      <div className="flex gap-2 justify-end pt-6 mt-8 border-t border-border">
+        <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          Cancel
+        </Button>
+        <Button form="profile-form" type="submit" disabled={loading}>
+          {loading ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </div>
+    </div>
       <ConfirmModal
         isOpen={showDeleteWarning}
         title="Delete your account?"
