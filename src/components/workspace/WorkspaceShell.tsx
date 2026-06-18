@@ -1228,12 +1228,15 @@ export default function WorkspaceShell({
     }, [isCommandPaletteOpen]);
 
     const isSchedulingPhase = ws.phase === 'Schedule';
+    const isAgendaLens = ws.lens === 'agenda';
+    const isScheduleLens = ws.lens === 'schedule';
+    const needsCalendarData = isSchedulingPhase || isAgendaLens || isScheduleLens;
 
     useEffect(() => {
-        if (isSchedulingPhase) {
+        if (needsCalendarData) {
             void loadScheduleCalendar();
         }
-    }, [isSchedulingPhase, loadScheduleCalendar]);
+    }, [needsCalendarData, loadScheduleCalendar]);
 
     const handleScheduleSync = useCallback(async () => {
         const data = await handleScheduleCalendarSync();
@@ -1241,6 +1244,12 @@ export default function WorkspaceShell({
             setScheduleSyncRefreshKey((k) => k + 1);
         }
     }, [handleScheduleCalendarSync]);
+
+    useEffect(() => {
+        if (needsCalendarData && scheduleCalendar?.connected) {
+            void handleScheduleSync();
+        }
+    }, [needsCalendarData, scheduleCalendar?.connected, handleScheduleSync]);
 
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
