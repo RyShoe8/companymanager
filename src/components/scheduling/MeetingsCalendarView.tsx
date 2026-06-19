@@ -73,13 +73,7 @@ interface MeetingsCalendarViewProps {
   employees: IEmployee[];
   isManagerOrAdmin: boolean;
   currentUserEmployeeId?: string | null;
-  editingId: string | null;
-  editProjectIds: string[];
-  editClientIds: string[];
-  onToggleProject: (id: string) => void;
-  onToggleClient: (id: string) => void;
   onStartEdit: (meetingId: string, linkedProjectIds: string[], linkedClientIds: string[]) => void;
-  onSaveLinks: (meetingId: string) => void;
   onNewMeeting: () => void;
   currentUserId?: string | null;
   onEditMeeting?: (meeting: MeetingRow) => void;
@@ -97,13 +91,7 @@ export default function MeetingsCalendarView({
   employees,
   isManagerOrAdmin,
   currentUserEmployeeId,
-  editingId,
-  editProjectIds,
-  editClientIds,
-  onToggleProject,
-  onToggleClient,
   onStartEdit,
-  onSaveLinks,
   onNewMeeting,
   currentUserId,
   onEditMeeting,
@@ -152,20 +140,10 @@ export default function MeetingsCalendarView({
               key={row._id}
               meeting={row}
               employees={employees}
-              clients={clients}
-              projects={projects}
               currentUserId={currentUserId}
-              isManagerOrAdmin={isManagerOrAdmin}
-              currentUserEmployeeId={currentUserEmployeeId}
-              isEditing={editingId === row._id}
-              editProjectIds={editProjectIds}
-              editClientIds={editClientIds}
-              onToggleProject={onToggleProject}
-              onToggleClient={onToggleClient}
               onStartEdit={() =>
                 onStartEdit(row._id, row.linkedProjectIds || [], row.linkedClientIds || [])
               }
-              onSaveLinks={() => onSaveLinks(row._id)}
               onEditMeeting={onEditMeeting ? () => onEditMeeting(row) : undefined}
               onDeleteMeeting={onDeleteMeeting ? () => onDeleteMeeting(row) : undefined}
               onPopoutBlocked={onPopoutBlocked}

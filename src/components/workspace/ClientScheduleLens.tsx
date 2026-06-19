@@ -15,6 +15,7 @@ interface ClientScheduleLensProps {
   timeframe: TimeframeType;
   currentDate: Date;
   onClientClick: (client: IClient) => void;
+  onProjectClick?: (client: IClient, project: IProject) => void;
   onDateChange: (date: Date) => void;
 }
 

@@ -5,12 +5,9 @@ import {
   openMeetingPopout,
   MEETING_POPUP_BLOCKED_MESSAGE,
 } from '@/lib/scheduling/openMeetingPopout';
-import { IProject } from '@/lib/models/Project';
-import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import MeetingJoinCallButton from '@/components/scheduling/MeetingJoinCallButton';
-import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker';
 
 export type MeetingRow = {
   _id: string;
@@ -84,18 +81,8 @@ function MeetingGuestsList({ meeting, employees, compact = false }: MeetingGuest
 interface MeetingAgendaRowProps {
   meeting: MeetingRow;
   employees: IEmployee[];
-  clients: IClient[];
-  projects: IProject[];
   currentUserId?: string | null;
-  isManagerOrAdmin: boolean;
-  currentUserEmployeeId?: string | null;
-  isEditing: boolean;
-  editProjectIds: string[];
-  editClientIds: string[];
-  onToggleProject: (id: string) => void;
-  onToggleClient: (id: string) => void;
   onStartEdit: () => void;
-  onSaveLinks: () => void;
   onEditMeeting?: () => void;
   onDeleteMeeting?: () => void;
   onPopoutBlocked?: () => void;
@@ -105,18 +92,8 @@ interface MeetingAgendaRowProps {
 export default function MeetingAgendaRow({
   meeting,
   employees,
-  clients,
-  projects,
   currentUserId,
-  isManagerOrAdmin,
-  currentUserEmployeeId,
-  isEditing,
-  editProjectIds,
-  editClientIds,
-  onToggleProject,
-  onToggleClient,
   onStartEdit,
-  onSaveLinks,
   onEditMeeting,
   onDeleteMeeting,
   onPopoutBlocked,
@@ -155,28 +132,7 @@ export default function MeetingAgendaRow({
     </Button>
   );
 
-  const linkEditor = isEditing && (
-    <div className={variant === 'weekColumn' ? 'mt-2 pt-2 border-t border-border' : 'mt-3 pt-3 border-t border-border ml-9'}>
-      <MultiLinkTargetPicker
-        clients={clients}
-        projects={projects}
-        selectedClientIds={editClientIds}
-        selectedProjectIds={editProjectIds}
-        onToggleClient={onToggleClient}
-        onToggleProject={onToggleProject}
-        currentUserEmployeeId={currentUserEmployeeId}
-        isManagerOrAdmin={isManagerOrAdmin}
-        compact
-      />
-      <Button type="button" size="sm" onClick={onSaveLinks} className={variant === 'weekColumn' ? 'w-full justify-center mt-2' : 'mt-2'}>
-        Save links
-      </Button>
-    </div>
-  );
-
   if (variant === 'weekColumn') {
-    const metaLine = linkedSummary && !isEditing ? linkedSummary : null;
-
     return (
       <div className="rounded-lg border border-border bg-background-card shadow-sm overflow-hidden min-w-0">
         <div className="p-3 text-sm min-w-0">
@@ -190,9 +146,9 @@ export default function MeetingAgendaRow({
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">{seriesControls}</div>
           )}
           <MeetingGuestsList meeting={meeting} employees={employees} compact />
-          {metaLine ? (
-            <p className="text-[11px] text-text-muted truncate mt-0.5" title={metaLine}>
-              {metaLine}
+          {linkedSummary ? (
+            <p className="text-[11px] text-text-muted truncate mt-0.5" title={linkedSummary}>
+              {linkedSummary}
             </p>
           ) : null}
           <div className="flex flex-col gap-1 mt-1.5 w-full min-w-0">
@@ -228,7 +184,6 @@ export default function MeetingAgendaRow({
             )}
             {linkButton}
           </div>
-          {linkEditor}
         </div>
       </div>
     );
@@ -255,7 +210,7 @@ export default function MeetingAgendaRow({
               })}
             </p>
             <MeetingGuestsList meeting={meeting} employees={employees} />
-            {linkedSummary && !isEditing && (
+            {linkedSummary && (
               <p className="text-xs text-text-secondary mt-1">{linkedSummary}</p>
             )}
           </div>
@@ -306,7 +261,6 @@ export default function MeetingAgendaRow({
           {linkButton}
         </div>
       </div>
-      {linkEditor}
     </div>
   );
 }

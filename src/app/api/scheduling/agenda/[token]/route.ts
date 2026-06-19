@@ -10,11 +10,15 @@ import Employee from '@/lib/models/Employee';
 import { getSchedulingContext } from '@/lib/scheduling/schedulingContext';
 import { buildMeetingAgenda } from '@/lib/scheduling/buildMeetingAgenda';
 import { buildMeetingDetailPayload } from '@/lib/scheduling/buildMeetingDetailPayload';
+import { resolveMeetingLinkedProjectIds } from '@/lib/scheduling/resolveMeetingLinkedProjectIds';
+import type { IProject } from '@/lib/models/Project';
+import { canUserContributeToProject } from '@/lib/utils/projectTeam';
 import {
   getOrganizationUserIds,
   migrateProjectFields,
   migrateStagesToTasks,
 } from '@/lib/utils/apiHelpers';
+import { Types } from 'mongoose';
 
 export async function GET(
   request: NextRequest,
@@ -34,6 +38,7 @@ export async function GET(
 
     let meeting = await Meeting.findOne({ agendaToken: token }).lean();
     let linkedProjectIds = meeting?.linkedProjectIds ?? [];
+    let linkedClientIds = meeting?.linkedClientIds ?? [];
 
     if (!meeting) {
       const registry = await MeetingSeriesSettings.findOne({ agendaToken: token }).lean();
@@ -62,22 +67,44 @@ export async function GET(
       }
 
       linkedProjectIds = registry.linkedProjectIds ?? [];
+      linkedClientIds = registry.linkedClientIds ?? [];
     } else if (meeting.organizationId !== ctx.organizationId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const orgUserIds = await getOrganizationUserIds(session.userId, ctx.organizationId);
-    const projects = await Project.find({
-      _id: { $in: linkedProjectIds },
-      userId: { $in: orgUserIds },
-    }).lean();
+
+    const clientProjects =
+      linkedClientIds.length > 0
+        ? await Project.find({
+            clientId: { $in: linkedClientIds },
+            userId: { $in: orgUserIds },
+          }).lean()
+        : [];
+
+    const mergedProjectIdStrings = resolveMeetingLinkedProjectIds(
+      linkedProjectIds,
+      linkedClientIds,
+      clientProjects as unknown as IProject[]
+    );
+    const mergedProjectIds = mergedProjectIdStrings
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+
+    const projects =
+      mergedProjectIds.length > 0
+        ? await Project.find({
+            _id: { $in: mergedProjectIds },
+            userId: { $in: orgUserIds },
+          }).lean()
+        : [];
     const migrated = projects.map((p) => migrateProjectFields(migrateStagesToTasks(p)));
 
-    const projectIds = linkedProjectIds.map((id) => id.toString());
+    const projectIds = mergedProjectIdStrings;
 
     const contentItems =
-      linkedProjectIds.length > 0
-        ? await ContentItem.find({ projectId: { $in: linkedProjectIds } }).lean()
+      mergedProjectIds.length > 0
+        ? await ContentItem.find({ projectId: { $in: mergedProjectIds } }).lean()
         : [];
 
     const assetsByProjectId = new Map<
@@ -93,9 +120,9 @@ export async function GET(
         linkedContentItemId?: { toString(): string };
       }[]
     >();
-    if (projectIds.length > 0) {
+    if (mergedProjectIds.length > 0) {
       const assets = await Asset.find({
-        linkedProjectId: { $in: linkedProjectIds },
+        linkedProjectId: { $in: mergedProjectIds },
         userId: { $in: orgUserIds },
       })
         .sort({ createdAt: -1 })
@@ -122,6 +149,24 @@ export async function GET(
       })),
       externalEmails: meeting.externalAttendeeEmails ?? [],
     };
+
+    const currentUserEmployee = await Employee.findOne({
+      userId: session.userId,
+      organizationId: ctx.organizationId,
+    }).lean();
+    const isManagerOrAdmin =
+      currentUserEmployee?.role === 'Administrator' ||
+      currentUserEmployee?.role === 'Manager';
+
+    const canContributeByProjectId: Record<string, boolean> = {};
+    for (const project of migrated) {
+      const pid = project._id.toString();
+      canContributeByProjectId[pid] = canUserContributeToProject(
+        project as Parameters<typeof canUserContributeToProject>[0],
+        currentUserEmployee?._id?.toString() ?? null,
+        !!isManagerOrAdmin
+      );
+    }
 
     const baseUrl = new URL(request.url).origin;
     const agendaUrl = `${baseUrl}/scheduling/agenda/${token}`;
@@ -154,6 +199,7 @@ export async function GET(
         joinPlatform: meeting.joinPlatform,
       },
       canManage: meeting.userId?.toString() === session.userId,
+      canContributeByProjectId,
       agenda: payload,
       detail,
     });

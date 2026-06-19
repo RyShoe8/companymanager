@@ -107,8 +107,17 @@ export function buildMeetingAgenda(
       end: meeting.end.toISOString(),
       agendaUrl: meeting.agendaUrl,
     },
-    projects: projectsBlocks,
+    projects: sortAgendaProjectBlocks(projectsBlocks),
   };
+}
+
+export function sortAgendaProjectBlocks(blocks: AgendaProjectBlock[]): AgendaProjectBlock[] {
+  return [...blocks].sort((a, b) => {
+    const aScore = a.tasks.length + a.contentItems.length;
+    const bScore = b.tasks.length + b.contentItems.length;
+    if (bScore !== aScore) return bScore - aScore;
+    return (a.name ?? '').localeCompare(b.name ?? '');
+  });
 }
 
 export function formatAgendaPlainText(payload: MeetingAgendaPayload): string {

@@ -14,7 +14,6 @@ import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import AgendaView from '@/components/workspace/AgendaView';
 import ClientScheduleLens from '@/components/workspace/ClientScheduleLens';
-import ClientAgendaView from '@/components/workspace/ClientAgendaView';
 import ClientCreateModal from '@/components/workspace/ClientCreateModal';
 import OrganizationBrand from '@/components/organization/OrganizationBrand';
 import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
@@ -106,7 +105,6 @@ export default function WorkspaceShell({
     const [inspectorFocus, setInspectorFocus] = useState<string | null>(null);
     /** When opening a project from a client inspector, return here on close. */
     const [inspectorParentFocus, setInspectorParentFocus] = useState<string | null>(null);
-    const [clientsAgendaView, setClientsAgendaView] = useState(false);
     const [editingContentItemId, setEditingContentItemId] = useState<string | null>(null);
     /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
@@ -342,6 +340,21 @@ export default function WorkspaceShell({
         setInspectorAddContentPrefill(null);
         setInspectorFocus(`client:${client._id}`);
     }, []);
+
+    const handleViewProjectFromClientCalendar = useCallback(
+        (client: IClient, project: IProject) => {
+            setInspectorParentFocus(`client:${client._id}`);
+            setInspectorAutoAddTask(false);
+            setInspectorOpenTaskIndex(null);
+            setInspectorOpenContentId(null);
+            setInspectorInitialAddContentOpen(false);
+            setInspectorAddContentDate(undefined);
+            setInspectorAddContentPrefill(null);
+            setInspectorFocus(`project:${project._id}`);
+            markOpenedProjectSeen(project._id.toString());
+        },
+        [markOpenedProjectSeen]
+    );
 
     const handleViewProjectFromClientInspector = useCallback(
         (project: IProject) => {
@@ -1526,13 +1539,6 @@ _id.toString(), { tasks });
                                             onChange={ws.setShowMeetings}
                                         />
                                     ) : null}
-                                    {ws.lens === 'clients' && isFeatureEnabled('agendaViewEnabled') ? (
-                                        <Toggle
-                                            label="Agenda"
-                                            checked={clientsAgendaView}
-                                            onChange={setClientsAgendaView}
-                                        />
-                                    ) : null}
                                     {ws.lens !== 'clients' ? (
                                         <WorkspaceTeamFilter
                                             value={ws.teamFilter}
@@ -1553,8 +1559,7 @@ _id.toString(), { tasks });
                             {isClientsLens ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0" data-tour="clients-main">
-                                        {clientsAgendaView ? (
-                                            <ClientAgendaView
+                                        <ClientScheduleLens
                                                 clients={ws.clients}
                                                 allProjects={ws.allProjects}
                                                 contentItems={ws.contentItems}
@@ -1563,21 +1568,9 @@ _id.toString(), { tasks });
                                                 timeframe={ws.timeframe}
                                                 currentDate={ws.currentDate}
                                                 onClientClick={handleViewClient}
+                                                onProjectClick={handleViewProjectFromClientCalendar}
                                                 onDateChange={ws.setCurrentDate}
                                             />
-                                        ) : (
-                                            <ClientScheduleLens
-                                                clients={ws.clients}
-                                                allProjects={ws.allProjects}
-                                                contentItems={ws.contentItems}
-                                                showTasks={ws.showTasks}
-                                                showContent={ws.showContent}
-                                                timeframe={ws.timeframe}
-                                                currentDate={ws.currentDate}
-                                                onClientClick={handleViewClient}
-                                                onDateChange={ws.setCurrentDate}
-                                            />
-                                        )}
                                     </div>
                                     <div className="xl:col-span-1">
                                         <EmployeeSidebar
@@ -1940,6 +1933,7 @@ _id.toString(), { tasks });
                                 void ws.fetchContentItems();
                                 setContentRefreshTrigger((t) => t + 1);
                             }}
+                            contentItems={ws.contentItems}
                             timeframe={ws.timeframe}
                             referenceDate={ws.currentDate}
                         />

@@ -18,6 +18,9 @@ import {
   activeClientProjects,
   clientHubProject,
 } from '@/lib/clients/clientProjectHelpers';
+import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
+import { isActiveWorkspaceContent, isActiveWorkspaceTask } from '@/lib/workspace/activeWorkspaceItems';
+import Image from 'next/image';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 
 interface InlineClientViewProps {
@@ -69,6 +72,7 @@ export default function InlineClientView({
   initialAddContentOpen,
   initialAddContentDate,
   onAddContentOpenConsumed,
+  contentItems = [],
 }: InlineClientViewProps) {
   const [localClient, setLocalClient] = useState(client);
   const [logo, setLogo] = useState(client.logo);
@@ -227,20 +231,60 @@ export default function InlineClientView({
           <p className="text-sm text-gray-500">No active projects for this client.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {activeProjects.map((project) => (
-              <button
-                key={String(project._id)}
-                type="button"
-                onClick={() => onViewProject(project)}
-                className="text-left rounded-lg border border-gray-200 bg-gray-50 p-4 hover:border-primary/50 transition-colors"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: project.color || '#3b82f6' }} />
-                  <span className="font-medium text-gray-900 truncate">{project.name}</span>
-                </div>
-                <p className="text-xs text-gray-500 capitalize">{project.status || 'planning'}</p>
-              </button>
-            ))}
+            {activeProjects.map((project) => {
+              const displayColor = project.status === 'in-review' ? '#ef4444' : project.color || '#3b82f6';
+              const headerTextClass = getProjectCardHeaderTextClass(displayColor);
+              const activeTaskCount = (project.tasks ?? []).filter((task) => isActiveWorkspaceTask(task)).length;
+              const activeContentCount = contentItems.filter(
+                (item) => String(item.projectId) === String(project._id) && isActiveWorkspaceContent(item)
+              ).length;
+              const totalTasks = project.tasks?.length ?? 0;
+              const completedTasks = project.tasks?.filter((t) => t.status === 'completed').length ?? 0;
+              const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+              return (
+                <button
+                  key={String(project._id)}
+                  type="button"
+                  onClick={() => onViewProject(project)}
+                  className="text-left p-4 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative w-full"
+                  style={{
+                    backgroundColor: `${displayColor}F0`,
+                    borderColor: displayColor,
+                  }}
+                >
+                  <div className="flex items-start gap-3 mb-2">
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold overflow-hidden shrink-0 ${project.logo ? '' : headerTextClass}`}
+                      style={project.logo ? undefined : { backgroundColor: displayColor }}
+                    >
+                      {project.logo ? (
+                        <Image src={project.logo} alt="" width={32} height={32} className="w-full h-full object-cover" unoptimized />
+                      ) : (
+                        project.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className={`font-bold truncate block ${headerTextClass}`}>{project.name}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pr-2 mt-1">
+                    <div className={`relative h-1 flex-1 rounded-full overflow-hidden ${headerTextClass}`}>
+                      <div className="absolute inset-0 bg-white opacity-20" />
+                      <div
+                        className="relative h-full transition-all duration-500"
+                        style={{ width: `${progressPercent}%`, backgroundColor: 'currentColor' }}
+                      />
+                    </div>
+                    <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}>{progressPercent}%</span>
+                  </div>
+                  <div className={`flex flex-wrap gap-2 text-xs font-medium mt-2 ${headerTextClass}`}>
+                    <span>{activeTaskCount} active task{activeTaskCount === 1 ? '' : 's'}</span>
+                    <span>{activeContentCount} active content</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </CollapsibleInspectorSection>

@@ -12,6 +12,7 @@ import type { MeetingRow } from '@/components/scheduling/MeetingAgendaRow';
 import { MEETING_POPUP_BLOCKED_MESSAGE } from '@/lib/scheduling/openMeetingPopout';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
 import type { MeetingUpdateScope } from '@/components/scheduling/MeetingFormModal';
 interface SchedulingPanelProps {
@@ -283,6 +284,42 @@ export default function SchedulingPanel({
         </div>
       </Modal>
 
+      <Modal
+        isOpen={editingId !== null}
+        onClose={() => setEditingId(null)}
+        title="Link clients & projects"
+        maxWidth="md"
+      >
+        <div className="p-6 space-y-4">
+          {editingId && (
+            <p className="text-sm text-text-secondary">
+              {meetings.find((m) => m._id.toString() === editingId)?.title ?? 'Meeting'}
+            </p>
+          )}
+          <MultiLinkTargetPicker
+            clients={clients}
+            projects={projects}
+            selectedClientIds={editClientIds}
+            selectedProjectIds={editProjectIds}
+            onToggleClient={toggleEditClient}
+            onToggleProject={toggleEditProject}
+            currentUserEmployeeId={currentUserEmployeeId}
+            isManagerOrAdmin={isManagerOrAdmin}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => editingId && void handleSaveMeetingLinks(editingId)}
+            >
+              Save links
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <MeetingsCalendarView
         meetings={meetings}
         timeframe={timeframe}
@@ -293,17 +330,11 @@ export default function SchedulingPanel({
         employees={employees}
         isManagerOrAdmin={isManagerOrAdmin}
         currentUserEmployeeId={currentUserEmployeeId}
-        editingId={editingId}
-        editProjectIds={editProjectIds}
-        editClientIds={editClientIds}
-        onToggleProject={toggleEditProject}
-        onToggleClient={toggleEditClient}
         onStartEdit={(meetingId, linkedProjectIds, linkedClientIds) => {
           setEditingId(meetingId);
           setEditProjectIds(linkedProjectIds);
           setEditClientIds(linkedClientIds);
         }}
-        onSaveLinks={(meetingId) => void handleSaveMeetingLinks(meetingId)}
         onNewMeeting={() => setShowMeetingModal(true)}
         currentUserId={currentUserId}
         onEditMeeting={(row) => setEditingMeeting(meetingRowToFormMeeting(row))}

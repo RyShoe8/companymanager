@@ -7,10 +7,15 @@ import CommentThread from '@/components/comments/CommentThread';
 import MeetingJoinCallButton from '@/components/scheduling/MeetingJoinCallButton';
 import MeetingProjectInsights from '@/components/scheduling/MeetingProjectInsights';
 import type {
+  MeetingDetailAsset,
   MeetingDetailContentItem,
   MeetingDetailPayload,
   MeetingDetailTaskItem,
 } from '@/lib/scheduling/buildMeetingDetailPayload';
+import {
+  ASSET_POPUP_BLOCKED_MESSAGE,
+  openAssetPopout,
+} from '@/lib/scheduling/openMeetingPopout';
 import { normalizeProjectUrlHref } from '@/lib/utils/projectUrls';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 
@@ -26,6 +31,7 @@ type AgendaApiResponse = {
     joinUrl?: string;
     joinPlatform?: MeetingDetailPayload['meeting']['joinPlatform'];
   };
+  canContributeByProjectId?: Record<string, boolean>;
   detail?: MeetingDetailPayload;
 };
 
@@ -54,6 +60,14 @@ function orderWithCompletedLast<T>(items: T[], isDone: (item: T) => boolean): T[
   return [...items.filter((item) => !isDone(item)), ...items.filter((item) => isDone(item))];
 }
 
+function collapsedProjectsForDetail(projects: MeetingDetailPayload['projects']): Set<string> {
+  return new Set(
+    projects
+      .filter((block) => block.tasks.length === 0 && block.contentItems.length === 0)
+      .map((block) => block.projectId)
+  );
+}
+
 export default function MeetingDetailView({ token, popout = false }: MeetingDetailViewProps) {
   const [data, setData] = useState<AgendaApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,9 +76,16 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
   const [projectWorkTab, setProjectWorkTab] = useState<Record<string, ProjectWorkTab>>({});
+  const [addTaskOpenFor, setAddTaskOpenFor] = useState<string | null>(null);
+  const [addContentOpenFor, setAddContentOpenFor] = useState<string | null>(null);
+  const [taskDrafts, setTaskDrafts] = useState<Record<string, string>>({});
+  const [contentDrafts, setContentDrafts] = useState<Record<string, string>>({});
+  const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
+  const [assetPopupMessage, setAssetPopupMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
+    setLoading(true);
     try {
       const res = await fetch(`/api/scheduling/agenda/${token}`);
       const json = await res.json();
@@ -74,20 +95,24 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
       } else {
         setData(json);
         setError(null);
+        if (popout && json.detail?.projects) {
+          setCollapsedProjects(collapsedProjectsForDetail(json.detail.projects));
+        }
       }
     } catch {
       setError('Failed to load meeting');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, popout]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const detail = data?.detail;
   const meeting = data?.meeting;
+  const canContributeByProjectId = data?.canContributeByProjectId ?? {};
 
   const toggleProject = (projectId: string) => {
     setCollapsedProjects((prev) => {
@@ -123,6 +148,67 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
     return { employees, externalEmails };
   }, [detail?.invitees]);
 
+  const handleAssetClick = (asset: MeetingDetailAsset) => {
+    if (asset.openMode === 'external') return;
+    const result = openAssetPopout(asset.id);
+    if (result.blocked) {
+      setAssetPopupMessage(ASSET_POPUP_BLOCKED_MESSAGE);
+    }
+  };
+
+  const handleAddTask = async (projectId: string) => {
+    if (!meeting) return;
+    const name = (taskDrafts[projectId] ?? '').trim();
+    if (!name) return;
+    setSavingProjectId(projectId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          startDate: meeting.start,
+          endDate: meeting.end,
+        }),
+      });
+      if (res.ok) {
+        setTaskDrafts((prev) => ({ ...prev, [projectId]: '' }));
+        setAddTaskOpenFor(null);
+        await load();
+      }
+    } finally {
+      setSavingProjectId(null);
+    }
+  };
+
+  const handleAddContent = async (projectId: string) => {
+    if (!meeting) return;
+    const title = (contentDrafts[projectId] ?? '').trim();
+    if (!title) return;
+    setSavingProjectId(projectId);
+    try {
+      const publishDate = new Date(meeting.start);
+      publishDate.setHours(12, 0, 0, 0);
+      const res = await fetch('/api/content-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          title,
+          publishDate: publishDate.toISOString(),
+          status: 'planned',
+        }),
+      });
+      if (res.ok) {
+        setContentDrafts((prev) => ({ ...prev, [projectId]: '' }));
+        setAddContentOpenFor(null);
+        await load();
+      }
+    } finally {
+      setSavingProjectId(null);
+    }
+  };
+
   const shellClass = popout
     ? 'h-dvh overflow-y-auto overscroll-contain bg-background text-text-primary'
     : 'min-h-screen bg-gray-900 text-white';
@@ -154,7 +240,7 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
   }
 
   const renderAssetList = (
-    assets: { id: string; name: string; type: string; href: string }[],
+    assets: MeetingDetailAsset[],
     mutedClass: string
   ) => {
     if (assets.length === 0) return null;
@@ -162,14 +248,24 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
       <ul className="space-y-1 mt-1.5">
         {assets.map((asset) => (
           <li key={asset.id}>
-            <a
-              href={asset.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:text-primary-hover"
-            >
-              {asset.name}
-            </a>
+            {asset.openMode === 'external' ? (
+              <a
+                href={asset.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:text-primary-hover"
+              >
+                {asset.name}
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleAssetClick(asset)}
+                className="text-sm text-primary hover:text-primary-hover text-left"
+              >
+                {asset.name}
+              </button>
+            )}
             <span className={`ml-2 text-xs ${mutedClass}`}>{asset.type}</span>
           </li>
         ))}
@@ -180,6 +276,19 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
   return (
     <div className={`${shellClass} ${popout ? 'px-4 py-4' : 'px-4 sm:px-6 lg:px-[100px] py-8'}`}>
       <div className={popout ? 'max-w-4xl mx-auto space-y-4' : 'max-w-3xl mx-auto space-y-6'}>
+        {assetPopupMessage && (
+          <div className="rounded-lg border border-border bg-background-card px-4 py-2 text-sm text-text-secondary flex items-center justify-between gap-2">
+            <span>{assetPopupMessage}</span>
+            <button
+              type="button"
+              className="text-text-muted hover:text-text-primary text-xs shrink-0"
+              onClick={() => setAssetPopupMessage(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             {!popout && (
@@ -246,6 +355,7 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
               const expanded = popout ? !collapsedProjects.has(block.projectId) : true;
               const { resources } = block;
               const mutedClass = popout ? 'text-text-muted' : 'text-gray-500';
+              const canContribute = !!canContributeByProjectId[block.projectId];
 
               return (
                 <section key={block.projectId} className={cardClass}>
@@ -393,7 +503,7 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
 
                             return (
                               <div>
-                                <div className="flex gap-1 border-b border-border mb-3">
+                                <div className="flex flex-wrap items-center gap-2 border-b border-border mb-3">
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -436,7 +546,117 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
                                       </span>
                                     )}
                                   </button>
+                                  {canContribute && activeTab === 'tasks' && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      className="ml-auto"
+                                      onClick={() => {
+                                        setAddContentOpenFor(null);
+                                        setAddTaskOpenFor(
+                                          addTaskOpenFor === block.projectId ? null : block.projectId
+                                        );
+                                      }}
+                                    >
+                                      + Add Task
+                                    </Button>
+                                  )}
+                                  {canContribute && activeTab === 'content' && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      className="ml-auto"
+                                      onClick={() => {
+                                        setAddTaskOpenFor(null);
+                                        setAddContentOpenFor(
+                                          addContentOpenFor === block.projectId
+                                            ? null
+                                            : block.projectId
+                                        );
+                                      }}
+                                    >
+                                      + Add Content
+                                    </Button>
+                                  )}
                                 </div>
+
+                                {activeTab === 'tasks' && addTaskOpenFor === block.projectId && (
+                                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={taskDrafts[block.projectId] ?? ''}
+                                      onChange={(e) =>
+                                        setTaskDrafts((prev) => ({
+                                          ...prev,
+                                          [block.projectId]: e.target.value,
+                                        }))
+                                      }
+                                      placeholder="Task name"
+                                      className="flex-1 min-w-[12rem] px-3 py-1.5 text-sm border border-border rounded-md bg-background"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') void handleAddTask(block.projectId);
+                                      }}
+                                    />
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={
+                                        savingProjectId === block.projectId ||
+                                        !(taskDrafts[block.projectId] ?? '').trim()
+                                      }
+                                      onClick={() => void handleAddTask(block.projectId)}
+                                    >
+                                      Add
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => setAddTaskOpenFor(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {activeTab === 'content' && addContentOpenFor === block.projectId && (
+                                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={contentDrafts[block.projectId] ?? ''}
+                                      onChange={(e) =>
+                                        setContentDrafts((prev) => ({
+                                          ...prev,
+                                          [block.projectId]: e.target.value,
+                                        }))
+                                      }
+                                      placeholder="Content title"
+                                      className="flex-1 min-w-[12rem] px-3 py-1.5 text-sm border border-border rounded-md bg-background"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') void handleAddContent(block.projectId);
+                                      }}
+                                    />
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={
+                                        savingProjectId === block.projectId ||
+                                        !(contentDrafts[block.projectId] ?? '').trim()
+                                      }
+                                      onClick={() => void handleAddContent(block.projectId)}
+                                    >
+                                      Add
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => setAddContentOpenFor(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                )}
 
                                 {activeTab === 'tasks' ? (
                                   orderedTasks.length > 0 ? (

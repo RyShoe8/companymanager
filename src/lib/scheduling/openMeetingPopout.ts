@@ -1,9 +1,12 @@
-const MEETING_POPOUT_WINDOW_NAME = 'nucleas-meeting';
+export const MEETING_POPOUT_WIDTH = 960;
+export const MEETING_POPOUT_HEIGHT = 720;
 
 export type MeetingPopoutResult = {
   opened: boolean;
   blocked: boolean;
 };
+
+const MEETING_POPOUT_WINDOW_NAME = 'nucleas-meeting';
 
 export function buildMeetingPopoutUrl(agendaToken: string): string {
   const path = `/scheduling/meeting/${encodeURIComponent(agendaToken)}?popout=1`;
@@ -11,15 +14,20 @@ export function buildMeetingPopoutUrl(agendaToken: string): string {
   return `${window.location.origin}${path}`;
 }
 
-/**
- * Opens meeting detail in a pop-out window. Never navigates the main window.
- */
-export function openMeetingPopout(agendaToken: string): MeetingPopoutResult {
+export function buildAssetPopoutUrl(assetId: string): string {
+  const path = `/assets/view/${encodeURIComponent(assetId)}?popout=1`;
+  if (typeof window === 'undefined') return path;
+  return `${window.location.origin}${path}`;
+}
+
+export function openSizedPopout(
+  url: string,
+  windowName: string,
+  width: number = MEETING_POPOUT_WIDTH,
+  height: number = MEETING_POPOUT_HEIGHT
+): MeetingPopoutResult {
   if (typeof window === 'undefined') return { opened: false, blocked: false };
 
-  const url = buildMeetingPopoutUrl(agendaToken);
-  const width = 960;
-  const height = 720;
   const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
   const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
 
@@ -38,7 +46,7 @@ export function openMeetingPopout(agendaToken: string): MeetingPopoutResult {
     'noreferrer',
   ].join(',');
 
-  const popup = window.open(url, MEETING_POPOUT_WINDOW_NAME, features);
+  const popup = window.open(url, windowName, features);
   if (!popup) {
     return { opened: false, blocked: true };
   }
@@ -52,5 +60,19 @@ export function openMeetingPopout(agendaToken: string): MeetingPopoutResult {
   return { opened: true, blocked: false };
 }
 
+/**
+ * Opens meeting detail in a pop-out window. Never navigates the main window.
+ */
+export function openMeetingPopout(agendaToken: string): MeetingPopoutResult {
+  return openSizedPopout(buildMeetingPopoutUrl(agendaToken), MEETING_POPOUT_WINDOW_NAME);
+}
+
+export function openAssetPopout(assetId: string): MeetingPopoutResult {
+  return openSizedPopout(buildAssetPopoutUrl(assetId), `nucleas-asset-${assetId}`);
+}
+
 export const MEETING_POPUP_BLOCKED_MESSAGE =
   'Allow pop-ups for this site to open the meeting window.';
+
+export const ASSET_POPUP_BLOCKED_MESSAGE =
+  'Allow pop-ups for this site to open the asset viewer.';

@@ -41,6 +41,7 @@ interface InspectorHostProps {
     onContentItemClick?: (item: IContentItem) => void;
     contentRefreshTrigger?: number;
     onContentListChanged?: () => void;
+    contentItems?: IContentItem[];
     timeframe?: TimeframeType;
     referenceDate?: Date;
 }
@@ -72,6 +73,7 @@ export default function InspectorHost({
     onContentItemClick,
     contentRefreshTrigger,
     onContentListChanged,
+    contentItems = [],
     timeframe = 'weekly',
     referenceDate,
 }: InspectorHostProps) {
@@ -156,6 +158,7 @@ export default function InspectorHost({
                             onContentItemClick={onContentItemClick}
                             contentRefreshTrigger={contentRefreshTrigger}
                             onContentListChanged={onContentListChanged}
+                            contentItems={contentItems}
                             autoAddTaskOnOpen={autoAddTaskOnOpen}
                             onAutoAddTaskConsumed={onAutoAddTaskConsumed}
                             initialAddContentOpen={initialAddContentOpen}

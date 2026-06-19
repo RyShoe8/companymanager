@@ -33,6 +33,7 @@ export type MeetingDetailAsset = {
   name: string;
   type: string;
   href: string;
+  openMode: 'external' | 'popout';
 };
 
 export type MeetingDetailActionButton = {
@@ -89,18 +90,30 @@ export type MeetingDetailPayload = {
   projects: MeetingDetailProjectBlock[];
 };
 
-function assetHref(asset: ProjectAssetRow): string {
-  if (asset.url?.trim()) return asset.url.trim();
-  if (asset.fileUrl?.trim()) return asset.fileUrl.trim();
-  return `/assets?projectId=${asset.linkedProjectId?.toString() ?? ''}`;
+function isExternalAssetUrl(url?: string): boolean {
+  const trimmed = url?.trim();
+  if (!trimmed) return false;
+  return /^https?:\/\//i.test(trimmed);
 }
 
 function mapAsset(asset: ProjectAssetRow): MeetingDetailAsset {
+  const id = asset._id.toString();
+  const externalUrl = asset.url?.trim();
+  if (externalUrl && isExternalAssetUrl(externalUrl)) {
+    return {
+      id,
+      name: asset.name,
+      type: asset.type,
+      href: externalUrl,
+      openMode: 'external',
+    };
+  }
   return {
-    id: asset._id.toString(),
+    id,
     name: asset.name,
     type: asset.type,
-    href: assetHref(asset),
+    href: `/assets/view/${id}?popout=1`,
+    openMode: 'popout',
   };
 }
 
