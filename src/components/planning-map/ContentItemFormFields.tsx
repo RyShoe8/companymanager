@@ -7,6 +7,8 @@ import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
 import { formInputClass } from '@/components/ui/formClasses';
 import { CONTENT_CHANNELS, CONTENT_STATUSES } from '@/components/planning-map/contentItemFormConstants';
+import RecurrenceFields from '@/components/shared/RecurrenceFields';
+import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 
 export function FormSelect({
   label,
@@ -81,6 +83,10 @@ export interface ContentItemFormFieldsProps {
   onTitleChange: (value: string) => void;
   titleAutoFocus?: boolean;
   inspectorStyled?: boolean;
+  compactLayout?: boolean;
+  repeatPreset?: RecurrencePreset;
+  onRepeatPresetChange?: (preset: RecurrencePreset) => void;
+  recurrenceAnchorDate?: Date;
   distributionMethods: DistributionMethod[];
   onToggleDistribution: (method: DistributionMethod) => void;
   channel: ContentChannel;
@@ -120,6 +126,10 @@ export default function ContentItemFormFields({
   onEstimatedHoursChange,
   children,
   inspectorStyled = false,
+  compactLayout = false,
+  repeatPreset,
+  onRepeatPresetChange,
+  recurrenceAnchorDate,
 }: ContentItemFormFieldsProps) {
   const labelClass = inspectorStyled
     ? 'block text-sm font-medium text-gray-900 dark:text-white'
@@ -127,6 +137,138 @@ export default function ContentItemFormFields({
   const subLabelClass = inspectorStyled
     ? 'block text-sm font-medium text-gray-900 dark:text-white mb-1'
     : 'block text-sm font-medium text-text-primary mb-1';
+
+  const channelSelect = (
+    <FormSelect
+      label="Channel *"
+      value={channel}
+      onChange={(e) => onChannelChange(e.target.value as ContentChannel)}
+      labelClassName={labelClass}
+    >
+      {CONTENT_CHANNELS.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </FormSelect>
+  );
+
+  const statusSelect = (
+    <FormSelect
+      label="Status"
+      value={status}
+      onChange={(e) => onStatusChange(e.target.value as ContentStatus)}
+      labelClassName={labelClass}
+    >
+      {CONTENT_STATUSES.map((s) => (
+        <option key={s} value={s}>
+          {s.replace('_', ' ')}
+        </option>
+      ))}
+    </FormSelect>
+  );
+
+  const publishDateField = (
+    <label className={labelClass}>
+      Publish date
+      <input
+        type="date"
+        value={publishDate}
+        onChange={(e) => onPublishDateChange(e.target.value)}
+        className={formInputClass}
+      />
+    </label>
+  );
+
+  const assigneeSelect = (
+    <FormSelect
+      label="Assignee"
+      value={assignedToEmployeeId}
+      onChange={(e) => onAssignedToEmployeeIdChange(e.target.value)}
+      labelClassName={labelClass}
+    >
+      <option value="">Unassigned</option>
+      {assigneeOptions.map((emp) => (
+        <option key={emp._id.toString()} value={emp._id.toString()}>
+          {emp.name}
+        </option>
+      ))}
+    </FormSelect>
+  );
+
+  const estimatedHoursField = compactLayout ? (
+    <label className={labelClass}>
+      Est. hours
+      <input
+        type="number"
+        step="0.5"
+        value={estimatedHours}
+        onChange={(e) => onEstimatedHoursChange(e.target.value)}
+        className={`${formInputClass} max-w-[8rem]`}
+      />
+    </label>
+  ) : (
+    <Input
+      label="Estimated hours"
+      type="number"
+      step="0.5"
+      value={estimatedHours}
+      onChange={(e) => onEstimatedHoursChange(e.target.value)}
+    />
+  );
+
+  if (compactLayout) {
+    const showRecurrence =
+      repeatPreset != null && onRepeatPresetChange != null;
+
+    return (
+      <div className="space-y-3">
+        <Input
+          label="Title *"
+          type="text"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Content title"
+          autoFocus={titleAutoFocus}
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {channelSelect}
+          {statusSelect}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {publishDateField}
+          {showRecurrence && (
+            <RecurrenceFields
+              repeatPreset={repeatPreset}
+              onRepeatPresetChange={onRepeatPresetChange}
+              inputClass={formInputClass}
+              anchorDate={recurrenceAnchorDate}
+              occurrenceLabel="content items"
+              inspectorStyled={inspectorStyled}
+            />
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {assigneeSelect}
+          {estimatedHoursField}
+        </div>
+        <div>
+          <label className={subLabelClass}>Notes</label>
+          <AutoGrowTextarea
+            value={notes}
+            onChange={(e) => onNotesChange(e.target.value)}
+            placeholder="Optional notes"
+          />
+        </div>
+        <DistributionSection
+          distributionMethods={distributionMethods}
+          onToggle={onToggleDistribution}
+          inspectorStyled={inspectorStyled}
+        />
+        {children}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -143,63 +285,15 @@ export default function ContentItemFormFields({
         onToggle={onToggleDistribution}
         inspectorStyled={inspectorStyled}
       />
-      <FormSelect
-        label="Channel *"
-        value={channel}
-        onChange={(e) => onChannelChange(e.target.value as ContentChannel)}
-        labelClassName={labelClass}
-      >
-        {CONTENT_CHANNELS.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </FormSelect>
-      <FormSelect
-        label="Status"
-        value={status}
-        onChange={(e) => onStatusChange(e.target.value as ContentStatus)}
-        labelClassName={labelClass}
-      >
-        {CONTENT_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {s.replace('_', ' ')}
-          </option>
-        ))}
-      </FormSelect>
-      <label className={labelClass}>
-        Publish date
-        <input
-          type="date"
-          value={publishDate}
-          onChange={(e) => onPublishDateChange(e.target.value)}
-          className={formInputClass}
-        />
-      </label>
+      {channelSelect}
+      {statusSelect}
+      {publishDateField}
       <div>
         <label className={subLabelClass}>Notes</label>
         <AutoGrowTextarea value={notes} onChange={(e) => onNotesChange(e.target.value)} placeholder="Optional notes" />
       </div>
-      <FormSelect
-        label="Assignee"
-        value={assignedToEmployeeId}
-        onChange={(e) => onAssignedToEmployeeIdChange(e.target.value)}
-        labelClassName={labelClass}
-      >
-        <option value="">Unassigned</option>
-        {assigneeOptions.map((emp) => (
-          <option key={emp._id.toString()} value={emp._id.toString()}>
-            {emp.name}
-          </option>
-        ))}
-      </FormSelect>
-      <Input
-        label="Estimated hours"
-        type="number"
-        step="0.5"
-        value={estimatedHours}
-        onChange={(e) => onEstimatedHoursChange(e.target.value)}
-      />
+      {assigneeSelect}
+      {estimatedHoursField}
       {children}
     </>
   );

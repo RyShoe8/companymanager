@@ -12,6 +12,7 @@ interface ContentTargetingSectionProps {
   onToggle?: () => void;
   /** When true, render fields only (parent supplies collapsible header). */
   embedded?: boolean;
+  inspectorStyled?: boolean;
   keywords: string;
   onKeywordsChange: (value: string) => void;
   internalLinks: string[];
@@ -30,6 +31,7 @@ export default function ContentTargetingSection({
   expanded,
   onToggle,
   embedded = false,
+  inspectorStyled = false,
   keywords,
   onKeywordsChange,
   internalLinks,
@@ -37,6 +39,16 @@ export default function ContentTargetingSection({
   externalUrl,
   onExternalUrlChange,
 }: ContentTargetingSectionProps) {
+  const labelClass = inspectorStyled
+    ? 'block text-sm font-medium text-gray-900 dark:text-white mb-1'
+    : 'block text-sm font-medium text-text-primary mb-1';
+  const labelClassNoMb = inspectorStyled
+    ? 'block text-sm font-medium text-gray-900 dark:text-white'
+    : 'block text-sm font-medium text-text-primary';
+  const hintClass = inspectorStyled
+    ? 'text-xs text-gray-500 dark:text-gray-400 mb-2'
+    : 'text-xs text-text-secondary mb-2';
+
   const addInternalLink = () => onInternalLinksChange([...internalLinks, '']);
   const updateInternalLink = (index: number, value: string) => {
     const next = [...internalLinks];
@@ -54,7 +66,7 @@ export default function ContentTargetingSection({
       {(embedded || expanded) && (
         <div className="space-y-4 animate-in slide-in-from-top-2">
           <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Target keywords</label>
+            <label className={labelClass}>Target keywords</label>
             <AutoGrowTextarea
               value={keywords}
               onChange={(e) => onKeywordsChange(e.target.value)}
@@ -64,13 +76,13 @@ export default function ContentTargetingSection({
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-text-primary">Internal links</label>
+              <label className={labelClassNoMb}>Internal links</label>
               <Button type="button" variant="secondary" size="sm" onClick={addInternalLink}>
                 + Add internal link
               </Button>
             </div>
             {internalLinks.length === 0 && (
-              <p className="text-xs text-text-secondary mb-2">No internal links yet.</p>
+              <p className={hintClass}>No internal links yet.</p>
             )}
             {internalLinks.map((link, index) => (
               <div key={index} className="flex gap-2 mb-2">
@@ -88,7 +100,7 @@ export default function ContentTargetingSection({
             ))}
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">External link</label>
+            <label className={labelClass}>External link</label>
             <AutoGrowTextarea
               value={externalUrl}
               onChange={(e) => onExternalUrlChange(e.target.value)}

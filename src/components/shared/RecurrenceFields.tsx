@@ -13,6 +13,7 @@ export interface RecurrenceFieldsProps {
   inputClass?: string;
   anchorDate?: Date;
   occurrenceLabel?: string;
+  inspectorStyled?: boolean;
 }
 
 export default function RecurrenceFields({
@@ -21,6 +22,7 @@ export default function RecurrenceFields({
   inputClass = formInputClass,
   anchorDate,
   occurrenceLabel = 'items',
+  inspectorStyled = false,
 }: RecurrenceFieldsProps) {
   let occurrencePreview: string | null = null;
   if (repeatPreset !== 'none' && anchorDate && !isNaN(anchorDate.getTime())) {
@@ -32,8 +34,15 @@ export default function RecurrenceFields({
     }
   }
 
+  const labelClass = inspectorStyled
+    ? 'text-sm text-gray-900 dark:text-white block'
+    : 'text-sm text-text-primary block';
+  const previewClass = inspectorStyled
+    ? 'text-sm text-gray-500 dark:text-gray-400 mt-1'
+    : 'text-sm text-text-secondary mt-1';
+
   return (
-    <label className="text-sm text-text-primary block">
+    <label className={labelClass}>
       Repeat
       <RepeatPresetSelect
         value={repeatPreset}
@@ -41,9 +50,7 @@ export default function RecurrenceFields({
         className={inputClass}
         noneLabel="Does not repeat"
       />
-      {occurrencePreview && (
-        <p className="text-sm text-text-secondary mt-1">{occurrencePreview}</p>
-      )}
+      {occurrencePreview && <p className={previewClass}>{occurrencePreview}</p>}
     </label>
   );
 }

@@ -6,7 +6,6 @@ import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import Button from '@/components/ui/Button';
-import CollapsibleInspectorSection from '@/components/ui/CollapsibleInspectorSection';
 import ContentTargetingSection, { parseKeywordsInput } from '@/components/planning-map/ContentTargetingSection';
 import ContentItemFormFields, { ContentFormErrorMessage } from '@/components/planning-map/ContentItemFormFields';
 import ContentItemAssetsSection from '@/components/planning-map/ContentItemAssetsSection';
@@ -14,9 +13,7 @@ import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import { createPendingAssets } from '@/lib/utils/linkedAssets';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
-import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
-import { formInputClass } from '@/components/ui/formClasses';
 import { toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
 import { matchContentChannel } from '@/components/planning-map/contentItemCreateUtils';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
@@ -69,10 +66,6 @@ export default function ContentItemCreateForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEstimating, setIsEstimating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [detailsExpanded, setDetailsExpanded] = useState(true);
-  const [recurrenceExpanded, setRecurrenceExpanded] = useState(false);
-  const [assetsExpanded, setAssetsExpanded] = useState(false);
-  const [targetingExpanded, setTargetingExpanded] = useState(false);
   const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
 
   const assigneeOptions = filterEmployeesForTaskAssignment(employees, project);
@@ -83,6 +76,8 @@ export default function ContentItemCreateForm({
       : undefined;
 
   const metaClass = lightSurface('text-sm text-gray-500', 'dark:text-gray-400', light);
+  const sectionBorder = lightSurface('border-gray-200', 'dark:border-gray-700', light);
+  const sectionHeading = lightSurface('text-sm font-semibold text-gray-900', 'dark:text-white', light);
 
   useEffect(() => {
     if (!active) {
@@ -98,10 +93,6 @@ export default function ContentItemCreateForm({
       setDistributionMethods([]);
       setEstimatedHours('');
       setPendingAssets([]);
-      setDetailsExpanded(true);
-      setRecurrenceExpanded(false);
-      setAssetsExpanded(false);
-      setTargetingExpanded(false);
       setRepeatPreset('none');
       setError(null);
       return;
@@ -197,101 +188,58 @@ export default function ContentItemCreateForm({
     }
   };
 
-  const recurrenceSummary =
-    repeatPreset === 'none' ? 'Does not repeat' : repeatPreset.replace(/_/g, ' ');
-  const assetsSummary =
-    pendingAssets.length === 0
-      ? 'No assets'
-      : `${pendingAssets.length} ${pendingAssets.length === 1 ? 'asset' : 'assets'}`;
-  const targetingSummary =
-    keywords.trim() || internalLinks.some(Boolean) || externalUrl.trim() ? 'Configured' : 'None';
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {clientName ? <p className={metaClass}>Client: {clientName}</p> : null}
       <p className={metaClass}>Project: {project.name}</p>
 
-      <CollapsibleInspectorSection
-        variant="nested"
-        title="Details"
-        expanded={detailsExpanded}
-        onToggle={() => setDetailsExpanded((v) => !v)}
-        className={`pt-2 border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)}`}
-      >
-        <ContentItemFormFields
-          title={title}
-          onTitleChange={handleTitleChange}
-          titleAutoFocus={active}
-          inspectorStyled
-          distributionMethods={distributionMethods}
-          onToggleDistribution={toggleDistribution}
-          channel={channel}
-          onChannelChange={setChannel}
-          status={status}
-          onStatusChange={setStatus}
-          publishDate={publishDate}
-          onPublishDateChange={setPublishDate}
-          notes={notes}
-          onNotesChange={setNotes}
-          assignedToEmployeeId={assignedToEmployeeId}
-          onAssignedToEmployeeIdChange={setAssignedToEmployeeId}
-          assigneeOptions={assigneeOptions}
-          estimatedHours={estimatedHours}
-          onEstimatedHoursChange={setEstimatedHours}
-        />
-      </CollapsibleInspectorSection>
+      <ContentItemFormFields
+        compactLayout
+        title={title}
+        onTitleChange={handleTitleChange}
+        titleAutoFocus={active}
+        inspectorStyled
+        repeatPreset={repeatPreset}
+        onRepeatPresetChange={setRepeatPreset}
+        recurrenceAnchorDate={publishDate ? new Date(publishDate) : new Date()}
+        distributionMethods={distributionMethods}
+        onToggleDistribution={toggleDistribution}
+        channel={channel}
+        onChannelChange={setChannel}
+        status={status}
+        onStatusChange={setStatus}
+        publishDate={publishDate}
+        onPublishDateChange={setPublishDate}
+        notes={notes}
+        onNotesChange={setNotes}
+        assignedToEmployeeId={assignedToEmployeeId}
+        onAssignedToEmployeeIdChange={setAssignedToEmployeeId}
+        assigneeOptions={assigneeOptions}
+        estimatedHours={estimatedHours}
+        onEstimatedHoursChange={setEstimatedHours}
+      />
 
-      <CollapsibleInspectorSection
-        variant="nested"
-        title="Recurrence"
-        expanded={recurrenceExpanded}
-        onToggle={() => setRecurrenceExpanded((v) => !v)}
-        collapsedSummary={recurrenceSummary}
-        className={`pt-2 border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)}`}
-      >
-        <RecurrenceFields
-          repeatPreset={repeatPreset}
-          onRepeatPresetChange={setRepeatPreset}
-          inputClass={formInputClass}
-          anchorDate={publishDate ? new Date(publishDate) : new Date()}
-          occurrenceLabel="content items"
-        />
-      </CollapsibleInspectorSection>
+      <ContentItemAssetsSection
+        project={project}
+        isManagerOrAdmin={isManagerOrAdmin}
+        assignedToEmployeeId={assignedToEmployeeId}
+        mode="draft"
+        pendingAssets={pendingAssets}
+        onPendingAsset={(asset) => setPendingAssets((prev) => [...prev, asset])}
+        onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
+        nestedInModal={nestedInModal}
+        compact={false}
+        showAddHintText={pendingAssets.length === 0}
+      />
 
-      <CollapsibleInspectorSection
-        variant="nested"
-        title="Assets"
-        expanded={assetsExpanded}
-        onToggle={() => setAssetsExpanded((v) => !v)}
-        collapsedSummary={assetsSummary}
-        className={`pt-2 border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)}`}
-      >
-        <ContentItemAssetsSection
-          project={project}
-          isManagerOrAdmin={isManagerOrAdmin}
-          assignedToEmployeeId={assignedToEmployeeId}
-          mode="draft"
-          pendingAssets={pendingAssets}
-          onPendingAsset={(asset) => setPendingAssets((prev) => [...prev, asset])}
-          onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
-          nestedInModal={nestedInModal}
-          compact
-        />
-      </CollapsibleInspectorSection>
-
-      <CollapsibleInspectorSection
-        variant="nested"
-        title="Targeting and links"
-        expanded={targetingExpanded}
-        onToggle={() => setTargetingExpanded((v) => !v)}
-        collapsedSummary={targetingSummary}
-        className={`pt-2 border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)}`}
-      >
+      <div className={`pt-3 border-t ${sectionBorder}`}>
+        <h4 className={`${sectionHeading} mb-3`}>Targeting and links</h4>
         <ContentTargetingSection
           project={project}
           isManagerOrAdmin={isManagerOrAdmin}
           expanded
           embedded
+          inspectorStyled
           keywords={keywords}
           onKeywordsChange={setKeywords}
           internalLinks={internalLinks}
@@ -300,7 +248,7 @@ export default function ContentItemCreateForm({
           onExternalUrlChange={setExternalUrl}
           mode="live"
         />
-      </CollapsibleInspectorSection>
+      </div>
 
       {error && <ContentFormErrorMessage message={error} />}
       <div className="flex gap-2 pt-2">
