@@ -10,6 +10,10 @@ import {
   computeProjectTimeframeProgress,
 } from '@/lib/calendar/timeframeProgress';
 import { buildProjectEntityRangeItems } from '@/lib/calendar/projectEntityRangeItems';
+import {
+  buildContentItemsByProjectId,
+  getProjectLatestActivityMs,
+} from '@/lib/utils/projectLatestActivity';
 
 export type ClientCalendarProjectRow = {
   project: IProject;
@@ -65,6 +69,24 @@ function projectRangeCounts(
     referenceDate
   );
   return { openTaskCount, openContentCount };
+}
+
+function sortClientProjectRowsByRecency(
+  rows: ClientCalendarProjectRow[],
+  contentItems: IContentItem[]
+): ClientCalendarProjectRow[] {
+  const contentByProjectId = buildContentItemsByProjectId(contentItems);
+  return [...rows].sort(
+    (a, b) =>
+      getProjectLatestActivityMs(
+        b.project,
+        contentByProjectId.get(b.project._id.toString()) ?? []
+      ) -
+      getProjectLatestActivityMs(
+        a.project,
+        contentByProjectId.get(a.project._id.toString()) ?? []
+      )
+  );
 }
 
 export function buildClientCalendarRows(
@@ -130,7 +152,7 @@ export function buildClientCalendarRows(
     return {
       client,
       projectIds,
-      projects,
+      projects: sortClientProjectRowsByRecency(projects, contentItems),
       activeTaskCount,
       activeContentCount,
       tasksInRange,

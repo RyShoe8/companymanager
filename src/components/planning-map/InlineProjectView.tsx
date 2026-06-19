@@ -1473,15 +1473,34 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           throw new Error(data.error || 'Failed to update task status');
         }
         const data = (await response.json()) as {
-          task?: { status?: TaskStatus };
+          task?: { status?: TaskStatus; completedAt?: string | Date };
           status?: TaskStatus;
+          projectUpdatedAt?: string;
         };
         const savedStatus = data.task?.status ?? data.status ?? value;
+        const projectUpdatedAt = data.projectUpdatedAt
+          ? new Date(data.projectUpdatedAt)
+          : new Date();
         setLocalProject((prev) => {
           const tasks = [...(prev.tasks || [])];
           const task = tasks[taskIndex];
-          if (task) tasks[taskIndex] = { ...task, status: savedStatus };
-          return { ...prev, tasks } as IProject;
+          if (task) {
+            tasks[taskIndex] = {
+              ...task,
+              status: savedStatus,
+              ...(savedStatus === 'completed'
+                ? {
+                    completedAt:
+                      data.task?.completedAt != null
+                        ? new Date(data.task.completedAt)
+                        : new Date(),
+                  }
+                : { completedAt: undefined }),
+            };
+          }
+          const next = { ...prev, tasks, updatedAt: projectUpdatedAt } as IProject;
+          onProjectPatched?.(next);
+          return next;
         });
         const wasCompleted = existingTask.status === 'completed';
         if (!wasCompleted && savedStatus === 'completed') {

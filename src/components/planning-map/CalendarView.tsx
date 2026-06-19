@@ -270,13 +270,22 @@ export default function CalendarView({
       const projectId = project._id.toString();
       const commentDate = projectLatestComments.get(projectId);
       const commentMs = commentDate ? commentDate.getTime() : undefined;
-      return getProjectLatestActivityMs(
+      const serverMs = getProjectLatestActivityMs(
         project,
         contentByProjectId.get(projectId) ?? [],
         commentMs
       );
+      let itemMs = 0;
+      const taskPrefix = `task:${projectId}:`;
+      const contentPrefix = `content:${projectId}:`;
+      for (const [key, ms] of Object.entries(itemActivityByKey)) {
+        if (key.startsWith(taskPrefix) || key.startsWith(contentPrefix)) {
+          if (ms > itemMs) itemMs = ms;
+        }
+      }
+      return Math.max(serverMs, itemMs);
     },
-    [contentByProjectId, projectLatestComments]
+    [contentByProjectId, projectLatestComments, itemActivityByKey]
   );
 
   // Fetch latest project comment timestamps in one request

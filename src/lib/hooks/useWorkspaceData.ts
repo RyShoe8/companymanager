@@ -9,6 +9,7 @@ import { IClient } from '@/lib/models/Client';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
 import { excludeClientHubProjects } from '@/lib/clients/clientProjectHelpers';
+import { mergeProjectsPreservingRecency } from '@/lib/utils/mergeProjectsPreservingRecency';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
 export type LensType = 'schedule' | 'agenda' | 'projects' | 'clients' | 'capacity';
@@ -167,7 +168,7 @@ export default function useWorkspaceData(
                 // Error loading current user
             }
 
-            setAllProjects(projectsData);
+            setAllProjects((prev) => mergeProjectsPreservingRecency(prev, projectsData));
             setClients(clientsData);
             setEmployees(employeesData);
 

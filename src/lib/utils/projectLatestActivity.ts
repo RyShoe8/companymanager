@@ -1,10 +1,20 @@
-import { IProject } from '@/lib/models/Project';
-import { IContentItem } from '@/lib/models/ContentItem';
+import type { IProject, IProjectTask } from '@/lib/models/Project';
+import type { IContentItem } from '@/lib/models/ContentItem';
 
 function toMs(d: Date | string | undefined): number {
   if (!d) return 0;
   const t = new Date(d).getTime();
   return Number.isNaN(t) ? 0 : t;
+}
+
+function maxTaskActivityMs(tasks: IProjectTask[] | undefined): number {
+  if (!tasks?.length) return 0;
+  let max = 0;
+  for (const task of tasks) {
+    const completedMs = toMs(task.completedAt);
+    if (completedMs > max) max = completedMs;
+  }
+  return max;
 }
 
 export function getProjectLatestActivityMs(
@@ -13,6 +23,9 @@ export function getProjectLatestActivityMs(
   latestCommentMs?: number
 ): number {
   let max = toMs((project as { updatedAt?: Date }).updatedAt ?? project.createdAt);
+
+  const taskMs = maxTaskActivityMs(project.tasks);
+  if (taskMs > max) max = taskMs;
 
   for (const item of contentItemsForProject) {
     const itemMs = toMs(item.updatedAt ?? item.createdAt);
