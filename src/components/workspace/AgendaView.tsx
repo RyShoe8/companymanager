@@ -302,33 +302,27 @@ export default function AgendaView({
             const dayProjects: AgendaDayProject[] = [];
             projects.forEach((project) => {
                 const tasksOnDay: IProjectTask[] = [];
-                const displayTasks = showTasks
-                    ? filterTasksToSeriesRepresentatives(project.tasks ?? [], {
-                          mode: 'active',
-                          referenceDate: currentDate,
-                      })
-                    : [];
+                const displayTasks = filterTasksToSeriesRepresentatives(project.tasks ?? [], {
+                    mode: 'active',
+                    referenceDate: currentDate,
+                });
                 const projectContent = contentItems.filter(
                     (item) => item.projectId?.toString() === project._id.toString()
                 );
-                const displayContent = showContent
-                    ? filterContentToSeriesRepresentatives(projectContent, {
-                          mode: 'active',
-                          referenceDate: currentDate,
-                      })
-                    : [];
-                if (showTasks) {
-                    displayTasks.forEach((task) => {
-                        if (!isActiveWorkspaceTask(task)) return;
-                        const taskStart = parseDateSafe(task.startDate);
-                        const taskEnd = parseDateSafe(task.endDate);
-                        if (!taskStart || !taskEnd) return;
-                        if (!taskOverlapsViewDay(dayStart, taskStart, taskEnd)) return;
-                        if (teamFilter !== 'All Teams' && !passesTeamFilter(task, teamFilter, employees)) return;
-                        if (!taskPassesAssignmentFilter(task, assignmentFilterOpts)) return;
-                        tasksOnDay.push(task);
-                    });
-                }
+                const displayContent = filterContentToSeriesRepresentatives(projectContent, {
+                    mode: 'active',
+                    referenceDate: currentDate,
+                });
+                displayTasks.forEach((task) => {
+                    if (!isActiveWorkspaceTask(task)) return;
+                    const taskStart = parseDateSafe(task.startDate);
+                    const taskEnd = parseDateSafe(task.endDate);
+                    if (!taskStart || !taskEnd) return;
+                    if (!taskOverlapsViewDay(dayStart, taskStart, taskEnd)) return;
+                    if (teamFilter !== 'All Teams' && !passesTeamFilter(task, teamFilter, employees)) return;
+                    if (!taskPassesAssignmentFilter(task, assignmentFilterOpts)) return;
+                    tasksOnDay.push(task);
+                });
                 if (tasksOnDay.length > 0) {
                     tasksOnDay.sort((a, b) => {
                         const aIdx = resolveTaskIndexInProject(project, a);
@@ -338,22 +332,20 @@ export default function AgendaView({
                 }
 
                 const contentOnDay: IContentItem[] = [];
-                if (showContent) {
-                    displayContent
-                        .filter((item) => {
-                            if (!isActiveWorkspaceContent(item)) return false;
-                            if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
-                                return false;
-                            if (teamFilter !== 'All Teams' && !passesTeamFilter(item, teamFilter, employees)) return false;
-                            if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
-                            if (!item.publishDate) return false;
-                            const d = parseDateSafe(item.publishDate);
-                            if (!d) return false;
-                            return publishDateOnViewDay(dayStart, d);
-                        })
-                        .forEach((item) => contentOnDay.push(item));
-                    contentOnDay.sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
-                }
+                displayContent
+                    .filter((item) => {
+                        if (!isActiveWorkspaceContent(item)) return false;
+                        if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
+                            return false;
+                        if (teamFilter !== 'All Teams' && !passesTeamFilter(item, teamFilter, employees)) return false;
+                        if (!contentPassesAssignmentFilter(item, assignmentFilterOpts)) return false;
+                        if (!item.publishDate) return false;
+                        const d = parseDateSafe(item.publishDate);
+                        if (!d) return false;
+                        return publishDateOnViewDay(dayStart, d);
+                    })
+                    .forEach((item) => contentOnDay.push(item));
+                contentOnDay.sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
 
                 if (tasksOnDay.length > 0 || contentOnDay.length > 0) {
                     dayProjects.push({
@@ -364,14 +356,11 @@ export default function AgendaView({
                 }
             });
 
-            const displayAllContent = showContent
-                ? filterContentToSeriesRepresentatives(contentItems, {
-                      mode: 'active',
-                      referenceDate: currentDate,
-                  })
-                : [];
-            const orphanContent = showContent
-                ? displayAllContent.filter((item) => {
+            const displayAllContent = filterContentToSeriesRepresentatives(contentItems, {
+                mode: 'active',
+                referenceDate: currentDate,
+            });
+            const orphanContent = displayAllContent.filter((item) => {
                     if (!isActiveWorkspaceContent(item)) return false;
                     if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter)
                         return false;
@@ -383,8 +372,7 @@ export default function AgendaView({
                     return !dayProjects.some((dp) =>
                         dp.content.some((c) => c._id.toString() === item._id.toString())
                     );
-                })
-                : [];
+                });
             orphanContent.sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
 
             dayProjects.sort((a, b) => {
@@ -434,8 +422,6 @@ export default function AgendaView({
         projects,
         contentItems,
         meetings,
-        showTasks,
-        showContent,
         showMeetings,
         contentChannelFilter,
         timeframe,
@@ -446,7 +432,6 @@ export default function AgendaView({
     ]);
 
     const undatedContent = useMemo(() => {
-        if (!showContent) return [];
         return filterContentToSeriesRepresentatives(contentItems, {
             mode: 'active',
             referenceDate: currentDate,
@@ -459,7 +444,7 @@ export default function AgendaView({
                 return contentPassesAssignmentFilter(item, assignmentFilterOpts);
             })
             .sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
-    }, [contentItems, showContent, contentChannelFilter, assignmentFilterOpts, contentActivityMs, currentDate]);
+    }, [contentItems, contentChannelFilter, assignmentFilterOpts, contentActivityMs, currentDate]);
 
     useEffect(() => {
         if (timeframe === 'today') return;
@@ -515,7 +500,7 @@ export default function AgendaView({
                 {periodHeader}
                 <EmptyStateIllustration
                     title="No items scheduled for this period"
-                    description="Try the Schedule lens, turn on Show Content or Show Meetings, or adjust your timeframe."
+                    description="Try the Schedule lens, adjust your timeframe, or add tasks and content to your projects."
                 />
             </div>
         );
@@ -635,7 +620,7 @@ export default function AgendaView({
                                 day.projects.length > 0
                                     ? `${day.projects.length} project${day.projects.length > 1 ? 's' : ''}`
                                     : null,
-                                showContent && day.projects.some((p) => p.content.length > 0)
+                                day.projects.reduce((n, p) => n + p.content.length, 0) + day.contentItems.length > 0
                                     ? `${day.projects.reduce((n, p) => n + p.content.length, 0) + day.contentItems.length} content`
                                     : null,
                             ]
@@ -745,9 +730,8 @@ export default function AgendaView({
                                             className="ml-6 py-1.5 flex items-center gap-2 text-sm text-left w-[calc(100%-1.5rem)] rounded px-1 -mx-1 hover:bg-background-elevated transition-colors cursor-pointer flex-wrap"
                                         >
                                             <AgendaItemTypeBadge type="Task" />
-                                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'completed' ? 'bg-green-500' : task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'
-                                                }`} />
-                                            <span className={`text-text-primary ${task.status === 'completed' ? 'line-through text-text-muted' : ''}`}>
+                                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'in-review' ? 'bg-yellow-500' : 'bg-blue-400'}`} />
+                                            <span className="text-text-primary">
                                                 <ItemSeenTag status={showNewTask && showNewTask !== 'none' ? showNewTask : 'none'} />
                                                 {task.name}
                                             </span>

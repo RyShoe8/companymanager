@@ -19,6 +19,8 @@ interface ClientScheduleLensProps {
   onTaskClick?: (project: IProject, taskIndex: number) => void;
   onContentItemClick?: (item: IContentItem) => void;
   onDateChange: (date: Date) => void;
+  currentUserId?: string | null;
+  itemSeenRefreshTrigger?: number;
 }
 
 export default function ClientScheduleLens(props: ClientScheduleLensProps) {

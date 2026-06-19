@@ -20,7 +20,10 @@ import {
   clientHubProject,
 } from '@/lib/clients/clientProjectHelpers';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
-import { isActiveWorkspaceContent, isActiveWorkspaceTask } from '@/lib/workspace/activeWorkspaceItems';
+import {
+  countActiveContentForDisplay,
+  countActiveTasksForDisplay,
+} from '@/lib/workspace/projectDisplayCounts';
 import Image from 'next/image';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 
@@ -231,10 +234,12 @@ export default function InlineClientView({
             {activeProjects.map((project) => {
               const displayColor = project.status === 'in-review' ? '#ef4444' : project.color || '#3b82f6';
               const headerTextClass = getProjectCardHeaderTextClass(displayColor);
-              const activeTaskCount = (project.tasks ?? []).filter((task) => isActiveWorkspaceTask(task)).length;
-              const activeContentCount = contentItems.filter(
-                (item) => String(item.projectId) === String(project._id) && isActiveWorkspaceContent(item)
-              ).length;
+              const activeTaskCount = countActiveTasksForDisplay(project, referenceDate ?? new Date());
+              const activeContentCount = countActiveContentForDisplay(
+                String(project._id),
+                contentItems,
+                referenceDate ?? new Date()
+              );
               const totalTasks = project.tasks?.length ?? 0;
               const completedTasks = project.tasks?.filter((t) => t.status === 'completed').length ?? 0;
               const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;

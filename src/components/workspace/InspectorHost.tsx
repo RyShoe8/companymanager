@@ -44,6 +44,9 @@ interface InspectorHostProps {
     contentItems?: IContentItem[];
     timeframe?: TimeframeType;
     referenceDate?: Date;
+    initialTasksExpanded?: boolean;
+    initialContentExpanded?: boolean;
+    itemSeenRefreshTrigger?: number;
 }
 
 export default function InspectorHost({
@@ -76,6 +79,9 @@ export default function InspectorHost({
     contentItems = [],
     timeframe = 'weekly',
     referenceDate,
+    initialTasksExpanded = false,
+    initialContentExpanded = false,
+    itemSeenRefreshTrigger,
 }: InspectorHostProps) {
     const internalScrollRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = scrollContainerRefProp ?? internalScrollRef;
@@ -198,6 +204,9 @@ export default function InspectorHost({
                         onAutoAddTaskConsumed={onAutoAddTaskConsumed}
                         timeframe={timeframe}
                         referenceDate={referenceDate}
+                        initialTasksExpanded={initialTasksExpanded}
+                        initialContentExpanded={initialContentExpanded}
+                        itemSeenRefreshTrigger={itemSeenRefreshTrigger}
                         onProjectPatched={onProjectPatched}
                         onUpdate={handleProjectUpdate}
                         onDelete={handleProjectDelete}

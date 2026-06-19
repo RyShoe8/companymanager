@@ -273,6 +273,25 @@ export function markProjectItemsSeen(userId: string, projectId: string): boolean
   return changed;
 }
 
+export function readProjectUnseenSections(
+  userId: string,
+  projectId: string,
+  keys: string[]
+): { hasUnseenTasks: boolean; hasUnseenContent: boolean } {
+  const { statusByKey } = readObservedItemsForUser(userId, keys);
+  const taskPrefix = `task:${projectId}:`;
+  const contentPrefix = `content:${projectId}:`;
+  let hasUnseenTasks = false;
+  let hasUnseenContent = false;
+  for (const key of keys) {
+    const status = statusByKey[key] ?? 'none';
+    if (status === 'none') continue;
+    if (key.startsWith(taskPrefix)) hasUnseenTasks = true;
+    if (key.startsWith(contentPrefix)) hasUnseenContent = true;
+  }
+  return { hasUnseenTasks, hasUnseenContent };
+}
+
 export function readObservedItemsForUser(
   userId: string,
   keys: string[]

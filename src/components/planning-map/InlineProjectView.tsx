@@ -95,6 +95,7 @@ import {
   buildTaskItemKey,
   buildTaskItemObservation,
   observeItemsForUser,
+  readObservedItemsForUser,
   type ItemSeenStatus,
 } from '@/lib/workspace/itemSeenState';
 
@@ -138,6 +139,11 @@ interface InlineProjectViewProps {
   timeframe?: TimeframeType;
   /** Reference date for timeframe (defaults to today). */
   referenceDate?: Date;
+  /** Initial Tasks section expanded state (e.g. when project has unseen tasks). */
+  initialTasksExpanded?: boolean;
+  /** Initial Content section expanded state (e.g. when project has unseen content). */
+  initialContentExpanded?: boolean;
+  itemSeenRefreshTrigger?: number;
   /** When set, render only tasks and content sections (e.g. embedded in client inspector). */
   sectionsOnly?: 'tasks-content';
 }
@@ -262,7 +268,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return canUserContributeToProject(project, currentUserEmployeeId ?? null, isManagerOrAdmin);
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate, sectionsOnly }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate, initialTasksExpanded = false, initialContentExpanded = false, itemSeenRefreshTrigger, sectionsOnly }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [urlList, setUrlList] = useState<string[]>(() => getPlatformUrlList(project));
   const localProjectRef = useRef(localProject);
@@ -291,8 +297,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
   const [autoEditTaskId, setAutoEditTaskId] = useState<string | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
-  const [tasksExpanded, setTasksExpanded] = useState(true);
-  const [contentExpanded, setContentExpanded] = useState(false);
+  const [tasksExpanded, setTasksExpanded] = useState(initialTasksExpanded);
+  const [contentExpanded, setContentExpanded] = useState(initialContentExpanded);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addTaskNameDraft, setAddTaskNameDraft] = useState('');
   const addTaskInputRef = useRef<HTMLInputElement>(null);
@@ -672,15 +678,44 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     if (!currentUserId) return;
 
-    const taskEntries = (localProject.tasks ?? []).map((task, idx) =>
-      buildTaskItemObservation(localProject, task, idx)
-    );
+    const taskEntries = (localProject.tasks ?? []).map((task, idx) => {
+      const summaryKey = taskCommentSummaryKey(
+        (task as { _id?: { toString: () => string } })?._id?.toString(),
+        idx
+      );
+      const summary = commentSummaries.tasks[summaryKey];
+      return buildTaskItemObservation(localProject, task, idx, {
+        commentActivityMs: summary?.latestActivityMs ?? 0,
+      });
+    });
 
-    const contentEntries = projectContentItems.map((item) => buildContentItemObservation(item));
+    const contentEntries = projectContentItems.map((item) => {
+      const itemId = item._id.toString();
+      const summary = commentSummaries.contentItems[itemId];
+      return buildContentItemObservation(item, {
+        commentActivityMs: summary?.latestActivityMs ?? 0,
+      });
+    });
 
     const observed = observeItemsForUser(currentUserId, [...taskEntries, ...contentEntries]);
     setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, localProject, projectContentItems]);
+  }, [currentUserId, localProject, projectContentItems, commentSummaries]);
+
+  useEffect(() => {
+    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
+    const taskEntries = (localProject.tasks ?? []).map((task, idx) =>
+      buildTaskItemKey(
+        localProject._id.toString(),
+        (task as { _id?: { toString: () => string } })._id?.toString() ?? null,
+        idx
+      )
+    );
+    const contentEntries = projectContentItems.map((item) =>
+      buildContentItemKey(item.projectId?.toString() ?? 'none', item._id.toString())
+    );
+    const observed = readObservedItemsForUser(currentUserId, [...taskEntries, ...contentEntries]);
+    setItemStatusByKey(observed.statusByKey);
+  }, [currentUserId, itemSeenRefreshTrigger, localProject._id, localProject.tasks, projectContentItems]);
 
   const sortedTaskEntries = useMemo(
     () =>
@@ -869,8 +904,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     if (project._id.toString() !== localProject._id.toString()) {
       setLocalProject(project);
       setUrlList(getPlatformUrlList(project));
-      setTasksExpanded(true);
-      setContentExpanded(false);
+      setTasksExpanded(initialTasksExpanded);
+      setContentExpanded(initialContentExpanded);
       initialTaskAppliedKeyRef.current = null;
       autoAddTaskAppliedKeyRef.current = null;
       return;
@@ -885,7 +920,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       if (pAt != null && prevAt != null && new Date(pAt).getTime() === new Date(prevAt).getTime()) return prev;
       return project;
     });
-  }, [project, localProject._id]);
+  }, [project, localProject._id, initialTasksExpanded, initialContentExpanded]);
 
   useEffect(() => {
     if (initialOpenTaskIndex == null) {

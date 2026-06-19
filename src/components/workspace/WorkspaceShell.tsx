@@ -58,7 +58,11 @@ import { matchTaskInProjects } from '@/lib/voice/matchProjectTask';
 import { isEmployeeOnProjectTeam } from '@/lib/utils/projectTeam';
 import { matchEmployeeByVoiceName } from '@/lib/voice/employeeMatcher';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
-import { markProjectItemsSeen } from '@/lib/workspace/itemSeenState';
+import {
+  collectWorkspaceItemObservations,
+  markProjectItemsSeen,
+  readProjectUnseenSections,
+} from '@/lib/workspace/itemSeenState';
 import WorkspaceEmailDigestSelect from '@/components/workspace/WorkspaceEmailDigestSelect';
 import WorkspaceTeamFilter from '@/components/workspace/WorkspaceTeamFilter';
 import PlatformGuideWorkspaceBridge from '@/lib/platformGuide/PlatformGuideWorkspaceBridge';
@@ -116,6 +120,8 @@ export default function WorkspaceShell({
         channel?: string;
         notes?: string;
     } | null>(null);
+    const [inspectorInitialTasksExpanded, setInspectorInitialTasksExpanded] = useState(false);
+    const [inspectorInitialContentExpanded, setInspectorInitialContentExpanded] = useState(false);
     const deepLinkHandledRef = useRef(false);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -305,9 +311,46 @@ export default function WorkspaceShell({
         [ws.currentUserId]
     );
 
+    const getProjectUnseenExpandFlags = useCallback(
+        (projectId: string) => {
+            if (!ws.currentUserId) {
+                return { hasUnseenTasks: false, hasUnseenContent: false };
+            }
+            const project = ws.allProjects.find((p) => p._id.toString() === projectId);
+            if (!project) {
+                return { hasUnseenTasks: false, hasUnseenContent: false };
+            }
+            const contentForProject = ws.contentItems.filter(
+                (item) => item.projectId?.toString() === projectId
+            );
+            const observations = collectWorkspaceItemObservations([project], contentForProject);
+            const keys = observations.map((entry) => entry.key);
+            return readProjectUnseenSections(ws.currentUserId, projectId, keys);
+        },
+        [ws.allProjects, ws.contentItems, ws.currentUserId]
+    );
+
+    const applyProjectInspectorExpandFlags = useCallback(
+        (
+            projectId: string,
+            overrides?: { tasksExpanded?: boolean; contentExpanded?: boolean }
+        ) => {
+            const unseen = getProjectUnseenExpandFlags(projectId);
+            setInspectorInitialTasksExpanded(overrides?.tasksExpanded ?? unseen.hasUnseenTasks);
+            setInspectorInitialContentExpanded(overrides?.contentExpanded ?? unseen.hasUnseenContent);
+        },
+        [getProjectUnseenExpandFlags]
+    );
+
     const closeInspector = useCallback(() => {
-        setItemSeenRefreshTrigger((t) => t + 1);
+        const projectIdToMark = inspectorFocus?.startsWith('project:')
+            ? inspectorFocus.split(':')[1]
+            : null;
+
         if (inspectorFocus?.startsWith('project:') && inspectorParentFocus) {
+            if (projectIdToMark) {
+                markOpenedProjectSeen(projectIdToMark);
+            }
             setInspectorFocus(inspectorParentFocus);
             setInspectorParentFocus(null);
             setInspectorOpenTaskIndex(null);
@@ -318,6 +361,10 @@ export default function WorkspaceShell({
             setInspectorAddContentPrefill(null);
             return;
         }
+
+        if (projectIdToMark) {
+            markOpenedProjectSeen(projectIdToMark);
+        }
         setInspectorFocus(null);
         setInspectorParentFocus(null);
         setInspectorOpenTaskIndex(null);
@@ -326,7 +373,7 @@ export default function WorkspaceShell({
         setInspectorInitialAddContentOpen(false);
         setInspectorAddContentDate(undefined);
         setInspectorAddContentPrefill(null);
-    }, [inspectorFocus, inspectorParentFocus]);
+    }, [inspectorFocus, inspectorParentFocus, markOpenedProjectSeen]);
 
     const handleViewClient = useCallback((client: IClient) => {
         setInspectorParentFocus(null);
@@ -349,9 +396,9 @@ export default function WorkspaceShell({
             setInspectorAddContentDate(undefined);
             setInspectorAddContentPrefill(null);
             setInspectorFocus(`project:${project._id}`);
-            markOpenedProjectSeen(project._id.toString());
+            applyProjectInspectorExpandFlags(project._id.toString());
         },
-        [markOpenedProjectSeen]
+        [applyProjectInspectorExpandFlags]
     );
 
     const handleViewProjectFromClientInspector = useCallback(
@@ -363,9 +410,9 @@ export default function WorkspaceShell({
             setInspectorOpenTaskIndex(null);
             setInspectorOpenContentId(null);
             setInspectorFocus(`project:${project._id}`);
-            markOpenedProjectSeen(project._id.toString());
+            applyProjectInspectorExpandFlags(project._id.toString());
         },
-        [inspectorFocus, markOpenedProjectSeen]
+        [inspectorFocus, applyProjectInspectorExpandFlags]
     );
 
     const handleViewProject = useCallback(
@@ -375,9 +422,9 @@ export default function WorkspaceShell({
             setInspectorOpenTaskIndex(null);
             setInspectorOpenContentId(null);
             setInspectorFocus(`project:${project._id}`);
-            markOpenedProjectSeen(project._id.toString());
+            applyProjectInspectorExpandFlags(project._id.toString());
         },
-        [markOpenedProjectSeen]
+        [applyProjectInspectorExpandFlags]
     );
 
     const handleViewProjectTask = useCallback(
@@ -386,9 +433,9 @@ export default function WorkspaceShell({
             setInspectorOpenContentId(null);
             setInspectorFocus(`project:${project._id}`);
             setInspectorOpenTaskIndex(taskIndex);
-            markOpenedProjectSeen(project._id.toString());
+            applyProjectInspectorExpandFlags(project._id.toString(), { tasksExpanded: true });
         },
-        [markOpenedProjectSeen]
+        [applyProjectInspectorExpandFlags]
     );
 
     const handleViewProjectContent = useCallback(
@@ -397,9 +444,9 @@ export default function WorkspaceShell({
             setInspectorOpenTaskIndex(null);
             setInspectorOpenContentId(contentItemId);
             setInspectorFocus(`project:${project._id}`);
-            markOpenedProjectSeen(project._id.toString());
+            applyProjectInspectorExpandFlags(project._id.toString(), { contentExpanded: true });
         },
-        [markOpenedProjectSeen]
+        [applyProjectInspectorExpandFlags]
     );
 
     const handleContentItemClickFromSchedule = useCallback(
@@ -422,9 +469,9 @@ export default function WorkspaceShell({
             setInspectorAddContentPrefill(null);
             setInspectorAutoAddTask(true);
             setInspectorFocus(`project:${project._id}`);
-            markOpenedProjectSeen(project._id.toString());
+            applyProjectInspectorExpandFlags(project._id.toString(), { tasksExpanded: true });
         },
-        [markOpenedProjectSeen]
+        [applyProjectInspectorExpandFlags]
     );
 
     const handleAddContentToProject = useCallback(
@@ -436,9 +483,9 @@ export default function WorkspaceShell({
             setInspectorAddContentDate(defaultDate);
             setInspectorAddContentPrefill(null);
             setInspectorFocus(`project:${project._id}`);
-            markOpenedProjectSeen(project._id.toString());
+            applyProjectInspectorExpandFlags(project._id.toString(), { contentExpanded: true });
         },
-        [markOpenedProjectSeen]
+        [applyProjectInspectorExpandFlags]
     );
 
     useEffect(() => {
@@ -1523,12 +1570,16 @@ _id.toString(), { tasks });
                                         </button>
                                     ) : null}
                                     <div data-tour="lens-toggles" className="flex flex-wrap items-center gap-4">
-                                    <Toggle label="Show Tasks" checked={ws.showTasks} onChange={ws.setShowTasks} />
-                                    <Toggle
-                                        label="Show Content"
-                                        checked={ws.showContent}
-                                        onChange={ws.setShowContent}
-                                    />
+                                    {ws.lens !== 'agenda' ? (
+                                        <>
+                                            <Toggle label="Show Tasks" checked={ws.showTasks} onChange={ws.setShowTasks} />
+                                            <Toggle
+                                                label="Show Content"
+                                                checked={ws.showContent}
+                                                onChange={ws.setShowContent}
+                                            />
+                                        </>
+                                    ) : null}
                                     {ws.lens === 'agenda' ? (
                                         <Toggle
                                             label="Show Meetings"
@@ -1569,6 +1620,8 @@ _id.toString(), { tasks });
                                                 onTaskClick={handleViewProjectTask}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
                                                 onDateChange={ws.setCurrentDate}
+                                                currentUserId={ws.currentUserId}
+                                                itemSeenRefreshTrigger={itemSeenRefreshTrigger}
                                             />
                                     </div>
                                     <div className="xl:col-span-1">
@@ -1916,6 +1969,9 @@ _id.toString(), { tasks });
                             contentItems={ws.contentItems}
                             timeframe={ws.timeframe}
                             referenceDate={ws.currentDate}
+                            initialTasksExpanded={inspectorInitialTasksExpanded}
+                            initialContentExpanded={inspectorInitialContentExpanded}
+                            itemSeenRefreshTrigger={itemSeenRefreshTrigger}
                         />
                     )}
 

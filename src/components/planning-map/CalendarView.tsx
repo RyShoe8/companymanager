@@ -76,16 +76,10 @@ import {
   type CalendarItemModeOptions,
 } from '@/lib/calendar/calendarItemMode';
 import { computeProjectTimeframeProgress } from '@/lib/calendar/timeframeProgress';
-
-function countProjectActiveTasks(project: IProject): number {
-  return (project.tasks ?? []).filter((task) => isActiveWorkspaceTask(task)).length;
-}
-
-function countProjectActiveContent(projectId: string, contentItems: IContentItem[]): number {
-  return contentItems.filter(
-    (item) => String(item.projectId) === projectId && isActiveWorkspaceContent(item)
-  ).length;
-}
+import {
+  countActiveContentForDisplay,
+  countActiveTasksForDisplay,
+} from '@/lib/workspace/projectDisplayCounts';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -98,7 +92,7 @@ function taskOverlapsWeek(
   return taskOverlapsViewRange(weekStartDay, weekEndDay, taskStart, taskEnd);
 }
 
-const RANGE_ITEM_ROW_HEIGHT = 140;
+const RANGE_ITEM_ROW_HEIGHT = 76;
 const UNSEEN_COLLAPSED_ROW_HEIGHT = 28;
 const UNSEEN_SECTION_PADDING = 12;
 const WEEKLY_EXPANDED_LIST_MAX_HEIGHT = 360;
@@ -325,6 +319,21 @@ export default function CalendarView({
     };
   }, [projects]);
 
+  const countProjectUnseen = useCallback(
+    (project: IProject): number => {
+      const projectId = project._id.toString();
+      let count = 0;
+      for (const [key, status] of Object.entries(itemStatusByKey)) {
+        if (status === 'none') continue;
+        if (key.startsWith(`task:${projectId}:`) || key.startsWith(`content:${projectId}:`)) {
+          count += 1;
+        }
+      }
+      return count;
+    },
+    [itemStatusByKey]
+  );
+
   // Auto-expand projects when activity increases (unless manually collapsed)
   useEffect(() => {
     if (projects.length === 0) return;
@@ -377,6 +386,43 @@ export default function CalendarView({
     }
   }, [projects, contentItems, projectLatestComments, getLatestActivityMs]);
 
+  // Auto-expand projects that have unseen task/content items
+  useEffect(() => {
+    if (!currentUserId || projects.length === 0) return;
+
+    const manuallyCollapsed = new Set<string>();
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('calendar-manually-collapsed-projects');
+      if (saved) {
+        try {
+          const projectIds = JSON.parse(saved) as string[];
+          projectIds.forEach((id) => manuallyCollapsed.add(id));
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    }
+
+    const toExpand: string[] = [];
+    for (const project of projects) {
+      const projectId = project._id.toString();
+      if (manuallyCollapsed.has(projectId)) continue;
+      if (countProjectUnseen(project) > 0) {
+        toExpand.push(projectId);
+      }
+    }
+
+    if (toExpand.length > 0) {
+      setExpandedProjects((prevSet) => {
+        const updated = new Set(prevSet);
+        for (const id of toExpand) {
+          updated.add(id);
+        }
+        return updated;
+      });
+    }
+  }, [projects, currentUserId, itemStatusByKey, countProjectUnseen]);
+
   // Helper function to get employee name from ID or return the name if available
   const getEmployeeName = (assignedToId: string | undefined, assignedToName: string | undefined): string | undefined => {
     if (assignedToName) return assignedToName;
@@ -387,9 +433,11 @@ export default function CalendarView({
     return undefined;
   };
 
-  // Sort projects by latest activity (newest first)
+  // Sort projects: unseen items first, then latest activity
   const sortProjectsByLatestUpdate = (projectList: IProject[]): IProject[] => {
     return [...projectList].sort((a, b) => {
+      const unseenDiff = countProjectUnseen(b) - countProjectUnseen(a);
+      if (unseenDiff !== 0) return unseenDiff;
       return getLatestActivityMs(b) - getLatestActivityMs(a);
     });
   };
@@ -586,27 +634,22 @@ export default function CalendarView({
                   e.stopPropagation();
                   if (tIdx >= 0) onTaskClick?.(project, tIdx);
                 }}
-                className="w-full min-w-0 text-left p-3 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer overflow-hidden"
+                className="w-full min-w-0 text-left p-2 rounded border border-border bg-background-card hover:bg-background-card/80 transition-colors cursor-pointer overflow-hidden flex flex-col justify-center"
                 style={{ height: RANGE_ITEM_ROW_HEIGHT }}
               >
                 <div
-                  className={`font-medium text-text-primary line-clamp-2 ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                  className={`font-medium text-text-primary truncate text-sm ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}
                   title={task.name}
                 >
                   <ItemSeenTag status={taskSeenStatus(project, task)} />
                   {task.name}
                 </div>
-                {task.description && (
-                  <p className="text-sm text-text-secondary mt-1 max-h-10 overflow-hidden">
-                    {task.description}
-                  </p>
-                )}
-                <div className="flex gap-4 mt-2 text-xs text-text-secondary">
-                  {task.estimatedHours && <span>{task.estimatedHours}h</span>}
-                  {formatTaskAssigneeLabel(task) && (
-                    <span>Assigned: {formatTaskAssigneeLabel(task)}</span>
-                  )}
-                  <span className="capitalize">{task.status}</span>
+                <div className="flex gap-2 mt-1 text-xs text-text-secondary flex-wrap">
+                  {task.estimatedHours ? <span>{task.estimatedHours}h</span> : null}
+                  {formatTaskAssigneeLabel(task) ? (
+                    <span className="truncate">{formatTaskAssigneeLabel(task)}</span>
+                  ) : null}
+                  <span className="capitalize shrink-0">{task.status}</span>
                 </div>
               </button>
             );
@@ -615,7 +658,7 @@ export default function CalendarView({
           return (
             <div
               key={c._id.toString()}
-              className={`p-3 rounded border border-dashed border-border bg-background-card overflow-hidden ${c.status === 'published' ? 'opacity-60' : ''}`}
+              className={`p-2 rounded border border-dashed border-border bg-background-card overflow-hidden flex flex-col justify-center ${c.status === 'published' ? 'opacity-60' : ''}`}
               style={{ height: RANGE_ITEM_ROW_HEIGHT }}
             >
               <button
@@ -624,16 +667,16 @@ export default function CalendarView({
                   e.stopPropagation();
                   onContentItemClick?.(c);
                 }}
-                className="text-left w-full h-full"
+                className="text-left w-full h-full flex flex-col justify-center min-w-0"
               >
                 <span
-                  className={`font-medium text-text-primary line-clamp-2 ${c.status === 'published' ? 'line-through' : ''}`}
+                  className={`font-medium text-text-primary truncate text-sm ${c.status === 'published' ? 'line-through' : ''}`}
                   title={c.title}
                 >
                   <ItemSeenTag status={contentSeenStatus(project, c)} />
                   {c.title}
                 </span>
-                <span className="ml-2 px-2 py-0.5 rounded text-xs bg-muted text-text-secondary">
+                <span className="mt-1 px-1.5 py-0.5 rounded text-xs bg-muted text-text-secondary w-fit">
                   {c.channel}
                 </span>
               </button>
@@ -970,8 +1013,8 @@ export default function CalendarView({
                       endDate,
                       currentDate
                     );
-                    const activeTaskCount = countProjectActiveTasks(project);
-                    const activeContentCount = countProjectActiveContent(projectId, contentItems);
+                    const activeTaskCount = countActiveTasksForDisplay(project, currentDate);
+                    const activeContentCount = countActiveContentForDisplay(projectId, contentItems, currentDate);
 
                     return (
                       <div
@@ -1245,18 +1288,6 @@ export default function CalendarView({
                 // Calculate card heights first
                 const cardHeights = itemPositions.map((pos) => {
                   const project = pos.project;
-                  const hasTasks = project.tasks && project.tasks.length > 0;
-
-                  let taskCount = 0;
-                  if (hasTasks) {
-                    taskCount = filterTasksToSeriesRepresentatives(project.tasks!, {
-                      mode: 'active',
-                      referenceDate: currentDate,
-                    }).filter((task) => taskOverlapsWeek(task, days[0], days[6])).length;
-                  }
-
-                  // Height calculation: header (project name + status badge) + padding + tasks
-                  // Match today view exactly: p-6 = 24px padding, header ~60px, each task card ~80px
                   const projectId = pos.project!._id.toString();
                   const isExpanded = expandedProjects.has(projectId);
 
@@ -1279,21 +1310,15 @@ export default function CalendarView({
                     );
                   }
 
-                  // Expanded height calculation must match rendered weekly content.
                   const displayedCount = rangeDisplayList.length;
-                  const descriptionHeight = project.description ? 40 : 0;
-                  const tasksSectionPadding = 16; // mt-4
-                  const tasksHeaderHeight = 24; // label + margin
-                  const taskGapHeight = displayedCount > 0 ? (displayedCount - 1) * 8 : 0; // space-y-2
+                  const taskGapHeight = displayedCount > 0 ? (displayedCount - 1) * 8 : 0;
                   const listHeight = Math.min(
                     displayedCount * RANGE_ITEM_ROW_HEIGHT + taskGapHeight,
                     WEEKLY_EXPANDED_LIST_MAX_HEIGHT
                   );
                   return (
                     WEEKLY_HEADER_HEIGHT +
-                    descriptionHeight +
-                    tasksSectionPadding +
-                    tasksHeaderHeight +
+                    16 +
                     listHeight +
                     WEEKLY_BOTTOM_PADDING
                   );
@@ -1374,8 +1399,8 @@ export default function CalendarView({
                           weekEnd,
                           currentDate
                         );
-                        const activeTaskCount = countProjectActiveTasks(project);
-                        const activeContentCount = countProjectActiveContent(projectId, contentItems);
+                        const activeTaskCount = countActiveTasksForDisplay(project, currentDate);
+                        const activeContentCount = countActiveContentForDisplay(projectId, contentItems, currentDate);
 
                         return (
                           <>
@@ -1578,8 +1603,8 @@ export default function CalendarView({
                         weekEnd,
                         currentDate
                       );
-                      const activeTaskCount = countProjectActiveTasks(project);
-                      const activeContentCount = countProjectActiveContent(projectId, contentItems);
+                      const activeTaskCount = countActiveTasksForDisplay(project, currentDate);
+                      const activeContentCount = countActiveContentForDisplay(projectId, contentItems, currentDate);
 
                       return (
                         <div

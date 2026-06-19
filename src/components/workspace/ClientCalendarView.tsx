@@ -41,6 +41,12 @@ import {
 } from '@/lib/clients/clientCalendarData';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
+import {
+  collectWorkspaceItemObservations,
+  observeItemsForUser,
+  readObservedItemsForUser,
+  type ItemSeenStatus,
+} from '@/lib/workspace/itemSeenState';
 
 const WEEKLY_HEADER_HEIGHT = 100;
 const WEEKLY_EXPANDED_PROJECT_HEIGHT = 88;
@@ -59,6 +65,8 @@ interface ClientCalendarViewProps {
   onTaskClick?: (project: IProject, taskIndex: number) => void;
   onContentItemClick?: (item: IContentItem) => void;
   onDateChange: (date: Date) => void;
+  currentUserId?: string | null;
+  itemSeenRefreshTrigger?: number;
 }
 
 function ProjectSubCard({
@@ -214,8 +222,11 @@ export default function ClientCalendarView({
   onTaskClick,
   onContentItemClick,
   onDateChange,
+  currentUserId = null,
+  itemSeenRefreshTrigger,
 }: ClientCalendarViewProps) {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
   const itemMode = showTasks || showContent;
 
   const clientIds = useMemo(() => new Set(clients.map((c) => String(c._id))), [clients]);
@@ -237,6 +248,42 @@ export default function ClientCalendarView({
     [allProjects, clientIds]
   );
 
+  const workspaceItemEntries = useMemo(
+    () => collectWorkspaceItemObservations(clientScopedProjects, contentItems),
+    [clientScopedProjects, contentItems]
+  );
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const observed = observeItemsForUser(currentUserId, workspaceItemEntries);
+    setItemStatusByKey(observed.statusByKey);
+  }, [currentUserId, workspaceItemEntries]);
+
+  useEffect(() => {
+    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
+    const keys = workspaceItemEntries.map((entry) => entry.key);
+    const observed = readObservedItemsForUser(currentUserId, keys);
+    setItemStatusByKey(observed.statusByKey);
+  }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
+
+  const unseenCountByClientId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const project of clientScopedProjects) {
+      const clientId = project.clientId?.toString();
+      if (!clientId) continue;
+      const projectId = project._id.toString();
+      let count = map.get(clientId) ?? 0;
+      for (const [key, status] of Object.entries(itemStatusByKey)) {
+        if (status === 'none') continue;
+        if (key.startsWith(`task:${projectId}:`) || key.startsWith(`content:${projectId}:`)) {
+          count += 1;
+        }
+      }
+      map.set(clientId, count);
+    }
+    return map;
+  }, [clientScopedProjects, itemStatusByKey]);
+
   const itemModeOptions: CalendarItemModeOptions = useMemo(
     () => ({
       showTasks,
@@ -255,8 +302,28 @@ export default function ClientCalendarView({
   };
 
   const rows = sortClientRowsByActivity(
-    buildClientCalendarRows(clients, allProjects, contentItems, timeframe, currentDate)
+    buildClientCalendarRows(clients, allProjects, contentItems, timeframe, currentDate),
+    unseenCountByClientId
   );
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const toExpand: string[] = [];
+    for (const row of rows) {
+      const clientId = String(row.client._id);
+      if ((unseenCountByClientId.get(clientId) ?? 0) > 0) {
+        toExpand.push(clientId);
+      }
+    }
+    if (toExpand.length === 0) return;
+    setExpandedClients((prev) => {
+      const next = new Set(prev);
+      for (const id of toExpand) {
+        next.add(id);
+      }
+      return next;
+    });
+  }, [rows, unseenCountByClientId, currentUserId]);
 
   const clientRowForBucket = (
     row: ClientCalendarRow,

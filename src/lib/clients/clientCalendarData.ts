@@ -17,6 +17,10 @@ import {
   computeClientTimeframeProgress,
   computeProjectTimeframeProgress,
 } from '@/lib/calendar/timeframeProgress';
+import {
+  countActiveContentForDisplay,
+  countActiveTasksForDisplay,
+} from '@/lib/workspace/projectDisplayCounts';
 
 export type ClientCalendarProjectRow = {
   project: IProject;
@@ -37,16 +41,6 @@ export type ClientCalendarRow = {
   scheduledHours: number;
   progressPercent: number;
 };
-
-function countActiveTasks(project: IProject): number {
-  return (project.tasks ?? []).filter((task) => isActiveWorkspaceTask(task)).length;
-}
-
-function countActiveContentForProject(projectId: string, contentItems: IContentItem[]): number {
-  return contentItems.filter(
-    (item) => String(item.projectId) === projectId && isActiveWorkspaceContent(item)
-  ).length;
-}
 
 function scheduledHoursForProject(
   project: IProject,
@@ -95,12 +89,14 @@ export function buildClientCalendarRows(
     const clientProjects = projectsForClient(clientId, allProjects);
     const projectIds = clientProjects.map((p) => String(p._id));
 
+    const activeProjectsList = activeClientProjects(clientProjects);
+
     let activeTaskCount = 0;
     let tasksInRange = 0;
-    for (const project of clientProjects) {
+    for (const project of activeProjectsList) {
+      activeTaskCount += countActiveTasksForDisplay(project, currentDate);
       for (const task of project.tasks ?? []) {
         if (!isActiveWorkspaceTask(task)) continue;
-        activeTaskCount += 1;
         const taskStart = parseDateSafe(task.startDate);
         const taskEnd = parseDateSafe(task.endDate);
         if (taskStart && taskEnd && taskOverlapsViewRange(start, end, taskStart, taskEnd)) {
@@ -111,10 +107,13 @@ export function buildClientCalendarRows(
 
     let activeContentCount = 0;
     let contentInRange = 0;
+    for (const project of activeProjectsList) {
+      activeContentCount += countActiveContentForDisplay(String(project._id), contentItems, currentDate);
+    }
     for (const item of contentItems) {
-      if (!projectIds.includes(String(item.projectId))) continue;
+      const pid = String(item.projectId);
+      if (!activeProjectsList.some((p) => String(p._id) === pid)) continue;
       if (!isActiveWorkspaceContent(item)) continue;
-      activeContentCount += 1;
       if (contentPublishDateInRange(item, start, end)) {
         contentInRange += 1;
       }
@@ -136,10 +135,10 @@ export function buildClientCalendarRows(
       currentDate
     );
 
-    const projects: ClientCalendarProjectRow[] = activeClientProjects(clientProjects).map((project) => ({
+    const projects: ClientCalendarProjectRow[] = activeProjectsList.map((project) => ({
       project,
-      activeTaskCount: countActiveTasks(project),
-      activeContentCount: countActiveContentForProject(String(project._id), contentItems),
+      activeTaskCount: countActiveTasksForDisplay(project, currentDate),
+      activeContentCount: countActiveContentForDisplay(String(project._id), contentItems, currentDate),
       progressPercent: computeProjectTimeframeProgress(
         project,
         contentItems,
@@ -166,8 +165,16 @@ export function buildClientCalendarRows(
 
 export { computeClientTimeframeProgress, computeProjectTimeframeProgress };
 
-export function sortClientRowsByActivity(rows: ClientCalendarRow[]): ClientCalendarRow[] {
+export function sortClientRowsByActivity(
+  rows: ClientCalendarRow[],
+  unseenCountByClientId?: Map<string, number>
+): ClientCalendarRow[] {
   return [...rows].sort((a, b) => {
+    if (unseenCountByClientId) {
+      const aUnseen = unseenCountByClientId.get(String(a.client._id)) ?? 0;
+      const bUnseen = unseenCountByClientId.get(String(b.client._id)) ?? 0;
+      if (bUnseen !== aUnseen) return bUnseen - aUnseen;
+    }
     const aScore = a.tasksInRange + a.contentInRange;
     const bScore = b.tasksInRange + b.contentInRange;
     if (bScore !== aScore) return bScore - aScore;
