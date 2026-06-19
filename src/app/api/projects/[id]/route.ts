@@ -601,7 +601,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       };
       const newSlugs = diffNewLinkedCategorySlugs(stackBeforeSnapshot, stackAfter);
       if (newSlugs.length) {
-        await syncInsightAutoCompletion(id, newSlugs);
+        await syncInsightAutoCompletion('project', id, newSlugs);
       }
     }
 

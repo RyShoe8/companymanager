@@ -1,7 +1,8 @@
 'use client';
 
-import ClientDetailDashboard from '@/components/workspace/ClientDetailDashboard';
+import InlineClientView from '@/components/workspace/InlineClientView';
 import MarketingPreviewShell from '@/components/marketing/screenshots/MarketingPreviewShell';
+import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 import {
   MARKETING_CONTENT_ITEMS,
   MARKETING_PROJECT_IDS,
@@ -21,15 +22,23 @@ export default function ClientsScreenshot() {
 
   return (
     <MarketingPreviewShell phase="Build" lens="clients" showLensRow minHeight="min-h-[480px]">
-      <ClientDetailDashboard
-        client={client}
-        projects={projects}
-        contentItems={hubContentItems}
-        onBack={noop}
-        onViewProject={noop}
-        isManagerOrAdmin
-        currentUserId="marketing-preview-user"
-      />
+      <div className="inspector-light w-full max-w-[120rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border border-border rounded-xl bg-white">
+        <InspectorLightProvider>
+          <InlineClientView
+            client={client}
+            projects={projects}
+            allProjects={projects}
+            contentItems={hubContentItems}
+            onClose={noop}
+            onViewProject={noop}
+            onUpdateClient={noop}
+            onRefresh={noop}
+            employees={[]}
+            isManagerOrAdmin
+            currentUserId="marketing-preview-user"
+          />
+        </InspectorLightProvider>
+      </div>
     </MarketingPreviewShell>
   );
 }

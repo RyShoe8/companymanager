@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Image from 'next/image';
+import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 
 type ClientLogoSize = 'sm' | 'md' | 'lg';
 
@@ -43,6 +44,7 @@ export default function ClientLogo({
   const logoSize = SIZE_CLASSES[size];
   const logoSizePx = SIZE_PX[size];
   const fallbackLetter = name?.charAt(0).toUpperCase() ?? '?';
+  const placeholderTextClass = getProjectCardHeaderTextClass(color);
 
   const handleDownload = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -157,7 +159,7 @@ export default function ClientLogo({
             unoptimized
           />
         ) : (
-          <div className="text-white text-sm font-bold flex items-center justify-center w-full h-full">
+          <div className={`${placeholderTextClass} text-sm font-bold flex items-center justify-center w-full h-full`}>
             {isManagerOrAdmin ? (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -10,6 +10,7 @@ import type {
   IProjectTechStackItem,
 } from '@/lib/models/platformFields';
 import EditableText from '@/components/ui/EditableText';
+import PlatformUrlsSection from '@/components/shared/PlatformUrlsSection';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import ProjectTechStackBar from '@/components/projects/ProjectTechStackBar';
 import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStackBar';
@@ -23,6 +24,7 @@ import {
   projectsForClient,
 } from '@/lib/clients/aggregateClientOperations';
 import { clientIdStr } from '@/lib/clients/clientApiHelpers';
+import { getClientUrlList, syncClientUrlFields } from '@/lib/clients/clientUrls';
 import { deleteLinkedAsset, canUserDeleteAsset } from '@/lib/utils/linkedAssets';
 import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
@@ -79,10 +81,12 @@ export default function ClientOperationsPanel({
   const [aggregateAssets, setAggregateAssets] = useState<LinkedAssetRow[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(true);
   const [assetPendingDelete, setAssetPendingDelete] = useState<LinkedAssetRow | null>(null);
+  const [urlList, setUrlList] = useState<string[]>(() => getClientUrlList(client));
 
   useEffect(() => {
     setLocalClient(client);
     setActionButtons(client.actionButtons ?? []);
+    setUrlList(getClientUrlList(client));
   }, [client]);
 
   const clientProjects = useMemo(() => projectsForClient(clientId, projects), [clientId, projects]);
@@ -143,6 +147,38 @@ export default function ClientOperationsPanel({
     }
   };
 
+  const persistUrlList = async (nextUrls: string[]) => {
+    const synced = syncClientUrlFields(nextUrls);
+    setUrlList(getClientUrlList({ ...localClient, ...synced }));
+    setLocalClient((prev) => ({ ...prev, ...synced } as IClient));
+    try {
+      await onUpdateClient(clientId, synced as Partial<IClient>);
+    } catch (error) {
+      setLocalClient(client);
+      setUrlList(getClientUrlList(client));
+      alert(error instanceof Error ? error.message : 'Failed to save URLs');
+    }
+  };
+
+  const handleUrlSave = async (index: number, value: string) => {
+    const trimmed = value.trim();
+    const next = [...urlList];
+    if (!trimmed) {
+      next.splice(index, 1);
+    } else {
+      next[index] = trimmed;
+    }
+    await persistUrlList(next);
+  };
+
+  const handleUrlRemove = async (index: number) => {
+    await persistUrlList(urlList.filter((_, i) => i !== index));
+  };
+
+  const handleAddUrl = () => {
+    setUrlList((prev) => [...prev, '']);
+  };
+
   const portalUrl =
     localClient.clientPortalSlug && localClient.clientPortalToken
       ? `${typeof window !== 'undefined' ? window.location.origin : ''}/portal/${localClient.clientPortalSlug}?token=${encodeURIComponent(localClient.clientPortalToken)}`
@@ -155,63 +191,13 @@ export default function ClientOperationsPanel({
     <div className="bg-background-elevated rounded-xl border border-border p-5 space-y-4">
       <h3 className="text-sm font-medium text-text-primary">Client operations</h3>
 
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        {isManagerOrAdmin ? (
-          <>
-            <EditableText
-              value={localClient.devUrl ?? ''}
-              onSave={(v) => handleFieldUpdate('devUrl', v.trim())}
-              className="min-w-0 max-w-[11rem] text-text-primary"
-              placeholder="Dev URL"
-            />
-            {normalizeProjectUrlHref(localClient.devUrl ?? '') ? (
-              <a
-                href={normalizeProjectUrlHref(localClient.devUrl ?? '')!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs px-2 py-0.5 rounded border border-border hover:bg-background-accent"
-              >
-                Open
-              </a>
-            ) : null}
-          </>
-        ) : normalizeProjectUrlHref(localClient.devUrl ?? '') ? (
-          <a href={normalizeProjectUrlHref(localClient.devUrl ?? '')!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-            {truncateProjectUrlDisplay(localClient.devUrl ?? '', 40)}
-          </a>
-        ) : (
-          <span className="text-text-tertiary text-xs">No dev URL</span>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        {isManagerOrAdmin ? (
-          <>
-            <EditableText
-              value={localClient.liveUrl ?? ''}
-              onSave={(v) => handleFieldUpdate('liveUrl', v.trim())}
-              className="min-w-0 max-w-[11rem] text-text-primary"
-              placeholder="Live URL"
-            />
-            {normalizeProjectUrlHref(localClient.liveUrl ?? '') ? (
-              <a
-                href={normalizeProjectUrlHref(localClient.liveUrl ?? '')!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs px-2 py-0.5 rounded border border-border hover:bg-background-accent"
-              >
-                Open
-              </a>
-            ) : null}
-          </>
-        ) : normalizeProjectUrlHref(localClient.liveUrl ?? '') ? (
-          <a href={normalizeProjectUrlHref(localClient.liveUrl ?? '')!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-            {truncateProjectUrlDisplay(localClient.liveUrl ?? '', 40)}
-          </a>
-        ) : (
-          <span className="text-text-tertiary text-xs">No live URL</span>
-        )}
-      </div>
+      <PlatformUrlsSection
+        urlList={urlList}
+        isManagerOrAdmin={isManagerOrAdmin}
+        onUrlSave={handleUrlSave}
+        onUrlRemove={handleUrlRemove}
+        onAddUrl={handleAddUrl}
+      />
 
       <div className="rounded-lg border border-border bg-background p-3 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Platforms</p>

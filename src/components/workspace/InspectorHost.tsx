@@ -3,6 +3,7 @@
 import { useMemo, useRef, useCallback, type RefObject } from 'react';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
+import InlineClientView from '@/components/workspace/InlineClientView';
 import { IProject } from '@/lib/models/Project';
 import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
@@ -11,7 +12,7 @@ import type { TimeframeType } from '@/lib/utils/dateUtils';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 
-export type FocusType = 'project' | 'task';
+export type FocusType = 'project' | 'task' | 'client';
 
 interface InspectorHostProps {
     focusId: string | null;
@@ -20,8 +21,11 @@ interface InspectorHostProps {
     employees: IEmployee[];
     isManagerOrAdmin: boolean;
     currentUserEmployeeId?: string;
+    currentUserId?: string;
     onRefresh: () => void;
     onProjectPatched?: (project: IProject) => void;
+    onUpdateClient?: (clientId: string, updates: Partial<IClient> & Record<string, unknown>) => Promise<void> | void;
+    onViewProject?: (project: IProject) => void;
     initialOpenTaskIndex?: number | null;
     onInitialOpenTaskConsumed?: () => void;
     initialOpenContentId?: string | null;
@@ -48,8 +52,11 @@ export default function InspectorHost({
     employees,
     isManagerOrAdmin,
     currentUserEmployeeId,
+    currentUserId,
     onRefresh,
     onProjectPatched,
+    onUpdateClient,
+    onViewProject,
     initialOpenTaskIndex,
     onInitialOpenTaskConsumed,
     initialOpenContentId,
@@ -84,6 +91,19 @@ export default function InspectorHost({
         return null;
     }, [type, id, projects]);
 
+    const focusedClient = useMemo(() => {
+        if (type === 'client' && id) {
+            return clients.find((c) => c._id.toString() === id) ?? null;
+        }
+        return null;
+    }, [type, id, clients]);
+
+    const clientProjects = useMemo(() => {
+        if (!focusedClient) return [];
+        const clientId = focusedClient._id.toString();
+        return projects.filter((p) => String(p.clientId) === clientId);
+    }, [focusedClient, projects]);
+
     const focusedProjectId = focusedProject?._id.toString() ?? null;
 
     const handleProjectUpdate = useCallback(
@@ -99,9 +119,7 @@ export default function InspectorHost({
             }
             const data = await res.json().catch(() => null);
             if (data && typeof data === 'object' && data._id) {
-                if (onProjectPatched) {
-                    onProjectPatched(data as IProject);
-                }
+                onProjectPatched?.(data as IProject);
                 return data as IProject;
             }
             onRefresh();
@@ -118,6 +136,39 @@ export default function InspectorHost({
     }, [focusedProjectId, onRefresh, onClose]);
 
     const renderInnerContent = () => {
+        if (type === 'client' && focusedClient && onUpdateClient && onViewProject) {
+            return (
+                <div className="inspector-light w-full max-w-[120rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border border-border rounded-t-2xl bg-white" data-tour="client-inspector">
+                    <InspectorLightProvider>
+                        <InlineClientView
+                            client={focusedClient}
+                            projects={clientProjects}
+                            allProjects={projects}
+                            employees={employees}
+                            isManagerOrAdmin={isManagerOrAdmin}
+                            currentUserId={currentUserId}
+                            currentUserEmployeeId={currentUserEmployeeId}
+                            onUpdateClient={onUpdateClient}
+                            onViewProject={onViewProject}
+                            onClose={onClose}
+                            onRefresh={onRefresh}
+                            onProjectPatched={onProjectPatched}
+                            onContentItemClick={onContentItemClick}
+                            contentRefreshTrigger={contentRefreshTrigger}
+                            onContentListChanged={onContentListChanged}
+                            autoAddTaskOnOpen={autoAddTaskOnOpen}
+                            onAutoAddTaskConsumed={onAutoAddTaskConsumed}
+                            initialAddContentOpen={initialAddContentOpen}
+                            initialAddContentDate={initialAddContentDate}
+                            onAddContentOpenConsumed={onAddContentOpenConsumed}
+                            timeframe={timeframe}
+                            referenceDate={referenceDate}
+                        />
+                    </InspectorLightProvider>
+                </div>
+            );
+        }
+
         if (type === 'project' && focusedProject) {
             return (
                 <div className="inspector-light w-full max-w-[120rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border border-border rounded-t-2xl bg-white" data-tour="project-inspector">
@@ -176,20 +227,20 @@ export default function InspectorHost({
 
     if (!focusId) return null;
 
-    const isProjectInspector = type === 'project';
+    const isCenteredInspector = type === 'project' || type === 'client';
 
     return (
         <BottomSheet
             isOpen={!!focusId}
             onClose={onClose}
             title={undefined}
-            surface={isProjectInspector ? 'chrome' : 'card'}
-            layout={isProjectInspector ? 'centeredInspector' : 'bottomSheet'}
+            surface={isCenteredInspector ? 'chrome' : 'card'}
+            layout={isCenteredInspector ? 'centeredInspector' : 'bottomSheet'}
             maxHeight="90vh"
             hideCloseButton
             scrollContainerRef={scrollContainerRef}
         >
-            <div className={isProjectInspector ? 'pb-4' : 'pb-8'}>
+            <div className={isCenteredInspector ? 'pb-4' : 'pb-8'}>
                 {renderInnerContent()}
             </div>
         </BottomSheet>

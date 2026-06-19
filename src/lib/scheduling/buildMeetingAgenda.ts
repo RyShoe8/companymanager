@@ -1,6 +1,7 @@
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import { publishDateOnViewDay, parseDateSafe } from '@/lib/utils/dateUtils';
+import { isActiveWorkspaceTask } from '@/lib/workspace/activeWorkspaceItems';
 
 export type AgendaTaskItem = {
   taskId: string;
@@ -57,6 +58,7 @@ export function buildMeetingAgenda(
     const pid = project._id.toString();
     const tasks: AgendaTaskItem[] = [];
     (project.tasks || []).forEach((task, taskIndex) => {
+      if (!isActiveWorkspaceTask(task)) return;
       if (!taskOverlapsWindow(task, meeting.start, meeting.end)) return;
       const taskId = task._id?.toString() || `${pid}-${taskIndex}`;
       const taskStart = parseDateSafe(task.startDate);

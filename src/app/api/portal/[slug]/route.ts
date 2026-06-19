@@ -4,6 +4,7 @@ import Project from '@/lib/models/Project';
 import Client from '@/lib/models/Client';
 import Asset from '@/lib/models/Asset';
 import ContentItem from '@/lib/models/ContentItem';
+import { getClientUrlList } from '@/lib/clients/clientUrls';
 
 /**
  * GET /api/portal/[slug]?token=...
@@ -55,11 +56,7 @@ export async function GET(
           : Promise.resolve([]),
       ]);
 
-      const urls: string[] = [];
-      if (client.devUrl) urls.push(client.devUrl);
-      if (client.liveUrl) urls.push(client.liveUrl);
-      if (urls.length === 0 && client.urls?.length) urls.push(...client.urls);
-      if (urls.length === 0 && client.url) urls.push(client.url);
+      const urls = getClientUrlList(client);
 
       return NextResponse.json({
         portalType: 'client',

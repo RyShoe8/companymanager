@@ -1,18 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import type { InsightItemDto } from '@/lib/insights/getInsightsForProject';
+import type { InsightItemDto } from '@/lib/insights/insightDto';
+import type { InsightOwnerType } from '@/lib/insights/syncInsightAutoCompletion';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import Button from '@/components/ui/Button';
 
 interface InsightCardProps {
-  projectId: string;
+  ownerType: InsightOwnerType;
+  ownerId: string;
   item: InsightItemDto;
   onDismiss: (itemId: string, serviceName?: string) => Promise<void>;
   dismissing?: boolean;
 }
 
-export default function InsightCard({ projectId, item, onDismiss, dismissing }: InsightCardProps) {
+export default function InsightCard({ ownerType, ownerId, item, onDismiss, dismissing }: InsightCardProps) {
   const light = useInspectorLight();
   const [expanded, setExpanded] = useState(false);
   const [showDismissInput, setShowDismissInput] = useState(false);
@@ -58,7 +60,7 @@ export default function InsightCard({ projectId, item, onDismiss, dismissing }: 
                     )}
                   </div>
                   <a
-                    href={`/go/${vendor.vendorSlug}?projectId=${encodeURIComponent(projectId)}&itemId=${encodeURIComponent(item.id)}`}
+                    href={`/go/${vendor.vendorSlug}?${ownerType === 'project' ? 'projectId' : 'clientId'}=${encodeURIComponent(ownerId)}&itemId=${encodeURIComponent(item.id)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary/90"

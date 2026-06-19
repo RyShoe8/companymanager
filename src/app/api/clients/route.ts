@@ -131,6 +131,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
+    const stackBeforeSnapshot =
+      body.techStack !== undefined || body.marketingStack !== undefined
+        ? {
+            techStack: client.techStack ?? [],
+            marketingStack: client.marketingStack ?? [],
+          }
+        : null;
+
     const beforeClient = client.toObject();
 
     const result = applyClientUpdates(client, body, true);
@@ -139,6 +147,20 @@ export async function PATCH(request: NextRequest) {
     }
 
     await client.save();
+
+    if (stackBeforeSnapshot && (body.techStack !== undefined || body.marketingStack !== undefined)) {
+      const { diffNewLinkedCategorySlugs } = await import('@/lib/insights/getProjectLinkedCategorySlugs');
+      const { syncInsightAutoCompletion } = await import('@/lib/insights/syncInsightAutoCompletion');
+      const stackAfter = {
+        techStack: client.techStack ?? [],
+        marketingStack: client.marketingStack ?? [],
+      };
+      const newSlugs = diffNewLinkedCategorySlugs(stackBeforeSnapshot, stackAfter);
+      if (newSlugs.length) {
+        await syncInsightAutoCompletion('client', client._id.toString(), newSlugs);
+      }
+    }
+
     const lean = client.toObject();
 
     void import('@/lib/workspace/workspaceNotifications').then(({ notifyClientChange, clientChanged }) => {

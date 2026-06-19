@@ -11,6 +11,7 @@ export async function GET(
   const { vendorSlug } = await params;
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('projectId');
+  const clientId = searchParams.get('clientId');
   const itemId = searchParams.get('itemId');
 
   await connectDB();
@@ -24,6 +25,7 @@ export async function GET(
     vendorId: vendor._id,
     itemId: itemId && Types.ObjectId.isValid(itemId) ? new Types.ObjectId(itemId) : undefined,
     projectId: projectId && Types.ObjectId.isValid(projectId) ? new Types.ObjectId(projectId) : undefined,
+    clientId: clientId && Types.ObjectId.isValid(clientId) ? new Types.ObjectId(clientId) : undefined,
     clickedAt: new Date(),
   });
 

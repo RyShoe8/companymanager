@@ -51,6 +51,8 @@ import {
   parseFontFamilyInput,
 } from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
+import { getPlatformUrlList, syncPlatformUrlFields } from '@/lib/utils/platformUrls';
+import PlatformUrlsSection from '@/components/shared/PlatformUrlsSection';
 import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
 import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import ContentLinkedAssets from '@/components/planning-map/ContentLinkedAssets';
@@ -136,6 +138,8 @@ interface InlineProjectViewProps {
   timeframe?: TimeframeType;
   /** Reference date for timeframe (defaults to today). */
   referenceDate?: Date;
+  /** When set, render only tasks and content sections (e.g. embedded in client inspector). */
+  sectionsOnly?: 'tasks-content';
 }
 
 type LinkedAssetRow = {
@@ -258,8 +262,9 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return canUserContributeToProject(project, currentUserEmployeeId ?? null, isManagerOrAdmin);
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate, sectionsOnly }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
+  const [urlList, setUrlList] = useState<string[]>(() => getPlatformUrlList(project));
   const localProjectRef = useRef(localProject);
   localProjectRef.current = localProject;
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
@@ -847,6 +852,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     if (project._id.toString() !== localProject._id.toString()) {
       setLocalProject(project);
+      setUrlList(getPlatformUrlList(project));
       setTasksExpanded(true);
       setContentExpanded(false);
       initialTaskAppliedKeyRef.current = null;
@@ -1140,6 +1146,38 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setLocalProject(project);
       alert(error instanceof Error ? error.message : 'Failed to save');
     }
+  };
+
+  const persistUrlList = async (nextUrls: string[]) => {
+    const synced = syncPlatformUrlFields(nextUrls);
+    setUrlList(getPlatformUrlList({ ...localProject, ...synced }));
+    setLocalProject((prev) => ({ ...prev, ...synced } as IProject));
+    try {
+      await onUpdate(synced);
+    } catch (error) {
+      setLocalProject(project);
+      setUrlList(getPlatformUrlList(project));
+      alert(error instanceof Error ? error.message : 'Failed to save URLs');
+    }
+  };
+
+  const handleUrlSave = async (index: number, value: string) => {
+    const trimmed = value.trim();
+    const next = [...urlList];
+    if (!trimmed) {
+      next.splice(index, 1);
+    } else {
+      next[index] = trimmed;
+    }
+    await persistUrlList(next);
+  };
+
+  const handleUrlRemove = async (index: number) => {
+    await persistUrlList(urlList.filter((_, i) => i !== index));
+  };
+
+  const handleAddUrl = () => {
+    setUrlList((prev) => [...prev, '']);
   };
 
   const handleLogoUpdate = useCallback(
@@ -1796,6 +1834,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   return (
     <div className="space-y-4">
+      {sectionsOnly !== 'tasks-content' && (
+      <>
       {/* Project Header Card */}
       <div className="bg-white rounded-lg p-4 border border-gray-200">
         <div className="flex items-start gap-3">
@@ -1901,75 +1941,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               </button>
             </div>
           )}
-          <div className="flex items-center gap-2 text-sm min-w-0">
-            {isManagerOrAdmin ? (
-              <>
-                <EditableText
-                  value={localProject.devUrl ?? ''}
-                  onSave={async (v) => {
-                    await handleFieldUpdate('devUrl', v.trim());
-                  }}
-                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem] text-gray-900"
-                  placeholder="Dev URL"
-                />
-                {normalizeProjectUrlHref(localProject.devUrl ?? '') ? (
-                  <a
-                    href={normalizeProjectUrlHref(localProject.devUrl ?? '')!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center rounded-lg border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Open
-                  </a>
-                ) : null}
-              </>
-            ) : normalizeProjectUrlHref(localProject.devUrl ?? '') ? (
-              <a
-                href={normalizeProjectUrlHref(localProject.devUrl ?? '')!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem] text-blue-600"
-              >
-                {truncateProjectUrlDisplay(localProject.devUrl ?? '', 40)}
-              </a>
-            ) : (
-              <span className="text-gray-400">Not set</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-sm min-w-0">
-            {isManagerOrAdmin ? (
-              <>
-                <EditableText
-                  value={localProject.liveUrl ?? ''}
-                  onSave={async (v) => {
-                    await handleFieldUpdate('liveUrl', v.trim());
-                  }}
-                  className="min-w-0 max-w-[11rem] sm:max-w-[14rem] text-gray-900"
-                  placeholder="Live URL"
-                />
-                {normalizeProjectUrlHref(localProject.liveUrl ?? '') ? (
-                  <a
-                    href={normalizeProjectUrlHref(localProject.liveUrl ?? '')!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center rounded-lg border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Open
-                  </a>
-                ) : null}
-              </>
-            ) : normalizeProjectUrlHref(localProject.liveUrl ?? '') ? (
-              <a
-                href={normalizeProjectUrlHref(localProject.liveUrl ?? '')!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate hover:underline max-w-[11rem] sm:max-w-[14rem] text-blue-600"
-              >
-                {truncateProjectUrlDisplay(localProject.liveUrl ?? '', 40)}
-              </a>
-            ) : (
-              <span className="text-gray-400">Not set</span>
-            )}
+          <div className="w-full basis-full">
+            <PlatformUrlsSection
+              urlList={urlList}
+              isManagerOrAdmin={isManagerOrAdmin}
+              onUrlSave={handleUrlSave}
+              onUrlRemove={handleUrlRemove}
+              onAddUrl={handleAddUrl}
+              titleClassName="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1"
+              editableClassName="min-w-0 max-w-[14rem] sm:max-w-[18rem] text-gray-900"
+              emptyClassName="text-gray-400 text-sm"
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm min-w-0 w-full basis-full">
             <ProjectSocialsBar
@@ -2250,7 +2232,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         </div>
       </div>
 
-      {isManagerOrAdmin && <InsightsPanel projectId={localProject._id.toString()} />}
+      {isManagerOrAdmin && <InsightsPanel ownerType="project" ownerId={localProject._id.toString()} />}
+      </>
+      )}
 
       <CollapsibleInspectorSection
         id="inspector-tasks-section"
@@ -2662,7 +2646,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         )}
       </CollapsibleInspectorSection>
 
-      {/* Action Buttons - one Close at bottom, same size as Delete */}
+      {sectionsOnly !== 'tasks-content' && (
       <div className="flex gap-2 pt-2">
         <button
           type="button"
@@ -2681,6 +2665,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           </button>
         )}
       </div>
+      )}
 
       {/* Task Actions */}
       <Modal

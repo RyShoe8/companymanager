@@ -1,14 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { InsightItemDto } from '@/lib/insights/getInsightsForProject';
+import type { InsightItemDto } from '@/lib/insights/insightDto';
+import type { InsightOwnerType } from '@/lib/insights/syncInsightAutoCompletion';
 import CollapsibleInspectorSection from '@/components/ui/CollapsibleInspectorSection';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import InsightCard from '@/components/insights/InsightCard';
 import InsightsCategoriesModal from '@/components/insights/InsightsCategoriesModal';
 
 interface InsightsPanelProps {
-  projectId: string;
+  ownerType: InsightOwnerType;
+  ownerId: string;
 }
 
 interface CategoryRow {
@@ -20,8 +22,9 @@ interface CategoryRow {
   completedCount: number;
 }
 
-export default function InsightsPanel({ projectId }: InsightsPanelProps) {
+export default function InsightsPanel({ ownerType, ownerId }: InsightsPanelProps) {
   const light = useInspectorLight();
+  const apiBase = `/api/${ownerType === 'project' ? 'projects' : 'clients'}/${ownerId}/insights`;
   const [insights, setInsights] = useState<InsightItemDto[]>([]);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [categories, setCategories] = useState<CategoryRow[]>([]);
@@ -34,9 +37,9 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
     setLoading(true);
     try {
       const [insightsRes, progressRes, categoriesRes] = await Promise.all([
-        fetch(`/api/projects/${projectId}/insights`),
-        fetch(`/api/projects/${projectId}/insights/progress`),
-        fetch(`/api/projects/${projectId}/insights/categories`),
+        fetch(apiBase),
+        fetch(`${apiBase}/progress`),
+        fetch(`${apiBase}/categories`),
       ]);
       if (insightsRes.ok) {
         const data = await insightsRes.json();
@@ -52,7 +55,7 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [apiBase]);
 
   useEffect(() => {
     void load();
@@ -61,7 +64,7 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
   const handleDismiss = async (itemId: string, dismissedServiceName?: string) => {
     setDismissingId(itemId);
     try {
-      const res = await fetch(`/api/projects/${projectId}/insights/${itemId}/dismiss`, {
+      const res = await fetch(`${apiBase}/${itemId}/dismiss`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dismissedServiceName }),
@@ -79,6 +82,8 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
     insights.length > 0
       ? `${insights.length} insight${insights.length === 1 ? '' : 's'}`
       : `${progress.completed} of ${progress.total} completed`;
+
+  const ownerLabel = ownerType === 'project' ? 'project' : 'client';
 
   return (
     <>
@@ -100,7 +105,7 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
               You&apos;re all caught up!
             </p>
             <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-3`}>
-              Every insight for this project is complete or dismissed.
+              Every insight for this {ownerLabel} is complete or dismissed.
             </p>
             <button
               type="button"
@@ -115,7 +120,8 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
             {insights.map((item) => (
               <InsightCard
                 key={item.id}
-                projectId={projectId}
+                ownerType={ownerType}
+                ownerId={ownerId}
                 item={item}
                 onDismiss={handleDismiss}
                 dismissing={dismissingId === item.id}
