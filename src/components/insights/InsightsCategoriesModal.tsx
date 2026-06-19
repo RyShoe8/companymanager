@@ -31,7 +31,7 @@ export default function InsightsCategoriesModal({ categories, onClose }: Insight
       >
         <div className={`flex items-center justify-between p-4 border-b ${lightSurface('border-gray-200', 'dark:border-gray-700', light)}`}>
           <h3 className={`text-lg font-semibold ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>Insight categories</h3>
-          <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-700 p-1" aria-label="Close">
+          <button type="button" onClick={onClose} className={`p-1 ${lightSurface('text-gray-500 hover:text-gray-700', 'dark:text-gray-400 dark:hover:text-gray-200', light)}`} aria-label="Close">
             ✕
           </button>
         </div>

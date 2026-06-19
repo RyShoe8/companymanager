@@ -93,7 +93,7 @@ export default function InsightsPanel({ ownerType, ownerId }: InsightsPanelProps
         onToggle={() => setPanelExpanded((prev) => !prev)}
         collapsedSummary={collapsedSummary}
       >
-        <div className={`mb-2 h-1.5 rounded-full overflow-hidden ${lightSurface('bg-gray-100', 'dark:bg-gray-700', light)}`}>
+        <div className={`mb-2 h-1.5 rounded-full overflow-hidden ${lightSurface('bg-gray-200', 'dark:bg-gray-700', light)}`}>
           <div className="h-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
         </div>
 

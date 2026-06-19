@@ -5,6 +5,7 @@ import { getTimeframeRange, taskOverlapsViewRange, parseDateSafe, type Timeframe
 import { activeClientProjects, isClientHubProject } from '@/lib/clients/clientProjectHelpers';
 import { isActiveWorkspaceContent, isActiveWorkspaceTask } from '@/lib/workspace/activeWorkspaceItems';
 import { sumContentHoursInTimeframe, sumTaskHoursInTimeframe } from '@/lib/utils/projectHours';
+import { projectOverlapsDateRange } from '@/lib/utils/projectCalendarOverlap';
 
 export type ClientCalendarProjectRow = {
   project: IProject;
@@ -160,4 +161,31 @@ export function sortClientRowsByActivity(rows: ClientCalendarRow[]): ClientCalen
 
 export function nonHubProjectsForClient(clientId: string, projects: IProject[]): IProject[] {
   return projectsForClient(clientId, projects).filter((p) => !isClientHubProject(p));
+}
+
+/** Whether a client has any project task/content activity in a calendar bucket. */
+export function clientOverlapsDateRange(
+  clientProjects: IProject[],
+  contentItems: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date
+): boolean {
+  if (clientProjects.length === 0) return false;
+  return clientProjects.some((project) =>
+    projectOverlapsDateRange(project, rangeStart, rangeEnd, contentItems)
+  );
+}
+
+/** Clients with activity in [rangeStart, rangeEnd], sorted by activity then name. */
+export function clientsForRange(
+  rows: ClientCalendarRow[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  allProjects: IProject[],
+  contentItems: IContentItem[]
+): ClientCalendarRow[] {
+  return rows.filter((row) => {
+    const clientProjects = projectsForClient(String(row.client._id), allProjects);
+    return clientOverlapsDateRange(clientProjects, contentItems, rangeStart, rangeEnd);
+  });
 }

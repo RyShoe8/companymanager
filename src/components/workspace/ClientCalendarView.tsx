@@ -1,49 +1,30 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
-import { TimeframeType } from '@/lib/utils/dateUtils';
+import { TimeframeType, getTimeframeRange } from '@/lib/utils/dateUtils';
 import { getCalendarPeriodTitle, navigateCalendarPeriod } from '@/lib/utils/calendarPeriodNav';
 import CalendarPeriodHeader from '@/components/planning-map/CalendarPeriodHeader';
+import CalendarCardHeader, {
+  CalendarActiveStats,
+  CalendarProgressBar,
+} from '@/components/planning-map/CalendarCardHeader';
 import {
   buildClientCalendarRows,
   sortClientRowsByActivity,
+  clientsForRange,
   type ClientCalendarProjectRow,
+  type ClientCalendarRow,
 } from '@/lib/clients/clientCalendarData';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
-import Image from 'next/image';
 
-function AnimatedProgressNumber({ target }: { target: number }) {
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    let start = 0;
-    const duration = 600;
-    const increment = target / (duration / 16);
-
-    if (target === 0) {
-      setValue(0);
-      return;
-    }
-
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= target) {
-        setValue(target);
-        clearInterval(timer);
-      } else {
-        setValue(Math.floor(start));
-      }
-    }, 16);
-
-    return () => clearInterval(timer);
-  }, [target]);
-
-  return <>{value}</>;
-}
+const WEEKLY_HEADER_HEIGHT = 100;
+const WEEKLY_EXPANDED_PROJECT_HEIGHT = 88;
+const WEEKLY_BOTTOM_PADDING = 16;
 
 interface ClientCalendarViewProps {
   clients: IClient[];
@@ -58,60 +39,7 @@ interface ClientCalendarViewProps {
   onDateChange: (date: Date) => void;
 }
 
-function ActiveStats({
-  showTasks,
-  showContent,
-  activeTaskCount,
-  activeContentCount,
-  headerTextClass,
-}: {
-  showTasks: boolean;
-  showContent: boolean;
-  activeTaskCount: number;
-  activeContentCount: number;
-  headerTextClass: string;
-}) {
-  if (!showTasks && !showContent) return null;
-  return (
-    <div className={`flex flex-wrap gap-3 text-xs font-medium ${headerTextClass}`}>
-      {showTasks && (
-        <span>
-          {activeTaskCount} active task{activeTaskCount === 1 ? '' : 's'}
-        </span>
-      )}
-      {showContent && (
-        <span>
-          {activeContentCount} active content
-        </span>
-      )}
-    </div>
-  );
-}
-
-function ProgressBar({
-  progressPercent,
-  headerTextClass,
-}: {
-  progressPercent: number;
-  headerTextClass: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 pr-4 mt-1">
-      <div className={`relative h-1 flex-1 rounded-full overflow-hidden ${headerTextClass}`}>
-        <div className="absolute inset-0 bg-white opacity-20" />
-        <div
-          className="relative h-full transition-all duration-500"
-          style={{ width: `${progressPercent}%`, backgroundColor: 'currentColor' }}
-        />
-      </div>
-      <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}>
-        <AnimatedProgressNumber target={progressPercent} />%
-      </span>
-    </div>
-  );
-}
-
-function ProjectCard({
+function ProjectSubCard({
   row,
   client,
   showTasks,
@@ -132,30 +60,30 @@ function ProjectCard({
     <button
       type="button"
       onClick={() => onProjectClick?.(client, project)}
-      className="text-left p-4 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative w-full"
+      className="text-left p-3 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative w-full"
       style={{
         backgroundColor: `${displayColor}F0`,
         borderColor: displayColor,
       }}
     >
-      <div className="flex items-start gap-3 mb-2">
+      <div className="flex items-start gap-2 mb-1">
         <div
-          className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold overflow-hidden shrink-0 ${project.logo ? '' : headerTextClass}`}
+          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold overflow-hidden shrink-0 ${project.logo ? '' : headerTextClass}`}
           style={project.logo ? undefined : { backgroundColor: displayColor }}
         >
           {project.logo ? (
-            <Image src={project.logo} alt="" width={32} height={32} className="w-full h-full object-cover" unoptimized />
+            <Image src={project.logo} alt="" width={28} height={28} className="w-full h-full object-cover" unoptimized />
           ) : (
-            project.name.charAt(0).toUpperCase()
+            <span className="text-xs">{project.name.charAt(0).toUpperCase()}</span>
           )}
         </div>
         <div className="min-w-0 flex-1">
           <h5 className={`text-sm font-bold truncate ${headerTextClass}`}>{project.name}</h5>
         </div>
       </div>
-      <ProgressBar progressPercent={progressPercent} headerTextClass={headerTextClass} />
-      <div className="mt-2">
-        <ActiveStats
+      <CalendarProgressBar progressPercent={progressPercent} headerTextClass={headerTextClass} />
+      <div className="mt-1">
+        <CalendarActiveStats
           showTasks={showTasks}
           showContent={showContent}
           activeTaskCount={activeTaskCount}
@@ -163,6 +91,100 @@ function ProjectCard({
           headerTextClass={headerTextClass}
         />
       </div>
+    </button>
+  );
+}
+
+function ClientCardBody({
+  row,
+  showTasks,
+  showContent,
+  isExpanded,
+  onToggleExpand,
+  onClientClick,
+  onProjectClick,
+  compact = false,
+  scheduledHoursOverride,
+}: {
+  row: ClientCalendarRow;
+  showTasks: boolean;
+  showContent: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onClientClick: (client: IClient) => void;
+  onProjectClick?: (client: IClient, project: IProject) => void;
+  compact?: boolean;
+  scheduledHoursOverride?: number;
+}) {
+  const { client, projects, activeTaskCount, activeContentCount, scheduledHours, progressPercent } = row;
+  const displayColor = client.color || '#3b82f6';
+
+  return (
+    <>
+      <CalendarCardHeader
+        name={client.name}
+        logo={client.logo}
+        color={displayColor}
+        progressPercent={progressPercent}
+        scheduledHours={scheduledHoursOverride ?? scheduledHours}
+        activeTaskCount={activeTaskCount}
+        activeContentCount={activeContentCount}
+        showTasks={showTasks}
+        showContent={showContent}
+        isExpanded={isExpanded}
+        onToggleExpand={onToggleExpand}
+        onTitleClick={() => onClientClick(client)}
+        compact={compact}
+        hoursInline={compact}
+      />
+      {isExpanded && projects.length > 0 ? (
+        <div className="mt-3 pt-3 border-t border-white/20 space-y-2">
+          {projects.map((projectRow) => (
+            <ProjectSubCard
+              key={String(projectRow.project._id)}
+              row={projectRow}
+              client={client}
+              showTasks={showTasks}
+              showContent={showContent}
+              onProjectClick={onProjectClick}
+            />
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ClientChip({
+  row,
+  onClientClick,
+}: {
+  row: ClientCalendarRow;
+  onClientClick: (client: IClient) => void;
+}) {
+  const { client } = row;
+  const displayColor = client.color || '#3b82f6';
+  const headerTextClass = getProjectCardHeaderTextClass(displayColor);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClientClick(client)}
+      className="text-sm p-2 rounded cursor-pointer hover:opacity-80 w-full text-left flex items-center gap-2"
+      style={{ backgroundColor: displayColor, color: 'white' }}
+      title={client.name}
+    >
+      <span
+        className={`w-6 h-6 rounded shrink-0 flex items-center justify-center text-xs font-bold overflow-hidden ${client.logo ? '' : headerTextClass}`}
+        style={client.logo ? undefined : { backgroundColor: displayColor }}
+      >
+        {client.logo ? (
+          <Image src={client.logo} alt="" width={24} height={24} className="w-full h-full object-cover" unoptimized />
+        ) : (
+          client.name.charAt(0).toUpperCase()
+        )}
+      </span>
+      <span className="font-medium truncate">{client.name}</span>
     </button>
   );
 }
@@ -187,6 +209,8 @@ export default function ClientCalendarView({
       showContent,
     })
   );
+
+  const { start: startDate, end: endDate } = getTimeframeRange(timeframe, currentDate);
 
   const visibleRows =
     timeframe === 'today'
@@ -219,6 +243,292 @@ export default function ClientCalendarView({
     });
   }, [clients]);
 
+  const renderClientGrid = (bucketRows: ClientCalendarRow[], emptyTitle: string, emptyDesc: string) => {
+    if (bucketRows.length === 0) {
+      return (
+        <EmptyStateIllustration title={emptyTitle} description={emptyDesc} />
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {bucketRows.map((row) => {
+          const clientId = String(row.client._id);
+          const isExpanded = expandedClients.has(clientId);
+          const displayColor = row.client.color || '#3b82f6';
+          return (
+            <div
+              key={clientId}
+              className="rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden p-5"
+              style={{
+                backgroundColor: `${displayColor}F0`,
+                borderColor: displayColor,
+              }}
+            >
+              <ClientCardBody
+                row={row}
+                showTasks={showTasks}
+                showContent={showContent}
+                isExpanded={isExpanded}
+                onToggleExpand={() => toggleClientExpanded(clientId)}
+                onClientClick={onClientClick}
+                onProjectClick={onProjectClick}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderTodayView = () => (
+    <div className="p-6">
+      {renderClientGrid(
+        visibleRows,
+        'No clients in this period',
+        'Add a client or adjust your timeframe to see client activity.'
+      )}
+    </div>
+  );
+
+  const renderWeeklyView = () => {
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const weekRows = clientsForRange(rows, startDate, endDate, allProjects, contentItems);
+    const baseTop = 60;
+
+    const cardHeights = weekRows.map((row) => {
+      const clientId = String(row.client._id);
+      const isExpanded = expandedClients.has(clientId);
+      if (!isExpanded) return WEEKLY_HEADER_HEIGHT + 16;
+      const projectCount = row.projects.length;
+      return (
+        WEEKLY_HEADER_HEIGHT +
+        (projectCount > 0 ? 12 + projectCount * WEEKLY_EXPANDED_PROJECT_HEIGHT : 0) +
+        WEEKLY_BOTTOM_PADDING
+      );
+    });
+
+    const topPositions: number[] = [];
+    let cursor = baseTop;
+    for (let i = 0; i < weekRows.length; i++) {
+      topPositions.push(cursor);
+      cursor += cardHeights[i] + 8;
+    }
+
+    return (
+      <div className="overflow-x-auto overscroll-contain">
+        <div className="min-w-[800px]">
+          <div className="grid grid-cols-7 border-b border-border">
+            {dayNames.map((day) => (
+              <div key={day} className="p-3 text-center text-sm font-semibold text-text-secondary bg-background">
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="relative min-h-[600px] p-4">
+            {weekRows.length === 0 ? (
+              <EmptyStateIllustration
+                title="No clients this week"
+                description="No client activity falls in this week."
+              />
+            ) : (
+              weekRows.map((row, idx) => {
+                const clientId = String(row.client._id);
+                const isExpanded = expandedClients.has(clientId);
+                const displayColor = row.client.color || '#3b82f6';
+                return (
+                  <div
+                    key={clientId}
+                    className="absolute left-4 right-4 rounded-lg border-2 overflow-hidden transition-all duration-300 hover:shadow-xl"
+                    style={{
+                      top: topPositions[idx],
+                      height: cardHeights[idx],
+                      backgroundColor: `${displayColor}F0`,
+                      borderColor: displayColor,
+                    }}
+                  >
+                    <div className="p-4 h-full overflow-hidden flex flex-col">
+                      <ClientCardBody
+                        row={row}
+                        showTasks={showTasks}
+                        showContent={showContent}
+                        isExpanded={isExpanded}
+                        onToggleExpand={() => toggleClientExpanded(clientId)}
+                        onClientClick={onClientClick}
+                        onProjectClick={onProjectClick}
+                        compact
+                        scheduledHoursOverride={row.scheduledHours}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMonthlyView = () => {
+    const firstDayOfMonth = new Date(startDate);
+    const firstDay = firstDayOfMonth.getDay();
+    const mondayOffset = firstDay === 0 ? 6 : firstDay - 1;
+    const calendarStart = new Date(firstDayOfMonth);
+    calendarStart.setDate(calendarStart.getDate() - mondayOffset);
+
+    const lastDayOfMonth = new Date(endDate);
+    const lastDay = lastDayOfMonth.getDay();
+    const sundayOffset = lastDay === 0 ? 0 : 7 - lastDay;
+    const calendarEnd = new Date(lastDayOfMonth);
+    calendarEnd.setDate(calendarEnd.getDate() + sundayOffset);
+
+    const days: Date[] = [];
+    const current = new Date(calendarStart);
+    while (current <= calendarEnd) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    const weeks: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) {
+      weeks.push(days.slice(i, i + 7));
+    }
+
+    const formatWeekLabel = (week: Date[]) => {
+      const weekStart = week[0];
+      const weekEnd = week[6];
+      const startLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endLabel = weekEnd.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      return `Week of ${startLabel} – ${endLabel}`;
+    };
+
+    return (
+      <div className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {weeks.map((week) => {
+            const weekStart = new Date(week[0]);
+            weekStart.setHours(0, 0, 0, 0);
+            const weekEnd = new Date(week[6]);
+            weekEnd.setHours(23, 59, 59, 999);
+            const weekClients = clientsForRange(rows, weekStart, weekEnd, allProjects, contentItems);
+
+            return (
+              <div key={weekStart.toISOString()} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+                <h3 className="text-lg font-semibold text-text-primary mb-3">{formatWeekLabel(week)}</h3>
+                <div className="space-y-2">
+                  {weekClients.length === 0 ? (
+                    <EmptyStateIllustration
+                      title="No clients this week"
+                      description="No client activity in this week."
+                    />
+                  ) : (
+                    weekClients.map((row) => {
+                      const clientId = String(row.client._id);
+                      const isExpanded = expandedClients.has(clientId);
+                      const displayColor = row.client.color || '#3b82f6';
+                      return (
+                        <div
+                          key={clientId}
+                          className="rounded-lg border-2 overflow-hidden p-2"
+                          style={{
+                            backgroundColor: `${displayColor}E6`,
+                            borderColor: displayColor,
+                          }}
+                        >
+                          <ClientCardBody
+                            row={row}
+                            showTasks={showTasks}
+                            showContent={showContent}
+                            isExpanded={isExpanded}
+                            onToggleExpand={() => toggleClientExpanded(clientId)}
+                            onClientClick={onClientClick}
+                            onProjectClick={onProjectClick}
+                            compact
+                            scheduledHoursOverride={row.scheduledHours}
+                          />
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuarterlyView = () => {
+    const months: Date[][] = [];
+    const quarter = Math.floor(currentDate.getMonth() / 3);
+
+    for (let i = 0; i < 3; i++) {
+      const monthDate = new Date(currentDate.getFullYear(), quarter * 3 + i, 1);
+      const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+      months.push([monthStart, monthEnd]);
+    }
+
+    return (
+      <div className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {months.map(([monthStart, monthEnd], idx) => {
+            const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);
+            return (
+              <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+                <h3 className="text-lg font-semibold text-text-primary mb-3">
+                  {monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                </h3>
+                <div className="space-y-2">
+                  {monthClients.map((row) => (
+                    <ClientChip key={String(row.client._id)} row={row} onClientClick={onClientClick} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderYearlyView = () => {
+    const months: Date[][] = [];
+    for (let i = 0; i < 12; i++) {
+      const monthDate = new Date(currentDate.getFullYear(), i, 1);
+      const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+      months.push([monthStart, monthEnd]);
+    }
+
+    return (
+      <div className="p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {months.map(([monthStart, monthEnd], idx) => {
+            const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);
+            return (
+              <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+                <h3 className="text-lg font-semibold text-text-primary mb-3">
+                  {monthStart.toLocaleDateString('en-US', { month: 'short' })}
+                </h3>
+                <div className="space-y-2">
+                  {monthClients.map((row) => (
+                    <ClientChip key={String(row.client._id)} row={row} onClientClick={onClientClick} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-background-elevated rounded-xl border border-border overflow-hidden">
       <CalendarPeriodHeader
@@ -227,114 +537,11 @@ export default function ClientCalendarView({
         onNext={() => onDateChange(navigateCalendarPeriod(timeframe, currentDate, 'next'))}
       />
 
-      <div className="p-6">
-        {visibleRows.length === 0 ? (
-          <EmptyStateIllustration
-            title="No clients in this period"
-            description="Add a client or adjust your timeframe to see client activity."
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {visibleRows.map((row) => {
-              const {
-                client,
-                projects,
-                activeTaskCount,
-                activeContentCount,
-                scheduledHours,
-                progressPercent,
-              } = row;
-              const clientId = String(client._id);
-              const isExpanded = expandedClients.has(clientId);
-              const displayColor = client.color || '#3b82f6';
-              const headerTextClass = getProjectCardHeaderTextClass(displayColor);
-
-              return (
-                <div
-                  key={clientId}
-                  className="rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
-                  style={{
-                    backgroundColor: `${displayColor}F0`,
-                    borderColor: displayColor,
-                  }}
-                >
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onClientClick(client)}
-                        className="flex items-start gap-3 min-w-0 flex-1 text-left"
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold overflow-hidden shrink-0 ${client.logo ? '' : headerTextClass}`}
-                          style={client.logo ? undefined : { backgroundColor: displayColor }}
-                        >
-                          {client.logo ? (
-                            <Image src={client.logo} alt="" width={40} height={40} className="w-full h-full object-cover" unoptimized />
-                          ) : (
-                            client.name.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className={`text-lg font-bold truncate ${headerTextClass}`}>{client.name}</h4>
-                          {client.description ? (
-                            <p className={`text-sm truncate ${headerTextClass} opacity-80`}>{client.description}</p>
-                          ) : null}
-                          {scheduledHours > 0 ? (
-                            <p className={`text-xs font-medium mt-1 ${headerTextClass} opacity-90`}>
-                              Hours scheduled: {scheduledHours}h
-                            </p>
-                          ) : null}
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleClientExpanded(clientId)}
-                        className={`${headerTextClass} opacity-80 hover:opacity-100 transition-opacity shrink-0 p-1`}
-                        aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                      >
-                        {isExpanded ? '▼' : '▶'}
-                      </button>
-                    </div>
-
-                    <ProgressBar progressPercent={progressPercent} headerTextClass={headerTextClass} />
-
-                    <div className="mt-2">
-                      <ActiveStats
-                        showTasks={showTasks}
-                        showContent={showContent}
-                        activeTaskCount={activeTaskCount}
-                        activeContentCount={activeContentCount}
-                        headerTextClass={headerTextClass}
-                      />
-                    </div>
-                  </div>
-
-                  {isExpanded && projects.length > 0 ? (
-                    <div className="px-5 pb-5 pt-0 space-y-2 border-t border-white/20">
-                      <p className={`text-xs font-semibold uppercase tracking-wide pt-3 ${headerTextClass} opacity-80`}>
-                        Projects ({projects.length})
-                      </p>
-                      <div className="grid grid-cols-1 gap-2">
-                        {projects.map((projectRow) => (
-                          <ProjectCard
-                            key={String(projectRow.project._id)}
-                            row={projectRow}
-                            client={client}
-                            showTasks={showTasks}
-                            showContent={showContent}
-                            onProjectClick={onProjectClick}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {timeframe === 'today' && renderTodayView()}
+      {timeframe === 'weekly' && renderWeeklyView()}
+      {timeframe === 'monthly' && renderMonthlyView()}
+      {timeframe === 'quarterly' && renderQuarterlyView()}
+      {timeframe === 'yearly' && renderYearlyView()}
     </div>
   );
 }

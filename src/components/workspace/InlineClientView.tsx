@@ -14,6 +14,7 @@ import ClientImpactReportModal from '@/components/workspace/ClientImpactReportMo
 import InsightsPanel from '@/components/insights/InsightsPanel';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import CollapsibleInspectorSection from '@/components/ui/CollapsibleInspectorSection';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import {
   activeClientProjects,
   clientHubProject,
@@ -78,7 +79,7 @@ export default function InlineClientView({
   const [logo, setLogo] = useState(client.logo);
   const [showImpactReport, setShowImpactReport] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(true);
-  const [hqExpanded, setHqExpanded] = useState(true);
+  const light = useInspectorLight();
 
   useEffect(() => {
     setLocalClient(client);
@@ -119,7 +120,7 @@ export default function InlineClientView({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-lg p-4 border border-gray-200">
+      <div className={`rounded-lg p-4 border ${lightSurface('bg-white border-gray-200', 'dark:bg-gray-800 dark:border-gray-700', light)}`}>
         <div className="flex items-start gap-3">
           <ClientLogo
             clientId={clientId}
@@ -134,14 +135,14 @@ export default function InlineClientView({
             <EditableText
               value={localClient.name}
               onSave={(v) => handleClientFieldUpdate({ name: v })}
-              className="text-xl font-bold text-gray-900 block w-full"
+              className={`text-xl font-bold block w-full ${lightSurface('text-gray-900', 'dark:text-white', light)}`}
               placeholder="Client name"
               disabled={!isManagerOrAdmin}
             />
             <EditableText
               value={localClient.description || ''}
               onSave={(v) => handleClientFieldUpdate({ description: v })}
-              className="text-gray-600 mt-1 block w-full"
+              className={`mt-1 block w-full ${lightSurface('text-gray-600', 'dark:text-gray-300', light)}`}
               placeholder="Enter company description"
               autoMultilineAfter={80}
               disabled={!isManagerOrAdmin}
@@ -161,7 +162,7 @@ export default function InlineClientView({
               <button
                 type="button"
                 onClick={() => setShowImpactReport(true)}
-                className="px-3 py-1.5 bg-background border border-border text-text-primary rounded-md text-xs font-medium hover:bg-background-accent transition-colors"
+                className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${lightSurface('bg-white border-gray-200 text-gray-900 hover:bg-gray-50', 'dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600', light)}`}
               >
                 Generate Impact Report
               </button>
@@ -185,50 +186,46 @@ export default function InlineClientView({
       />
 
       {adminProject && (
-        <CollapsibleInspectorSection
-          id="inspector-client-hq-section"
-          title="Headquarters"
-          collapsedSummary="Tasks and content"
-          expanded={hqExpanded}
-          onToggle={() => setHqExpanded((v) => !v)}
-        >
-          <InlineProjectView
-            project={adminProject}
-            employees={employees}
-            isManagerOrAdmin={isManagerOrAdmin}
-            currentUserEmployeeId={currentUserEmployeeId}
-            sectionsOnly="tasks-content"
-            onUpdate={handleHubUpdate}
-            onProjectPatched={onProjectPatched}
-            onClose={onClose}
-            onRefresh={onRefresh}
-            clients={[localClient]}
-            onContentItemClick={onContentItemClick}
-            contentRefreshTrigger={contentRefreshTrigger}
-            onContentListChanged={onContentListChanged}
-            autoAddTaskOnOpen={autoAddTaskOnOpen}
-            onAutoAddTaskConsumed={onAutoAddTaskConsumed}
-            initialAddContentOpen={initialAddContentOpen}
-            initialAddContentDate={initialAddContentDate}
-            onAddContentOpenConsumed={onAddContentOpenConsumed}
-            timeframe={timeframe}
-            referenceDate={referenceDate}
-          />
-        </CollapsibleInspectorSection>
+        <InlineProjectView
+          project={adminProject}
+          employees={employees}
+          isManagerOrAdmin={isManagerOrAdmin}
+          currentUserEmployeeId={currentUserEmployeeId}
+          sectionsOnly="tasks-content"
+          onUpdate={handleHubUpdate}
+          onProjectPatched={onProjectPatched}
+          onClose={onClose}
+          onRefresh={onRefresh}
+          clients={[localClient]}
+          onContentItemClick={onContentItemClick}
+          contentRefreshTrigger={contentRefreshTrigger}
+          onContentListChanged={onContentListChanged}
+          autoAddTaskOnOpen={autoAddTaskOnOpen}
+          onAutoAddTaskConsumed={onAutoAddTaskConsumed}
+          initialAddContentOpen={initialAddContentOpen}
+          initialAddContentDate={initialAddContentDate}
+          onAddContentOpenConsumed={onAddContentOpenConsumed}
+          timeframe={timeframe}
+          referenceDate={referenceDate}
+        />
       )}
 
       <CollapsibleInspectorSection
         id="inspector-client-projects-section"
         title="Active Projects"
         titleSuffix={
-          <span className="text-sm font-normal text-gray-500">({activeProjects.length})</span>
+          <span className={`text-sm font-normal ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
+            ({activeProjects.length})
+          </span>
         }
         collapsedSummary={`${activeProjects.length} active`}
         expanded={projectsExpanded}
         onToggle={() => setProjectsExpanded((v) => !v)}
       >
         {activeProjects.length === 0 ? (
-          <p className="text-sm text-gray-500">No active projects for this client.</p>
+          <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
+            No active projects for this client.
+          </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {activeProjects.map((project) => {
@@ -293,7 +290,7 @@ export default function InlineClientView({
         <button
           type="button"
           onClick={onClose}
-          className="text-sm px-3 py-1.5 rounded text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          className={`text-sm px-3 py-1.5 rounded transition-colors ${lightSurface('text-gray-600 hover:text-gray-900 hover:bg-gray-100', 'dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700', light)}`}
         >
           Close
         </button>

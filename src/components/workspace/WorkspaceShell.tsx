@@ -1569,6 +1569,8 @@ _id.toString(), { tasks });
                                                 currentDate={ws.currentDate}
                                                 onClientClick={handleViewClient}
                                                 onProjectClick={handleViewProjectFromClientCalendar}
+                                                onTaskClick={handleViewProjectTask}
+                                                onContentItemClick={handleContentItemClickFromSchedule}
                                                 onDateChange={ws.setCurrentDate}
                                             />
                                     </div>

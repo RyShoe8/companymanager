@@ -31,6 +31,8 @@ import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import { TECH_STACK_CATALOG } from '@/lib/techStack/catalog';
 import { MARKETING_STACK_CATALOG } from '@/lib/marketingStack/catalog';
 import { SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
+import CollapsibleInspectorSection from '@/components/ui/CollapsibleInspectorSection';
+import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 type LinkedAssetRow = {
   _id: string;
@@ -82,6 +84,8 @@ export default function ClientOperationsPanel({
   const [assetsLoading, setAssetsLoading] = useState(true);
   const [assetPendingDelete, setAssetPendingDelete] = useState<LinkedAssetRow | null>(null);
   const [urlList, setUrlList] = useState<string[]>(() => getClientUrlList(client));
+  const [operationsExpanded, setOperationsExpanded] = useState(true);
+  const light = useInspectorLight();
 
   useEffect(() => {
     setLocalClient(client);
@@ -188,9 +192,13 @@ export default function ClientOperationsPanel({
   const marketingName = (id: string) => MARKETING_STACK_CATALOG.find((t) => t.id === id)?.name ?? id;
 
   return (
-    <div className="bg-background-elevated rounded-xl border border-border p-5 space-y-4">
-      <h3 className="text-sm font-medium text-text-primary">Client operations</h3>
-
+    <CollapsibleInspectorSection
+      title="Client operations"
+      expanded={operationsExpanded}
+      onToggle={() => setOperationsExpanded((v) => !v)}
+      collapsedSummary="Platforms, assets, stacks"
+    >
+      <div className="space-y-4">
       <PlatformUrlsSection
         urlList={urlList}
         isManagerOrAdmin={isManagerOrAdmin}
@@ -199,8 +207,8 @@ export default function ClientOperationsPanel({
         onAddUrl={handleAddUrl}
       />
 
-      <div className="rounded-lg border border-border bg-background p-3 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Platforms</p>
+      <div className={`rounded-lg border p-3 space-y-3 ${lightSurface('border-gray-200 bg-gray-50', 'dark:border-gray-700 dark:bg-gray-900/40', light)}`}>
+        <p className={`text-xs font-semibold uppercase tracking-wide ${lightSurface('text-gray-600', 'dark:text-gray-400', light)}`}>Platforms</p>
         <div className="flex flex-wrap items-center gap-2">
           <ProjectSocialsBar
             socialLinks={(localClient.socialLinks ?? []) as IProjectSocialLink[]}
@@ -458,6 +466,7 @@ export default function ClientOperationsPanel({
           void loadAssets();
         }}
       />
-    </div>
+      </div>
+    </CollapsibleInspectorSection>
   );
 }

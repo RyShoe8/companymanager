@@ -46,7 +46,7 @@ export default function InsightCard({ ownerType, ownerId, item, onDismiss, dismi
 
       {expanded && (
         <>
-          <p className={`text-sm ${lightSurface('text-gray-600', 'dark:text-gray-400', light)} mb-4`}>{item.description}</p>
+          <p className={`text-sm ${lightSurface('text-gray-700', 'dark:text-gray-300', light)} mb-4`}>{item.description}</p>
 
           {vendorCount > 0 && (
             <div className={`border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)} pt-3 space-y-3`}>
@@ -54,9 +54,9 @@ export default function InsightCard({ ownerType, ownerId, item, onDismiss, dismi
                 <div key={vendor.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="min-w-0">
                     <p className={`text-sm font-semibold ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>{vendor.name}</p>
-                    <p className={`text-xs ${lightSurface('text-gray-600', 'dark:text-gray-400', light)}`}>{vendor.description}</p>
+                    <p className={`text-xs ${lightSurface('text-gray-700', 'dark:text-gray-300', light)}`}>{vendor.description}</p>
                     {vendor.pricing && (
-                      <p className={`text-xs ${lightSurface('text-gray-500', 'dark:text-gray-500', light)} mt-0.5`}>{vendor.pricing}</p>
+                      <p className={`text-xs ${lightSurface('text-gray-600', 'dark:text-gray-400', light)} mt-0.5`}>{vendor.pricing}</p>
                     )}
                   </div>
                   <a
