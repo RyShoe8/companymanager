@@ -240,7 +240,6 @@ export default function ProjectSocialsBar({
       }}
       credentials={{
         login: selectedLink?.login,
-        password: selectedLink?.password,
       }}
       onSave={(credentials) => {
         if (selectedIndex !== null) {
@@ -255,7 +254,6 @@ export default function ProjectSocialsBar({
         return Promise.resolve();
       } : undefined}
       canEdit={isManagerOrAdmin}
-      canViewPassword={isManagerOrAdmin}
     />
   </>
   );

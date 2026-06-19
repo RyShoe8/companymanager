@@ -9,7 +9,9 @@ interface ContentTargetingSectionProps {
   project: IProject;
   isManagerOrAdmin: boolean;
   expanded: boolean;
-  onToggle: () => void;
+  onToggle?: () => void;
+  /** When true, render fields only (parent supplies collapsible header). */
+  embedded?: boolean;
   keywords: string;
   onKeywordsChange: (value: string) => void;
   internalLinks: string[];
@@ -27,6 +29,7 @@ export function parseKeywordsInput(text: string): string[] {
 export default function ContentTargetingSection({
   expanded,
   onToggle,
+  embedded = false,
   keywords,
   onKeywordsChange,
   internalLinks,
@@ -46,9 +49,9 @@ export default function ContentTargetingSection({
 
   return (
     <>
-      <TargetingToggle expanded={expanded} onToggle={onToggle} />
+      {!embedded && onToggle && <TargetingToggle expanded={expanded} onToggle={onToggle} />}
 
-      {expanded && (
+      {(embedded || expanded) && (
         <div className="space-y-4 animate-in slide-in-from-top-2">
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1">Target keywords</label>
@@ -104,16 +107,9 @@ function TargetingToggle({ expanded, onToggle }: { expanded: boolean; onToggle: 
       <button
         type="button"
         onClick={onToggle}
-        className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors w-full focus:outline-none"
+        className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors w-full focus:outline-none text-left"
       >
-        <svg
-          className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
+        <span className="shrink-0 text-xs">{expanded ? '▼' : '▶'}</span>
         Targeting and links
       </button>
     </div>

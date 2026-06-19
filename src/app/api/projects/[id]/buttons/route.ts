@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import Project, { type IProjectActionButton } from '@/lib/models/Project';
+import Project from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { isValidObjectId } from '@/lib/utils/security';
-import {
-  encryptActionButtonPassword,
-  serializeActionButtons,
-} from '@/lib/security/actionButtonCrypto';
 
 function isValidEmailFormat(email: string): boolean {
   const t = email.trim();
@@ -50,11 +46,8 @@ export async function GET(
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
-    const Employee = (await import('@/lib/models/Employee')).default;
-    const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const canViewPasswords = employee?.role === 'Manager' || employee?.role === 'Administrator';
-    const actionButtons = (project as { actionButtons?: { label: string; url: string; kind?: string; password?: string; referralSourceId?: unknown }[] }).actionButtons || [];
-    return NextResponse.json(serializeActionButtons(actionButtons, canViewPasswords));
+    const actionButtons = (project as { actionButtons?: unknown[] }).actionButtons || [];
+    return NextResponse.json(actionButtons);
   } catch (error) {
     console.error('Error fetching project buttons:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -88,13 +81,12 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     const body = await request.json();
-    const { label, url, referralSourceId, kind, email, password } = body;
+    const { label, url, referralSourceId, kind, email } = body;
 
     const actionButtons = Array.isArray(project.actionButtons) ? [...project.actionButtons] : [];
 
     if (kind === 'email') {
       const emailRaw = typeof email === 'string' ? email.trim() : '';
-      const passwordRaw = typeof password === 'string' ? password : '';
       if (!emailRaw) {
         return NextResponse.json({ error: 'email is required for email buttons' }, { status: 400 });
       }
@@ -111,9 +103,6 @@ export async function POST(
         label: displayLabel,
         url: mailtoUrl,
         kind: 'email',
-        ...(passwordRaw.trim()
-          ? { password: encryptActionButtonPassword(passwordRaw.trim()) }
-          : {}),
       });
     } else {
       if (!label || !url) {
@@ -131,7 +120,7 @@ export async function POST(
     }
     project.actionButtons = actionButtons;
     await project.save();
-    return NextResponse.json(serializeActionButtons(project.actionButtons, true), { status: 201 });
+    return NextResponse.json(project.actionButtons, { status: 201 });
   } catch (error) {
     console.error('Error adding project button:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -176,7 +165,7 @@ export async function DELETE(
     actionButtons.splice(index, 1);
     project.actionButtons = actionButtons;
     await project.save();
-    return NextResponse.json(serializeActionButtons(project.actionButtons, true));
+    return NextResponse.json(project.actionButtons);
   } catch (error) {
     console.error('Error deleting project button:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -218,15 +207,14 @@ export async function PATCH(
     if (index >= actionButtons.length) {
       return NextResponse.json({ error: 'Index out of range' }, { status: 400 });
     }
-    const entry = actionButtons[index] as { label: string; url: string; kind?: string; password?: string };
+    const entry = actionButtons[index] as { label: string; url: string; kind?: string };
     if (!isEmailActionButton(entry)) {
       return NextResponse.json({ error: 'Only email smart buttons can be updated here' }, { status: 400 });
     }
 
-    const { label, email, password } = body as {
+    const { label, email } = body as {
       label?: unknown;
       email?: unknown;
-      password?: unknown;
     };
 
     if (typeof email === 'string') {
@@ -249,22 +237,14 @@ export async function PATCH(
       entry.kind = 'email';
     }
 
-    // Allow empty string to clear stored password (key icon hidden until set again).
-    if ('password' in body && typeof password === 'string') {
-      entry.password = password ? encryptActionButtonPassword(password) : '';
-      entry.kind = 'email';
-    }
-
-    const updatedButton: IProjectActionButton = {
+    actionButtons[index] = {
       label: entry.label,
       url: entry.url,
       kind: 'email',
-      ...(entry.password !== undefined ? { password: entry.password } : {}),
     };
-    actionButtons[index] = updatedButton;
     project.actionButtons = actionButtons;
     await project.save();
-    return NextResponse.json(serializeActionButtons(project.actionButtons, true));
+    return NextResponse.json(project.actionButtons);
   } catch (error) {
     console.error('Error updating project button:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

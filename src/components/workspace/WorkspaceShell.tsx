@@ -109,6 +109,13 @@ export default function WorkspaceShell({
     /** Content item id when opening inspector from schedule content click. */
     const [inspectorOpenContentId, setInspectorOpenContentId] = useState<string | null>(null);
     const [inspectorAutoAddTask, setInspectorAutoAddTask] = useState(false);
+    const [inspectorInitialAddContentOpen, setInspectorInitialAddContentOpen] = useState(false);
+    const [inspectorAddContentDate, setInspectorAddContentDate] = useState<Date | undefined>(undefined);
+    const [inspectorAddContentPrefill, setInspectorAddContentPrefill] = useState<{
+        title?: string;
+        channel?: string;
+        notes?: string;
+    } | null>(null);
     const deepLinkHandledRef = useRef(false);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -656,9 +663,20 @@ export default function WorkspaceShell({
                 if (!isNaN(d.getTime())) defaultDate = d;
             }
 
+            const prefill = { title: titleStr, channel: channelStr, notes: notesStr };
+            const focusedProjectId = inspectorFocus?.startsWith('project:')
+                ? inspectorFocus.split(':')[1]
+                : null;
+            if (focusedProjectId && focusedProjectId === project._id.toString()) {
+                setInspectorInitialAddContentOpen(true);
+                setInspectorAddContentDate(defaultDate);
+                setInspectorAddContentPrefill(prefill);
+                return { success: true, message: 'Opening content creation form' };
+            }
+
             setAddContentProject(project);
             setAddContentDefaultDate(defaultDate);
-            setAddContentVoicePrefill({ title: titleStr, channel: channelStr, notes: notesStr });
+            setAddContentVoicePrefill(prefill);
             setShowContentCreateModal(true);
             return { success: true, message: 'Opening content creation form' };
         }
@@ -1045,7 +1063,7 @@ _id.toString(), { tasks });
         }
 
         return { success: false, message: `Voice action ${intent.type} not fully implemented yet` };
-    }, [ws, handleDeleteProject, router, handleViewProjectTask, handlePhaseSelect, handleLensSelect]);
+    }, [ws, handleDeleteProject, router, handleViewProjectTask, handlePhaseSelect, handleLensSelect, inspectorFocus]);
 
     // Command Palette Registration (voice can trigger via RUN_COMMAND)
     useEffect(() => {
@@ -1814,6 +1832,7 @@ _id.toString(), { tasks });
                             focusId={inspectorFocus}
                             onClose={closeInspector}
                             projects={ws.allProjects}
+                            clients={ws.clients}
                             employees={ws.employees}
                             isManagerOrAdmin={ws.isManagerOrAdmin}
                             currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
@@ -1825,10 +1844,13 @@ _id.toString(), { tasks });
                             onInitialOpenContentConsumed={() => setInspectorOpenContentId(null)}
                             autoAddTaskOnOpen={inspectorAutoAddTask}
                             onAutoAddTaskConsumed={() => setInspectorAutoAddTask(false)}
-                            onAddContent={(project) => {
-                                setAddContentVoicePrefill(null);
-                                setAddContentProject(project);
-                                setShowContentCreateModal(true);
+                            initialAddContentOpen={inspectorInitialAddContentOpen}
+                            initialAddContentDate={inspectorAddContentDate}
+                            initialAddContentPrefill={inspectorAddContentPrefill ?? undefined}
+                            onAddContentOpenConsumed={() => {
+                                setInspectorInitialAddContentOpen(false);
+                                setInspectorAddContentDate(undefined);
+                                setInspectorAddContentPrefill(null);
                             }}
                             onContentItemClick={handleContentItemClickFromProject}
                             contentRefreshTrigger={contentRefreshTrigger}

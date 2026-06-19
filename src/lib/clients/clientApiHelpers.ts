@@ -7,14 +7,6 @@ import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput }
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
 import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
-import {
-  encryptPlatformCredentials,
-  serializePlatformCredentials,
-} from '@/lib/security/platformCredentialCrypto';
-import {
-  stripActionButtonPasswords,
-  serializeActionButtons,
-} from '@/lib/security/actionButtonCrypto';
 
 const CRM_FIELDS = new Set([
   'name',
@@ -46,28 +38,9 @@ const OPS_FIELDS = new Set([
 
 export function sanitizeClientForResponse(
   client: Record<string, unknown> | object,
-  isManagerOrAdmin: boolean
+  _isManagerOrAdmin: boolean
 ): Record<string, unknown> {
-  const out = { ...(client as Record<string, unknown>) };
-  const stripped = stripActionButtonPasswords(out as Parameters<typeof stripActionButtonPasswords>[0]);
-  const sanitized = { ...stripped } as Record<string, unknown>;
-  sanitized.socialLinks = serializePlatformCredentials(
-    sanitized.socialLinks as Record<string, unknown>[] | undefined,
-    isManagerOrAdmin
-  );
-  sanitized.techStack = serializePlatformCredentials(
-    sanitized.techStack as Record<string, unknown>[] | undefined,
-    isManagerOrAdmin
-  );
-  sanitized.marketingStack = serializePlatformCredentials(
-    sanitized.marketingStack as Record<string, unknown>[] | undefined,
-    isManagerOrAdmin
-  );
-  sanitized.actionButtons = serializeActionButtons(
-    (sanitized.actionButtons as Parameters<typeof serializeActionButtons>[0]) ?? [],
-    isManagerOrAdmin
-  );
-  return sanitized;
+  return { ...(client as Record<string, unknown>) };
 }
 
 export type ClientUpdateResult =
@@ -133,7 +106,7 @@ export function applyClientUpdates(
   if (body.socialLinks !== undefined) {
     const socialError = validateSocialLinksUpdate(body.socialLinks);
     if (socialError) return { ok: false, status: 400, error: socialError };
-    client.socialLinks = encryptPlatformCredentials(sanitizeSocialLinks(body.socialLinks) ?? []);
+    client.socialLinks = sanitizeSocialLinks(body.socialLinks) ?? [];
   }
   if (body.socialsToolbarVisible !== undefined) {
     client.socialsToolbarVisible = body.socialsToolbarVisible !== false;
@@ -141,12 +114,12 @@ export function applyClientUpdates(
   if (body.techStack !== undefined) {
     const techStackError = validateTechStackUpdate(body.techStack);
     if (techStackError) return { ok: false, status: 400, error: techStackError };
-    client.techStack = encryptPlatformCredentials(sanitizeTechStack(body.techStack) ?? []);
+    client.techStack = sanitizeTechStack(body.techStack) ?? [];
   }
   if (body.marketingStack !== undefined) {
     const marketingStackError = validateMarketingStackUpdate(body.marketingStack);
     if (marketingStackError) return { ok: false, status: 400, error: marketingStackError };
-    client.marketingStack = encryptPlatformCredentials(sanitizeMarketingStack(body.marketingStack) ?? []);
+    client.marketingStack = sanitizeMarketingStack(body.marketingStack) ?? [];
   }
   if (body.colorPalette !== undefined) {
     if (!Array.isArray(body.colorPalette)) return { ok: false, status: 400, error: 'colorPalette must be an array' };

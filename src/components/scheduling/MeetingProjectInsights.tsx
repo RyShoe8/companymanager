@@ -207,7 +207,6 @@ export default function MeetingProjectInsights({ resources, isManagerOrAdmin = f
                 },
                 credentials: {
                   login: link.login,
-                  password: link.password,
                 },
               })}
               title={SOCIAL_NETWORK_LABELS[link.network]}
@@ -236,7 +235,6 @@ export default function MeetingProjectInsights({ resources, isManagerOrAdmin = f
                   },
                   credentials: {
                     login: item.login,
-                    password: item.password,
                   },
                 })}
                 title={entry?.name ?? item.technologyId}
@@ -266,7 +264,6 @@ export default function MeetingProjectInsights({ resources, isManagerOrAdmin = f
                   },
                   credentials: {
                     login: item.login,
-                    password: item.password,
                   },
                 })}
                 title={entry?.name ?? item.toolId}
@@ -315,7 +312,6 @@ export default function MeetingProjectInsights({ resources, isManagerOrAdmin = f
           onSave={() => Promise.resolve()}
           onRemovePlatform={undefined}
           canEdit={false}
-          canViewPassword={isManagerOrAdmin}
         />
       )}
     </div>

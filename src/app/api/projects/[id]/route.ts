@@ -21,8 +21,6 @@ import { cleanupNewlyCompletedTasks, cleanupProjectMedia, normalizeTaskStatus } 
 import { cleanupRemovedTasks, findRemovedTasks } from '@/lib/cleanup/entityCleanup';
 import { resolveProjectCompletedAt, resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
-import { stripActionButtonPasswords, decryptActionButtonPassword } from '@/lib/security/actionButtonCrypto';
-import { encryptPlatformCredentials, stripPlatformCredentialPasswords } from '@/lib/security/platformCredentialCrypto';
 import { diffNewLinkedCategorySlugs } from '@/lib/insights/getProjectLinkedCategorySlugs';
 import { syncInsightAutoCompletion } from '@/lib/insights/syncInsightAutoCompletion';
 import { relinkTaskAssets } from '@/lib/assets/relinkTaskAssets';
@@ -49,7 +47,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const Employee = (await import('@/lib/models/Employee')).default;
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
     const userRole = currentUserEmployee?.role || 'User';
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
 
     const query: Record<string, unknown> = { _id: id, userId: { $in: orgUserIds } };
     if (userRole !== 'Administrator' && userRole !== 'Manager') {
@@ -88,44 +85,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       });
     }
 
-    // Strip action button passwords for non-admins
-    const sanitizedProject = stripActionButtonPasswords(migratedProject);
-
-    // Decrypt platform credentials for admins/managers, strip for others
-    if (isManagerOrAdmin) {
-      // Decrypt passwords for admins/managers
-      if (sanitizedProject.socialLinks) {
-        sanitizedProject.socialLinks = (sanitizedProject.socialLinks as any).map((link: any) => ({
-          ...link,
-          password: link.password ? decryptActionButtonPassword(link.password) : undefined,
-        }));
-      }
-      if (sanitizedProject.techStack) {
-        sanitizedProject.techStack = (sanitizedProject.techStack as any).map((item: any) => ({
-          ...item,
-          password: item.password ? decryptActionButtonPassword(item.password) : undefined,
-        }));
-      }
-      if (sanitizedProject.marketingStack) {
-        sanitizedProject.marketingStack = (sanitizedProject.marketingStack as any).map((item: any) => ({
-          ...item,
-          password: item.password ? decryptActionButtonPassword(item.password) : undefined,
-        }));
-      }
-    } else {
-      // Strip passwords for non-admins
-      if (sanitizedProject.socialLinks) {
-        sanitizedProject.socialLinks = stripPlatformCredentialPasswords(sanitizedProject.socialLinks as any);
-      }
-      if (sanitizedProject.techStack) {
-        sanitizedProject.techStack = stripPlatformCredentialPasswords(sanitizedProject.techStack as any);
-      }
-      if (sanitizedProject.marketingStack) {
-        sanitizedProject.marketingStack = stripPlatformCredentialPasswords(sanitizedProject.marketingStack as any);
-      }
-    }
-
-    return NextResponse.json(sanitizedProject);
+    return NextResponse.json(migratedProject);
   } catch (error) {
     console.error('Error fetching project:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -284,8 +244,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (socialError) {
         return NextResponse.json({ error: socialError }, { status: 400 });
       }
-      const sanitized = sanitizeSocialLinks(socialLinks) ?? [];
-      project.socialLinks = encryptPlatformCredentials(sanitized);
+      project.socialLinks = sanitizeSocialLinks(socialLinks) ?? [];
     }
     if (socialsToolbarVisible !== undefined) {
       project.socialsToolbarVisible = socialsToolbarVisible !== false;
@@ -295,16 +254,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (techStackError) {
         return NextResponse.json({ error: techStackError }, { status: 400 });
       }
-      const sanitized = sanitizeTechStack(techStack) ?? [];
-      project.techStack = encryptPlatformCredentials(sanitized);
+      project.techStack = sanitizeTechStack(techStack) ?? [];
     }
     if (marketingStack !== undefined) {
       const marketingStackError = validateMarketingStackUpdate(marketingStack);
       if (marketingStackError) {
         return NextResponse.json({ error: marketingStackError }, { status: 400 });
       }
-      const sanitized = sanitizeMarketingStack(marketingStack) ?? [];
-      project.marketingStack = encryptPlatformCredentials(sanitized);
+      project.marketingStack = sanitizeMarketingStack(marketingStack) ?? [];
     }
     if (category !== undefined) project.category = category;
     if (projectType !== undefined) {
@@ -696,7 +653,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       console.log('Final tasks being returned:', savedProject.tasks.length, 'tasks');
     }
 
-    return NextResponse.json(stripActionButtonPasswords(savedProject));
+    return NextResponse.json(savedProject);
   } catch (error) {
     // Update project error - log the actual error for debugging
     console.error('Error updating project:', error);

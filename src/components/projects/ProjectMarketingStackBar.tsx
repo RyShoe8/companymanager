@@ -38,7 +38,6 @@ export default function ProjectMarketingStackBar({
         category: t.category,
         id: t.toolId,
         login: t.login,
-        password: t.password,
       })),
     [marketingStack]
   );
@@ -50,7 +49,6 @@ export default function ProjectMarketingStackBar({
           category: t.category,
           toolId: t.id,
           login: t.login,
-          password: t.password,
         })),
       }),
     [onUpdate]

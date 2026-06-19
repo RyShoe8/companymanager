@@ -58,7 +58,6 @@ export type ProjectSocialLinkInput = {
   network: SocialNetwork;
   url: string;
   login?: string;
-  password?: string;
 };
 
 export function parseSocialLinkInput(raw: string): ProjectSocialLinkInput | null {
@@ -81,11 +80,9 @@ export function sanitizeSocialLinks(raw: unknown): ProjectSocialLinkInput[] | nu
     if (seen.has(key)) continue;
     seen.add(key);
     const login = typeof o.login === 'string' ? o.login.trim() : undefined;
-    const password = typeof o.password === 'string' ? o.password : undefined;
     out.push({
       ...parsed,
       ...(login ? { login } : {}),
-      ...(password ? { password } : {}),
     });
   }
   return out;

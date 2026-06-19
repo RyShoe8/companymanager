@@ -8,21 +8,17 @@ import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContex
 
 export interface PlatformCredential {
   login?: string;
-  password?: string;
 }
 
-/** Merge saved credentials onto a stack/social item, clearing keys when empty. */
+/** Merge saved login onto a stack/social item, clearing when empty. */
 export function applyPlatformCredentials<T extends PlatformCredential>(
   item: T,
   credentials: PlatformCredential
 ): T {
   const login = credentials.login?.trim();
-  const password = credentials.password;
   const next = { ...item };
   if (login) next.login = login;
   else delete next.login;
-  if (password) next.password = password;
-  else delete next.password;
   return next;
 }
 
@@ -40,7 +36,6 @@ interface PlatformCredentialModalProps {
   onSave: (credentials: PlatformCredential) => Promise<void>;
   onRemovePlatform?: () => Promise<void>;
   canEdit: boolean;
-  canViewPassword: boolean;
 }
 
 export default function PlatformCredentialModal({
@@ -51,58 +46,37 @@ export default function PlatformCredentialModal({
   onSave,
   onRemovePlatform,
   canEdit,
-  canViewPassword,
 }: PlatformCredentialModalProps) {
   const light = useInspectorLight();
   const [login, setLogin] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
-  /** Blocks browser autofill until the user focuses an empty credential field. */
   const [blockAutofill, setBlockAutofill] = useState(true);
 
   useEffect(() => {
     if (!isOpen) {
       setLogin('');
-      setPassword('');
-      setShowPassword(false);
       setCopyFeedback(false);
       setBlockAutofill(true);
       return;
     }
     const savedLogin = credentials.login?.trim() || '';
-    const savedPassword = credentials.password || '';
     setLogin(savedLogin);
-    setPassword(savedPassword);
-    setShowPassword(false);
     setCopyFeedback(false);
-    setBlockAutofill(!savedLogin && !savedPassword);
-  }, [isOpen, platform.name, credentials.login, credentials.password]);
+    setBlockAutofill(!savedLogin);
+  }, [isOpen, platform.name, credentials.login]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await onSave({
         login: login.trim() || undefined,
-        password: password || undefined,
       });
       onClose();
     } catch {
-      alert('Failed to save credentials.');
+      alert('Failed to save login.');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleCopyPassword = async () => {
-    if (!password) return;
-    try {
-      await navigator.clipboard.writeText(password);
-      setCopyFeedback(true);
-      window.setTimeout(() => setCopyFeedback(false), 1500);
-    } catch {
-      alert('Could not copy to clipboard.');
     }
   };
 
@@ -150,7 +124,7 @@ export default function PlatformCredentialModal({
               href={platform.url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`text-xs text-blue-600 hover:underline dark:text-blue-400 truncate block`}
+              className="text-xs text-blue-600 hover:underline dark:text-blue-400 truncate block"
             >
               {platform.url}
             </a>
@@ -158,17 +132,15 @@ export default function PlatformCredentialModal({
         </div>
 
         {canEdit ? (
-          <form
-            autoComplete="off"
-            onSubmit={(e) => e.preventDefault()}
-            className="space-y-3"
-          >
+          <form autoComplete="off" onSubmit={(e) => e.preventDefault()} className="space-y-3">
             <div>
-              <label className={`block text-xs font-medium mb-1.5 ${lightSurface(
-                'text-gray-700',
-                'dark:text-gray-300',
-                light
-              )}`}>
+              <label
+                className={`block text-xs font-medium mb-1.5 ${lightSurface(
+                  'text-gray-700',
+                  'dark:text-gray-300',
+                  light
+                )}`}
+              >
                 Login / Username
               </label>
               <input
@@ -191,97 +163,24 @@ export default function PlatformCredentialModal({
                 )}`}
               />
             </div>
-
-            <div>
-              <label className={`block text-xs font-medium mb-1.5 ${lightSurface(
-                'text-gray-700',
-                'dark:text-gray-300',
-                light
-              )}`}>
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="platform-credential-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setBlockAutofill(false)}
-                  placeholder="Enter password"
-                  autoComplete="off"
-                  readOnly={blockAutofill}
-                  data-1p-ignore
-                  data-lpignore="true"
-                  data-form-type="other"
-                  disabled={saving}
-                  className={`w-full px-3 py-2 pr-10 border rounded-lg text-sm ${lightSurface(
-                    'border-gray-200 bg-white text-gray-900',
-                    'dark:border-gray-600 dark:bg-gray-700 dark:text-white',
-                    light
-                  )}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={saving}
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded ${lightSurface(
-                    'hover:bg-gray-100',
-                    'dark:hover:bg-gray-600',
-                    light
-                  )}`}
-                >
-                  {showPassword ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
           </form>
         ) : (
-          <div className="space-y-2">
-            {credentials.login && (
-              <div>
-                <label className={`block text-xs font-medium mb-1 ${lightSurface(
+          credentials.login && (
+            <div>
+              <label
+                className={`block text-xs font-medium mb-1 ${lightSurface(
                   'text-gray-500',
                   'dark:text-gray-400',
                   light
-                )}`}>
-                  Login / Username
-                </label>
-                <p className={`text-sm ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>
-                  {credentials.login}
-                </p>
-              </div>
-            )}
-            {canViewPassword && credentials.password && (
-              <div>
-                <label className={`block text-xs font-medium mb-1 ${lightSurface(
-                  'text-gray-500',
-                  'dark:text-gray-400',
-                  light
-                )}`}>
-                  Password
-                </label>
-                <p className={`text-sm ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>
-                  {showPassword ? password : '••••••••'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className={`text-xs text-blue-600 hover:underline dark:text-blue-400 mt-1`}
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            )}
-          </div>
+                )}`}
+              >
+                Login / Username
+              </label>
+              <p className={`text-sm ${lightSurface('text-gray-900', 'dark:text-white', light)}`}>
+                {credentials.login}
+              </p>
+            </div>
+          )
         )}
 
         <div className="pt-3 border-t flex flex-wrap gap-2">
@@ -305,17 +204,6 @@ export default function PlatformCredentialModal({
             label={copyFeedback ? 'Copied' : 'Copy URL'}
             onClick={handleCopyUrl}
           />
-          {canViewPassword && credentials.password && (
-            <ModalAction
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              }
-              label={copyFeedback ? 'Copied' : 'Copy Password'}
-              onClick={handleCopyPassword}
-            />
-          )}
           {canEdit && onRemovePlatform && (
             <ModalAction
               icon={
@@ -332,21 +220,10 @@ export default function PlatformCredentialModal({
 
         {canEdit && (
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button
-              type="button"
-              size="sm"
-              disabled={saving}
-              onClick={handleSave}
-            >
+            <Button type="button" size="sm" disabled={saving} onClick={handleSave}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={saving}
-              onClick={onClose}
-            >
+            <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={onClose}>
               Cancel
             </Button>
           </div>

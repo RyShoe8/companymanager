@@ -46,7 +46,7 @@ describe('techStack utils', () => {
     ]);
   });
 
-  it('preserves login and password on sanitize', () => {
+  it('preserves login and strips password on sanitize', () => {
     const stack = [
       {
         category: 'hosting',
@@ -55,7 +55,9 @@ describe('techStack utils', () => {
         password: 'secret',
       },
     ];
-    expect(sanitizeTechStack(stack)).toEqual(stack);
+    expect(sanitizeTechStack(stack)).toEqual([
+      { category: 'hosting', technologyId: 'vercel', login: 'admin@example.com' },
+    ]);
   });
 
   it('does not add credentials for catalog-only entries', () => {

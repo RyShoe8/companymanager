@@ -38,7 +38,6 @@ export default function ProjectTechStackBar({
         category: t.category,
         id: t.technologyId,
         login: t.login,
-        password: t.password,
       })),
     [techStack]
   );
@@ -50,7 +49,6 @@ export default function ProjectTechStackBar({
           category: t.category,
           technologyId: t.id,
           login: t.login,
-          password: t.password,
         })),
       }),
     [onUpdate]

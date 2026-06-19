@@ -44,7 +44,7 @@ describe('marketingStack utils', () => {
     ]);
   });
 
-  it('preserves login and password on sanitize', () => {
+  it('preserves login and strips password on sanitize', () => {
     const stack = [
       {
         category: 'analytics',
@@ -53,6 +53,8 @@ describe('marketingStack utils', () => {
         password: 'secret',
       },
     ];
-    expect(sanitizeMarketingStack(stack)).toEqual(stack);
+    expect(sanitizeMarketingStack(stack)).toEqual([
+      { category: 'analytics', toolId: 'posthog', login: 'ops@example.com' },
+    ]);
   });
 });

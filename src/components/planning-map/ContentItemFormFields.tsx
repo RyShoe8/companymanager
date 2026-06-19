@@ -13,14 +13,16 @@ export function FormSelect({
   value,
   onChange,
   children,
+  labelClassName = 'block text-sm font-medium text-text-primary',
 }: {
   label: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   children: React.ReactNode;
+  labelClassName?: string;
 }) {
   return (
-    <label className="block text-sm font-medium text-text-primary">
+    <label className={labelClassName}>
       {label}
       <select value={value} onChange={onChange} className={formInputClass}>
         {children}
@@ -32,13 +34,18 @@ export function FormSelect({
 export function DistributionSection({
   distributionMethods,
   onToggle,
+  inspectorStyled = false,
 }: {
   distributionMethods: DistributionMethod[];
   onToggle: (method: DistributionMethod) => void;
+  inspectorStyled?: boolean;
 }) {
+  const labelClass = inspectorStyled
+    ? 'block text-sm font-medium text-gray-900 dark:text-white mb-2'
+    : 'block text-sm font-medium text-text-primary mb-2';
   return (
     <div>
-      <label className="block text-sm font-medium text-text-primary mb-2">Distribution methods</label>
+      <label className={labelClass}>Distribution methods</label>
       <div className="flex flex-wrap gap-2">
         {DISTRIBUTION_METHODS.map((method) => {
           const checked = distributionMethods.includes(method);
@@ -73,6 +80,7 @@ export interface ContentItemFormFieldsProps {
   title: string;
   onTitleChange: (value: string) => void;
   titleAutoFocus?: boolean;
+  inspectorStyled?: boolean;
   distributionMethods: DistributionMethod[];
   onToggleDistribution: (method: DistributionMethod) => void;
   channel: ContentChannel;
@@ -111,7 +119,15 @@ export default function ContentItemFormFields({
   estimatedHours,
   onEstimatedHoursChange,
   children,
+  inspectorStyled = false,
 }: ContentItemFormFieldsProps) {
+  const labelClass = inspectorStyled
+    ? 'block text-sm font-medium text-gray-900 dark:text-white'
+    : 'block text-sm font-medium text-text-primary';
+  const subLabelClass = inspectorStyled
+    ? 'block text-sm font-medium text-gray-900 dark:text-white mb-1'
+    : 'block text-sm font-medium text-text-primary mb-1';
+
   return (
     <>
       <Input
@@ -122,22 +138,36 @@ export default function ContentItemFormFields({
         placeholder="Content title"
         autoFocus={titleAutoFocus}
       />
-      <DistributionSection distributionMethods={distributionMethods} onToggle={onToggleDistribution} />
-      <FormSelect label="Channel *" value={channel} onChange={(e) => onChannelChange(e.target.value as ContentChannel)}>
+      <DistributionSection
+        distributionMethods={distributionMethods}
+        onToggle={onToggleDistribution}
+        inspectorStyled={inspectorStyled}
+      />
+      <FormSelect
+        label="Channel *"
+        value={channel}
+        onChange={(e) => onChannelChange(e.target.value as ContentChannel)}
+        labelClassName={labelClass}
+      >
         {CONTENT_CHANNELS.map((c) => (
           <option key={c} value={c}>
             {c}
           </option>
         ))}
       </FormSelect>
-      <FormSelect label="Status" value={status} onChange={(e) => onStatusChange(e.target.value as ContentStatus)}>
+      <FormSelect
+        label="Status"
+        value={status}
+        onChange={(e) => onStatusChange(e.target.value as ContentStatus)}
+        labelClassName={labelClass}
+      >
         {CONTENT_STATUSES.map((s) => (
           <option key={s} value={s}>
             {s.replace('_', ' ')}
           </option>
         ))}
       </FormSelect>
-      <label className="block text-sm font-medium text-text-primary">
+      <label className={labelClass}>
         Publish date
         <input
           type="date"
@@ -147,13 +177,14 @@ export default function ContentItemFormFields({
         />
       </label>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-1">Notes</label>
+        <label className={subLabelClass}>Notes</label>
         <AutoGrowTextarea value={notes} onChange={(e) => onNotesChange(e.target.value)} placeholder="Optional notes" />
       </div>
       <FormSelect
         label="Assignee"
         value={assignedToEmployeeId}
         onChange={(e) => onAssignedToEmployeeIdChange(e.target.value)}
+        labelClassName={labelClass}
       >
         <option value="">Unassigned</option>
         {assigneeOptions.map((emp) => (

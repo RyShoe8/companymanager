@@ -27,6 +27,8 @@ import { computeProjectAssignedHours } from '@/lib/utils/projectHours';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import InsightsPanel from '@/components/insights/InsightsPanel';
+import ContentItemCreatePanel from '@/components/planning-map/ContentItemCreatePanel';
+import { IClient } from '@/lib/models/Client';
 import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
 import MultiSelect from '@/components/ui/MultiSelect';
@@ -105,8 +107,12 @@ interface InlineProjectViewProps {
   onDelete?: () => void;
   onClose: () => void;
   onRefresh: () => void;
-  /** Called when user clicks "Add Content"; parent should open ContentItemCreateModal and refresh on success. */
-  onAddContent?: (project: IProject) => void;
+  clients?: IClient[];
+  /** Open add-content panel on mount (e.g. voice intent while inspector is focused on this project). */
+  initialAddContentOpen?: boolean;
+  initialAddContentDate?: Date;
+  initialAddContentPrefill?: { title?: string; channel?: string; notes?: string };
+  onAddContentOpenConsumed?: () => void;
   /** Called when user clicks a content item; parent should open ContentItemDetailModal. */
   onContentItemClick?: (item: IContentItem) => void;
   /** When this changes, project content list is refetched (e.g. after detail modal save/delete). */
@@ -211,7 +217,6 @@ type ProjectPanelActionButton = {
   label: string;
   url: string;
   kind?: 'link' | 'email';
-  password?: string;
 };
 
 function normalizeProjectActionButton(raw: unknown): ProjectPanelActionButton | null {
@@ -221,8 +226,7 @@ function normalizeProjectActionButton(raw: unknown): ProjectPanelActionButton | 
   const url = typeof o.url === 'string' ? o.url : '';
   if (!label || !url) return null;
   if (o.kind === 'email') {
-    const password = typeof o.password === 'string' ? o.password : undefined;
-    return password !== undefined ? { label, url, kind: 'email' as const, password } : { label, url, kind: 'email' as const };
+    return { label, url, kind: 'email' as const };
   }
   return { label, url };
 }
@@ -232,16 +236,6 @@ function normalizeActionButtonsList(raw: unknown): ProjectPanelActionButton[] {
   return arr
     .map(normalizeProjectActionButton)
     .filter((b): b is ProjectPanelActionButton => b != null);
-}
-
-function mailtoAddressFromUrl(mailtoUrl: string): string {
-  const m = /^mailto:(.+)$/i.exec(String(mailtoUrl).trim());
-  if (!m) return '';
-  try {
-    return decodeURIComponent(m[1]);
-  } catch {
-    return m[1];
-  }
 }
 
 function contentAssigneeOptions(
@@ -262,7 +256,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return canUserContributeToProject(project, currentUserEmployeeId ?? null, isManagerOrAdmin);
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, onAddContent, onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const localProjectRef = useRef(localProject);
   localProjectRef.current = localProject;
@@ -277,23 +271,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const initialTaskAppliedKeyRef = useRef<string | null>(null);
   const initialContentAppliedKeyRef = useRef<string | null>(null);
+  const initialAddContentAppliedKeyRef = useRef<string | null>(null);
   const autoAddTaskAppliedKeyRef = useRef<string | null>(null);
+  const [addContentOpen, setAddContentOpen] = useState(false);
+  const [addContentPrefill, setAddContentPrefill] = useState<{
+    title?: string;
+    channel?: string;
+    notes?: string;
+  } | null>(null);
+  const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
   const [autoEditTaskId, setAutoEditTaskId] = useState<string | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
-  const [credentialSheet, setCredentialSheet] = useState<{
-    index: number;
-    label: string;
-    url: string;
-    password: string;
-  } | null>(null);
-  const [credentialSheetMode, setCredentialSheetMode] = useState<'view' | 'edit'>('view');
-  const [credentialEditLabel, setCredentialEditLabel] = useState('');
-  const [credentialEditEmail, setCredentialEditEmail] = useState('');
-  const [credentialEditPassword, setCredentialEditPassword] = useState('');
-  const [credentialSaving, setCredentialSaving] = useState(false);
-  const [credentialReveal, setCredentialReveal] = useState(false);
   /** Tab for tasks vs content. */
   const [viewTab, setViewTab] = useState<'tasks' | 'content'>('tasks');
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
@@ -537,63 +527,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       alert('Could not save asset.');
     } finally {
       setPreviewSaving(false);
-    }
-  };
-
-  const closeCredentialSheet = () => {
-    setCredentialSheet(null);
-    setCredentialSheetMode('view');
-    setCredentialReveal(false);
-  };
-
-  const saveCredentialEmailButton = async () => {
-    if (!credentialSheet || credentialSaving) return;
-    const emailTrim = credentialEditEmail.trim();
-    if (!emailTrim) {
-      alert('Email address is required.');
-      return;
-    }
-    setCredentialSaving(true);
-    try {
-      const res = await fetch(`/api/projects/${localProject._id}/buttons`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          index: credentialSheet.index,
-          label: credentialEditLabel,
-          email: emailTrim,
-          password: credentialEditPassword,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const arr = normalizeActionButtonsList(Array.isArray(data) ? data : []);
-        setActionButtons(arr);
-        const idx = credentialSheet.index;
-        const row = arr[idx];
-        if (row && row.kind === 'email') {
-          setCredentialSheet({
-            index: idx,
-            label: row.label,
-            url: row.url,
-            password: row.password ?? '',
-          });
-        }
-        setCredentialSheetMode('view');
-      } else {
-        let msg = 'Could not save.';
-        try {
-          const errBody = await res.json();
-          if (errBody && typeof errBody.error === 'string') msg = errBody.error;
-        } catch {
-          // ignore
-        }
-        alert(msg);
-      }
-    } catch {
-      alert('Could not save.');
-    } finally {
-      setCredentialSaving(false);
     }
   };
 
@@ -980,6 +913,38 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     onInitialOpenContentConsumed,
     scrollContainerRef,
   ]);
+
+  useEffect(() => {
+    if (!initialAddContentOpen) {
+      initialAddContentAppliedKeyRef.current = null;
+      return;
+    }
+    const key = `${project._id.toString()}-add-content`;
+    if (initialAddContentAppliedKeyRef.current === key) return;
+    initialAddContentAppliedKeyRef.current = key;
+    setAddContentPrefill(initialAddContentPrefill ?? null);
+    setAddContentDefaultDate(initialAddContentDate);
+    setAddContentOpen(true);
+    setViewTab('content');
+    scrollElementIntoContainerAfterLayout(
+      () => document.getElementById('content-create-panel'),
+      scrollContainerRef?.current ?? null,
+      { block: 'start', behavior: 'smooth' }
+    );
+    onAddContentOpenConsumed?.();
+  }, [initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, project._id, onAddContentOpenConsumed, scrollContainerRef]);
+
+  const handleOpenAddContent = useCallback(() => {
+    setAddContentPrefill(null);
+    setAddContentDefaultDate(undefined);
+    setAddContentOpen(true);
+    setViewTab('content');
+    scrollElementIntoContainerAfterLayout(
+      () => document.getElementById('content-create-panel'),
+      scrollContainerRef?.current ?? null,
+      { block: 'start', behavior: 'smooth' }
+    );
+  }, [scrollContainerRef]);
 
   useEffect(() => {
     if (pendingScrollToTaskIndex == null) return;
@@ -2061,28 +2026,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                 >
                   {btn.label}
                 </a>
-                {isEmail && btn.password != null && btn.password !== '' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCredentialReveal(false);
-                      setCredentialSheetMode('view');
-                      setCredentialSheet({
-                        index: idx,
-                        label: btn.label,
-                        url: btn.url,
-                        password: btn.password ?? '',
-                      });
-                    }}
-                    className={`p-0.5 shrink-0 rounded touch-manipulation ${iconMuted}`}
-                    aria-label="Show mailbox password"
-                    title="Password"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                    </svg>
-                  </button>
-                )}
                 {isManagerOrAdmin && (
                   <button
                     type="button"
@@ -2126,7 +2069,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   ? {
                       kind: 'email',
                       email: payload.email,
-                      ...(payload.password?.trim() ? { password: payload.password.trim() } : {}),
                       ...(payload.label ? { label: payload.label } : {}),
                     }
                   : { label: payload.label, url: payload.url };
@@ -2280,6 +2222,26 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
       {isManagerOrAdmin && <InsightsPanel projectId={localProject._id.toString()} />}
 
+      {canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && (
+        <ContentItemCreatePanel
+          project={localProject}
+          expanded={addContentOpen}
+          onExpandedChange={setAddContentOpen}
+          clients={clients}
+          employees={employees}
+          isManagerOrAdmin={isManagerOrAdmin}
+          defaultPublishDate={addContentDefaultDate}
+          initialTitle={addContentPrefill?.title}
+          initialChannel={addContentPrefill?.channel}
+          initialNotes={addContentPrefill?.notes}
+          onSuccess={() => {
+            setAddContentPrefill(null);
+            setAddContentDefaultDate(undefined);
+            onContentListChanged?.();
+          }}
+        />
+      )}
+
       {/* Tasks / Content – tabbed */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="flex items-center gap-1 p-2 border-b border-gray-100 sticky top-0 bg-white z-10 shadow-sm rounded-t-lg">
@@ -2288,7 +2250,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
           <div className="ml-auto flex gap-2">
             {viewTab === 'tasks' && canContributeToProject && <Button size="sm" onClick={() => void handleAddTask()}>+ Add Task</Button>}
-            {viewTab === 'content' && onAddContent && canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && <Button size="sm" variant="secondary" onClick={() => onAddContent(localProject)}>+ Add Content</Button>}
+            {viewTab === 'content' && canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && (
+              <Button size="sm" variant="secondary" onClick={handleOpenAddContent}>
+                + Add Content
+              </Button>
+            )}
           </div>
         </div>
 
@@ -3056,167 +3022,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               Cancel
             </Button>
           </div>
-        </div>
-      </Modal>
-
-      {/* Email smart button — mailbox password */}
-      <Modal
-        isOpen={credentialSheet !== null}
-        onClose={closeCredentialSheet}
-        title={
-          credentialSheetMode === 'edit'
-            ? 'Edit email shortcut'
-            : credentialSheet
-              ? `Password · ${credentialSheet.label}`
-              : 'Password'
-        }
-        elevated
-        stackAboveOverlays
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Mailbox password for this project shortcut. Stored for your team only; use a dedicated mailbox password when possible.
-          </p>
-          {credentialSheet && credentialSheetMode === 'view' && (
-            <>
-              {credentialSheet.password ? (
-                <>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type={credentialReveal ? 'text' : 'password'}
-                      readOnly
-                      value={credentialSheet.password}
-                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-900 text-sm font-mono"
-                      aria-label="Mailbox password"
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="shrink-0"
-                      onClick={() => setCredentialReveal((r) => !r)}
-                    >
-                      {credentialReveal ? 'Hide' : 'Show'}
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(credentialSheet.password);
-                          alert('Password copied.');
-                        } catch {
-                          alert('Could not copy to clipboard.');
-                        }
-                      }}
-                    >
-                      Copy password
-                    </Button>
-                    {isManagerOrAdmin && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setCredentialReveal(false);
-                          setCredentialEditLabel(credentialSheet.label);
-                          setCredentialEditEmail(mailtoAddressFromUrl(credentialSheet.url));
-                          setCredentialEditPassword(credentialSheet.password);
-                          setCredentialSheetMode('edit');
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-gray-500">No password stored for this email button.</p>
-                  {isManagerOrAdmin && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setCredentialReveal(false);
-                        setCredentialEditLabel(credentialSheet.label);
-                        setCredentialEditEmail(mailtoAddressFromUrl(credentialSheet.url));
-                        setCredentialEditPassword(credentialSheet.password);
-                        setCredentialSheetMode('edit');
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  )}
-                </>
-              )}
-            </>
-          )}
-          {credentialSheet && credentialSheetMode === 'edit' && (
-            <>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Label</label>
-                <input
-                  type="text"
-                  value={credentialEditLabel}
-                  onChange={(e) => setCredentialEditLabel(e.target.value)}
-                  disabled={credentialSaving}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={credentialEditEmail}
-                  onChange={(e) => setCredentialEditEmail(e.target.value)}
-                  disabled={credentialSaving}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Mailbox password</label>
-                <input
-                  type="text"
-                  value={credentialEditPassword}
-                  onChange={(e) => setCredentialEditPassword(e.target.value)}
-                  disabled={credentialSaving}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm font-mono"
-                  placeholder="Leave empty to clear stored password"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={credentialSaving || !credentialEditEmail.trim()}
-                  onClick={() => void saveCredentialEmailButton()}
-                >
-                  {credentialSaving ? 'Saving…' : 'Save'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={credentialSaving}
-                  onClick={() => {
-                    if (!credentialSheet) return;
-                    setCredentialEditLabel(credentialSheet.label);
-                    setCredentialEditEmail(mailtoAddressFromUrl(credentialSheet.url));
-                    setCredentialEditPassword(credentialSheet.password);
-                    setCredentialSheetMode('view');
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </>
-          )}
         </div>
       </Modal>
 

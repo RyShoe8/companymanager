@@ -14,7 +14,7 @@ type AddStep = 'type' | 'link' | 'email' | 'document' | 'social' | 'screenshot' 
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
-  | { kind: 'email'; email: string; password?: string; label?: string };
+  | { kind: 'email'; email: string; label?: string };
 
 export type PendingAssetPayload = {
   name: string;
@@ -92,7 +92,6 @@ export default function CategoryModal({
   const [docContent, setDocContent] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [emailAddr, setEmailAddr] = useState('');
-  const [emailPassword, setEmailPassword] = useState('');
   const [emailLabel, setEmailLabel] = useState('');
   const [addingEmail, setAddingEmail] = useState(false);
   const [socialUrl, setSocialUrl] = useState('');
@@ -236,7 +235,6 @@ export default function CategoryModal({
         await onAddButton({
           kind: 'email',
           email: emailAddr.trim(),
-          ...(emailPassword.trim() ? { password: emailPassword } : {}),
           ...(emailLabel.trim() ? { label: emailLabel.trim() } : {}),
         });
         onClose();
@@ -291,7 +289,7 @@ export default function CategoryModal({
         { id: 'screenshot', label: 'Screenshot', desc: 'Capture a screen or upload an image' },
         { id: 'recording', label: 'Recording', desc: 'Record screen + voice or upload video' },
         { id: 'link', label: 'Link', desc: 'Any URL with a button label' },
-        { id: 'email', label: 'Email', desc: 'Mailbox address; optional stored password' },
+        { id: 'email', label: 'Email', desc: 'Mailbox address shortcut' },
       ];
       if (socialsToolbarHidden && onAddSocial && !useAssetFlow) {
         typeOptions.splice(1, 0, { id: 'social', label: 'Socials', desc: 'Add a social profile URL' });
@@ -357,7 +355,7 @@ export default function CategoryModal({
       return (
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Add a mailbox shortcut. The email opens your mail app in a new tab. Password is optional; if you save one, use the key icon on the project to view or copy it.
+            Add a mailbox shortcut. The email opens your mail app in a new tab.
           </p>
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Email address</label>
@@ -367,17 +365,6 @@ export default function CategoryModal({
               value={emailAddr}
               onChange={(e) => setEmailAddr(e.target.value)}
               placeholder="name@company.com"
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Password (optional)</label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={emailPassword}
-              onChange={(e) => setEmailPassword(e.target.value)}
-              placeholder="Mailbox password"
               className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
             />
           </div>

@@ -304,7 +304,6 @@ export default function ClientOperationsPanel({
                   ? {
                       kind: 'email',
                       email: payload.email,
-                      ...(payload.password?.trim() ? { password: payload.password.trim() } : {}),
                       ...(payload.label ? { label: payload.label } : {}),
                     }
                   : { label: payload.label, url: payload.url };

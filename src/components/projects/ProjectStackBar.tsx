@@ -17,7 +17,7 @@ import {
   WORKSPACE_TOOLBAR_BUTTON_CLASS,
 } from '@/lib/ui/surfaceStyles';
 
-export type StackItem<C extends string> = { category: C; id: string; login?: string; password?: string };
+export type StackItem<C extends string> = { category: C; id: string; login?: string };
 
 export interface ProjectStackBarConfig<C extends string> {
   /** Toolbar toggle button label, e.g. "Tech Stack". */
@@ -322,7 +322,6 @@ export default function ProjectStackBar<C extends string>({
         }}
         credentials={{
           login: selectedItem?.login,
-          password: selectedItem?.password,
         }}
         onSave={(credentials) => {
           if (selectedIndex !== null) {
@@ -337,7 +336,6 @@ export default function ProjectStackBar<C extends string>({
           return Promise.resolve();
         } : undefined}
         canEdit={isManagerOrAdmin}
-        canViewPassword={isManagerOrAdmin}
       />
     </>
   );

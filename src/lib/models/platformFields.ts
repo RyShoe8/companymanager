@@ -16,7 +16,6 @@ export interface IProjectSocialLink {
   network: SocialNetwork;
   url: string;
   login?: string;
-  password?: string;
 }
 
 export type TechStackCategory = 'hosting' | 'database' | 'api' | 'framework' | 'payments';
@@ -25,7 +24,6 @@ export interface IProjectTechStackItem {
   category: TechStackCategory;
   technologyId: string;
   login?: string;
-  password?: string;
 }
 
 export type MarketingStackCategory = 'email' | 'analytics' | 'social' | 'crm';
@@ -34,7 +32,6 @@ export interface IProjectMarketingStackItem {
   category: MarketingStackCategory;
   toolId: string;
   login?: string;
-  password?: string;
 }
 
 export type ProjectActionButtonKind = 'link' | 'email';
@@ -44,7 +41,6 @@ export interface IProjectActionButton {
   url: string;
   referralSourceId?: Types.ObjectId;
   kind?: ProjectActionButtonKind;
-  password?: string;
 }
 
 const SOCIAL_NETWORK_ENUM = [
@@ -70,7 +66,6 @@ export const socialLinksSchemaDefinition = {
       },
       url: { type: String, trim: true, required: true },
       login: { type: String, trim: true },
-      password: { type: String, trim: true },
     },
   ],
   default: [],
@@ -86,7 +81,6 @@ export const techStackSchemaDefinition = {
       },
       technologyId: { type: String, trim: true, required: true },
       login: { type: String, trim: true },
-      password: { type: String, trim: true },
     },
   ],
   default: [],
@@ -102,7 +96,6 @@ export const marketingStackSchemaDefinition = {
       },
       toolId: { type: String, trim: true, required: true },
       login: { type: String, trim: true },
-      password: { type: String, trim: true },
     },
   ],
   default: [],
@@ -118,7 +111,6 @@ export const actionButtonsSchemaDefinition = [
       enum: ['link', 'email'],
       default: 'link',
     },
-    password: { type: String, trim: true },
   },
 ];
 

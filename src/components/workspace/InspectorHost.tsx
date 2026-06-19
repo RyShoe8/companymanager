@@ -4,6 +4,7 @@ import { useMemo, useRef, useCallback, type RefObject } from 'react';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import { IProject } from '@/lib/models/Project';
+import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem } from '@/lib/models/ContentItem';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
@@ -28,7 +29,11 @@ interface InspectorHostProps {
     scrollContainerRef?: RefObject<HTMLDivElement | null>;
     autoAddTaskOnOpen?: boolean;
     onAutoAddTaskConsumed?: () => void;
-    onAddContent?: (project: IProject) => void;
+    clients?: IClient[];
+    initialAddContentOpen?: boolean;
+    initialAddContentDate?: Date;
+    initialAddContentPrefill?: { title?: string; channel?: string; notes?: string };
+    onAddContentOpenConsumed?: () => void;
     onContentItemClick?: (item: IContentItem) => void;
     contentRefreshTrigger?: number;
     onContentListChanged?: () => void;
@@ -52,7 +57,11 @@ export default function InspectorHost({
     scrollContainerRef: scrollContainerRefProp,
     autoAddTaskOnOpen,
     onAutoAddTaskConsumed,
-    onAddContent,
+    clients = [],
+    initialAddContentOpen,
+    initialAddContentDate,
+    initialAddContentPrefill,
+    onAddContentOpenConsumed,
     onContentItemClick,
     contentRefreshTrigger,
     onContentListChanged,
@@ -115,10 +124,14 @@ export default function InspectorHost({
                     <InspectorLightProvider>
                     <InlineProjectView
                         project={focusedProject}
+                        clients={clients}
                         employees={employees}
                         isManagerOrAdmin={isManagerOrAdmin}
                         currentUserEmployeeId={currentUserEmployeeId}
-                        onAddContent={onAddContent}
+                        initialAddContentOpen={initialAddContentOpen}
+                        initialAddContentDate={initialAddContentDate}
+                        initialAddContentPrefill={initialAddContentPrefill}
+                        onAddContentOpenConsumed={onAddContentOpenConsumed}
                         onContentItemClick={onContentItemClick}
                         contentRefreshTrigger={contentRefreshTrigger}
                         onContentListChanged={onContentListChanged}
