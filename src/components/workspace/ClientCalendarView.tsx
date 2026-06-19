@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
@@ -12,6 +12,17 @@ import CalendarCardHeader, {
   CalendarActiveStats,
   CalendarProgressBar,
 } from '@/components/planning-map/CalendarCardHeader';
+import WeeklyDayGridShell from '@/components/planning-map/WeeklyDayGridShell';
+import { CalendarItemCardList } from '@/components/planning-map/CalendarItemCard';
+import {
+  collectCalendarItemsForDay,
+  collectCalendarItemsForRange,
+  sortFlatRangeItems,
+  taskIndexForEntry,
+  type CalendarItemEntry,
+  type CalendarItemModeOptions,
+  calendarDayKey,
+} from '@/lib/calendar/calendarItemMode';
 import {
   buildClientCalendarRows,
   sortClientRowsByActivity,
@@ -36,6 +47,8 @@ interface ClientCalendarViewProps {
   currentDate: Date;
   onClientClick: (client: IClient) => void;
   onProjectClick?: (client: IClient, project: IProject) => void;
+  onTaskClick?: (project: IProject, taskIndex: number) => void;
+  onContentItemClick?: (item: IContentItem) => void;
   onDateChange: (date: Date) => void;
 }
 
@@ -199,9 +212,48 @@ export default function ClientCalendarView({
   currentDate,
   onClientClick,
   onProjectClick,
+  onTaskClick,
+  onContentItemClick,
   onDateChange,
 }: ClientCalendarViewProps) {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const itemMode = showTasks || showContent;
+
+  const clientIds = useMemo(() => new Set(clients.map((c) => String(c._id))), [clients]);
+
+  const clientByProjectId = useMemo(() => {
+    const clientMap = new Map(clients.map((c) => [String(c._id), c]));
+    const map = new Map<string, IClient>();
+    for (const project of allProjects) {
+      const clientId = project.clientId?.toString();
+      if (clientId && clientMap.has(clientId)) {
+        map.set(String(project._id), clientMap.get(clientId)!);
+      }
+    }
+    return map;
+  }, [clients, allProjects]);
+
+  const clientScopedProjects = useMemo(
+    () => allProjects.filter((p) => p.clientId && clientIds.has(String(p.clientId))),
+    [allProjects, clientIds]
+  );
+
+  const itemModeOptions: CalendarItemModeOptions = useMemo(
+    () => ({
+      showTasks,
+      showContent,
+      referenceDate: currentDate,
+      projectFilter: (project) =>
+        !!project.clientId && clientIds.has(String(project.clientId)),
+    }),
+    [showTasks, showContent, currentDate, clientIds]
+  );
+
+  const getClientBadge = (entry: CalendarItemEntry) => {
+    const client = clientByProjectId.get(String(entry.project._id));
+    if (!client) return undefined;
+    return { name: client.name, color: client.color || '#3b82f6' };
+  };
 
   const rows = sortClientRowsByActivity(
     buildClientCalendarRows(clients, allProjects, contentItems, timeframe, currentDate, {
@@ -280,18 +332,88 @@ export default function ClientCalendarView({
     );
   };
 
-  const renderTodayView = () => (
-    <div className="p-6">
-      {renderClientGrid(
-        visibleRows,
-        'No clients in this period',
-        'Add a client or adjust your timeframe to see client activity.'
-      )}
-    </div>
+  const renderItemCardList = (
+    items: CalendarItemEntry[],
+    opts?: { compact?: boolean; className?: string }
+  ) => (
+    <CalendarItemCardList
+      items={items}
+      getSeenStatus={() => 'none'}
+      getTaskIndex={(entry) => taskIndexForEntry(entry)}
+      getClientBadge={getClientBadge}
+      onTaskClick={onTaskClick}
+      onContentItemClick={onContentItemClick}
+      compact={opts?.compact}
+      className={opts?.className}
+    />
   );
 
+  const renderTodayView = () => {
+    if (itemMode) {
+      const today = new Date(startDate);
+      today.setHours(0, 0, 0, 0);
+      const items = collectCalendarItemsForDay(
+        today,
+        clientScopedProjects,
+        contentItems,
+        itemModeOptions
+      );
+      if (items.length === 0) {
+        return (
+          <div className="p-6">
+            <EmptyStateIllustration
+              title="No tasks or content today"
+              description="No client tasks or content are scheduled for today."
+            />
+          </div>
+        );
+      }
+      return <div className="p-6">{renderItemCardList(items)}</div>;
+    }
+    return (
+      <div className="p-6">
+        {renderClientGrid(
+          visibleRows,
+          'No clients in this period',
+          'Add a client or adjust your timeframe to see client activity.'
+        )}
+      </div>
+    );
+  };
+
   const renderWeeklyView = () => {
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    if (itemMode) {
+      const days: Date[] = [];
+      const current = new Date(startDate);
+      for (let i = 0; i < 7; i++) {
+        days.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+      }
+      const rangeItems = sortFlatRangeItems(
+        collectCalendarItemsForRange(startDate, endDate, clientScopedProjects, contentItems, itemModeOptions),
+        itemModeOptions
+      );
+      const itemsByDay = new Map<string, CalendarItemEntry[]>();
+      for (const day of days) itemsByDay.set(calendarDayKey(day), []);
+      for (const item of rangeItems) {
+        const key = calendarDayKey(item.day);
+        if (!itemsByDay.has(key)) itemsByDay.set(key, []);
+        itemsByDay.get(key)!.push(item);
+      }
+
+      return (
+        <WeeklyDayGridShell
+          startDate={startDate}
+          minColumnHeight={600}
+          renderColumn={(day) => {
+            const dayItems = itemsByDay.get(calendarDayKey(day)) ?? [];
+            if (dayItems.length === 0) return null;
+            return renderItemCardList(dayItems, { compact: true });
+          }}
+        />
+      );
+    }
+
     const weekRows = clientsForRange(rows, startDate, endDate, allProjects, contentItems);
     const baseTop = 60;
 
@@ -315,57 +437,51 @@ export default function ClientCalendarView({
     }
 
     return (
-      <div className="overflow-x-auto overscroll-contain">
-        <div className="min-w-[800px]">
-          <div className="grid grid-cols-7 border-b border-border">
-            {dayNames.map((day) => (
-              <div key={day} className="p-3 text-center text-sm font-semibold text-text-secondary bg-background">
-                {day}
-              </div>
-            ))}
-          </div>
-          <div className="relative min-h-[600px] p-4">
-            {weekRows.length === 0 ? (
+      <WeeklyDayGridShell
+        startDate={startDate}
+        overlay={
+          weekRows.length === 0 ? (
+            <div className="p-8">
               <EmptyStateIllustration
                 title="No clients this week"
                 description="No client activity falls in this week."
               />
-            ) : (
-              weekRows.map((row, idx) => {
-                const clientId = String(row.client._id);
-                const isExpanded = expandedClients.has(clientId);
-                const displayColor = row.client.color || '#3b82f6';
-                return (
-                  <div
-                    key={clientId}
-                    className="absolute left-4 right-4 rounded-lg border-2 overflow-hidden transition-all duration-300 hover:shadow-xl"
-                    style={{
-                      top: topPositions[idx],
-                      height: cardHeights[idx],
-                      backgroundColor: `${displayColor}F0`,
-                      borderColor: displayColor,
-                    }}
-                  >
-                    <div className="p-4 h-full overflow-hidden flex flex-col">
-                      <ClientCardBody
-                        row={row}
-                        showTasks={showTasks}
-                        showContent={showContent}
-                        isExpanded={isExpanded}
-                        onToggleExpand={() => toggleClientExpanded(clientId)}
-                        onClientClick={onClientClick}
-                        onProjectClick={onProjectClick}
-                        compact
-                        scheduledHoursOverride={row.scheduledHours}
-                      />
-                    </div>
+            </div>
+          ) : (
+            weekRows.map((row, idx) => {
+              const clientId = String(row.client._id);
+              const isExpanded = expandedClients.has(clientId);
+              const displayColor = row.client.color || '#3b82f6';
+              return (
+                <div
+                  key={clientId}
+                  className="absolute left-4 right-4 rounded-lg border-2 overflow-hidden transition-all duration-300 hover:shadow-xl"
+                  style={{
+                    top: topPositions[idx],
+                    height: cardHeights[idx],
+                    backgroundColor: `${displayColor}F0`,
+                    borderColor: displayColor,
+                  }}
+                >
+                  <div className="p-4 h-full overflow-hidden flex flex-col">
+                    <ClientCardBody
+                      row={row}
+                      showTasks={showTasks}
+                      showContent={showContent}
+                      isExpanded={isExpanded}
+                      onToggleExpand={() => toggleClientExpanded(clientId)}
+                      onClientClick={onClientClick}
+                      onProjectClick={onProjectClick}
+                      compact
+                      scheduledHoursOverride={row.scheduledHours}
+                    />
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
+                </div>
+              );
+            })
+          )
+        }
+      />
     );
   };
 
@@ -415,12 +531,33 @@ export default function ClientCalendarView({
             const weekEnd = new Date(week[6]);
             weekEnd.setHours(23, 59, 59, 999);
             const weekClients = clientsForRange(rows, weekStart, weekEnd, allProjects, contentItems);
+            const weekItems = itemMode
+              ? sortFlatRangeItems(
+                  collectCalendarItemsForRange(
+                    weekStart,
+                    weekEnd,
+                    clientScopedProjects,
+                    contentItems,
+                    itemModeOptions
+                  ),
+                  itemModeOptions
+                )
+              : [];
 
             return (
               <div key={weekStart.toISOString()} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">{formatWeekLabel(week)}</h3>
                 <div className="space-y-2">
-                  {weekClients.length === 0 ? (
+                  {itemMode ? (
+                    weekItems.length === 0 ? (
+                      <EmptyStateIllustration
+                        title="No tasks or content this week"
+                        description="No client tasks or content fall in this week."
+                      />
+                    ) : (
+                      renderItemCardList(weekItems, { compact: true })
+                    )
+                  ) : weekClients.length === 0 ? (
                     <EmptyStateIllustration
                       title="No clients this week"
                       description="No client activity in this week."
@@ -479,15 +616,38 @@ export default function ClientCalendarView({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);
+            const monthItems = itemMode
+              ? sortFlatRangeItems(
+                  collectCalendarItemsForRange(
+                    monthStart,
+                    monthEnd,
+                    clientScopedProjects,
+                    contentItems,
+                    itemModeOptions
+                  ),
+                  itemModeOptions
+                )
+              : [];
             return (
               <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                 </h3>
                 <div className="space-y-2">
-                  {monthClients.map((row) => (
-                    <ClientChip key={String(row.client._id)} row={row} onClientClick={onClientClick} />
-                  ))}
+                  {itemMode ? (
+                    monthItems.length === 0 ? (
+                      <EmptyStateIllustration
+                        title="No tasks or content this month"
+                        description="No client tasks or content fall in this month."
+                      />
+                    ) : (
+                      renderItemCardList(monthItems, { compact: true })
+                    )
+                  ) : (
+                    monthClients.map((row) => (
+                      <ClientChip key={String(row.client._id)} row={row} onClientClick={onClientClick} />
+                    ))
+                  )}
                 </div>
               </div>
             );
@@ -511,15 +671,38 @@ export default function ClientCalendarView({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);
+            const monthItems = itemMode
+              ? sortFlatRangeItems(
+                  collectCalendarItemsForRange(
+                    monthStart,
+                    monthEnd,
+                    clientScopedProjects,
+                    contentItems,
+                    itemModeOptions
+                  ),
+                  itemModeOptions
+                )
+              : [];
             return (
               <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {monthStart.toLocaleDateString('en-US', { month: 'short' })}
                 </h3>
                 <div className="space-y-2">
-                  {monthClients.map((row) => (
-                    <ClientChip key={String(row.client._id)} row={row} onClientClick={onClientClick} />
-                  ))}
+                  {itemMode ? (
+                    monthItems.length === 0 ? (
+                      <EmptyStateIllustration
+                        title="No tasks or content this month"
+                        description="No client tasks or content fall in this month."
+                      />
+                    ) : (
+                      renderItemCardList(monthItems, { compact: true })
+                    )
+                  ) : (
+                    monthClients.map((row) => (
+                      <ClientChip key={String(row.client._id)} row={row} onClientClick={onClientClick} />
+                    ))
+                  )}
                 </div>
               </div>
             );

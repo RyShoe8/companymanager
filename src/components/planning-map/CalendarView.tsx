@@ -55,6 +55,17 @@ import {
 import { passesTeamFilter } from '@/lib/workspace/teamFilter';
 import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 import CalendarCardHeader from '@/components/planning-map/CalendarCardHeader';
+import WeeklyDayGridShell from '@/components/planning-map/WeeklyDayGridShell';
+import { CalendarItemCardList } from '@/components/planning-map/CalendarItemCard';
+import {
+  collectCalendarItemsForDay,
+  collectCalendarItemsForRange,
+  sortFlatRangeItems,
+  taskIndexForEntry,
+  calendarDayKey,
+  type CalendarItemEntry,
+  type CalendarItemModeOptions,
+} from '@/lib/calendar/calendarItemMode';
 
 function countProjectActiveTasks(project: IProject): number {
   return (project.tasks ?? []).filter((task) => isActiveWorkspaceTask(task)).length;
@@ -846,10 +857,85 @@ export default function CalendarView({
   };
 
   const viewTitle = getCalendarPeriodTitle(timeframe, viewDate);
+  const itemMode = showTasks || showContent;
+
+  const itemModeOptions: CalendarItemModeOptions = useMemo(
+    () => ({
+      showTasks,
+      showContent,
+      referenceDate: currentDate,
+      contentChannelFilter,
+      teamFilter,
+      employees,
+      showOnlyMyAssignments,
+      isManagerOrAdmin,
+      currentUserEmployeeId: currentUserEmployeeId ?? null,
+      currentUserEmployeeName: currentUserEmployeeName ?? null,
+      getTaskActivityMs: (project, task) => {
+        const idx = resolveTaskIndexInProject(project, task);
+        return taskActivityMs(project, task, idx);
+      },
+      getContentActivityMs: contentActivityMs,
+    }),
+    [
+      showTasks,
+      showContent,
+      currentDate,
+      contentChannelFilter,
+      teamFilter,
+      employees,
+      showOnlyMyAssignments,
+      isManagerOrAdmin,
+      currentUserEmployeeId,
+      currentUserEmployeeName,
+      taskActivityMs,
+      contentActivityMs,
+    ]
+  );
+
+  function getEntrySeenStatus(entry: CalendarItemEntry): ItemSeenStatus {
+    if (entry.type === 'task') return taskSeenStatus(entry.project, entry.task);
+    return contentSeenStatus(entry.project, entry.content);
+  }
+
+  const renderItemCardList = (
+    items: CalendarItemEntry[],
+    opts?: { compact?: boolean; className?: string; showProjectName?: boolean }
+  ) => (
+    <CalendarItemCardList
+      items={items}
+      getSeenStatus={getEntrySeenStatus}
+      getTaskIndex={(entry) => taskIndexForEntry(entry)}
+      getTaskAssigneeLabel={formatTaskAssigneeLabel}
+      showProjectName={opts?.showProjectName ?? true}
+      onTaskClick={onTaskClick}
+      onContentItemClick={onContentItemClick}
+      compact={opts?.compact}
+      className={opts?.className}
+    />
+  );
 
   // Today View - One huge box showing everything for today
   const renderTodayView = () => {
     const today = new Date(startDate);
+    today.setHours(0, 0, 0, 0);
+
+    if (itemMode) {
+      const items = collectCalendarItemsForDay(today, projects, contentItems, itemModeOptions);
+      return (
+        <div className="p-8 min-h-[600px]">
+          {items.length === 0 ? (
+            <EmptyStateIllustration
+              title="No tasks or content for today"
+              description="You don't have any tasks or content scheduled for today."
+            />
+          ) : (
+            renderItemCardList(items)
+          )}
+        </div>
+      );
+    }
+
     const todayProjects = sortProjectsByLatestUpdate(getProjectsForDay(today));
 
     return (
@@ -973,7 +1059,6 @@ export default function CalendarView({
 
   // Weekly View - Large daily boxes spanning 3 rows
   const renderWeeklyView = () => {
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const days: Date[] = [];
     const current = new Date(startDate);
 
@@ -981,6 +1066,33 @@ export default function CalendarView({
       days.push(new Date(current));
       current.setDate(current.getDate() + 1);
     }
+
+    if (itemMode) {
+      const rangeItems = sortFlatRangeItems(
+        collectCalendarItemsForRange(startDate, endDate, projects, contentItems, itemModeOptions),
+        itemModeOptions
+      );
+      const itemsByDay = new Map<string, CalendarItemEntry[]>();
+      for (const day of days) itemsByDay.set(calendarDayKey(day), []);
+      for (const item of rangeItems) {
+        const key = calendarDayKey(item.day);
+        if (!itemsByDay.has(key)) itemsByDay.set(key, []);
+        itemsByDay.get(key)!.push(item);
+      }
+
+      return (
+        <WeeklyDayGridShell
+          startDate={startDate}
+          renderColumn={(day) => {
+            const dayItems = itemsByDay.get(calendarDayKey(day)) ?? [];
+            if (dayItems.length === 0) return null;
+            return renderItemCardList(dayItems, { compact: true, showProjectName: true });
+          }}
+        />
+      );
+    }
+
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     return (
       <div className="overflow-x-auto overscroll-contain">
@@ -1364,6 +1476,18 @@ export default function CalendarView({
                 projectOverlapsDateRange(p, weekStart, weekEnd, contentItems)
               )
             );
+            const weekItems = itemMode
+              ? sortFlatRangeItems(
+                  collectCalendarItemsForRange(
+                    weekStart,
+                    weekEnd,
+                    projects,
+                    contentItems,
+                    itemModeOptions
+                  ),
+                  itemModeOptions
+                )
+              : [];
 
             return (
               <div
@@ -1374,7 +1498,16 @@ export default function CalendarView({
                   {formatWeekLabel(week)}
                 </h3>
                 <div className="space-y-2">
-                  {weekProjects.length === 0 ? (
+                  {itemMode ? (
+                    weekItems.length === 0 ? (
+                      <EmptyStateIllustration
+                        title="No tasks or content this week"
+                        description="There are no tasks or content scheduled for this week."
+                      />
+                    ) : (
+                      renderItemCardList(weekItems, { compact: true, showProjectName: true })
+                    )
+                  ) : weekProjects.length === 0 ? (
                     <EmptyStateIllustration
                       title="No projects this week"
                       description="There are no projects or content scheduled for this week. Enjoy your free time or start something new!"
@@ -1499,6 +1632,18 @@ export default function CalendarView({
                 projectOverlapsDateRange(p, monthStart, monthEnd, contentItems)
               )
             );
+            const monthItems = itemMode
+              ? sortFlatRangeItems(
+                  collectCalendarItemsForRange(
+                    monthStart,
+                    monthEnd,
+                    projects,
+                    contentItems,
+                    itemModeOptions
+                  ),
+                  itemModeOptions
+                )
+              : [];
 
             return (
               <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
@@ -1506,23 +1651,34 @@ export default function CalendarView({
                   {monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                 </h3>
                 <div className="space-y-2">
-                  {monthProjects.map((project) => {
-                    const projectColor = project.status === 'in-review' ? '#ef4444' : project.color;
-                    return (
-                      <div
-                        key={project._id.toString()}
-                        onClick={() => onProjectClick(project)}
-                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
-                        style={{
-                          backgroundColor: projectColor,
-                          color: 'white',
-                        }}
-                        title={project.name}
-                      >
-                        <div className="font-medium truncate">{project.name}</div>
-                      </div>
-                    );
-                  })}
+                  {itemMode ? (
+                    monthItems.length === 0 ? (
+                      <EmptyStateIllustration
+                        title="No tasks or content this month"
+                        description="There are no tasks or content scheduled for this month."
+                      />
+                    ) : (
+                      renderItemCardList(monthItems, { compact: true, showProjectName: true })
+                    )
+                  ) : (
+                    monthProjects.map((project) => {
+                      const projectColor = project.status === 'in-review' ? '#ef4444' : project.color;
+                      return (
+                        <div
+                          key={project._id.toString()}
+                          onClick={() => onProjectClick(project)}
+                          className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          style={{
+                            backgroundColor: projectColor,
+                            color: 'white',
+                          }}
+                          title={project.name}
+                        >
+                          <div className="font-medium truncate">{project.name}</div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             );
@@ -1547,8 +1703,19 @@ export default function CalendarView({
       <div className="p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
-            // Get all projects - projects always exist in their stage without date filtering
             const monthProjects = projects;
+            const monthItems = itemMode
+              ? sortFlatRangeItems(
+                  collectCalendarItemsForRange(
+                    monthStart,
+                    monthEnd,
+                    projects,
+                    contentItems,
+                    itemModeOptions
+                  ),
+                  itemModeOptions
+                )
+              : [];
 
             return (
               <div
@@ -1559,24 +1726,34 @@ export default function CalendarView({
                   {monthStart.toLocaleDateString('en-US', { month: 'short' })}
                 </h3>
                 <div className="space-y-2">
-                  {/* Projects */}
-                  {monthProjects.map((project) => {
-                    const projectColor = project.status === 'in-review' ? '#ef4444' : project.color;
-                    return (
-                      <div
-                        key={project._id.toString()}
-                        onClick={() => onProjectClick(project)}
-                        className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
-                        style={{
-                          backgroundColor: projectColor,
-                          color: 'white',
-                        }}
-                        title={project.name}
-                      >
-                        <div className="font-medium truncate">{project.name}</div>
-                      </div>
-                    );
-                  })}
+                  {itemMode ? (
+                    monthItems.length === 0 ? (
+                      <EmptyStateIllustration
+                        title="No tasks or content this month"
+                        description="There are no tasks or content scheduled for this month."
+                      />
+                    ) : (
+                      renderItemCardList(monthItems, { compact: true, showProjectName: true })
+                    )
+                  ) : (
+                    monthProjects.map((project) => {
+                      const projectColor = project.status === 'in-review' ? '#ef4444' : project.color;
+                      return (
+                        <div
+                          key={project._id.toString()}
+                          onClick={() => onProjectClick(project)}
+                          className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          style={{
+                            backgroundColor: projectColor,
+                            color: 'white',
+                          }}
+                          title={project.name}
+                        >
+                          <div className="font-medium truncate">{project.name}</div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             );
