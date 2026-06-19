@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 
+const HOURS_SAVED_PER_PERSON_PER_PROJECT = 5;
+
 export default function RoiCalculator() {
   const [teamSize, setTeamSize] = useState(5);
   const [projects, setProjects] = useState(10);
 
-  // Nucleas saves roughly 10 hours per team member per project monthly
-  const hoursSavedPerMonth = teamSize * projects * 10;
+  // Nucleas saves roughly 5 hours per team member per project monthly
+  const hoursSavedPerMonth = teamSize * projects * HOURS_SAVED_PER_PERSON_PER_PROJECT;
 
   return (
     <div className="bg-background-card border border-border rounded-3xl p-8 shadow-2xl relative overflow-hidden">
@@ -48,7 +50,7 @@ export default function RoiCalculator() {
               />
             </div>
             <p className="text-xs text-text-muted pt-2 leading-relaxed">
-              *Based on user data: Teams save an average of 10 hours per team member per active project each month through centralized assets, automated updates, and AI efficiency.
+              *Based on user data: Teams save an average of 5 hours per team member per active project each month through centralized assets, automated updates, and AI efficiency.
             </p>
           </div>
         </div>
