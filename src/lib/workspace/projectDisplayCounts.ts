@@ -1,6 +1,10 @@
 import type { IProject } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import {
+  buildProjectEntityRangeItems,
+  type ProjectEntityRangeFilterOptions,
+} from '@/lib/calendar/projectEntityRangeItems';
+import {
   filterContentToSeriesRepresentatives,
   filterTasksToSeriesRepresentatives,
 } from '@/lib/recurrence/filterSeriesRepresentatives';
@@ -23,4 +27,40 @@ export function countActiveContentForDisplay(
     (item) => String(item.projectId) === projectId && isActiveWorkspaceContent(item)
   );
   return filterContentToSeriesRepresentatives(items, { mode: 'active', referenceDate }).length;
+}
+
+export function countActiveTasksForDisplayInRange(
+  project: IProject,
+  contentItems: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  referenceDate: Date = new Date(),
+  filterOptions: ProjectEntityRangeFilterOptions = {}
+): number {
+  return buildProjectEntityRangeItems(
+    project,
+    contentItems,
+    rangeStart,
+    rangeEnd,
+    referenceDate,
+    filterOptions
+  ).openTaskCount;
+}
+
+export function countActiveContentForDisplayInRange(
+  project: IProject,
+  contentItems: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  referenceDate: Date = new Date(),
+  filterOptions: ProjectEntityRangeFilterOptions = {}
+): number {
+  return buildProjectEntityRangeItems(
+    project,
+    contentItems,
+    rangeStart,
+    rangeEnd,
+    referenceDate,
+    filterOptions
+  ).openContentCount;
 }

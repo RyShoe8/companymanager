@@ -2,7 +2,12 @@ import type { IProjectTask } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import { taskIdString } from '@/lib/projects/taskArrayGuards';
 import { sortByDateAsc } from '@/lib/recurrence/recurrenceHorizons';
-import { parseDateSafe } from '@/lib/utils/dateUtils';
+import {
+  localCalendarDayIndex,
+  parseDateSafe,
+  taskCalendarDayIndex,
+  taskOverlapsViewRange,
+} from '@/lib/utils/dateUtils';
 
 function taskSortDate(task: IProjectTask): Date {
   return parseDateSafe(task.startDate) ?? new Date(0);
@@ -131,6 +136,114 @@ export function filterContentToSeriesRepresentatives(
             (c) => c.status === 'published'
           )
         : pickUpcomingContentInSeries(seriesItems, ref);
+    if (rep) representatives.push(rep);
+  }
+
+  return representatives;
+}
+
+function taskOverlapsRange(task: IProjectTask, rangeStart: Date, rangeEnd: Date): boolean {
+  const taskStart = parseDateSafe(task.startDate);
+  const taskEnd = parseDateSafe(task.endDate);
+  if (!taskStart || !taskEnd) return false;
+  return taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd);
+}
+
+/** Content belongs to a calendar range if undated or publish day falls within the range. */
+export function contentInDisplayRange(
+  item: IContentItem,
+  rangeStart: Date,
+  rangeEnd: Date
+): boolean {
+  if (!item.publishDate) return true;
+  const d = parseDateSafe(item.publishDate);
+  if (!d) return true;
+  const v0 = localCalendarDayIndex(rangeStart);
+  const v1 = localCalendarDayIndex(rangeEnd);
+  const t0 = taskCalendarDayIndex(d);
+  return t0 >= v0 && t0 <= v1;
+}
+
+/** One task per recurrence series whose instance overlaps the view range. */
+export function filterTasksToSeriesRepresentativesInRange(
+  tasks: IProjectTask[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  options: { mode: 'active' | 'completed'; referenceDate?: Date }
+): IProjectTask[] {
+  const ref = options.referenceDate ?? new Date();
+  const withoutSeries: IProjectTask[] = [];
+  const bySeries = new Map<string, IProjectTask[]>();
+
+  for (const task of tasks) {
+    const seriesId = task.recurrenceSeriesId;
+    if (!seriesId) {
+      if (taskOverlapsRange(task, rangeStart, rangeEnd)) {
+        withoutSeries.push(task);
+      }
+      continue;
+    }
+    const list = bySeries.get(seriesId) ?? [];
+    list.push(task);
+    bySeries.set(seriesId, list);
+  }
+
+  const representatives: IProjectTask[] = [...withoutSeries];
+
+  for (const seriesTasks of bySeries.values()) {
+    const inRange = seriesTasks.filter((t) => taskOverlapsRange(t, rangeStart, rangeEnd));
+    if (inRange.length === 0) continue;
+    const rep =
+      options.mode === 'completed'
+        ? pickCompletedRepresentative(
+            inRange,
+            taskSortDate,
+            (t) => t.status === 'completed'
+          )
+        : pickUpcomingTaskInSeries(inRange, ref);
+    if (rep) representatives.push(rep);
+  }
+
+  return representatives;
+}
+
+/** One content item per recurrence series whose instance falls in the view range (undated always in range). */
+export function filterContentToSeriesRepresentativesInRange(
+  items: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  options: { mode: 'active' | 'completed'; referenceDate?: Date }
+): IContentItem[] {
+  const ref = options.referenceDate ?? new Date();
+  const withoutSeries: IContentItem[] = [];
+  const bySeries = new Map<string, IContentItem[]>();
+
+  for (const item of items) {
+    const seriesId = item.recurrenceSeriesId;
+    if (!seriesId) {
+      if (contentInDisplayRange(item, rangeStart, rangeEnd)) {
+        withoutSeries.push(item);
+      }
+      continue;
+    }
+    const list = bySeries.get(seriesId) ?? [];
+    list.push(item);
+    bySeries.set(seriesId, list);
+  }
+
+  const representatives: IContentItem[] = [...withoutSeries];
+
+  for (const seriesItems of bySeries.values()) {
+    const inRange = seriesItems.filter((item) => contentInDisplayRange(item, rangeStart, rangeEnd));
+    if (inRange.length === 0) continue;
+    const rep =
+      options.mode === 'completed'
+        ? pickCompletedRepresentative(
+            inRange,
+            (c) => (c.publishDate ? new Date(c.publishDate) : new Date(0)),
+            (c) => c.status === 'published'
+          )
+        : pickUpcomingContentInSeries(inRange, ref);
     if (rep) representatives.push(rep);
   }
 

@@ -1,26 +1,15 @@
 import type { IClient } from '@/lib/models/Client';
 import type { IProject } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
-import {
-  getTimeframeRange,
-  taskOverlapsViewRange,
-  parseDateSafe,
-  localCalendarDayIndex,
-  taskCalendarDayIndex,
-  type TimeframeType,
-} from '@/lib/utils/dateUtils';
+import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
 import { activeClientProjects, isClientHubProject } from '@/lib/clients/clientProjectHelpers';
-import { isActiveWorkspaceContent, isActiveWorkspaceTask } from '@/lib/workspace/activeWorkspaceItems';
 import { sumContentHoursInTimeframe, sumTaskHoursInTimeframe } from '@/lib/utils/projectHours';
 import { projectOverlapsDateRange } from '@/lib/utils/projectCalendarOverlap';
 import {
   computeClientTimeframeProgress,
   computeProjectTimeframeProgress,
 } from '@/lib/calendar/timeframeProgress';
-import {
-  countActiveContentForDisplay,
-  countActiveTasksForDisplay,
-} from '@/lib/workspace/projectDisplayCounts';
+import { buildProjectEntityRangeItems } from '@/lib/calendar/projectEntityRangeItems';
 
 export type ClientCalendarProjectRow = {
   project: IProject;
@@ -61,18 +50,21 @@ function projectsForClient(clientId: string, projects: IProject[]): IProject[] {
   return projects.filter((p) => String(p.clientId) === String(clientId));
 }
 
-function contentPublishDateInRange(
-  item: IContentItem,
+function projectRangeCounts(
+  project: IProject,
+  contentItems: IContentItem[],
   rangeStart: Date,
-  rangeEnd: Date
-): boolean {
-  if (!item.publishDate) return false;
-  const d = parseDateSafe(item.publishDate);
-  if (!d) return false;
-  const v0 = localCalendarDayIndex(rangeStart);
-  const v1 = localCalendarDayIndex(rangeEnd);
-  const t0 = taskCalendarDayIndex(d);
-  return t0 >= v0 && t0 <= v1;
+  rangeEnd: Date,
+  referenceDate: Date
+): { openTaskCount: number; openContentCount: number } {
+  const { openTaskCount, openContentCount } = buildProjectEntityRangeItems(
+    project,
+    contentItems,
+    rangeStart,
+    rangeEnd,
+    referenceDate
+  );
+  return { openTaskCount, openContentCount };
 }
 
 export function buildClientCalendarRows(
@@ -92,33 +84,33 @@ export function buildClientCalendarRows(
     const activeProjectsList = activeClientProjects(clientProjects);
 
     let activeTaskCount = 0;
-    let tasksInRange = 0;
-    for (const project of activeProjectsList) {
-      activeTaskCount += countActiveTasksForDisplay(project, currentDate);
-      for (const task of project.tasks ?? []) {
-        if (!isActiveWorkspaceTask(task)) continue;
-        const taskStart = parseDateSafe(task.startDate);
-        const taskEnd = parseDateSafe(task.endDate);
-        if (taskStart && taskEnd && taskOverlapsViewRange(start, end, taskStart, taskEnd)) {
-          tasksInRange += 1;
-        }
-      }
-    }
-
     let activeContentCount = 0;
-    let contentInRange = 0;
-    for (const project of activeProjectsList) {
-      activeContentCount += countActiveContentForDisplay(String(project._id), contentItems, currentDate);
-    }
-    for (const item of contentItems) {
-      const pid = String(item.projectId);
-      if (!activeProjectsList.some((p) => String(p._id) === pid)) continue;
-      if (!isActiveWorkspaceContent(item)) continue;
-      if (contentPublishDateInRange(item, start, end)) {
-        contentInRange += 1;
-      }
-    }
+    const projects: ClientCalendarProjectRow[] = activeProjectsList.map((project) => {
+      const { openTaskCount, openContentCount } = projectRangeCounts(
+        project,
+        contentItems,
+        start,
+        end,
+        currentDate
+      );
+      activeTaskCount += openTaskCount;
+      activeContentCount += openContentCount;
+      return {
+        project,
+        activeTaskCount: openTaskCount,
+        activeContentCount: openContentCount,
+        progressPercent: computeProjectTimeframeProgress(
+          project,
+          contentItems,
+          start,
+          end,
+          currentDate
+        ),
+      };
+    });
 
+    const tasksInRange = activeTaskCount;
+    const contentInRange = activeContentCount;
     const hasActivityInRange = tasksInRange > 0 || contentInRange > 0;
 
     let scheduledHours = 0;
@@ -134,19 +126,6 @@ export function buildClientCalendarRows(
       end,
       currentDate
     );
-
-    const projects: ClientCalendarProjectRow[] = activeProjectsList.map((project) => ({
-      project,
-      activeTaskCount: countActiveTasksForDisplay(project, currentDate),
-      activeContentCount: countActiveContentForDisplay(String(project._id), contentItems, currentDate),
-      progressPercent: computeProjectTimeframeProgress(
-        project,
-        contentItems,
-        start,
-        end,
-        currentDate
-      ),
-    }));
 
     return {
       client,

@@ -5,6 +5,7 @@ import type { IContentItem } from '@/lib/models/ContentItem';
 import {
   countActiveContentForDisplay,
   countActiveTasksForDisplay,
+  countActiveTasksForDisplayInRange,
 } from '@/lib/workspace/projectDisplayCounts';
 
 function task(
@@ -110,5 +111,24 @@ describe('projectDisplayCounts', () => {
     ] as IContentItem[];
 
     expect(countActiveContentForDisplay(projectId.toString(), items)).toBe(1);
+  });
+
+  it('counts only in-range active tasks via InRange helper', () => {
+    const project = {
+      _id: new Types.ObjectId(),
+      name: 'P',
+      tasks: [
+        task('1', '2026-06-01', 'active'),
+        task('2', '2026-06-10', 'active'),
+      ],
+    } as IProject;
+    const weekStart = new Date('2026-06-08');
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date('2026-06-14');
+    weekEnd.setHours(23, 59, 59, 999);
+
+    expect(
+      countActiveTasksForDisplayInRange(project, [], weekStart, weekEnd, new Date('2026-06-10'))
+    ).toBe(1);
   });
 });

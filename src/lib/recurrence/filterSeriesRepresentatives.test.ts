@@ -3,7 +3,9 @@ import type { IProjectTask } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import {
   filterContentToSeriesRepresentatives,
+  filterContentToSeriesRepresentativesInRange,
   filterTasksToSeriesRepresentatives,
+  filterTasksToSeriesRepresentativesInRange,
 } from '@/lib/recurrence/filterSeriesRepresentatives';
 import { Types } from 'mongoose';
 
@@ -96,5 +98,121 @@ describe('filterContentToSeriesRepresentatives', () => {
     });
     expect(reps).toHaveLength(1);
     expect(reps[0].title).toBe('B');
+  });
+});
+
+describe('filterTasksToSeriesRepresentativesInRange', () => {
+  it('picks the in-range series instance instead of the global upcoming rep', () => {
+    const series = 'series-1';
+    const tasks = [
+      task('1', '2026-06-01', 'active', series),
+      task('2', '2026-06-08', 'active', series),
+      task('3', '2026-07-01', 'active', series),
+    ];
+    const weekStart = new Date('2026-06-08');
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date('2026-06-14');
+    weekEnd.setHours(23, 59, 59, 999);
+    const reps = filterTasksToSeriesRepresentativesInRange(tasks, weekStart, weekEnd, {
+      mode: 'active',
+      referenceDate: new Date('2026-06-10'),
+    });
+    expect(reps).toHaveLength(1);
+    expect(reps[0]._id?.toString()).toBe('2');
+  });
+
+  it('returns nothing for a series with no instances in range', () => {
+    const series = 'series-1';
+    const tasks = [task('1', '2026-07-01', 'active', series)];
+    const weekStart = new Date('2026-06-08');
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date('2026-06-14');
+    weekEnd.setHours(23, 59, 59, 999);
+    const reps = filterTasksToSeriesRepresentativesInRange(tasks, weekStart, weekEnd, {
+      mode: 'active',
+      referenceDate: new Date('2026-06-10'),
+    });
+    expect(reps).toHaveLength(0);
+  });
+});
+
+describe('filterContentToSeriesRepresentativesInRange', () => {
+  it('picks the in-range series instance instead of the global upcoming rep', () => {
+    const projectId = new Types.ObjectId();
+    const series = 'content-series';
+    const items = [
+      {
+        _id: new Types.ObjectId(),
+        projectId,
+        title: 'January',
+        channel: 'Email',
+        status: 'planned',
+        publishDate: new Date('2026-01-10'),
+        recurrenceSeriesId: series,
+        userId: new Types.ObjectId(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        _id: new Types.ObjectId(),
+        projectId,
+        title: 'June week',
+        channel: 'Email',
+        status: 'planned',
+        publishDate: new Date('2026-06-10'),
+        recurrenceSeriesId: series,
+        userId: new Types.ObjectId(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        _id: new Types.ObjectId(),
+        projectId,
+        title: 'July',
+        channel: 'Email',
+        status: 'planned',
+        publishDate: new Date('2026-07-10'),
+        recurrenceSeriesId: series,
+        userId: new Types.ObjectId(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ] as unknown as IContentItem[];
+
+    const weekStart = new Date('2026-06-08');
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date('2026-06-14');
+    weekEnd.setHours(23, 59, 59, 999);
+    const reps = filterContentToSeriesRepresentativesInRange(items, weekStart, weekEnd, {
+      mode: 'active',
+      referenceDate: new Date('2026-06-01'),
+    });
+    expect(reps).toHaveLength(1);
+    expect(reps[0].title).toBe('June week');
+  });
+
+  it('includes undated content in any range', () => {
+    const projectId = new Types.ObjectId();
+    const items = [
+      {
+        _id: new Types.ObjectId(),
+        projectId,
+        title: 'Undated',
+        channel: 'Email',
+        status: 'planned',
+        userId: new Types.ObjectId(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ] as unknown as IContentItem[];
+    const weekStart = new Date('2026-06-08');
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date('2026-06-14');
+    weekEnd.setHours(23, 59, 59, 999);
+    const reps = filterContentToSeriesRepresentativesInRange(items, weekStart, weekEnd, {
+      mode: 'active',
+    });
+    expect(reps).toHaveLength(1);
+    expect(reps[0].title).toBe('Undated');
   });
 });

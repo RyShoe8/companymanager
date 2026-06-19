@@ -18,7 +18,6 @@ import {
   sumTaskHoursInTimeframe,
 } from '@/lib/utils/projectHours';
 import {
-  filterContentToSeriesRepresentatives,
   filterTasksToSeriesRepresentatives,
 } from '@/lib/recurrence/filterSeriesRepresentatives';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
@@ -77,9 +76,10 @@ import {
 } from '@/lib/calendar/calendarItemMode';
 import { computeProjectTimeframeProgress } from '@/lib/calendar/timeframeProgress';
 import {
-  countActiveContentForDisplay,
-  countActiveTasksForDisplay,
-} from '@/lib/workspace/projectDisplayCounts';
+  buildProjectEntityRangeItems,
+  type ProjectEntityRangeActivityOptions,
+  type ProjectEntityRangeFilterOptions,
+} from '@/lib/calendar/projectEntityRangeItems';
 
 function taskOverlapsWeek(
   task: { startDate?: Date | string; endDate?: Date | string },
@@ -687,108 +687,63 @@ export default function CalendarView({
     );
   }
 
+  function entityRangeFilterOptions(): ProjectEntityRangeFilterOptions {
+    return {
+      contentChannelFilter,
+      teamFilter,
+      employees,
+      showOnlyMyAssignments,
+      isManagerOrAdmin,
+      currentUserEmployeeId: currentUserEmployeeId ?? null,
+      currentUserEmployeeName: currentUserEmployeeName ?? null,
+    };
+  }
+
+  function entityRangeActivityOptions(): ProjectEntityRangeActivityOptions {
+    return {
+      getTaskActivityMs: taskActivityMs,
+      getContentActivityMs: contentActivityMs,
+      resolveTaskIndex: resolveTaskIndexInProject,
+    };
+  }
+
   function getMergedItemsForProject(
     project: IProject,
     rangeStart: Date,
     rangeEnd: Date,
-    options: { forTodayView?: boolean }
+    _options: { forTodayView?: boolean }
   ): { merged: MergedCalendarItem[]; taskItems: TimeframeTaskItem[]; contentInRange: IContentItem[] } {
-    const projectIdStr = project._id.toString();
-
-    const taskItems: TimeframeTaskItem[] = [];
-    const displayTasks = project.tasks
-      ? filterTasksToSeriesRepresentatives(project.tasks, {
-          mode: 'active',
-          referenceDate: currentDate,
-        })
-      : [];
-    const projectContent = contentItems.filter(
-      (item) => item.projectId?.toString() === projectIdStr
+    const result = buildProjectEntityRangeItems(
+      project,
+      contentItems,
+      rangeStart,
+      rangeEnd,
+      currentDate,
+      entityRangeFilterOptions(),
+      entityRangeActivityOptions()
     );
-    const displayContent = filterContentToSeriesRepresentatives(projectContent, {
-      mode: 'active',
-      referenceDate: currentDate,
-    });
-    displayTasks.forEach((task) => {
-      const taskStart = parseDateSafe((task as { startDate?: Date | string }).startDate);
-      const taskEnd = parseDateSafe((task as { endDate?: Date | string }).endDate);
-      if (!taskStart || !taskEnd) return;
-      if (!localTaskPassesAssignmentFilter(task)) return;
-      if (taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd)) {
-        taskItems.push({ task, startDate: taskStart, endDate: taskEnd });
-      }
-    });
-
-    let contentInRange: IContentItem[] = [];
-    if (displayContent.length > 0) {
-      contentInRange = displayContent.filter((item) => {
-        if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
-        if (
-          !localContentPassesAssignmentFilter(item, {
-            showOnlyMyAssignments,
-            isManagerOrAdmin,
-            currentUserEmployeeId: currentUserEmployeeId ?? null,
-            currentUserEmployeeName: currentUserEmployeeName ?? null,
-          })
-        ) {
-          return false;
-        }
-        // If no publishDate, still show the item (like tasks without dates)
-        if (!item.publishDate) return true;
-        const d = parseDateSafe(item.publishDate);
-        if (!d) return true;
-        // Check if publish date falls within the view range
-        const v0 = localCalendarDayIndex(rangeStart);
-        const v1 = localCalendarDayIndex(rangeEnd);
-        const t0 = taskCalendarDayIndex(d);
-        return t0 >= v0 && t0 <= v1;
-      });
-    }
-
-    const merged: MergedCalendarItem[] = [];
-    taskItems.forEach(({ task, startDate: sd }) => {
-      merged.push({ type: 'task', task, date: sd });
-    });
-    contentInRange.forEach((c) => {
-      merged.push({ type: 'content', content: c });
-    });
-    merged.sort((a, b) => {
-      const aDone = a.type === 'task' && a.task.status === 'completed';
-      const bDone = b.type === 'task' && b.task.status === 'completed';
-      if (aDone !== bDone) return aDone ? 1 : -1;
-      const activityA =
-        a.type === 'task'
-          ? taskActivityMs(project, a.task, resolveTaskIndexInProject(project, a.task))
-          : contentActivityMs(a.content);
-      const activityB =
-        b.type === 'task'
-          ? taskActivityMs(project, b.task, resolveTaskIndexInProject(project, b.task))
-          : contentActivityMs(b.content);
-      if (activityA !== activityB) return activityB - activityA;
-      return a.type === 'task' ? -1 : 1;
-    });
-
-    return { merged, taskItems, contentInRange };
+    return {
+      merged: result.merged as MergedCalendarItem[],
+      taskItems: result.taskItems,
+      contentInRange: result.contentInRange,
+    };
   }
 
   function getWeeklyCollapsedSummary(project: IProject, weekStart: Date, weekEnd: Date) {
-    const { merged, taskItems, contentInRange } = getMergedItemsForProject(
-      project,
-      weekStart,
-      weekEnd,
-      {}
-    );
-    const displayList = merged.filter(
-      (item): item is MergedCalendarItem =>
-        isActiveMergedCalendarItem(item) &&
-        (item.type === 'content' ? localContentPassesAssignmentFilter(item.content) : localTaskPassesAssignmentFilter(item.task))
-    );
-    const activeTasks = taskItems.filter((item) => item.task.status !== 'completed');
-    const openTasks = activeTasks.length;
-    const totalTasks = activeTasks.length;
-    const activeContent = contentInRange.filter((item) => item.status !== 'published');
-    const openContent = activeContent.length;
-    const totalContent = activeContent.length;
+    const { displayList, openTaskCount, openContentCount } =
+      buildProjectEntityRangeItems(
+        project,
+        contentItems,
+        weekStart,
+        weekEnd,
+        currentDate,
+        entityRangeFilterOptions(),
+        entityRangeActivityOptions()
+      );
+    const openTasks = openTaskCount;
+    const totalTasks = openTaskCount;
+    const openContent = openContentCount;
+    const totalContent = openContentCount;
     const range = { start: weekStart, end: weekEnd };
     const hours =
       Math.round(
@@ -803,7 +758,7 @@ export default function CalendarView({
       openContent,
       totalContent,
       hours,
-      displayList,
+      displayList: displayList as MergedCalendarItem[],
       hasItemsInWeek: displayList.length > 0,
       showWeekMetrics,
     };
@@ -1013,8 +968,9 @@ export default function CalendarView({
                       endDate,
                       currentDate
                     );
-                    const activeTaskCount = countActiveTasksForDisplay(project, currentDate);
-                    const activeContentCount = countActiveContentForDisplay(projectId, contentItems, currentDate);
+                    const todaySummary = getWeeklyCollapsedSummary(project, today, today);
+                    const activeTaskCount = todaySummary.openTasks;
+                    const activeContentCount = todaySummary.openContent;
 
                     return (
                       <div
@@ -1399,8 +1355,8 @@ export default function CalendarView({
                           weekEnd,
                           currentDate
                         );
-                        const activeTaskCount = countActiveTasksForDisplay(project, currentDate);
-                        const activeContentCount = countActiveContentForDisplay(projectId, contentItems, currentDate);
+                        const activeTaskCount = summary.openTasks;
+                        const activeContentCount = summary.openContent;
 
                         return (
                           <>
@@ -1603,8 +1559,8 @@ export default function CalendarView({
                         weekEnd,
                         currentDate
                       );
-                      const activeTaskCount = countActiveTasksForDisplay(project, currentDate);
-                      const activeContentCount = countActiveContentForDisplay(projectId, contentItems, currentDate);
+                      const activeTaskCount = summary.openTasks;
+                      const activeContentCount = summary.openContent;
 
                       return (
                         <div

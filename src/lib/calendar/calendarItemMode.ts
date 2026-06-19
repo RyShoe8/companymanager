@@ -10,8 +10,8 @@ import {
   taskCalendarDayIndex,
 } from '@/lib/utils/dateUtils';
 import {
-  filterContentToSeriesRepresentatives,
-  filterTasksToSeriesRepresentatives,
+  filterContentToSeriesRepresentativesInRange,
+  filterTasksToSeriesRepresentativesInRange,
 } from '@/lib/recurrence/filterSeriesRepresentatives';
 import {
   contentPassesAssignmentFilter,
@@ -125,6 +125,8 @@ export function collectCalendarItemsForDay(
 ): CalendarItemEntry[] {
   const dayStart = new Date(day);
   dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setHours(23, 59, 59, 999);
   const entries: CalendarItemEntry[] = [];
 
   for (const project of projects) {
@@ -132,10 +134,15 @@ export function collectCalendarItemsForDay(
     const projectIdStr = project._id.toString();
 
     if (options.showTasks && project.tasks) {
-      const displayTasks = filterTasksToSeriesRepresentatives(project.tasks, {
-        mode: 'active',
-        referenceDate: options.referenceDate,
-      });
+      const displayTasks = filterTasksToSeriesRepresentativesInRange(
+        project.tasks,
+        dayStart,
+        dayEnd,
+        {
+          mode: 'active',
+          referenceDate: options.referenceDate,
+        }
+      );
       for (const task of displayTasks) {
         if (!taskPassesFilters(project, task, options)) continue;
         const taskStart = parseDateSafe(task.startDate);
@@ -157,10 +164,15 @@ export function collectCalendarItemsForDay(
       const projectContent = contentItems.filter(
         (item) => item.projectId?.toString() === projectIdStr
       );
-      const displayContent = filterContentToSeriesRepresentatives(projectContent, {
-        mode: 'active',
-        referenceDate: options.referenceDate,
-      });
+      const displayContent = filterContentToSeriesRepresentativesInRange(
+        projectContent,
+        dayStart,
+        dayEnd,
+        {
+          mode: 'active',
+          referenceDate: options.referenceDate,
+        }
+      );
       for (const item of displayContent) {
         if (!contentPassesFilters(item, options)) continue;
         if (!item.publishDate) continue;
@@ -286,10 +298,15 @@ export function collectUniqueSpanItemsForRange(
     const projectIdStr = project._id.toString();
 
     if (options.showTasks && project.tasks) {
-      const displayTasks = filterTasksToSeriesRepresentatives(project.tasks, {
-        mode: 'active',
-        referenceDate: options.referenceDate,
-      });
+      const displayTasks = filterTasksToSeriesRepresentativesInRange(
+        project.tasks,
+        start,
+        end,
+        {
+          mode: 'active',
+          referenceDate: options.referenceDate,
+        }
+      );
       for (const task of displayTasks) {
         if (!taskPassesFilters(project, task, options)) continue;
         const taskStart = parseDateSafe(task.startDate);
@@ -304,10 +321,15 @@ export function collectUniqueSpanItemsForRange(
       const projectContent = contentItems.filter(
         (item) => item.projectId?.toString() === projectIdStr
       );
-      const displayContent = filterContentToSeriesRepresentatives(projectContent, {
-        mode: 'active',
-        referenceDate: options.referenceDate,
-      });
+      const displayContent = filterContentToSeriesRepresentativesInRange(
+        projectContent,
+        start,
+        end,
+        {
+          mode: 'active',
+          referenceDate: options.referenceDate,
+        }
+      );
       for (const item of displayContent) {
         if (!contentPassesFilters(item, options)) continue;
         if (!item.publishDate) continue;
@@ -462,10 +484,15 @@ export function contentInRangeForProject(
   const projectContent = contentItems.filter(
     (item) => item.projectId?.toString() === projectIdStr
   );
-  const displayContent = filterContentToSeriesRepresentatives(projectContent, {
-    mode: 'active',
-    referenceDate: options.referenceDate,
-  });
+  const displayContent = filterContentToSeriesRepresentativesInRange(
+    projectContent,
+    rangeStart,
+    rangeEnd,
+    {
+      mode: 'active',
+      referenceDate: options.referenceDate,
+    }
+  );
   const v0 = localCalendarDayIndex(rangeStart);
   const v1 = localCalendarDayIndex(rangeEnd);
   return displayContent.filter((item) => {
@@ -485,10 +512,15 @@ export function tasksInRangeForProject(
   options: CalendarItemModeOptions
 ): Array<{ task: IProjectTask; startDate: Date; endDate: Date }> {
   if (!options.showTasks || !project.tasks) return [];
-  const displayTasks = filterTasksToSeriesRepresentatives(project.tasks, {
-    mode: 'active',
-    referenceDate: options.referenceDate,
-  });
+  const displayTasks = filterTasksToSeriesRepresentativesInRange(
+    project.tasks,
+    rangeStart,
+    rangeEnd,
+    {
+      mode: 'active',
+      referenceDate: options.referenceDate,
+    }
+  );
   const result: Array<{ task: IProjectTask; startDate: Date; endDate: Date }> = [];
   for (const task of displayTasks) {
     if (!taskPassesFilters(project, task, options)) continue;

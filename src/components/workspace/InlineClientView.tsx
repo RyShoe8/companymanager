@@ -5,7 +5,7 @@ import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IEmployee } from '@/lib/models/Employee';
-import type { TimeframeType } from '@/lib/utils/dateUtils';
+import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
 import EditableText from '@/components/ui/EditableText';
 import EditableSelect from '@/components/ui/EditableSelect';
 import ClientLogo from '@/components/clients/ClientLogo';
@@ -21,8 +21,8 @@ import {
 } from '@/lib/clients/clientProjectHelpers';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import {
-  countActiveContentForDisplay,
-  countActiveTasksForDisplay,
+  countActiveContentForDisplayInRange,
+  countActiveTasksForDisplayInRange,
 } from '@/lib/workspace/projectDisplayCounts';
 import Image from 'next/image';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
@@ -92,6 +92,10 @@ export default function InlineClientView({
   const clientId = String(client._id);
   const adminProject = useMemo(() => clientHubProject(projects), [projects, clientId]);
   const activeProjects = useMemo(() => activeClientProjects(projects), [projects]);
+  const timeframeRange = useMemo(
+    () => getTimeframeRange(timeframe, referenceDate ?? new Date()),
+    [timeframe, referenceDate]
+  );
 
   const handleClientFieldUpdate = async (updates: Partial<IClient> & Record<string, unknown>) => {
     setLocalClient((prev) => ({ ...prev, ...updates } as IClient));
@@ -234,10 +238,18 @@ export default function InlineClientView({
             {activeProjects.map((project) => {
               const displayColor = project.status === 'in-review' ? '#ef4444' : project.color || '#3b82f6';
               const headerTextClass = getProjectCardHeaderTextClass(displayColor);
-              const activeTaskCount = countActiveTasksForDisplay(project, referenceDate ?? new Date());
-              const activeContentCount = countActiveContentForDisplay(
-                String(project._id),
+              const activeTaskCount = countActiveTasksForDisplayInRange(
+                project,
                 contentItems,
+                timeframeRange.start,
+                timeframeRange.end,
+                referenceDate ?? new Date()
+              );
+              const activeContentCount = countActiveContentForDisplayInRange(
+                project,
+                contentItems,
+                timeframeRange.start,
+                timeframeRange.end,
                 referenceDate ?? new Date()
               );
               const totalTasks = project.tasks?.length ?? 0;
