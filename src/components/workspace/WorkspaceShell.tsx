@@ -35,7 +35,6 @@ import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvail
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
 import QuickProjectForm from '@/components/planning-map/QuickProjectForm';
 import ContentItemCreateModal from '@/components/planning-map/ContentItemCreateModal';
-import ContentItemDetailModal from '@/components/planning-map/ContentItemDetailModal';
 import CreateMenu from '@/components/workspace/CreateMenu';
 import LinkTargetPickerModal from '@/components/workspace/LinkTargetPickerModal';
 import { filterContributableProjects } from '@/lib/utils/projectTeam';
@@ -105,7 +104,6 @@ export default function WorkspaceShell({
     const [inspectorFocus, setInspectorFocus] = useState<string | null>(null);
     /** When opening a project from a client inspector, return here on close. */
     const [inspectorParentFocus, setInspectorParentFocus] = useState<string | null>(null);
-    const [editingContentItemId, setEditingContentItemId] = useState<string | null>(null);
     /** Task row index in `project.tasks` when opening inspector from the schedule (cleared after the project view applies it). */
     const [inspectorOpenTaskIndex, setInspectorOpenTaskIndex] = useState<number | null>(null);
     /** Content item id when opening inspector from schedule content click. */
@@ -369,10 +367,6 @@ export default function WorkspaceShell({
         },
         [inspectorFocus, markOpenedProjectSeen]
     );
-
-    const handleContentItemClickFromProject = useCallback((item: IContentItem) => {
-        setEditingContentItemId(item._id.toString());
-    }, []);
 
     const handleViewProject = useCallback(
         (project: IProject) => {
@@ -828,12 +822,15 @@ export default function WorkspaceShell({
                     return cTitle.includes(searchName) || searchName.includes(cTitle);
                 });
                 if (target) {
-                    setInspectorOpenTaskIndex(null);
                     const projectId = target.projectId?.toString();
-                    if (projectId) {
-                        setInspectorFocus(`project:${projectId}`);
+                    if (!projectId) {
+                        return { success: false, message: `Content "${target.title}" is not linked to a project` };
                     }
-                    setEditingContentItemId(target._id.toString());
+                    const project = ws.allProjects.find((p) => p._id.toString() === projectId);
+                    if (!project) {
+                        return { success: false, message: `Could not find project for content "${target.title}"` };
+                    }
+                    handleViewProjectContent(project, target._id.toString());
                     return { success: true, message: `Opening content: ${target.title}` };
                 }
             }
@@ -1882,25 +1879,6 @@ _id.toString(), { tasks });
                         }}
                     />
 
-                    <ContentItemDetailModal
-                        isOpen={!!editingContentItemId}
-                        onClose={() => setEditingContentItemId(null)}
-                        contentItemId={editingContentItemId}
-                        employees={ws.employees}
-                        isManagerOrAdmin={ws.isManagerOrAdmin}
-                        currentUserEmployeeId={ws.currentUserEmployeeId}
-                        stackAboveOverlays
-                        onSaved={() => {
-                            void ws.fetchContentItems();
-                            setContentRefreshTrigger((t) => t + 1);
-                        }}
-                        onDeleted={() => {
-                            void ws.fetchContentItems();
-                            setContentRefreshTrigger((t) => t + 1);
-                            setEditingContentItemId(null);
-                        }}
-                    />
-
                     {inspectorFocus && (
                         <InspectorHost
                             focusId={inspectorFocus}
@@ -1929,7 +1907,7 @@ _id.toString(), { tasks });
                                 setInspectorAddContentDate(undefined);
                                 setInspectorAddContentPrefill(null);
                             }}
-                            onContentItemClick={handleContentItemClickFromProject}
+                            onContentItemClick={handleContentItemClickFromSchedule}
                             contentRefreshTrigger={contentRefreshTrigger}
                             onContentListChanged={() => {
                                 void ws.fetchContentItems();

@@ -56,16 +56,26 @@ import { passesTeamFilter } from '@/lib/workspace/teamFilter';
 import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 import CalendarCardHeader from '@/components/planning-map/CalendarCardHeader';
 import WeeklyDayGridShell from '@/components/planning-map/WeeklyDayGridShell';
-import { CalendarItemCardList } from '@/components/planning-map/CalendarItemCard';
+import {
+  CalendarItemCardList,
+  getProjectItemColor,
+  GANTT_ITEM_ROW_HEIGHT,
+} from '@/components/planning-map/CalendarItemCard';
+import WeeklyItemGanttOverlay from '@/components/planning-map/WeeklyItemGanttOverlay';
 import {
   collectCalendarItemsForDay,
   collectCalendarItemsForRange,
   sortFlatRangeItems,
   taskIndexForEntry,
   calendarDayKey,
+  collectUniqueSpanItemsForRange,
+  layoutWeekSpanItems,
+  spanItemToCalendarEntry,
+  weekSpanGridMinHeight,
   type CalendarItemEntry,
   type CalendarItemModeOptions,
 } from '@/lib/calendar/calendarItemMode';
+import { computeProjectTimeframeProgress } from '@/lib/calendar/timeframeProgress';
 
 function countProjectActiveTasks(project: IProject): number {
   return (project.tasks ?? []).filter((task) => isActiveWorkspaceTask(task)).length;
@@ -75,13 +85,6 @@ function countProjectActiveContent(projectId: string, contentItems: IContentItem
   return contentItems.filter(
     (item) => String(item.projectId) === projectId && isActiveWorkspaceContent(item)
   ).length;
-}
-
-function projectProgressPercent(project: IProject): number {
-  const totalTasks = project.tasks?.length ?? 0;
-  if (totalTasks === 0) return 0;
-  const completedTasks = project.tasks?.filter((t) => t.status === 'completed').length ?? 0;
-  return Math.round((completedTasks / totalTasks) * 100);
 }
 
 function taskOverlapsWeek(
@@ -140,8 +143,8 @@ function isActiveMergedCalendarItem(item: MergedCalendarItem): boolean {
 export default function CalendarView({
   projects,
   contentItems = [],
-  showTasks = true,
-  showContent = true,
+  showTasks = false,
+  showContent = false,
   contentChannelFilter = 'All',
   timeframe,
   currentDate,
@@ -650,35 +653,31 @@ export default function CalendarView({
     const projectIdStr = project._id.toString();
 
     const taskItems: TimeframeTaskItem[] = [];
-    const displayTasks =
-      showTasks && project.tasks
-        ? filterTasksToSeriesRepresentatives(project.tasks, {
-            mode: 'active',
-            referenceDate: currentDate,
-          })
-        : [];
-    const projectContent = contentItems.filter(
-      (item) => item.projectId?.toString() === projectIdStr
-    );
-    const displayContent = showContent
-      ? filterContentToSeriesRepresentatives(projectContent, {
+    const displayTasks = project.tasks
+      ? filterTasksToSeriesRepresentatives(project.tasks, {
           mode: 'active',
           referenceDate: currentDate,
         })
       : [];
-    if (showTasks) {
-      displayTasks.forEach((task) => {
-        const taskStart = parseDateSafe((task as { startDate?: Date | string }).startDate);
-        const taskEnd = parseDateSafe((task as { endDate?: Date | string }).endDate);
-        if (!taskStart || !taskEnd) return;
-        if (taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd)) {
-          taskItems.push({ task, startDate: taskStart, endDate: taskEnd });
-        }
-      });
-    }
+    const projectContent = contentItems.filter(
+      (item) => item.projectId?.toString() === projectIdStr
+    );
+    const displayContent = filterContentToSeriesRepresentatives(projectContent, {
+      mode: 'active',
+      referenceDate: currentDate,
+    });
+    displayTasks.forEach((task) => {
+      const taskStart = parseDateSafe((task as { startDate?: Date | string }).startDate);
+      const taskEnd = parseDateSafe((task as { endDate?: Date | string }).endDate);
+      if (!taskStart || !taskEnd) return;
+      if (!localTaskPassesAssignmentFilter(task)) return;
+      if (taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd)) {
+        taskItems.push({ task, startDate: taskStart, endDate: taskEnd });
+      }
+    });
 
     let contentInRange: IContentItem[] = [];
-    if (showContent && displayContent.length > 0) {
+    if (displayContent.length > 0) {
       contentInRange = displayContent.filter((item) => {
         if (contentChannelFilter !== 'All' && item.channel !== contentChannelFilter) return false;
         if (
@@ -900,17 +899,19 @@ export default function CalendarView({
 
   const renderItemCardList = (
     items: CalendarItemEntry[],
-    opts?: { compact?: boolean; className?: string; showProjectName?: boolean }
+    opts?: { compact?: boolean; className?: string; showProjectName?: boolean; variant?: 'default' | 'gantt' }
   ) => (
     <CalendarItemCardList
       items={items}
       getSeenStatus={getEntrySeenStatus}
       getTaskIndex={(entry) => taskIndexForEntry(entry)}
       getTaskAssigneeLabel={formatTaskAssigneeLabel}
+      getAccentColor={(entry) => getProjectItemColor(entry.project)}
       showProjectName={opts?.showProjectName ?? true}
       onTaskClick={onTaskClick}
       onContentItemClick={onContentItemClick}
       compact={opts?.compact}
+      variant={opts?.variant}
       className={opts?.className}
     />
   );
@@ -962,7 +963,13 @@ export default function CalendarView({
                     const projectId = project._id.toString();
                     const isExpanded = expandedProjects.has(projectId);
 
-                    const progressPercent = projectProgressPercent(project);
+                    const progressPercent = computeProjectTimeframeProgress(
+                      project,
+                      contentItems,
+                      startDate,
+                      endDate,
+                      currentDate
+                    );
                     const activeTaskCount = countProjectActiveTasks(project);
                     const activeContentCount = countProjectActiveContent(projectId, contentItems);
 
@@ -982,8 +989,8 @@ export default function CalendarView({
                           progressPercent={progressPercent}
                           activeTaskCount={activeTaskCount}
                           activeContentCount={activeContentCount}
-                          showTasks={showTasks}
-                          showContent={showContent}
+                          showTasks={true}
+                          showContent={true}
                           isExpanded={isExpanded}
                           onToggleExpand={() => toggleProjectExpanded(projectId)}
                           onTitleClick={() => onProjectClick(project)}
@@ -1068,26 +1075,55 @@ export default function CalendarView({
     }
 
     if (itemMode) {
-      const rangeItems = sortFlatRangeItems(
-        collectCalendarItemsForRange(startDate, endDate, projects, contentItems, itemModeOptions),
+      const weekStart = new Date(days[0]);
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(days[6]);
+      weekEnd.setHours(23, 59, 59, 999);
+      const spanItems = collectUniqueSpanItemsForRange(
+        weekStart,
+        weekEnd,
+        projects,
+        contentItems,
         itemModeOptions
       );
-      const itemsByDay = new Map<string, CalendarItemEntry[]>();
-      for (const day of days) itemsByDay.set(calendarDayKey(day), []);
-      for (const item of rangeItems) {
-        const key = calendarDayKey(item.day);
-        if (!itemsByDay.has(key)) itemsByDay.set(key, []);
-        itemsByDay.get(key)!.push(item);
-      }
+      const layouts = layoutWeekSpanItems(days, spanItems, GANTT_ITEM_ROW_HEIGHT);
+      const gridMinHeight = weekSpanGridMinHeight(layouts);
 
       return (
         <WeeklyDayGridShell
           startDate={startDate}
-          renderColumn={(day) => {
-            const dayItems = itemsByDay.get(calendarDayKey(day)) ?? [];
-            if (dayItems.length === 0) return null;
-            return renderItemCardList(dayItems, { compact: true, showProjectName: true });
-          }}
+          minColumnHeight={gridMinHeight}
+          overlay={
+            spanItems.length === 0 ? (
+              <div className="p-8">
+                <EmptyStateIllustration
+                  title="No tasks or content this week"
+                  description="No tasks or content are scheduled for this week."
+                />
+              </div>
+            ) : (
+              <WeeklyItemGanttOverlay
+                layouts={layouts}
+                renderBar={(layout) => {
+                  const entry = spanItemToCalendarEntry(layout.item, layout.displayStart);
+                  return (
+                    <CalendarItemCardList
+                      items={[entry]}
+                      getSeenStatus={getEntrySeenStatus}
+                      getTaskIndex={(e) => taskIndexForEntry(e)}
+                      getTaskAssigneeLabel={formatTaskAssigneeLabel}
+                      getAccentColor={(e) => getProjectItemColor(e.project)}
+                      showProjectName={false}
+                      onTaskClick={onTaskClick}
+                      onContentItemClick={onContentItemClick}
+                      variant="gantt"
+                      className="h-full"
+                    />
+                  );
+                }}
+              />
+            )
+          }
         />
       );
     }
@@ -1331,7 +1367,13 @@ export default function CalendarView({
                         const unseenItems = !isExpanded
                           ? filterUnseenItems(project, summary.displayList)
                           : [];
-                        const progressPercent = projectProgressPercent(project);
+                        const progressPercent = computeProjectTimeframeProgress(
+                          project,
+                          contentItems,
+                          weekStart,
+                          weekEnd,
+                          currentDate
+                        );
                         const activeTaskCount = countProjectActiveTasks(project);
                         const activeContentCount = countProjectActiveContent(projectId, contentItems);
 
@@ -1346,8 +1388,8 @@ export default function CalendarView({
                                 scheduledHours={summary.showWeekMetrics ? summary.hours : undefined}
                                 activeTaskCount={activeTaskCount}
                                 activeContentCount={activeContentCount}
-                                showTasks={showTasks}
-                                showContent={showContent}
+                                showTasks={true}
+                                showContent={true}
                                 isExpanded={isExpanded}
                                 onToggleExpand={() => toggleProjectExpanded(projectId!)}
                                 onTitleClick={() => onProjectClick(pos.project!)}
@@ -1399,8 +1441,7 @@ export default function CalendarView({
                                   )}
                                 </div>
                               </div>
-                            ) : showTasks &&
-                              visibleTasks.length === 0 &&
+                            ) : visibleTasks.length === 0 &&
                               hasTasks &&
                               project.tasks!.length > 0 ? (
                               <div className="mt-4 px-6 pb-6 shrink-0">
@@ -1530,7 +1571,13 @@ export default function CalendarView({
                             referenceDate: currentDate,
                           }).filter((task) => taskOverlapsWeek(task, week[0], week[6]))
                         : [];
-                      const progressPercent = projectProgressPercent(project);
+                      const progressPercent = computeProjectTimeframeProgress(
+                        project,
+                        contentItems,
+                        weekStart,
+                        weekEnd,
+                        currentDate
+                      );
                       const activeTaskCount = countProjectActiveTasks(project);
                       const activeContentCount = countProjectActiveContent(projectId, contentItems);
 
@@ -1552,8 +1599,8 @@ export default function CalendarView({
                               scheduledHours={summary.showWeekMetrics ? summary.hours : undefined}
                               activeTaskCount={activeTaskCount}
                               activeContentCount={activeContentCount}
-                              showTasks={showTasks}
-                              showContent={showContent}
+                              showTasks={true}
+                              showContent={true}
                               isExpanded={isExpanded}
                               onToggleExpand={() => toggleProjectExpanded(projectId)}
                               onTitleClick={() => onProjectClick(project)}
@@ -1585,8 +1632,7 @@ export default function CalendarView({
                                     `${projectId}-month-${weekIdx}`
                                   )}
                                 </div>
-                              ) : showTasks &&
-                                visibleTasks.length === 0 &&
+                              ) : visibleTasks.length === 0 &&
                                 hasTasks &&
                                 project.tasks!.length > 0 ? (
                                 <div className="mb-2">

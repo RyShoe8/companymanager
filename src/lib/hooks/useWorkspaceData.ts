@@ -79,8 +79,8 @@ export default function useWorkspaceData(
 
     // Filters
     const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
-    const [showTasks, setShowTasks] = useState(true);
-    const [showContent, setShowContent] = useState(true);
+    const [showTasks, setShowTasks] = useState(false);
+    const [showContent, setShowContent] = useState(false);
     const [showMeetings, setShowMeetings] = useState(true);
     const [contentChannelFilter, setContentChannelFilter] = useState<string>('All');
     const [teamFilter, setTeamFilter] = useState<TeamFilterType>('All Teams');

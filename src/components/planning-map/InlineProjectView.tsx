@@ -117,9 +117,9 @@ interface InlineProjectViewProps {
   initialAddContentDate?: Date;
   initialAddContentPrefill?: { title?: string; channel?: string; notes?: string };
   onAddContentOpenConsumed?: () => void;
-  /** Called when user clicks a content item; parent should open ContentItemDetailModal. */
+  /** Called when user activates a content item outside this list (e.g. nested client inspector). */
   onContentItemClick?: (item: IContentItem) => void;
-  /** When this changes, project content list is refetched (e.g. after detail modal save/delete). */
+  /** When this changes, project content list is refetched (e.g. after content save/delete). */
   contentRefreshTrigger?: number;
   /** Notify workspace to refresh global content list after inspector content mutations. */
   onContentListChanged?: () => void;
@@ -584,6 +584,22 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     });
   };
 
+  const focusContentItem = useCallback(
+    (contentId: string) => {
+      const item = projectContentItems.find((c) => c._id.toString() === contentId);
+      if (!item) return;
+      setContentExpanded(true);
+      setContentTab(item.status === 'published' ? 'completed' : 'active');
+      setExpandedContentComments((prev) => new Set(prev).add(contentId));
+      scrollElementIntoContainerAfterLayout(
+        () => document.getElementById(`inspector-content-row-${contentId}`),
+        scrollContainerRef?.current ?? null,
+        { block: 'center', behavior: 'smooth' }
+      );
+    },
+    [projectContentItems, scrollContainerRef]
+  );
+
   const getTaskSummaryForIndex = useCallback(
     (taskIdx: number): CommentSummary => {
       const task = localProject.tasks?.[taskIdx];
@@ -909,22 +925,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     if (!item) return;
 
     initialContentAppliedKeyRef.current = key;
-    const contentId = initialOpenContentId;
-    setContentExpanded(true);
-    setContentTab(item.status === 'published' ? 'completed' : 'active');
-    setExpandedContentComments((prev) => new Set(prev).add(contentId));
-    scrollElementIntoContainerAfterLayout(
-      () => document.getElementById(`inspector-content-row-${contentId}`),
-      scrollContainerRef?.current ?? null,
-      { block: 'center', behavior: 'smooth' }
-    );
+    focusContentItem(initialOpenContentId);
     onInitialOpenContentConsumed?.();
   }, [
     initialOpenContentId,
     project._id,
     projectContentItems,
+    focusContentItem,
     onInitialOpenContentConsumed,
-    scrollContainerRef,
   ]);
 
   useEffect(() => {
@@ -1008,6 +1016,29 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       }
     } catch {
       // ignore
+    }
+  };
+
+  const handleContentItemTitleUpdate = async (item: IContentItem, title: string) => {
+    const id = item._id.toString();
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const previousTitle = item.title;
+    setProjectContentItems((prev) =>
+      prev.map((c) => (c._id.toString() === id ? ({ ...c, title: trimmed } as IContentItem) : c))
+    );
+    try {
+      const res = await fetch(`/api/content-items/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      if (!res.ok) throw new Error('save failed');
+      notifyContentListChanged();
+    } catch {
+      setProjectContentItems((prev) =>
+        prev.map((c) => (c._id.toString() === id ? ({ ...c, title: previousTitle } as IContentItem) : c))
+      );
     }
   };
 
@@ -2515,12 +2546,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               return (
               <div key={itemId} id={`inspector-content-row-${itemId}`} className="p-4 scroll-mt-4">
                 <div className="flex items-start justify-between gap-2">
-                  <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
-                    <span className={`font-medium flex flex-wrap items-center gap-1 truncate ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                  <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-wrap items-center gap-1">
                       <ItemSeenTag status={contentSeenStatus} />
-                      <span className="truncate">{item.title}</span>
-                    </span>
-                  </button>
+                      <EditableText
+                        value={item.title}
+                        onSave={(v) => handleContentItemTitleUpdate(item, v)}
+                        className={`font-medium ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                        placeholder="Content title"
+                        autoMultilineAfter={100}
+                        disabled={!isManagerOrAdmin}
+                      />
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <EditableSelect
                       value={item.status}

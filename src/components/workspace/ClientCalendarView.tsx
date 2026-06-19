@@ -13,20 +13,29 @@ import CalendarCardHeader, {
   CalendarProgressBar,
 } from '@/components/planning-map/CalendarCardHeader';
 import WeeklyDayGridShell from '@/components/planning-map/WeeklyDayGridShell';
-import { CalendarItemCardList } from '@/components/planning-map/CalendarItemCard';
+import {
+  CalendarItemCardList,
+  GANTT_ITEM_ROW_HEIGHT,
+} from '@/components/planning-map/CalendarItemCard';
+import WeeklyItemGanttOverlay from '@/components/planning-map/WeeklyItemGanttOverlay';
 import {
   collectCalendarItemsForDay,
   collectCalendarItemsForRange,
   sortFlatRangeItems,
   taskIndexForEntry,
+  collectUniqueSpanItemsForRange,
+  layoutWeekSpanItems,
+  spanItemToCalendarEntry,
+  weekSpanGridMinHeight,
   type CalendarItemEntry,
   type CalendarItemModeOptions,
-  calendarDayKey,
 } from '@/lib/calendar/calendarItemMode';
 import {
   buildClientCalendarRows,
   sortClientRowsByActivity,
   clientsForRange,
+  computeClientTimeframeProgress,
+  computeProjectTimeframeProgress,
   type ClientCalendarProjectRow,
   type ClientCalendarRow,
 } from '@/lib/clients/clientCalendarData';
@@ -55,14 +64,10 @@ interface ClientCalendarViewProps {
 function ProjectSubCard({
   row,
   client,
-  showTasks,
-  showContent,
   onProjectClick,
 }: {
   row: ClientCalendarProjectRow;
   client: IClient;
-  showTasks: boolean;
-  showContent: boolean;
   onProjectClick?: (client: IClient, project: IProject) => void;
 }) {
   const { project, activeTaskCount, activeContentCount, progressPercent } = row;
@@ -97,8 +102,8 @@ function ProjectSubCard({
       <CalendarProgressBar progressPercent={progressPercent} headerTextClass={headerTextClass} />
       <div className="mt-1">
         <CalendarActiveStats
-          showTasks={showTasks}
-          showContent={showContent}
+          showTasks={true}
+          showContent={true}
           activeTaskCount={activeTaskCount}
           activeContentCount={activeContentCount}
           headerTextClass={headerTextClass}
@@ -110,8 +115,6 @@ function ProjectSubCard({
 
 function ClientCardBody({
   row,
-  showTasks,
-  showContent,
   isExpanded,
   onToggleExpand,
   onClientClick,
@@ -120,8 +123,6 @@ function ClientCardBody({
   scheduledHoursOverride,
 }: {
   row: ClientCalendarRow;
-  showTasks: boolean;
-  showContent: boolean;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onClientClick: (client: IClient) => void;
@@ -142,8 +143,8 @@ function ClientCardBody({
         scheduledHours={scheduledHoursOverride ?? scheduledHours}
         activeTaskCount={activeTaskCount}
         activeContentCount={activeContentCount}
-        showTasks={showTasks}
-        showContent={showContent}
+        showTasks={true}
+        showContent={true}
         isExpanded={isExpanded}
         onToggleExpand={onToggleExpand}
         onTitleClick={() => onClientClick(client)}
@@ -157,8 +158,6 @@ function ClientCardBody({
               key={String(projectRow.project._id)}
               row={projectRow}
               client={client}
-              showTasks={showTasks}
-              showContent={showContent}
               onProjectClick={onProjectClick}
             />
           ))}
@@ -256,11 +255,38 @@ export default function ClientCalendarView({
   };
 
   const rows = sortClientRowsByActivity(
-    buildClientCalendarRows(clients, allProjects, contentItems, timeframe, currentDate, {
-      showTasks,
-      showContent,
-    })
+    buildClientCalendarRows(clients, allProjects, contentItems, timeframe, currentDate)
   );
+
+  const clientRowForBucket = (
+    row: ClientCalendarRow,
+    rangeStart: Date,
+    rangeEnd: Date
+  ): ClientCalendarRow => {
+    const clientProjects = allProjects.filter(
+      (p) => String(p.clientId) === String(row.client._id)
+    );
+    return {
+      ...row,
+      progressPercent: computeClientTimeframeProgress(
+        clientProjects,
+        contentItems,
+        rangeStart,
+        rangeEnd,
+        currentDate
+      ),
+      projects: row.projects.map((projectRow) => ({
+        ...projectRow,
+        progressPercent: computeProjectTimeframeProgress(
+          projectRow.project,
+          contentItems,
+          rangeStart,
+          rangeEnd,
+          currentDate
+        ),
+      })),
+    };
+  };
 
   const { start: startDate, end: endDate } = getTimeframeRange(timeframe, currentDate);
 
@@ -318,8 +344,6 @@ export default function ClientCalendarView({
             >
               <ClientCardBody
                 row={row}
-                showTasks={showTasks}
-                showContent={showContent}
                 isExpanded={isExpanded}
                 onToggleExpand={() => toggleClientExpanded(clientId)}
                 onClientClick={onClientClick}
@@ -341,6 +365,9 @@ export default function ClientCalendarView({
       getSeenStatus={() => 'none'}
       getTaskIndex={(entry) => taskIndexForEntry(entry)}
       getClientBadge={getClientBadge}
+      getAccentColor={(entry) =>
+        clientByProjectId.get(String(entry.project._id))?.color || '#3b82f6'
+      }
       onTaskClick={onTaskClick}
       onContentItemClick={onContentItemClick}
       compact={opts?.compact}
@@ -389,27 +416,56 @@ export default function ClientCalendarView({
         days.push(new Date(current));
         current.setDate(current.getDate() + 1);
       }
-      const rangeItems = sortFlatRangeItems(
-        collectCalendarItemsForRange(startDate, endDate, clientScopedProjects, contentItems, itemModeOptions),
+      const weekStart = new Date(days[0]);
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(days[6]);
+      weekEnd.setHours(23, 59, 59, 999);
+      const spanItems = collectUniqueSpanItemsForRange(
+        weekStart,
+        weekEnd,
+        clientScopedProjects,
+        contentItems,
         itemModeOptions
       );
-      const itemsByDay = new Map<string, CalendarItemEntry[]>();
-      for (const day of days) itemsByDay.set(calendarDayKey(day), []);
-      for (const item of rangeItems) {
-        const key = calendarDayKey(item.day);
-        if (!itemsByDay.has(key)) itemsByDay.set(key, []);
-        itemsByDay.get(key)!.push(item);
-      }
+      const layouts = layoutWeekSpanItems(days, spanItems, GANTT_ITEM_ROW_HEIGHT);
+      const gridMinHeight = weekSpanGridMinHeight(layouts);
 
       return (
         <WeeklyDayGridShell
           startDate={startDate}
-          minColumnHeight={600}
-          renderColumn={(day) => {
-            const dayItems = itemsByDay.get(calendarDayKey(day)) ?? [];
-            if (dayItems.length === 0) return null;
-            return renderItemCardList(dayItems, { compact: true });
-          }}
+          minColumnHeight={gridMinHeight}
+          overlay={
+            spanItems.length === 0 ? (
+              <div className="p-8">
+                <EmptyStateIllustration
+                  title="No tasks or content this week"
+                  description="No client tasks or content are scheduled for this week."
+                />
+              </div>
+            ) : (
+              <WeeklyItemGanttOverlay
+                layouts={layouts}
+                renderBar={(layout) => {
+                  const entry = spanItemToCalendarEntry(layout.item, layout.displayStart);
+                  return (
+                    <CalendarItemCardList
+                      items={[entry]}
+                      getSeenStatus={() => 'none'}
+                      getTaskIndex={(e) => taskIndexForEntry(e)}
+                      getClientBadge={getClientBadge}
+                      getAccentColor={(e) =>
+                        clientByProjectId.get(String(e.project._id))?.color || '#3b82f6'
+                      }
+                      onTaskClick={onTaskClick}
+                      onContentItemClick={onContentItemClick}
+                      variant="gantt"
+                      className="h-full"
+                    />
+                  );
+                }}
+              />
+            )
+          }
         />
       );
     }
@@ -466,8 +522,6 @@ export default function ClientCalendarView({
                   <div className="p-4 h-full overflow-hidden flex flex-col">
                     <ClientCardBody
                       row={row}
-                      showTasks={showTasks}
-                      showContent={showContent}
                       isExpanded={isExpanded}
                       onToggleExpand={() => toggleClientExpanded(clientId)}
                       onClientClick={onClientClick}
@@ -567,6 +621,7 @@ export default function ClientCalendarView({
                       const clientId = String(row.client._id);
                       const isExpanded = expandedClients.has(clientId);
                       const displayColor = row.client.color || '#3b82f6';
+                      const bucketRow = clientRowForBucket(row, weekStart, weekEnd);
                       return (
                         <div
                           key={clientId}
@@ -577,15 +632,13 @@ export default function ClientCalendarView({
                           }}
                         >
                           <ClientCardBody
-                            row={row}
-                            showTasks={showTasks}
-                            showContent={showContent}
+                            row={bucketRow}
                             isExpanded={isExpanded}
                             onToggleExpand={() => toggleClientExpanded(clientId)}
                             onClientClick={onClientClick}
                             onProjectClick={onProjectClick}
                             compact
-                            scheduledHoursOverride={row.scheduledHours}
+                            scheduledHoursOverride={bucketRow.scheduledHours}
                           />
                         </div>
                       );
