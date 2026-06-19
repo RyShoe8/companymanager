@@ -88,16 +88,17 @@ export default function EditableText({
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
       if (multiline && inputRef.current instanceof HTMLTextAreaElement) {
-        inputRef.current.select();
+        const len = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(len, len);
       } else if (
         autoEditOnMount &&
         inputRef.current instanceof HTMLInputElement &&
-        editValue.length === 0
+        inputRef.current.value.length === 0
       ) {
         inputRef.current.setSelectionRange(0, 0);
       }
     }
-  }, [isEditing, multiline, autoEditOnMount, editValue.length]);
+  }, [isEditing, multiline, autoEditOnMount]);
 
   useLayoutEffect(() => {
     if (!isEditing || !inputRef.current) return;
