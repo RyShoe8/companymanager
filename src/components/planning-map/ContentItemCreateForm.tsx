@@ -35,6 +35,9 @@ export interface ContentItemCreateFormProps {
   onSuccess: () => void;
   onTitleDraftChange?: (title: string) => void;
   nestedInModal?: boolean;
+  /** Omit client/project meta and use tighter spacing when embedded in Content section. */
+  embeddedInInspector?: boolean;
+  formId?: string;
 }
 
 export default function ContentItemCreateForm({
@@ -51,6 +54,8 @@ export default function ContentItemCreateForm({
   onSuccess,
   onTitleDraftChange,
   nestedInModal = false,
+  embeddedInInspector = false,
+  formId = 'content-create-form',
 }: ContentItemCreateFormProps) {
   const light = useInspectorLight();
   const [title, setTitle] = useState('');
@@ -82,9 +87,11 @@ export default function ContentItemCreateForm({
       ? clients.find((c) => c._id?.toString() === project.clientId?.toString())?.name
       : undefined;
 
-  const metaClass = lightSurface('text-sm text-gray-500', 'dark:text-gray-400', light);
   const sectionBorder = lightSurface('border-gray-200', 'dark:border-gray-700', light);
-  const sectionHeading = lightSurface('text-sm font-semibold text-gray-900', 'dark:text-white', light);
+  const sectionHeading = embeddedInInspector
+    ? 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'
+    : lightSurface('text-sm font-semibold text-gray-900', 'dark:text-white', light);
+  const formSpacing = embeddedInInspector ? 'space-y-2' : 'space-y-4';
 
   const scheduleHourEstimate = useCallback(() => {
     if (estimateTimerRef.current) {
@@ -256,9 +263,13 @@ export default function ContentItemCreateForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {clientName ? <p className={metaClass}>Client: {clientName}</p> : null}
-      <p className={metaClass}>Project: {project.name}</p>
+    <form id={formId} onSubmit={handleSubmit} className={formSpacing}>
+      {!embeddedInInspector && clientName ? (
+        <p className={lightSurface('text-sm text-gray-500', 'dark:text-gray-400', light)}>Client: {clientName}</p>
+      ) : null}
+      {!embeddedInInspector ? (
+        <p className={lightSurface('text-sm text-gray-500', 'dark:text-gray-400', light)}>Project: {project.name}</p>
+      ) : null}
 
       <ContentItemFormFields
         compactLayout
@@ -297,12 +308,12 @@ export default function ContentItemCreateForm({
         onPendingAsset={(asset) => setPendingAssets((prev) => [...prev, asset])}
         onRemovePendingAsset={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
         nestedInModal={nestedInModal}
-        compact={false}
+        compact={embeddedInInspector}
         showAddHintText={pendingAssets.length === 0}
       />
 
-      <div className={`pt-3 border-t ${sectionBorder}`}>
-        <h4 className={`${sectionHeading} mb-3`}>Targeting and links</h4>
+      <div className={`${embeddedInInspector ? 'pt-2' : 'pt-3'} border-t ${sectionBorder}`}>
+        <h4 className={`${sectionHeading} ${embeddedInInspector ? 'mb-2' : 'mb-3'}`}>Targeting and links</h4>
         <ContentTargetingSection
           project={project}
           isManagerOrAdmin={isManagerOrAdmin}

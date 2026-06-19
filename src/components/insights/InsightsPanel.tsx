@@ -75,6 +75,10 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
   };
 
   const pct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
+  const collapsedSummary =
+    insights.length > 0
+      ? `${insights.length} insight${insights.length === 1 ? '' : 's'}`
+      : `${progress.completed} of ${progress.total} completed`;
 
   return (
     <>
@@ -82,23 +86,20 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
         title="Insights"
         expanded={panelExpanded}
         onToggle={() => setPanelExpanded((prev) => !prev)}
-        collapsedSummary={`${progress.completed} of ${progress.total} completed`}
+        collapsedSummary={collapsedSummary}
       >
-        <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-2`}>
-          {progress.completed} of {progress.total} completed
-        </p>
-        <div className={`mb-3 h-1.5 rounded-full overflow-hidden ${lightSurface('bg-gray-100', 'dark:bg-gray-700', light)}`}>
+        <div className={`mb-2 h-1.5 rounded-full overflow-hidden ${lightSurface('bg-gray-100', 'dark:bg-gray-700', light)}`}>
           <div className="h-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
         </div>
 
         {loading ? (
           <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>Loading insights…</p>
         ) : insights.length === 0 ? (
-          <div className="text-center py-6">
+          <div className="text-center py-4">
             <p className={`text-sm font-medium ${lightSurface('text-gray-900', 'dark:text-white', light)} mb-1`}>
               You&apos;re all caught up!
             </p>
-            <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-4`}>
+            <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)} mb-3`}>
               Every insight for this project is complete or dismissed.
             </p>
             <button
@@ -110,7 +111,7 @@ export default function InsightsPanel({ projectId }: InsightsPanelProps) {
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {insights.map((item) => (
               <InsightCard
                 key={item.id}

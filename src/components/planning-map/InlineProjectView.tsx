@@ -27,7 +27,9 @@ import { computeProjectAssignedHours } from '@/lib/utils/projectHours';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
 import InsightsPanel from '@/components/insights/InsightsPanel';
-import ContentItemCreatePanel from '@/components/planning-map/ContentItemCreatePanel';
+import ContentItemCreateForm from '@/components/planning-map/ContentItemCreateForm';
+import CollapsibleInspectorSection from '@/components/ui/CollapsibleInspectorSection';
+import { formInputClassInspector } from '@/components/ui/formClasses';
 import { IClient } from '@/lib/models/Client';
 import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
@@ -284,8 +286,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
   const [autoEditTaskId, setAutoEditTaskId] = useState<string | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
-  /** Tab for tasks vs content. */
-  const [viewTab, setViewTab] = useState<'tasks' | 'content'>('tasks');
+  const [tasksExpanded, setTasksExpanded] = useState(true);
+  const [contentExpanded, setContentExpanded] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [addTaskNameDraft, setAddTaskNameDraft] = useState('');
+  const addTaskInputRef = useRef<HTMLInputElement>(null);
+  const pendingNamedTaskEstimateRef = useRef<{ index: number; name: string } | null>(null);
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
   const [editingEndDate, setEditingEndDate] = useState(false);
@@ -841,7 +847,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     if (project._id.toString() !== localProject._id.toString()) {
       setLocalProject(project);
-      setViewTab('tasks');
+      setTasksExpanded(true);
+      setContentExpanded(false);
       initialTaskAppliedKeyRef.current = null;
       autoAddTaskAppliedKeyRef.current = null;
       return;
@@ -872,7 +879,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
     initialTaskAppliedKeyRef.current = key;
     const t = tasks[initialOpenTaskIndex];
-    setViewTab('tasks');
+    setTasksExpanded(true);
     setTaskTab(t.status === 'completed' ? 'completed' : 'active');
     setSelectedTaskIndex(initialOpenTaskIndex);
     setExpandedTaskComments((prev) => new Set(prev).add(initialOpenTaskIndex));
@@ -897,7 +904,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
     initialContentAppliedKeyRef.current = key;
     const contentId = initialOpenContentId;
-    setViewTab('content');
+    setContentExpanded(true);
     setContentTab(item.status === 'published' ? 'completed' : 'active');
     setExpandedContentComments((prev) => new Set(prev).add(contentId));
     scrollElementIntoContainerAfterLayout(
@@ -925,9 +932,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setAddContentPrefill(initialAddContentPrefill ?? null);
     setAddContentDefaultDate(initialAddContentDate);
     setAddContentOpen(true);
-    setViewTab('content');
+    setContentExpanded(true);
     scrollElementIntoContainerAfterLayout(
-      () => document.getElementById('content-create-panel'),
+      () => document.getElementById('content-create-form'),
       scrollContainerRef?.current ?? null,
       { block: 'start', behavior: 'smooth' }
     );
@@ -938,30 +945,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setAddContentPrefill(null);
     setAddContentDefaultDate(undefined);
     setAddContentOpen(true);
-    setViewTab('content');
+    setContentExpanded(true);
     scrollElementIntoContainerAfterLayout(
-      () => document.getElementById('content-create-panel'),
+      () => document.getElementById('content-create-form'),
       scrollContainerRef?.current ?? null,
       { block: 'start', behavior: 'smooth' }
     );
   }, [scrollContainerRef]);
 
-  useEffect(() => {
-    if (pendingScrollToTaskIndex == null) return;
-    const idx = pendingScrollToTaskIndex;
-    const tasks = localProject.tasks || [];
-    if (idx < 0 || idx >= tasks.length) return;
-    const taskId = taskIdString(tasks[idx]) ?? `task-${idx}`;
-    setPendingScrollToTaskIndex(null);
-    scrollElementIntoContainerAfterLayout(
-      () => document.getElementById(`inspector-task-row-${idx}`),
-      scrollContainerRef?.current ?? null,
-      { block: 'center', behavior: 'smooth' }
-    );
-    requestAnimationFrame(() => {
-      setAutoEditTaskId(taskId);
-    });
-  }, [localProject.tasks, pendingScrollToTaskIndex, scrollContainerRef]);
+  const handleOpenAddTask = useCallback(() => {
+    setTasksExpanded(true);
+    setAddTaskOpen(true);
+    requestAnimationFrame(() => addTaskInputRef.current?.focus());
+  }, []);
 
   // Fetch project action buttons (smart buttons)
   useEffect(() => {
@@ -1507,6 +1503,29 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     scheduleTaskHourEstimate(taskIndex, name);
   };
 
+  useEffect(() => {
+    if (pendingScrollToTaskIndex == null) return;
+    const idx = pendingScrollToTaskIndex;
+    const tasks = localProject.tasks || [];
+    if (idx < 0 || idx >= tasks.length) return;
+    const taskId = taskIdString(tasks[idx]) ?? `task-${idx}`;
+    setPendingScrollToTaskIndex(null);
+    scrollElementIntoContainerAfterLayout(
+      () => document.getElementById(`inspector-task-row-${idx}`),
+      scrollContainerRef?.current ?? null,
+      { block: 'center', behavior: 'smooth' }
+    );
+    requestAnimationFrame(() => {
+      const pendingEstimate = pendingNamedTaskEstimateRef.current;
+      if (pendingEstimate && pendingEstimate.index === idx) {
+        pendingNamedTaskEstimateRef.current = null;
+        scheduleTaskHourEstimate(idx, pendingEstimate.name);
+      } else {
+        setAutoEditTaskId(taskId);
+      }
+    });
+  }, [localProject.tasks, pendingScrollToTaskIndex, scrollContainerRef, scheduleTaskHourEstimate]);
+
   const computedProjectHours = useMemo(
     () => computeProjectAssignedHours(localProject, projectContentItems),
     [localProject, projectContentItems]
@@ -1529,6 +1548,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     currentUserEmployeeId ?? null,
     isManagerOrAdmin
   );
+  const canAddContent = canAddContentToProject(
+    localProject,
+    isManagerOrAdmin,
+    currentUserEmployeeId ?? null
+  );
 
   const commitAddTasks = async (tasksToAppend: NonNullable<IProject['tasks']>) => {
     const prevTasks = localProject.tasks || [];
@@ -1539,7 +1563,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         ...prev,
         tasks: [...prevTasks, ...tasksToAppend],
       } as IProject));
-      setViewTab('tasks');
+      setTasksExpanded(true);
       setTaskTab('active');
       setPendingScrollToTaskIndex(newIdx);
       fetch(`/api/projects/${localProject._id.toString()}/tasks`, {
@@ -1569,7 +1593,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, nextTasks);
     const addedIdx = tasksToSave.length - 1;
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
-    setViewTab('tasks');
+    setTasksExpanded(true);
     setTaskTab('active');
     setPendingScrollToTaskIndex(addedIdx);
     persistProjectTasks(tasksToSave).catch((error) => {
@@ -1609,7 +1633,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         );
         setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
         await persistProjectTasks(tasksToSave, { allowBulkTaskExpand: true });
-        setViewTab('tasks');
+        setTasksExpanded(true);
         setTaskTab('active');
         setPendingScrollToTaskIndex(taskIndex);
       } catch (err) {
@@ -1706,16 +1730,22 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [reloadProjectContent]
   );
 
-  const handleAddTask = () => {
+  const handleSubmitInlineAddTask = () => {
+    const name = addTaskNameDraft.trim();
+    if (!name) return;
     const newTask = {
-      name: '',
+      name,
       description: '',
       status: 'active' as TaskStatus,
       startDate: new Date(),
       endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       estimatedHours: 0,
     };
-    commitAddTasks([newTask]);
+    const prevLen = (localProject.tasks || []).length;
+    pendingNamedTaskEstimateRef.current = { index: prevLen, name };
+    void commitAddTasks([newTask]);
+    setAddTaskNameDraft('');
+    setAddTaskOpen(false);
   };
 
   useEffect(() => {
@@ -1730,9 +1760,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const key = project._id.toString();
     if (autoAddTaskAppliedKeyRef.current === key) return;
     autoAddTaskAppliedKeyRef.current = key;
-    handleAddTask();
+    handleOpenAddTask();
     onAutoAddTaskConsumed?.();
-  }, [autoAddTaskOnOpen, isManagerOrAdmin, project._id, onAutoAddTaskConsumed]);
+  }, [autoAddTaskOnOpen, canContributeToProject, project._id, onAutoAddTaskConsumed, handleOpenAddTask]);
 
   const handleCopyPalette = async () => {
     const text = formatColorPaletteForCopy(paletteDraft);
@@ -2222,131 +2252,124 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
       {isManagerOrAdmin && <InsightsPanel projectId={localProject._id.toString()} />}
 
-      {canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && (
-        <ContentItemCreatePanel
-          project={localProject}
-          expanded={addContentOpen}
-          onExpandedChange={setAddContentOpen}
-          clients={clients}
-          employees={employees}
-          isManagerOrAdmin={isManagerOrAdmin}
-          defaultPublishDate={addContentDefaultDate}
-          initialTitle={addContentPrefill?.title}
-          initialChannel={addContentPrefill?.channel}
-          initialNotes={addContentPrefill?.notes}
-          onSuccess={() => {
-            setAddContentPrefill(null);
-            setAddContentDefaultDate(undefined);
-            onContentListChanged?.();
-          }}
-        />
-      )}
-
-      {/* Tasks / Content – tabbed */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="flex items-center gap-1 p-2 border-b border-gray-100 sticky top-0 bg-white z-10 shadow-sm rounded-t-lg">
-          <button type="button" onClick={() => setViewTab('tasks')} className={`px-3 py-2 rounded text-sm font-medium ${viewTab === 'tasks' ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-100'}`}>Tasks ({localProject.tasks?.length || 0})</button>
-          <button type="button" onClick={() => setViewTab('content')} className={`px-3 py-2 rounded text-sm font-medium ${viewTab === 'content' ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-100'}`}>Content ({projectContentItems.length})</button>
-
-          <div className="ml-auto flex gap-2">
-            {viewTab === 'tasks' && canContributeToProject && <Button size="sm" onClick={() => void handleAddTask()}>+ Add Task</Button>}
-            {viewTab === 'content' && canAddContentToProject(localProject, isManagerOrAdmin, currentUserEmployeeId ?? null) && (
-              <Button size="sm" variant="secondary" onClick={handleOpenAddContent}>
-                + Add Content
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {viewTab === 'content' ? (
-          <div className="p-4">
-            <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
-              <button onClick={() => setContentTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({activeContentDisplayCount})</button>
-              <button onClick={() => setContentTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedContentDisplayCount})</button>
-            </div>
-            {visibleContentItems.length === 0 ? (
-              <EmptyStateIllustration
-                title={`No ${contentTab} content`}
-                description={`You don't have any ${contentTab} content items yet. Add content from the calendar or right here.`}
+      <CollapsibleInspectorSection
+        id="inspector-tasks-section"
+        title="Tasks"
+        titleSuffix={
+          <span className="text-sm font-normal text-gray-500">({activeTaskDisplayCount} open)</span>
+        }
+        collapsedSummary={`${activeTaskDisplayCount} open`}
+        expanded={tasksExpanded}
+        onToggle={() => setTasksExpanded((v) => !v)}
+        headerActions={
+          canContributeToProject ? (
+            <Button size="sm" onClick={handleOpenAddTask}>
+              + Add Task
+            </Button>
+          ) : undefined
+        }
+      >
+        {addTaskOpen && canContributeToProject && (
+          <div className="mb-3 pb-3 border-b border-gray-100">
+            <label htmlFor="inspector-add-task-name" className="block text-xs font-medium text-gray-700 mb-0.5">
+              Task name
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                id="inspector-add-task-name"
+                ref={addTaskInputRef}
+                type="text"
+                value={addTaskNameDraft}
+                onChange={(e) => setAddTaskNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmitInlineAddTask();
+                  }
+                  if (e.key === 'Escape') {
+                    setAddTaskOpen(false);
+                    setAddTaskNameDraft('');
+                  }
+                }}
+                placeholder="What needs to be done?"
+                className={`${formInputClassInspector} flex-1 min-w-[12rem]`}
               />
-            ) : (
-              <div className="divide-y divide-gray-100 space-y-0">
-                {visibleContentItems.map((item, visibleIndex) => {
-                  const itemId = item._id.toString();
-                  const distributionMethods = Array.isArray(item.distributionMethods) ? item.distributionMethods : [];
-                  const visibleDistribution = distributionMethods.slice(0, 3);
-                  const extraDistributionCount = Math.max(0, distributionMethods.length - 3);
-                  const contentKey = contentItemKeyFor(item);
-                  const contentSeenStatus: ItemSeenStatus = canShowContentNewIndicator(item)
-                    ? (itemStatusByKey[contentKey] ?? 'none')
-                    : 'none';
-                  return (
-                  <div key={itemId} id={`inspector-content-row-${itemId}`} className="p-4 scroll-mt-4">
+              <Button size="sm" onClick={handleSubmitInlineAddTask} disabled={!addTaskNameDraft.trim()}>
+                Add
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setAddTaskOpen(false);
+                  setAddTaskNameDraft('');
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
+          <button onClick={() => setTaskTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({activeTaskDisplayCount})</button>
+          <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedTaskDisplayCount})</button>
+        </div>
+        {visibleTaskEntries.length === 0 ? (
+          <EmptyStateIllustration
+            title={`No ${taskTab} tasks`}
+            description={`There are no ${taskTab} tasks. Add a task to start tracking work.`}
+          />
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {visibleTaskEntries.map(({ task, idx }, visibleIndex) => {
+              const taskKey = taskItemKeyFor(task, idx);
+              const taskSeenStatus: ItemSeenStatus = canShowTaskNewIndicator(task)
+                ? (itemStatusByKey[taskKey] ?? 'none')
+                : 'none';
+              const rowKey = `task-${idx}`;
+              const taskRowId = taskIdString(task) ?? rowKey;
+
+              return (
+                <SwipeableCard key={rowKey} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
+                  <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
                     <div className="flex items-start justify-between gap-2">
-                      <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
-                        <span className={`font-medium flex flex-wrap items-center gap-1 truncate ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                          <ItemSeenTag status={contentSeenStatus} />
-                          <span className="truncate">{item.title}</span>
-                        </span>
-                      </button>
+                      <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <ItemSeenTag status={taskSeenStatus} />
+                          <EditableText
+                            value={task.name}
+                            onSave={(v) => handleTaskNameSave(idx, v)}
+                            className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                            placeholder="Task name"
+                            autoMultilineAfter={100}
+                            disabled={!canContributeToProject}
+                            autoEditOnMount={!!taskRowId && autoEditTaskId === taskRowId}
+                            onAutoEditMount={() => {
+                              requestAnimationFrame(() => {
+                                setAutoEditTaskId(null);
+                              });
+                            }}
+                          />
+                        </div>
+                        {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
+                      </div>
                       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <EditableSelect
-                          value={item.status}
-                          options={contentStatusOptions}
-                          onSave={(v) => handleContentItemStatusUpdate(item, v as ContentStatus)}
-                          disabled={!canEditContentItemStatus(item)}
-                          showColorDot
-                          className="text-xs text-gray-900"
-                        />
-                        <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
+                        <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs text-gray-900" />
+                        {isManagerOrAdmin && (
+                          <button type="button" onClick={() => { if (confirm('Delete this task? This cannot be undone.')) handleDeleteTask(idx); }} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
-                      <span className="px-1.5 py-0.5 rounded bg-gray-100 shrink-0">{item.channel}</span>
-                      {visibleDistribution.map((m) => (
-                        <span key={m} className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 shrink-0">{m}</span>
-                      ))}
-                      {extraDistributionCount > 0 && (
-                        <span className="text-gray-400 italic shrink-0">+{extraDistributionCount}</span>
-                      )}
                       <div className="flex items-center gap-1">
-                        <span className="leading-none">Due:</span>
-                        <EditableDate
-                          value={item.publishDate ?? null}
-                          onSave={(v) => handleContentItemPublishDateUpdate(item, v)}
-                          className="text-gray-900 leading-none py-0"
-                          placeholder="Set date"
-                          disabled={!isManagerOrAdmin}
-                          clearable
-                        />
+                        <EditableDate value={task.startDate ?? null} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} className="text-gray-900 leading-none py-0" placeholder="Start" disabled={!isManagerOrAdmin} clearable />
+                        <span className="leading-none">→</span>
+                        <EditableDate value={task.endDate ?? null} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900 leading-none py-0" placeholder="End" disabled={!isManagerOrAdmin} clearable />
                       </div>
-                      <EditableNumber
-                        value={item.estimatedHours}
-                        onSave={(v) => handleContentItemHoursUpdate(item, v)}
-                        className="leading-none py-0"
-                        suffix="h"
-                        min={0}
-                        placeholder="Hours"
-                        disabled={!isManagerOrAdmin}
-                      />
-                      {employees.length > 0 && (
-                        <div className="flex items-center gap-1 min-w-[8rem]">
-                          <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                          <EditableSelect
-                            value={item.assignedToEmployeeId?.toString() ?? ''}
-                            options={contentAssigneeOptions(employees, localProject, item.assignedToEmployeeId?.toString())}
-                            onSave={(v) => handleContentItemAssigneeUpdate(item, v)}
-                            disabled={!isManagerOrAdmin}
-                            className="text-xs text-gray-900 min-w-[8rem]"
-                          />
-                        </div>
-                      )}
-                      {canContributeToProject && item.recurrenceSeriesId ? (
+                      {canContributeToProject && task.recurrenceSeriesId ? (
                         <>
                           {(() => {
-                            const pos = getContentSeriesPosition(item, projectContentItems);
+                            const pos = getTaskSeriesPosition(task, localProject.tasks ?? []);
                             if (!pos) return null;
                             return (
                               <>
@@ -2354,253 +2377,290 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                                 {shouldShowExtendSeries(pos) && (
                                   <ExtendSeriesSelect
                                     disabled={!canContributeToProject}
-                                    onExtend={(unit) => void extendContentSeries(item.recurrenceSeriesId!, unit)}
+                                    onExtend={(unit) => void applyExtendTaskSeries(task.recurrenceSeriesId!, unit)}
                                   />
                                 )}
                               </>
                             );
                           })()}
                         </>
-                      ) : canContributeToProject && !item.recurrenceSeriesId ? (
+                      ) : canContributeToProject ? (
                         <TaskRecurrenceInline
-                          onRecurrenceChange={(value) =>
-                            void applyContentRecurrence(item, value.preset)
-                          }
+                          onRecurrenceChange={(value) => void applyTaskRecurrence(idx, value)}
                         />
                       ) : null}
+                      {estimatingTaskIndices.has(idx) ? (
+                        <span className="text-gray-400 italic leading-none">Estimating…</span>
+                      ) : (
+                        <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} className="leading-none py-0" suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
+                      )}
+                      {employees.length > 0 && (
+                        <div className="flex flex-col gap-0.5 min-w-[8rem]">
+                          <div className="flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            <MultiSelect
+                              value={getTaskAssigneeEmployeeIds(task)}
+                              options={taskAssigneeSelectOptions(employees, localProject, getTaskAssigneeEmployeeIds(task))}
+                              onChange={(selectedIds) => handleTaskUpdate(idx, 'assignedToEmployeeIds', selectedIds)}
+                              disabled={!isManagerOrAdmin}
+                              className="text-xs min-w-[8rem]"
+                            />
+                          </div>
+                          {!isTaskAssigneeOnProjectTeam(localProject, task) && (
+                            <p className="text-[10px] text-amber-600 leading-snug max-w-[14rem]">
+                              Assignee is not on the project team—reassign or clear to save changes.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                       <CommentsCollapsibleSection
-                        expanded={expandedContentComments.has(itemId)}
-                        onToggle={() => toggleContentComments(itemId)}
-                        count={commentSummaries.contentItems[itemId]?.count ?? 0}
+                        expanded={expandedTaskComments.has(idx)}
+                        onToggle={() => toggleTaskComments(idx)}
+                        count={getTaskSummaryForIndex(idx).count}
                         hasUnread={
                           currentUserId
                             ? hasUnreadCommentActivity(
-                                buildCommentThreadKey(currentUserId, 'contentItem', itemId),
-                                commentSummaries.contentItems[itemId]?.latestActivityMs ?? 0
+                                buildCommentThreadKey(
+                                  currentUserId,
+                                  'projectTask',
+                                  localProject._id.toString(),
+                                  (localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()
+                                ),
+                                getTaskSummaryForIndex(idx).latestActivityMs
                               )
                             : false
                         }
                       >
                         <CommentThread
-                          entityType="contentItem"
-                          entityId={itemId}
+                          entityType="projectTask"
+                          entityId={localProject._id.toString()}
+                          taskIndex={idx}
+                          taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
                           showHeading={false}
                           isManagerOrAdmin={isManagerOrAdmin}
                           showScreenshotGallery={false}
-                          onMetaChange={(meta) => handleContentCommentMetaChange(itemId, meta)}
+                          onMetaChange={(meta) => handleTaskCommentMetaChange(idx, meta)}
                         />
                       </CommentsCollapsibleSection>
                     </div>
-                    <ContentLinkedAssets
+                    <TaskLinkedAssets
+                      key={`task-assets-${(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString() ?? idx}-${taskAssetsRefreshToken}`}
                       project={localProject}
-                      contentItemId={itemId}
+                      taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
+                      taskIndex={idx}
                       isManagerOrAdmin={isManagerOrAdmin}
                       currentUserId={currentUserId}
                       currentUserEmployeeId={currentUserEmployeeId}
-                      assignedToEmployeeId={item.assignedToEmployeeId?.toString()}
-                      refreshToken={(contentRefreshTrigger ?? 0) + contentAssetsRefreshToken}
+                      refreshToken={taskAssetsRefreshToken}
                       showAddHintText={visibleIndex === 0}
                       onAssetsChanged={() => {
-                        setContentAssetsRefreshToken((n) => n + 1);
+                        setTaskAssetsRefreshToken((n) => n + 1);
                         void loadLinkedAssets();
                       }}
                     />
                   </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="border-t border-gray-100 p-4">
-            <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
-              <button onClick={() => setTaskTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({activeTaskDisplayCount})</button>
-              <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedTaskDisplayCount})</button>
-            </div>
-            {visibleTaskEntries.length === 0 ? (
-              <EmptyStateIllustration
-                title={`No ${taskTab} tasks`}
-                description={`There are no ${taskTab} tasks. Add a task to start tracking work.`}
-              />
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {visibleTaskEntries.map(({ task, idx }, visibleIndex) => {
-                  const taskKey = taskItemKeyFor(task, idx);
-                  const taskSeenStatus: ItemSeenStatus = canShowTaskNewIndicator(task)
-                    ? (itemStatusByKey[taskKey] ?? 'none')
-                    : 'none';
-                  const rowKey = `task-${idx}`;
-                  const taskRowId = taskIdString(task) ?? rowKey;
-
-                  return (
-                    <SwipeableCard key={rowKey} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
-                      <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex flex-wrap items-center gap-1">
-                              <ItemSeenTag status={taskSeenStatus} />
-                              <EditableText
-                                value={task.name}
-                                onSave={(v) => handleTaskNameSave(idx, v)}
-                                className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
-                                placeholder="Task name"
-                                autoMultilineAfter={100}
-                                disabled={!canContributeToProject}
-                                autoEditOnMount={!!taskRowId && autoEditTaskId === taskRowId}
-                                onAutoEditMount={() => {
-                                  requestAnimationFrame(() => {
-                                    setAutoEditTaskId(null);
-                                  });
-                                }}
-                              />
-                            </div>
-                            {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs text-gray-900" />
-                            {isManagerOrAdmin && (
-                              <button type="button" onClick={() => { if (confirm('Delete this task? This cannot be undone.')) handleDeleteTask(idx); }} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <EditableDate value={task.startDate ?? null} onSave={(v) => handleTaskUpdate(idx, 'startDate', v)} className="text-gray-900 leading-none py-0" placeholder="Start" disabled={!isManagerOrAdmin} clearable />
-                            <span className="leading-none">→</span>
-                            <EditableDate value={task.endDate ?? null} onSave={(v) => handleTaskUpdate(idx, 'endDate', v)} className="text-gray-900 leading-none py-0" placeholder="End" disabled={!isManagerOrAdmin} clearable />
-                          </div>
-                          {canContributeToProject && task.recurrenceSeriesId ? (
-                            <>
-                              {(() => {
-                                const pos = getTaskSeriesPosition(task, localProject.tasks ?? []);
-                                if (!pos) return null;
-                                return (
-                                  <>
-                                    <SeriesPositionBadge index={pos.index} total={pos.total} />
-                                    {shouldShowExtendSeries(pos) && (
-                                      <ExtendSeriesSelect
-                                        disabled={!canContributeToProject}
-                                        onExtend={(unit) => void applyExtendTaskSeries(task.recurrenceSeriesId!, unit)}
-                                      />
-                                    )}
-                                  </>
-                                );
-                              })()}
-                            </>
-                          ) : canContributeToProject ? (
-                            <TaskRecurrenceInline
-                              onRecurrenceChange={(value) => void applyTaskRecurrence(idx, value)}
-                            />
-                          ) : null}
-                          {estimatingTaskIndices.has(idx) ? (
-                            <span className="text-gray-400 italic leading-none">Estimating…</span>
-                          ) : (
-                            <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} className="leading-none py-0" suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
-                          )}
-                          {employees.length > 0 && (
-                            <div className="flex flex-col gap-0.5 min-w-[8rem]">
-                              <div className="flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                <MultiSelect
-                                  value={getTaskAssigneeEmployeeIds(task)}
-                                  options={taskAssigneeSelectOptions(employees, localProject, getTaskAssigneeEmployeeIds(task))}
-                                  onChange={(selectedIds) => handleTaskUpdate(idx, 'assignedToEmployeeIds', selectedIds)}
-                                  disabled={!isManagerOrAdmin}
-                                  className="text-xs min-w-[8rem]"
-                                />
-                              </div>
-                              {!isTaskAssigneeOnProjectTeam(localProject, task) && (
-                                <p className="text-[10px] text-amber-600 leading-snug max-w-[14rem]">
-                                  Assignee is not on the project team—reassign or clear to save changes.
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-                          <CommentsCollapsibleSection
-                            expanded={expandedTaskComments.has(idx)}
-                            onToggle={() => toggleTaskComments(idx)}
-                            count={getTaskSummaryForIndex(idx).count}
-                            hasUnread={
-                              currentUserId
-                                ? hasUnreadCommentActivity(
-                                    buildCommentThreadKey(
-                                      currentUserId,
-                                      'projectTask',
-                                      localProject._id.toString(),
-                                      (localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()
-                                    ),
-                                    getTaskSummaryForIndex(idx).latestActivityMs
-                                  )
-                                : false
-                            }
-                          >
-                            <CommentThread
-                              entityType="projectTask"
-                              entityId={localProject._id.toString()}
-                              taskIndex={idx}
-                              taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
-                              showHeading={false}
-                              isManagerOrAdmin={isManagerOrAdmin}
-                              showScreenshotGallery={false}
-                              onMetaChange={(meta) => handleTaskCommentMetaChange(idx, meta)}
-                            />
-                          </CommentsCollapsibleSection>
-                        </div>
-                        <TaskLinkedAssets
-                          key={`task-assets-${(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString() ?? idx}-${taskAssetsRefreshToken}`}
-                          project={localProject}
-                          taskId={(localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString()}
-                          taskIndex={idx}
-                          isManagerOrAdmin={isManagerOrAdmin}
-                          currentUserId={currentUserId}
-                          currentUserEmployeeId={currentUserEmployeeId}
-                          refreshToken={taskAssetsRefreshToken}
-                          showAddHintText={visibleIndex === 0}
-                          onAssetsChanged={() => {
-                            setTaskAssetsRefreshToken((n) => n + 1);
-                            void loadLinkedAssets();
-                          }}
-                        />
-                      </div>
-                    </SwipeableCard>
-                  )
-                })}
-                {canContributeToProject && taskTab === 'active' && (
-                  <div className="p-4 flex items-center group focus-within:bg-gray-50 transition-colors cursor-text" onClick={(e) => { const input = e.currentTarget.querySelector('input'); if (input) input.focus(); }}>
-                    <span className="w-4 h-4 rounded border-2 border-gray-300 shrink-0 mr-3 opacity-50" />
-                    <input
-                      type="text"
-                      placeholder="Add new task..."
-                      className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const val = e.currentTarget.value.trim();
-                          if (val) {
-                            const newTask = {
-                              name: val,
-                              description: '',
-                              status: 'active' as TaskStatus,
-                              startDate: new Date(),
-                              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                              estimatedHours: 0,
-                            };
-                            void commitAddTasks([newTask]);
-                            e.currentTarget.value = '';
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+                </SwipeableCard>
+              );
+            })}
           </div>
         )}
-      </div>
+      </CollapsibleInspectorSection>
+
+      <CollapsibleInspectorSection
+        id="inspector-content-section"
+        title="Content"
+        titleSuffix={
+          <span className="text-sm font-normal text-gray-500">({activeContentDisplayCount} active)</span>
+        }
+        collapsedSummary={`${activeContentDisplayCount} active`}
+        expanded={contentExpanded}
+        onToggle={() => setContentExpanded((v) => !v)}
+        headerActions={
+          canAddContent ? (
+            <Button size="sm" variant="secondary" onClick={handleOpenAddContent}>
+              + Add Content
+            </Button>
+          ) : undefined
+        }
+      >
+        {addContentOpen && canAddContent && (
+          <div className="mb-3 pb-3 border-b border-gray-100">
+            <ContentItemCreateForm
+              project={localProject}
+              clients={clients}
+              employees={employees}
+              isManagerOrAdmin={isManagerOrAdmin}
+              defaultPublishDate={addContentDefaultDate}
+              initialTitle={addContentPrefill?.title}
+              initialChannel={addContentPrefill?.channel}
+              initialNotes={addContentPrefill?.notes}
+              active={addContentOpen}
+              embeddedInInspector
+              onCancel={() => setAddContentOpen(false)}
+              onSuccess={() => {
+                setAddContentPrefill(null);
+                setAddContentDefaultDate(undefined);
+                setAddContentOpen(false);
+                onContentListChanged?.();
+              }}
+            />
+          </div>
+        )}
+        <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
+          <button onClick={() => setContentTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({activeContentDisplayCount})</button>
+          <button onClick={() => setContentTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${contentTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedContentDisplayCount})</button>
+        </div>
+        {visibleContentItems.length === 0 ? (
+          <EmptyStateIllustration
+            title={`No ${contentTab} content`}
+            description={`You don't have any ${contentTab} content items yet. Add content from the calendar or right here.`}
+          />
+        ) : (
+          <div className="divide-y divide-gray-100 space-y-0">
+            {visibleContentItems.map((item, visibleIndex) => {
+              const itemId = item._id.toString();
+              const distributionMethods = Array.isArray(item.distributionMethods) ? item.distributionMethods : [];
+              const visibleDistribution = distributionMethods.slice(0, 3);
+              const extraDistributionCount = Math.max(0, distributionMethods.length - 3);
+              const contentKey = contentItemKeyFor(item);
+              const contentSeenStatus: ItemSeenStatus = canShowContentNewIndicator(item)
+                ? (itemStatusByKey[contentKey] ?? 'none')
+                : 'none';
+              return (
+              <div key={itemId} id={`inspector-content-row-${itemId}`} className="p-4 scroll-mt-4">
+                <div className="flex items-start justify-between gap-2">
+                  <button type="button" onClick={() => onContentItemClick?.(item)} className="flex-1 min-w-0 text-left">
+                    <span className={`font-medium flex flex-wrap items-center gap-1 truncate ${contentTab === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                      <ItemSeenTag status={contentSeenStatus} />
+                      <span className="truncate">{item.title}</span>
+                    </span>
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <EditableSelect
+                      value={item.status}
+                      options={contentStatusOptions}
+                      onSave={(v) => handleContentItemStatusUpdate(item, v as ContentStatus)}
+                      disabled={!canEditContentItemStatus(item)}
+                      showColorDot
+                      className="text-xs text-gray-900"
+                    />
+                    <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>
+                  <span className="px-1.5 py-0.5 rounded bg-gray-100 shrink-0">{item.channel}</span>
+                  {visibleDistribution.map((m) => (
+                    <span key={m} className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 shrink-0">{m}</span>
+                  ))}
+                  {extraDistributionCount > 0 && (
+                    <span className="text-gray-400 italic shrink-0">+{extraDistributionCount}</span>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <span className="leading-none">Due:</span>
+                    <EditableDate
+                      value={item.publishDate ?? null}
+                      onSave={(v) => handleContentItemPublishDateUpdate(item, v)}
+                      className="text-gray-900 leading-none py-0"
+                      placeholder="Set date"
+                      disabled={!isManagerOrAdmin}
+                      clearable
+                    />
+                  </div>
+                  <EditableNumber
+                    value={item.estimatedHours}
+                    onSave={(v) => handleContentItemHoursUpdate(item, v)}
+                    className="leading-none py-0"
+                    suffix="h"
+                    min={0}
+                    placeholder="Hours"
+                    disabled={!isManagerOrAdmin}
+                  />
+                  {employees.length > 0 && (
+                    <div className="flex items-center gap-1 min-w-[8rem]">
+                      <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <EditableSelect
+                        value={item.assignedToEmployeeId?.toString() ?? ''}
+                        options={contentAssigneeOptions(employees, localProject, item.assignedToEmployeeId?.toString())}
+                        onSave={(v) => handleContentItemAssigneeUpdate(item, v)}
+                        disabled={!isManagerOrAdmin}
+                        className="text-xs text-gray-900 min-w-[8rem]"
+                      />
+                    </div>
+                  )}
+                  {canContributeToProject && item.recurrenceSeriesId ? (
+                    <>
+                      {(() => {
+                        const pos = getContentSeriesPosition(item, projectContentItems);
+                        if (!pos) return null;
+                        return (
+                          <>
+                            <SeriesPositionBadge index={pos.index} total={pos.total} />
+                            {shouldShowExtendSeries(pos) && (
+                              <ExtendSeriesSelect
+                                disabled={!canContributeToProject}
+                                onExtend={(unit) => void extendContentSeries(item.recurrenceSeriesId!, unit)}
+                              />
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
+                  ) : canContributeToProject && !item.recurrenceSeriesId ? (
+                    <TaskRecurrenceInline
+                      onRecurrenceChange={(value) =>
+                        void applyContentRecurrence(item, value.preset)
+                      }
+                    />
+                  ) : null}
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                  <CommentsCollapsibleSection
+                    expanded={expandedContentComments.has(itemId)}
+                    onToggle={() => toggleContentComments(itemId)}
+                    count={commentSummaries.contentItems[itemId]?.count ?? 0}
+                    hasUnread={
+                      currentUserId
+                        ? hasUnreadCommentActivity(
+                            buildCommentThreadKey(currentUserId, 'contentItem', itemId),
+                            commentSummaries.contentItems[itemId]?.latestActivityMs ?? 0
+                          )
+                        : false
+                    }
+                  >
+                    <CommentThread
+                      entityType="contentItem"
+                      entityId={itemId}
+                      showHeading={false}
+                      isManagerOrAdmin={isManagerOrAdmin}
+                      showScreenshotGallery={false}
+                      onMetaChange={(meta) => handleContentCommentMetaChange(itemId, meta)}
+                    />
+                  </CommentsCollapsibleSection>
+                </div>
+                <ContentLinkedAssets
+                  project={localProject}
+                  contentItemId={itemId}
+                  isManagerOrAdmin={isManagerOrAdmin}
+                  currentUserId={currentUserId}
+                  currentUserEmployeeId={currentUserEmployeeId}
+                  assignedToEmployeeId={item.assignedToEmployeeId?.toString()}
+                  refreshToken={(contentRefreshTrigger ?? 0) + contentAssetsRefreshToken}
+                  showAddHintText={visibleIndex === 0}
+                  onAssetsChanged={() => {
+                    setContentAssetsRefreshToken((n) => n + 1);
+                    void loadLinkedAssets();
+                  }}
+                />
+              </div>
+              );
+            })}
+          </div>
+        )}
+      </CollapsibleInspectorSection>
 
       {/* Action Buttons - one Close at bottom, same size as Delete */}
       <div className="flex gap-2 pt-2">

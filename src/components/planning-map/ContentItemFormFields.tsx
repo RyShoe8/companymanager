@@ -1,14 +1,35 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
 import { ContentChannel, ContentStatus, DistributionMethod } from '@/lib/models/ContentItem';
 import Input from '@/components/ui/Input';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import { DISTRIBUTION_METHODS } from '@/lib/constants/contentDistribution';
-import { formInputClass } from '@/components/ui/formClasses';
+import { formInputClass, formInputClassInspector } from '@/components/ui/formClasses';
 import { CONTENT_CHANNELS, CONTENT_STATUSES } from '@/components/planning-map/contentItemFormConstants';
 import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
+
+export function InspectorFormField({
+  label,
+  children,
+  hint,
+  className = '',
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`min-w-0 ${className}`}>
+      <span className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">{label}</span>
+      {children}
+      {hint}
+    </div>
+  );
+}
 
 export function FormSelect({
   label,
@@ -16,17 +37,19 @@ export function FormSelect({
   onChange,
   children,
   labelClassName = 'block text-sm font-medium text-text-primary',
+  inputClassName = formInputClass,
 }: {
   label: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   children: React.ReactNode;
   labelClassName?: string;
+  inputClassName?: string;
 }) {
   return (
     <label className={labelClassName}>
       {label}
-      <select value={value} onChange={onChange} className={formInputClass}>
+      <select value={value} onChange={onChange} className={inputClassName}>
         {children}
       </select>
     </label>
@@ -37,24 +60,29 @@ export function DistributionSection({
   distributionMethods,
   onToggle,
   inspectorStyled = false,
+  compact = false,
 }: {
   distributionMethods: DistributionMethod[];
   onToggle: (method: DistributionMethod) => void;
   inspectorStyled?: boolean;
+  compact?: boolean;
 }) {
   const labelClass = inspectorStyled
-    ? 'block text-sm font-medium text-gray-900 dark:text-white mb-2'
+    ? 'block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1'
     : 'block text-sm font-medium text-text-primary mb-2';
+  const chipClass = compact
+    ? 'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border cursor-pointer transition-colors'
+    : 'inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border cursor-pointer transition-colors';
   return (
     <div>
-      <label className={labelClass}>Distribution methods</label>
-      <div className="flex flex-wrap gap-2">
+      <span className={labelClass}>Distribution methods</span>
+      <div className="flex flex-wrap gap-1.5">
         {DISTRIBUTION_METHODS.map((method) => {
           const checked = distributionMethods.includes(method);
           return (
             <label
               key={method}
-              className={`inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
+              className={`${chipClass} ${
                 checked
                   ? 'bg-primary/10 border-primary text-primary'
                   : 'border-border bg-background-card text-text-secondary hover:bg-background-elevated'
@@ -138,35 +166,130 @@ export default function ContentItemFormFields({
   const labelClass = inspectorStyled
     ? 'block text-sm font-medium text-gray-900 dark:text-white'
     : 'block text-sm font-medium text-text-primary';
-  const subLabelClass = inspectorStyled
-    ? 'block text-sm font-medium text-gray-900 dark:text-white mb-1'
-    : 'block text-sm font-medium text-text-primary mb-1';
   const hintClass = inspectorStyled
-    ? 'text-xs text-gray-500 dark:text-gray-400 mt-1'
+    ? 'text-xs text-gray-500 dark:text-gray-400 mt-0.5'
     : 'text-xs text-text-secondary mt-1';
 
-  const titleField = compactLayout && inspectorStyled ? (
-    <label className={labelClass}>
-      Title *
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => onTitleChange(e.target.value)}
-        placeholder="Content title"
-        autoFocus={titleAutoFocus}
-        className={formInputClass}
-      />
-    </label>
-  ) : (
-    <Input
-      label="Title *"
-      type="text"
-      value={title}
-      onChange={(e) => onTitleChange(e.target.value)}
-      placeholder="Content title"
-      autoFocus={titleAutoFocus}
-    />
-  );
+  const useInspectorFields = compactLayout && inspectorStyled;
+  const inputClass = useInspectorFields ? formInputClassInspector : formInputClass;
+
+  const hoursHint =
+    isEstimatingHours ? (
+      <p className={`${hintClass} italic`}>Estimating…</p>
+    ) : (
+      !estimatedHours.trim() && estimatedHoursHint && (
+        <p className={hintClass}>{estimatedHoursHint}</p>
+      )
+    );
+
+  if (useInspectorFields) {
+    const showRecurrence = repeatPreset != null && onRepeatPresetChange != null;
+
+    return (
+      <div className="space-y-2">
+        <InspectorFormField label="Title *">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder="Content title"
+            autoFocus={titleAutoFocus}
+            className={formInputClassInspector}
+          />
+        </InspectorFormField>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <InspectorFormField label="Channel *">
+            <select
+              value={channel}
+              onChange={(e) => onChannelChange(e.target.value as ContentChannel)}
+              className={formInputClassInspector}
+            >
+              {CONTENT_CHANNELS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </InspectorFormField>
+          <InspectorFormField label="Status">
+            <select
+              value={status}
+              onChange={(e) => onStatusChange(e.target.value as ContentStatus)}
+              className={formInputClassInspector}
+            >
+              {CONTENT_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </InspectorFormField>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <InspectorFormField label="Publish date">
+            <input
+              type="date"
+              value={publishDate}
+              onChange={(e) => onPublishDateChange(e.target.value)}
+              className={formInputClassInspector}
+            />
+          </InspectorFormField>
+          {showRecurrence && (
+            <RecurrenceFields
+              repeatPreset={repeatPreset}
+              onRepeatPresetChange={onRepeatPresetChange}
+              inputClass={formInputClassInspector}
+              anchorDate={recurrenceAnchorDate}
+              occurrenceLabel="content items"
+              inspectorStyled
+            />
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <InspectorFormField label="Assignee">
+            <select
+              value={assignedToEmployeeId}
+              onChange={(e) => onAssignedToEmployeeIdChange(e.target.value)}
+              className={formInputClassInspector}
+            >
+              <option value="">Unassigned</option>
+              {assigneeOptions.map((emp) => (
+                <option key={emp._id.toString()} value={emp._id.toString()}>
+                  {emp.name}
+                </option>
+              ))}
+            </select>
+          </InspectorFormField>
+          <InspectorFormField label="Estimated hours" hint={hoursHint}>
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              value={estimatedHours}
+              onChange={(e) => onEstimatedHoursChange(e.target.value)}
+              className={formInputClassInspector}
+            />
+          </InspectorFormField>
+        </div>
+        <InspectorFormField label="Optional notes">
+          <AutoGrowTextarea
+            value={notes}
+            onChange={(e) => onNotesChange(e.target.value)}
+            placeholder="Add context for this content item"
+            minRows={2}
+            className={`${formInputClassInspector} whitespace-pre-wrap`}
+          />
+        </InspectorFormField>
+        <DistributionSection
+          distributionMethods={distributionMethods}
+          onToggle={onToggleDistribution}
+          inspectorStyled
+          compact
+        />
+        {children}
+      </div>
+    );
+  }
 
   const channelSelect = (
     <FormSelect
@@ -174,6 +297,7 @@ export default function ContentItemFormFields({
       value={channel}
       onChange={(e) => onChannelChange(e.target.value as ContentChannel)}
       labelClassName={labelClass}
+      inputClassName={inputClass}
     >
       {CONTENT_CHANNELS.map((c) => (
         <option key={c} value={c}>
@@ -189,6 +313,7 @@ export default function ContentItemFormFields({
       value={status}
       onChange={(e) => onStatusChange(e.target.value as ContentStatus)}
       labelClassName={labelClass}
+      inputClassName={inputClass}
     >
       {CONTENT_STATUSES.map((s) => (
         <option key={s} value={s}>
@@ -205,7 +330,7 @@ export default function ContentItemFormFields({
         type="date"
         value={publishDate}
         onChange={(e) => onPublishDateChange(e.target.value)}
-        className={formInputClass}
+        className={inputClass}
       />
     </label>
   );
@@ -216,6 +341,7 @@ export default function ContentItemFormFields({
       value={assignedToEmployeeId}
       onChange={(e) => onAssignedToEmployeeIdChange(e.target.value)}
       labelClassName={labelClass}
+      inputClassName={inputClass}
     >
       <option value="">Unassigned</option>
       {assigneeOptions.map((emp) => (
@@ -228,7 +354,7 @@ export default function ContentItemFormFields({
 
   const notesField = (
     <div>
-      <label className={subLabelClass}>Optional notes</label>
+      <span className={`${labelClass} mb-1 block`}>Optional notes</span>
       <AutoGrowTextarea
         value={notes}
         onChange={(e) => onNotesChange(e.target.value)}
@@ -239,68 +365,55 @@ export default function ContentItemFormFields({
 
   const estimatedHoursField = (
     <div>
-      {compactLayout ? (
-        <label className={labelClass}>
-          Estimated hours
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            value={estimatedHours}
-            onChange={(e) => onEstimatedHoursChange(e.target.value)}
-            className={`${formInputClass} max-w-[8rem]`}
-          />
-        </label>
-      ) : (
-        <Input
-          label="Estimated hours"
-          type="number"
-          step="0.5"
-          min="0"
-          value={estimatedHours}
-          onChange={(e) => onEstimatedHoursChange(e.target.value)}
-        />
-      )}
-      {isEstimatingHours ? (
-        <p className={`${hintClass} italic`}>Estimating…</p>
-      ) : (
-        !estimatedHours.trim() &&
-        estimatedHoursHint && <p className={hintClass}>{estimatedHoursHint}</p>
-      )}
+      <Input
+        label="Estimated hours"
+        type="number"
+        step="0.5"
+        min="0"
+        value={estimatedHours}
+        onChange={(e) => onEstimatedHoursChange(e.target.value)}
+      />
+      {hoursHint}
     </div>
   );
 
   if (compactLayout) {
-    const showRecurrence =
-      repeatPreset != null && onRepeatPresetChange != null;
+    const showRecurrence = repeatPreset != null && onRepeatPresetChange != null;
 
     return (
-      <div className="space-y-3">
-        {titleField}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="space-y-2">
+        <Input
+          label="Title *"
+          type="text"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Content title"
+          autoFocus={titleAutoFocus}
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {channelSelect}
           {statusSelect}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {publishDateField}
           {showRecurrence && (
             <RecurrenceFields
               repeatPreset={repeatPreset}
               onRepeatPresetChange={onRepeatPresetChange}
-              inputClass={formInputClass}
+              inputClass={inputClass}
               anchorDate={recurrenceAnchorDate}
               occurrenceLabel="content items"
-              inspectorStyled={inspectorStyled}
             />
           )}
         </div>
-        {assigneeSelect}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {assigneeSelect}
+          {estimatedHoursField}
+        </div>
         {notesField}
-        {estimatedHoursField}
         <DistributionSection
           distributionMethods={distributionMethods}
           onToggle={onToggleDistribution}
-          inspectorStyled={inspectorStyled}
         />
         {children}
       </div>
@@ -309,7 +422,14 @@ export default function ContentItemFormFields({
 
   return (
     <>
-      {titleField}
+      <Input
+        label="Title *"
+        type="text"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        placeholder="Content title"
+        autoFocus={titleAutoFocus}
+      />
       <DistributionSection
         distributionMethods={distributionMethods}
         onToggle={onToggleDistribution}

@@ -5,3 +5,7 @@ export const formInputClass =
 /** Compact controls for inline inspector rows (task recurrence). */
 export const formInputClassCompact =
   'rounded border border-border bg-background-card text-text-primary px-1.5 py-0.5 text-xs h-7 focus:outline-none focus:ring-1 focus:ring-primary';
+
+/** Dense labeled fields inside inspector-light create forms. */
+export const formInputClassInspector =
+  'block w-full min-w-0 rounded-md border border-gray-200 bg-white text-gray-900 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent';
