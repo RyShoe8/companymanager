@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { IMeeting } from '@/lib/models/Meeting';
 import type { IProject } from '@/lib/models/Project';
+import type { IClient } from '@/lib/models/Client';
 import type { IEmployee } from '@/lib/models/Employee';
 import Button from '@/components/ui/Button';
 import CalendarPeriodHeader from '@/components/planning-map/CalendarPeriodHeader';
@@ -28,6 +29,7 @@ function toMeetingRow(meeting: IMeeting): MeetingRow {
     googleRecurringEventId: meeting.googleRecurringEventId,
     joinUrl: meeting.joinUrl,
     joinPlatform: meeting.joinPlatform,
+    description: meeting.description,
   };
 }
 
@@ -67,11 +69,16 @@ interface MeetingsCalendarViewProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   projects: IProject[];
+  clients: IClient[];
   employees: IEmployee[];
+  isManagerOrAdmin: boolean;
+  currentUserEmployeeId?: string | null;
   editingId: string | null;
   editProjectIds: string[];
+  editClientIds: string[];
   onToggleProject: (id: string) => void;
-  onStartEdit: (meetingId: string, linkedProjectIds: string[]) => void;
+  onToggleClient: (id: string) => void;
+  onStartEdit: (meetingId: string, linkedProjectIds: string[], linkedClientIds: string[]) => void;
   onSaveLinks: (meetingId: string) => void;
   onNewMeeting: () => void;
   currentUserId?: string | null;
@@ -86,10 +93,15 @@ export default function MeetingsCalendarView({
   currentDate,
   onDateChange,
   projects,
+  clients,
   employees,
+  isManagerOrAdmin,
+  currentUserEmployeeId,
   editingId,
   editProjectIds,
+  editClientIds,
   onToggleProject,
+  onToggleClient,
   onStartEdit,
   onSaveLinks,
   onNewMeeting,
@@ -140,12 +152,19 @@ export default function MeetingsCalendarView({
               key={row._id}
               meeting={row}
               employees={employees}
+              clients={clients}
               projects={projects}
               currentUserId={currentUserId}
+              isManagerOrAdmin={isManagerOrAdmin}
+              currentUserEmployeeId={currentUserEmployeeId}
               isEditing={editingId === row._id}
               editProjectIds={editProjectIds}
+              editClientIds={editClientIds}
               onToggleProject={onToggleProject}
-              onStartEdit={() => onStartEdit(row._id, row.linkedProjectIds || [])}
+              onToggleClient={onToggleClient}
+              onStartEdit={() =>
+                onStartEdit(row._id, row.linkedProjectIds || [], row.linkedClientIds || [])
+              }
               onSaveLinks={() => onSaveLinks(row._id)}
               onEditMeeting={onEditMeeting ? () => onEditMeeting(row) : undefined}
               onDeleteMeeting={onDeleteMeeting ? () => onDeleteMeeting(row) : undefined}

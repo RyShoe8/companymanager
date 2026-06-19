@@ -9,7 +9,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | 'full';
   headerActions?: React.ReactNode;
   hideCloseButton?: boolean;
   /** Use higher z-index so this modal appears above other overlays (e.g. when opened from another modal). */
@@ -38,6 +38,8 @@ const maxWidthClass = (maxWidth: ModalProps['maxWidth']) => {
       return 'max-w-4xl';
     case '5xl':
       return 'max-w-5xl';
+    case '6xl':
+      return 'max-w-6xl';
     case '2xl':
     default:
       return 'max-w-2xl';

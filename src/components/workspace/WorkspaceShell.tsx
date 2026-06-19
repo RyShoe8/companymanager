@@ -1291,32 +1291,6 @@ _id.toString(), { tasks });
         }
     }, [handleScheduleCalendarSync]);
 
-    const scheduleSyncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    useEffect(() => {
-        if (!needsCalendarData || !scheduleCalendar?.connected) return;
-
-        if (scheduleSyncDebounceRef.current) {
-            clearTimeout(scheduleSyncDebounceRef.current);
-        }
-        scheduleSyncDebounceRef.current = setTimeout(() => {
-            void handleScheduleSync();
-        }, 2000);
-
-        return () => {
-            if (scheduleSyncDebounceRef.current) {
-                clearTimeout(scheduleSyncDebounceRef.current);
-            }
-        };
-    }, [
-        ws.lens,
-        ws.timeframe,
-        ws.currentDate,
-        needsCalendarData,
-        scheduleCalendar?.connected,
-        handleScheduleSync,
-    ]);
-
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
     // Default status for new projects depends on phase
@@ -1524,6 +1498,7 @@ _id.toString(), { tasks });
                                             employees={ws.employees}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
                                             currentUserId={ws.currentUserId}
+                                            isManagerOrAdmin={ws.isManagerOrAdmin}
                                             meetings={workspaceMeetings}
                                             loadingMeetings={loadingMeetings}
                                             meetingRefreshKey={meetingRefreshKey}

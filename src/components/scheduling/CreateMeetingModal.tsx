@@ -17,6 +17,7 @@ interface CreateMeetingModalProps {
   clients: IClient[];
   employees: IEmployee[];
   currentUserEmployeeId?: string | null;
+  isManagerOrAdmin?: boolean;
   schedulingTimeZone?: string;
   onSuccess?: (info?: MeetingCreateSuccessInfo) => void;
 }

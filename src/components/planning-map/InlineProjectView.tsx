@@ -2256,9 +2256,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         id="inspector-tasks-section"
         title="Tasks"
         titleSuffix={
-          <span className="text-sm font-normal text-gray-500">({activeTaskDisplayCount} open)</span>
+          <span className="text-sm font-normal text-gray-500">({activeTaskDisplayCount} active)</span>
         }
-        collapsedSummary={`${activeTaskDisplayCount} open`}
+        collapsedSummary={`${activeTaskDisplayCount} active`}
         expanded={tasksExpanded}
         onToggle={() => setTasksExpanded((v) => !v)}
         headerActions={
@@ -2479,7 +2479,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         onToggle={() => setContentExpanded((v) => !v)}
         headerActions={
           canAddContent ? (
-            <Button size="sm" variant="secondary" onClick={handleOpenAddContent}>
+            <Button size="sm" onClick={handleOpenAddContent}>
               + Add Content
             </Button>
           ) : undefined

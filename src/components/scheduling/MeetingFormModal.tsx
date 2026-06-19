@@ -12,6 +12,8 @@ import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import { formInputClass } from '@/components/ui/formClasses';
 import type { MeetingVideoMode } from '@/lib/scheduling/meetingVideoConference';
 import { inferVideoModeFromMeeting } from '@/lib/scheduling/meetingVideoConference';
+import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
+import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 
 export type MeetingCreateSuccessInfo = {
@@ -31,6 +33,7 @@ export type MeetingFormMeeting = {
   googleRecurringEventId?: string;
   joinUrl?: string;
   joinPlatform?: MeetingJoinPlatform;
+  description?: string;
 };
 
 export type MeetingUpdateScope = 'instance' | 'series';
@@ -43,24 +46,13 @@ interface MeetingFormModalProps {
   clients: IClient[];
   employees: IEmployee[];
   currentUserEmployeeId?: string | null;
+  isManagerOrAdmin?: boolean;
   schedulingTimeZone?: string;
   meeting?: MeetingFormMeeting | null;
   onSuccess?: (info?: MeetingCreateSuccessInfo) => void;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
-
-function projectsForMeetingLink(projects: IProject[], selectedClientIds: string[]): IProject[] {
-  let pool = projects;
-  if (selectedClientIds.length > 0) {
-    pool = projects.filter(
-      (p) => p.clientId != null && selectedClientIds.includes(p.clientId.toString())
-    );
-  }
-  const withoutAdmin = pool.filter((p) => p.projectType !== 'client-admin');
-  if (withoutAdmin.length > 0) return withoutAdmin;
-  return pool.filter((p) => p.projectType === 'client-admin');
-}
 
 function employeeHasInviteEmail(emp: IEmployee): boolean {
   return !!(emp.email?.trim() || emp.userId);
@@ -81,11 +73,13 @@ export default function MeetingFormModal({
   clients,
   employees,
   currentUserEmployeeId,
+  isManagerOrAdmin = true,
   schedulingTimeZone,
   meeting,
   onSuccess,
 }: MeetingFormModalProps) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
@@ -101,11 +95,7 @@ export default function MeetingFormModal({
   const [error, setError] = useState<string | null>(null);
 
   const isRecurringEdit = mode === 'edit' && !!meeting?.googleRecurringEventId;
-
-  const linkableProjects = useMemo(
-    () => projectsForMeetingLink(projects, linkedClientIds),
-    [projects, linkedClientIds]
-  );
+  const isEdit = mode === 'edit';
 
   const inviteableEmployees = useMemo(
     () =>
@@ -132,6 +122,7 @@ export default function MeetingFormModal({
 
     if (mode === 'edit' && meeting) {
       setTitle(meeting.title);
+      setDescription(meeting.description || '');
       setStart(toDatetimeLocal(meeting.start));
       setEnd(toDatetimeLocal(meeting.end));
       setLinkedProjectIds(meeting.linkedProjectIds || []);
@@ -145,6 +136,7 @@ export default function MeetingFormModal({
       setRepeatPreset('none');
     } else {
       setTitle('');
+      setDescription('');
       setStart('');
       setEnd('');
       setRepeatPreset('none');
@@ -224,6 +216,7 @@ export default function MeetingFormModal({
       if (mode === 'edit' && meeting) {
         const body: Record<string, unknown> = {
           title: title.trim(),
+          description: description.trim(),
           start: startDate.toISOString(),
           end: endDate.toISOString(),
           linkedProjectIds,
@@ -253,6 +246,7 @@ export default function MeetingFormModal({
 
       const body: Record<string, unknown> = {
         title: title.trim(),
+        description: description.trim(),
         start: startDate.toISOString(),
         end: endDate.toISOString(),
         linkedProjectIds,
@@ -296,9 +290,9 @@ export default function MeetingFormModal({
       isOpen={isOpen}
       onClose={handleClose}
       title={mode === 'edit' ? 'Edit meeting' : 'New meeting'}
-      maxWidth="md"
+      maxWidth={isEdit ? '6xl' : 'md'}
     >
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <form onSubmit={handleSubmit} className={`p-6 space-y-4 ${isEdit ? 'sm:space-y-5' : ''}`}>
         {error && (
           <div className="rounded-lg border border-error/30 bg-error-light px-3 py-2 text-sm text-error">
             {error}
@@ -338,7 +332,21 @@ export default function MeetingFormModal({
           placeholder="Meeting title"
           required
         />
-        <div className="flex flex-wrap gap-4">
+
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-1">
+            Description (optional)
+          </label>
+          <AutoGrowTextarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Agenda, context, or notes for this meeting"
+            minRows={isEdit ? 4 : 3}
+            className={`${formInputClass} mt-0 w-full whitespace-pre-wrap`}
+          />
+        </div>
+
+        <div className={isEdit ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'flex flex-wrap gap-4'}>
           <label className="text-sm text-text-primary">
             Start
             <input
@@ -484,53 +492,17 @@ export default function MeetingFormModal({
         </div>
 
         <div>
-          <p className="text-sm font-medium text-text-primary mb-2">Link clients (optional)</p>
-          <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto rounded-lg border border-border p-3 bg-background-card">
-            {clients.length === 0 ? (
-              <p className="text-sm text-text-secondary">No clients available.</p>
-            ) : (
-              clients.map((client) => (
-                <label
-                  key={client._id?.toString()}
-                  className="flex items-center gap-1.5 text-sm text-text-primary cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={linkedClientIds.includes(client._id?.toString() ?? '')}
-                    onChange={() => toggleClient(client._id?.toString() ?? '')}
-                  />
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: client.color || '#3b82f6' }}
-                  />
-                  {client.name}
-                </label>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-sm font-medium text-text-primary mb-2">Link projects (optional)</p>
-          <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto rounded-lg border border-border p-3 bg-background-card">
-            {linkableProjects.length === 0 ? (
-              <p className="text-sm text-text-secondary">No projects available.</p>
-            ) : (
-              linkableProjects.map((p) => (
-                <label
-                  key={p._id.toString()}
-                  className="flex items-center gap-1.5 text-sm text-text-primary cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={linkedProjectIds.includes(p._id.toString())}
-                    onChange={() => toggleProject(p._id.toString())}
-                  />
-                  {p.name}
-                </label>
-              ))
-            )}
-          </div>
+          <p className="text-sm font-medium text-text-primary mb-2">Link clients & projects (optional)</p>
+          <MultiLinkTargetPicker
+            clients={clients}
+            projects={projects}
+            selectedClientIds={linkedClientIds}
+            selectedProjectIds={linkedProjectIds}
+            onToggleClient={toggleClient}
+            onToggleProject={toggleProject}
+            currentUserEmployeeId={currentUserEmployeeId}
+            isManagerOrAdmin={isManagerOrAdmin}
+          />
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

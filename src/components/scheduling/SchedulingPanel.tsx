@@ -20,6 +20,7 @@ interface SchedulingPanelProps {
   employees?: IEmployee[];
   currentUserEmployeeId?: string | null;
   currentUserId?: string | null;
+  isManagerOrAdmin: boolean;
   meetings: IMeeting[];
   loadingMeetings?: boolean;
   meetingRefreshKey?: number;
@@ -47,6 +48,7 @@ function meetingRowToFormMeeting(row: MeetingRow): MeetingFormMeeting {
     googleRecurringEventId: row.googleRecurringEventId,
     joinUrl: row.joinUrl,
     joinPlatform: row.joinPlatform,
+    description: row.description,
   };
 }
 
@@ -56,6 +58,7 @@ export default function SchedulingPanel({
   employees = [],
   currentUserEmployeeId,
   currentUserId,
+  isManagerOrAdmin,
   meetings,
   loadingMeetings = false,
   meetingRefreshKey = 0,
@@ -77,6 +80,7 @@ export default function SchedulingPanel({
   const [deleting, setDeleting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editProjectIds, setEditProjectIds] = useState<string[]>([]);
+  const [editClientIds, setEditClientIds] = useState<string[]>([]);
 
   const displayMessage = externalMessage ?? message;
 
@@ -91,12 +95,15 @@ export default function SchedulingPanel({
     }
   }, [meetingRefreshKey, onSetMessage]);
 
-  const handleSaveMeetingProjects = async (meetingId: string) => {
+  const handleSaveMeetingLinks = async (meetingId: string) => {
     const editingMeetingRow = meetings.find((m) => m._id.toString() === meetingId);
     const res = await fetch(`/api/scheduling/meetings/${meetingId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkedProjectIds: editProjectIds }),
+      body: JSON.stringify({
+        linkedProjectIds: editProjectIds,
+        linkedClientIds: editClientIds,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
@@ -106,18 +113,24 @@ export default function SchedulingPanel({
         typeof data.participantsUpdatedCount === 'number' ? data.participantsUpdatedCount : 1;
       const calendars =
         typeof data.calendarsPatchedCount === 'number' ? data.calendarsPatchedCount : 0;
-      let msg = 'Meeting projects updated.';
+      let msg = 'Meeting links updated.';
       if (editingMeetingRow?.googleRecurringEventId && participants > 1) {
-        msg = `Projects linked across ${participants} meeting records${calendars > 0 ? `; ${calendars} Google Calendar${calendars === 1 ? '' : 's'} updated with agenda` : ''}.`;
+        msg = `Links updated across ${participants} meeting records${calendars > 0 ? `; ${calendars} Google Calendar${calendars === 1 ? '' : 's'} updated with agenda` : ''}.`;
       } else if (participants > 1) {
-        msg = `Projects linked for ${participants} team members${calendars > 0 ? `; ${calendars} calendar${calendars === 1 ? '' : 's'} updated` : ' in Nucleas'}.`;
+        msg = `Links updated for ${participants} team members${calendars > 0 ? `; ${calendars} calendar${calendars === 1 ? '' : 's'} updated` : ' in Nucleas'}.`;
       } else if (calendars > 0) {
-        msg = 'Meeting projects updated; agenda refreshed in your Google Calendar.';
+        msg = 'Meeting links updated; agenda refreshed in your Google Calendar.';
       }
       setPanelMessage(msg);
     } else {
       setPanelMessage(data.error || 'Failed to update meeting.');
     }
+  };
+
+  const toggleEditClient = (id: string) => {
+    setEditClientIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
   };
 
   const toggleEditProject = (id: string) => {
@@ -203,6 +216,7 @@ export default function SchedulingPanel({
         clients={clients}
         employees={employees}
         currentUserEmployeeId={currentUserEmployeeId}
+        isManagerOrAdmin={isManagerOrAdmin}
         schedulingTimeZone={schedulingTimeZone}
         onSuccess={handleMeetingCreated}
       />
@@ -216,6 +230,7 @@ export default function SchedulingPanel({
         clients={clients}
         employees={employees}
         currentUserEmployeeId={currentUserEmployeeId}
+        isManagerOrAdmin={isManagerOrAdmin}
         schedulingTimeZone={schedulingTimeZone}
         onSuccess={handleMeetingUpdated}
       />
@@ -274,15 +289,21 @@ export default function SchedulingPanel({
         currentDate={currentDate}
         onDateChange={onDateChange}
         projects={projects}
+        clients={clients}
         employees={employees}
+        isManagerOrAdmin={isManagerOrAdmin}
+        currentUserEmployeeId={currentUserEmployeeId}
         editingId={editingId}
         editProjectIds={editProjectIds}
+        editClientIds={editClientIds}
         onToggleProject={toggleEditProject}
-        onStartEdit={(meetingId, linkedIds) => {
+        onToggleClient={toggleEditClient}
+        onStartEdit={(meetingId, linkedProjectIds, linkedClientIds) => {
           setEditingId(meetingId);
-          setEditProjectIds(linkedIds);
+          setEditProjectIds(linkedProjectIds);
+          setEditClientIds(linkedClientIds);
         }}
-        onSaveLinks={(meetingId) => void handleSaveMeetingProjects(meetingId)}
+        onSaveLinks={(meetingId) => void handleSaveMeetingLinks(meetingId)}
         onNewMeeting={() => setShowMeetingModal(true)}
         currentUserId={currentUserId}
         onEditMeeting={(row) => setEditingMeeting(meetingRowToFormMeeting(row))}
