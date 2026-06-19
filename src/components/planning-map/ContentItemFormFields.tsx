@@ -102,6 +102,8 @@ export interface ContentItemFormFieldsProps {
   assigneeOptions: IEmployee[];
   estimatedHours: string;
   onEstimatedHoursChange: (value: string) => void;
+  isEstimatingHours?: boolean;
+  estimatedHoursHint?: string;
   children?: React.ReactNode;
 }
 
@@ -124,6 +126,8 @@ export default function ContentItemFormFields({
   assigneeOptions,
   estimatedHours,
   onEstimatedHoursChange,
+  isEstimatingHours = false,
+  estimatedHoursHint,
   children,
   inspectorStyled = false,
   compactLayout = false,
@@ -137,6 +141,32 @@ export default function ContentItemFormFields({
   const subLabelClass = inspectorStyled
     ? 'block text-sm font-medium text-gray-900 dark:text-white mb-1'
     : 'block text-sm font-medium text-text-primary mb-1';
+  const hintClass = inspectorStyled
+    ? 'text-xs text-gray-500 dark:text-gray-400 mt-1'
+    : 'text-xs text-text-secondary mt-1';
+
+  const titleField = compactLayout && inspectorStyled ? (
+    <label className={labelClass}>
+      Title *
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        placeholder="Content title"
+        autoFocus={titleAutoFocus}
+        className={formInputClass}
+      />
+    </label>
+  ) : (
+    <Input
+      label="Title *"
+      type="text"
+      value={title}
+      onChange={(e) => onTitleChange(e.target.value)}
+      placeholder="Content title"
+      autoFocus={titleAutoFocus}
+    />
+  );
 
   const channelSelect = (
     <FormSelect
@@ -196,25 +226,48 @@ export default function ContentItemFormFields({
     </FormSelect>
   );
 
-  const estimatedHoursField = compactLayout ? (
-    <label className={labelClass}>
-      Est. hours
-      <input
-        type="number"
-        step="0.5"
-        value={estimatedHours}
-        onChange={(e) => onEstimatedHoursChange(e.target.value)}
-        className={`${formInputClass} max-w-[8rem]`}
+  const notesField = (
+    <div>
+      <label className={subLabelClass}>Optional notes</label>
+      <AutoGrowTextarea
+        value={notes}
+        onChange={(e) => onNotesChange(e.target.value)}
+        placeholder="Add context for this content item"
       />
-    </label>
-  ) : (
-    <Input
-      label="Estimated hours"
-      type="number"
-      step="0.5"
-      value={estimatedHours}
-      onChange={(e) => onEstimatedHoursChange(e.target.value)}
-    />
+    </div>
+  );
+
+  const estimatedHoursField = (
+    <div>
+      {compactLayout ? (
+        <label className={labelClass}>
+          Estimated hours
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            value={estimatedHours}
+            onChange={(e) => onEstimatedHoursChange(e.target.value)}
+            className={`${formInputClass} max-w-[8rem]`}
+          />
+        </label>
+      ) : (
+        <Input
+          label="Estimated hours"
+          type="number"
+          step="0.5"
+          min="0"
+          value={estimatedHours}
+          onChange={(e) => onEstimatedHoursChange(e.target.value)}
+        />
+      )}
+      {isEstimatingHours ? (
+        <p className={`${hintClass} italic`}>Estimating…</p>
+      ) : (
+        !estimatedHours.trim() &&
+        estimatedHoursHint && <p className={hintClass}>{estimatedHoursHint}</p>
+      )}
+    </div>
   );
 
   if (compactLayout) {
@@ -223,14 +276,7 @@ export default function ContentItemFormFields({
 
     return (
       <div className="space-y-3">
-        <Input
-          label="Title *"
-          type="text"
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          placeholder="Content title"
-          autoFocus={titleAutoFocus}
-        />
+        {titleField}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {channelSelect}
           {statusSelect}
@@ -248,18 +294,9 @@ export default function ContentItemFormFields({
             />
           )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {assigneeSelect}
-          {estimatedHoursField}
-        </div>
-        <div>
-          <label className={subLabelClass}>Notes</label>
-          <AutoGrowTextarea
-            value={notes}
-            onChange={(e) => onNotesChange(e.target.value)}
-            placeholder="Optional notes"
-          />
-        </div>
+        {assigneeSelect}
+        {notesField}
+        {estimatedHoursField}
         <DistributionSection
           distributionMethods={distributionMethods}
           onToggle={onToggleDistribution}
@@ -272,14 +309,7 @@ export default function ContentItemFormFields({
 
   return (
     <>
-      <Input
-        label="Title *"
-        type="text"
-        value={title}
-        onChange={(e) => onTitleChange(e.target.value)}
-        placeholder="Content title"
-        autoFocus={titleAutoFocus}
-      />
+      {titleField}
       <DistributionSection
         distributionMethods={distributionMethods}
         onToggle={onToggleDistribution}
@@ -288,11 +318,8 @@ export default function ContentItemFormFields({
       {channelSelect}
       {statusSelect}
       {publishDateField}
-      <div>
-        <label className={subLabelClass}>Notes</label>
-        <AutoGrowTextarea value={notes} onChange={(e) => onNotesChange(e.target.value)} placeholder="Optional notes" />
-      </div>
       {assigneeSelect}
+      {notesField}
       {estimatedHoursField}
       {children}
     </>

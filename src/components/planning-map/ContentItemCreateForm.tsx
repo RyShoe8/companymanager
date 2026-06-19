@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { IProject } from '@/lib/models/Project';
 import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
@@ -17,6 +17,8 @@ import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
 import { matchContentChannel } from '@/components/planning-map/contentItemCreateUtils';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+
+const HOURS_ESTIMATE_DEBOUNCE_MS = 600;
 
 export interface ContentItemCreateFormProps {
   project: IProject;
@@ -67,6 +69,11 @@ export default function ContentItemCreateForm({
   const [isEstimating, setIsEstimating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [repeatPreset, setRepeatPreset] = useState<RecurrencePreset>('none');
+  const hoursManuallyEditedRef = useRef(false);
+  const estimatedHoursRef = useRef(estimatedHours);
+  estimatedHoursRef.current = estimatedHours;
+  const estimateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const estimateRequestIdRef = useRef(0);
 
   const assigneeOptions = filterEmployeesForTaskAssignment(employees, project);
 
@@ -79,8 +86,50 @@ export default function ContentItemCreateForm({
   const sectionBorder = lightSurface('border-gray-200', 'dark:border-gray-700', light);
   const sectionHeading = lightSurface('text-sm font-semibold text-gray-900', 'dark:text-white', light);
 
+  const scheduleHourEstimate = useCallback(() => {
+    if (estimateTimerRef.current) {
+      clearTimeout(estimateTimerRef.current);
+    }
+    estimateTimerRef.current = setTimeout(() => {
+      estimateTimerRef.current = null;
+      const trimmedTitle = title.trim();
+      if (!trimmedTitle || !active) return;
+      if (hoursManuallyEditedRef.current) return;
+      if (estimatedHoursRef.current.trim()) return;
+
+      const requestId = ++estimateRequestIdRef.current;
+      setIsEstimating(true);
+      void fetchEstimatedHours({
+        kind: 'content',
+        title: trimmedTitle,
+        channel,
+        description: notes.trim() || undefined,
+        projectName: project.name,
+      })
+        .then((hours) => {
+          if (requestId !== estimateRequestIdRef.current) return;
+          if (hoursManuallyEditedRef.current) return;
+          if (estimatedHoursRef.current.trim()) return;
+          if (hours != null) {
+            setEstimatedHours(String(hours));
+          }
+        })
+        .finally(() => {
+          if (requestId === estimateRequestIdRef.current) {
+            setIsEstimating(false);
+          }
+        });
+    }, HOURS_ESTIMATE_DEBOUNCE_MS);
+  }, [active, title, channel, notes, project.name]);
+
   useEffect(() => {
     if (!active) {
+      hoursManuallyEditedRef.current = false;
+      estimateRequestIdRef.current += 1;
+      if (estimateTimerRef.current) {
+        clearTimeout(estimateTimerRef.current);
+        estimateTimerRef.current = null;
+      }
       setTitle('');
       setChannel('Other');
       setPublishDate(toContentInputDate(new Date()));
@@ -95,6 +144,7 @@ export default function ContentItemCreateForm({
       setPendingAssets([]);
       setRepeatPreset('none');
       setError(null);
+      setIsEstimating(false);
       return;
     }
     setTitle(initialTitle?.trim() ?? '');
@@ -104,13 +154,30 @@ export default function ContentItemCreateForm({
     const base = defaultPublishDate || new Date();
     setPublishDate(toContentInputDate(base));
     setError(null);
+    hoursManuallyEditedRef.current = false;
   }, [active, project._id, initialTitle, initialChannel, initialNotes, defaultPublishDate]);
 
   useEffect(() => {
     onTitleDraftChange?.(title);
   }, [title, onTitleDraftChange]);
 
+  useEffect(() => {
+    if (!active) return;
+    scheduleHourEstimate();
+    return () => {
+      if (estimateTimerRef.current) {
+        clearTimeout(estimateTimerRef.current);
+        estimateTimerRef.current = null;
+      }
+    };
+  }, [active, title, notes, channel, scheduleHourEstimate]);
+
   const handleTitleChange = (value: string) => setTitle(value);
+
+  const handleEstimatedHoursChange = (value: string) => {
+    hoursManuallyEditedRef.current = true;
+    setEstimatedHours(value);
+  };
 
   const toggleDistribution = (method: DistributionMethod) => {
     setDistributionMethods((prev) =>
@@ -216,7 +283,9 @@ export default function ContentItemCreateForm({
         onAssignedToEmployeeIdChange={setAssignedToEmployeeId}
         assigneeOptions={assigneeOptions}
         estimatedHours={estimatedHours}
-        onEstimatedHoursChange={setEstimatedHours}
+        onEstimatedHoursChange={handleEstimatedHoursChange}
+        isEstimatingHours={isEstimating}
+        estimatedHoursHint="AI suggests hours when left blank"
       />
 
       <ContentItemAssetsSection
