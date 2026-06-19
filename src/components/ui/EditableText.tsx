@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+import { adjustTextareaHeight } from '@/lib/ui/autoGrowTextarea';
 
 interface EditableTextProps {
   value: string;
@@ -17,6 +18,8 @@ interface EditableTextProps {
   /** Start in edit mode once on mount (e.g. new task row). */
   autoEditOnMount?: boolean;
   onAutoEditMount?: () => void;
+  /** Called when edit mode closes after blur (includes unchanged empty blur). */
+  onEditBlur?: (finalValue: string) => void;
 }
 
 function classNameHasTextColor(className: string): boolean {
@@ -34,6 +37,7 @@ export default function EditableText({
   clearValuesOnEdit,
   autoEditOnMount = false,
   onAutoEditMount,
+  onEditBlur,
 }: EditableTextProps) {
   const light = useInspectorLight();
   const [isEditing, setIsEditing] = useState(false);
@@ -111,21 +115,26 @@ export default function EditableText({
       el.focus();
       el.setSelectionRange(pos, pos);
       prevUseMultilineRef.current = useMultiline;
+      adjustTextareaHeight(el);
       return;
     }
 
-    if (multiline) return;
-
-    if (
-      useMultiline &&
-      !prevUseMultilineRef.current &&
-      el instanceof HTMLTextAreaElement
-    ) {
-      const len = editValue.length;
-      el.focus();
-      el.setSelectionRange(len, len);
+    if (!multiline) {
+      if (
+        useMultiline &&
+        !prevUseMultilineRef.current &&
+        el instanceof HTMLTextAreaElement
+      ) {
+        const len = editValue.length;
+        el.focus();
+        el.setSelectionRange(len, len);
+      }
+      prevUseMultilineRef.current = useMultiline;
     }
-    prevUseMultilineRef.current = useMultiline;
+
+    if (useMultiline && el instanceof HTMLTextAreaElement) {
+      adjustTextareaHeight(el);
+    }
   }, [isEditing, useMultiline, editValue, multiline]);
 
   const handleSave = async () => {
@@ -135,6 +144,7 @@ export default function EditableText({
     pendingCaretPosRef.current = null;
     setForceMultiline(false);
     setIsEditing(false);
+    onEditBlur?.(editValue);
   };
 
   const handleCancel = () => {
@@ -142,6 +152,7 @@ export default function EditableText({
     pendingCaretPosRef.current = null;
     setForceMultiline(false);
     setIsEditing(false);
+    onEditBlur?.(value);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -187,7 +198,7 @@ export default function EditableText({
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className={`${editClassName} w-full block resize-y min-h-[2.5rem]`}
+          className={`${editClassName} w-full block resize-none overflow-hidden min-h-[2.5rem]`}
           placeholder={placeholder}
           rows={1}
         />

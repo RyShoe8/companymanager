@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { IComment } from '@/lib/models/Comment';
-import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import EditableText from '@/components/ui/EditableText';
 import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import { getCommentTreeMeta } from '@/lib/comments/commentUtils';
@@ -42,12 +42,15 @@ export default function CommentThread({
   onMetaChange,
 }: CommentThreadProps) {
   const light = useInspectorLight();
+  const commentBodyClass = lightSurface(
+    'text-sm text-gray-700 w-full block',
+    'dark:text-gray-300',
+    light
+  );
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
-  const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyContent, setReplyContent] = useState('');
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
+  const [replyComposerKey, setReplyComposerKey] = useState(0);
+  const [rootComposerKey, setRootComposerKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fetchedUserId, setFetchedUserId] = useState<string | undefined>();
   const currentUserId = currentUserIdProp ?? fetchedUserId;
@@ -118,67 +121,68 @@ export default function CommentThread({
     return () => clearInterval(id);
   }, [pollIntervalMs, loadComments]);
 
-  const handleSubmitComment = async (e: React.FormEvent | React.MouseEvent, parentId?: string) => {
-    if (e && 'preventDefault' in e) {
-      e.preventDefault();
-    }
-    const content = parentId ? replyContent : newComment;
-    if (!content.trim()) return;
+  const postComment = useCallback(
+    async (content: string, parentId?: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
 
-    try {
-      const body: Record<string, unknown> = {
-        content,
-        entityType,
-        entityId,
-      };
+      try {
+        const body: Record<string, unknown> = {
+          content: trimmed,
+          entityType,
+          entityId,
+        };
 
-      if (parentId) {
-        body.parentId = parentId;
+        if (parentId) {
+          body.parentId = parentId;
+        }
+
+        if (taskId) {
+          body.taskId = taskId;
+        } else if (taskIndex !== undefined) {
+          body.taskIndex = taskIndex;
+        }
+
+        const response = await fetch('/api/comments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          setReplyingTo(null);
+          setReplyComposerKey((k) => k + 1);
+          if (!parentId) setRootComposerKey((k) => k + 1);
+          await loadComments();
+        }
+      } catch {
+        // Error submitting comment
       }
+    },
+    [entityType, entityId, taskId, taskIndex, loadComments]
+  );
 
-      if (taskId) {
-        body.taskId = taskId;
-      } else if (taskIndex !== undefined) {
-        body.taskIndex = taskIndex;
+  const updateComment = useCallback(
+    async (commentId: string, content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
+
+      try {
+        const response = await fetch(`/api/comments/${commentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: trimmed }),
+        });
+
+        if (response.ok) {
+          await loadComments();
+        }
+      } catch {
+        // Error editing comment
       }
-
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (response.ok) {
-        setNewComment('');
-        setReplyContent('');
-        setReplyingTo(null);
-        loadComments();
-      }
-    } catch {
-      // Error submitting comment
-    }
-  };
-
-  const handleEditComment = async (commentId: string) => {
-    const content = editContent.trim();
-    if (!content) return;
-
-    try {
-      const response = await fetch(`/api/comments/${commentId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-
-      if (response.ok) {
-        setEditingCommentId(null);
-        setEditContent('');
-        loadComments();
-      }
-    } catch {
-      // Error editing comment
-    }
-  };
+    },
+    [loadComments]
+  );
 
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm('Are you sure you want to delete this comment?')) return;
@@ -189,9 +193,7 @@ export default function CommentThread({
       });
 
       if (response.ok) {
-        setEditingCommentId(null);
-        setEditContent('');
-        loadComments();
+        await loadComments();
       }
     } catch {
       // Error deleting comment
@@ -209,19 +211,25 @@ export default function CommentThread({
     });
   };
 
+  const toggleReplyComposer = (commentId: string) => {
+    setReplyingTo((prev) => {
+      if (prev === commentId) return null;
+      setReplyComposerKey((k) => k + 1);
+      return commentId;
+    });
+  };
+
   const renderComment = (comment: CommentWithReplies, depth: number = 0) => {
     const isAuthor = currentUserId && comment.authorId.toString() === currentUserId;
     const maxDepth = 3;
     const commentId = comment._id.toString();
-    const isEditingThisComment = editingCommentId === commentId;
-    const startEditingComment = () => {
-      if (!isAuthor || isEditingThisComment) return;
-      setEditingCommentId(commentId);
-      setEditContent(comment.content);
-    };
+    const isReplyOpen = replyingTo === commentId;
 
     return (
-      <div key={comment._id.toString()} className={`${depth > 0 ? lightSurface('ml-6 mt-3 border-l-2 border-gray-200 pl-4', 'dark:border-gray-700', light) : ''}`}>
+      <div
+        key={commentId}
+        className={`${depth > 0 ? lightSurface('ml-6 mt-3 border-l-2 border-gray-200 pl-4', 'dark:border-gray-700', light) : ''}`}
+      >
         <div className={lightSurface('bg-gray-50 rounded-lg p-3', 'dark:bg-gray-800', light)}>
           <div className="flex items-start justify-between mb-2">
             <div>
@@ -234,99 +242,53 @@ export default function CommentThread({
                 </span>
               </div>
             </div>
-            {isAuthor && !isEditingThisComment && (
+            {isAuthor && (
               <div className="flex gap-1">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => handleDeleteComment(commentId)}
-                >
+                <Button variant="danger" size="sm" onClick={() => handleDeleteComment(commentId)}>
                   Delete
                 </Button>
               </div>
             )}
           </div>
-          {isEditingThisComment ? (
-            <div className="space-y-2">
-              <Input
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                placeholder="Edit comment..."
-                className="w-full text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setEditingCommentId(null);
-                    setEditContent('');
-                  }
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleEditComment(comment._id.toString());
-                  }
-                }}
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleEditComment(commentId)}>
-                  Save
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setEditingCommentId(null);
-                    setEditContent('');
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <p
-              className={lightSurface(
-                `text-sm whitespace-pre-wrap ${isAuthor ? 'cursor-text hover:opacity-85 transition-opacity' : ''} text-gray-700`,
-                `dark:text-gray-300 ${isAuthor ? 'dark:hover:opacity-85' : ''}`,
-                light
-              )}
-              onClick={startEditingComment}
-              title={isAuthor ? 'Click to edit comment' : undefined}
-            >
-              {comment.content}
-            </p>
-          )}
+          <EditableText
+            value={comment.content}
+            onSave={(v) => updateComment(commentId, v)}
+            multiline
+            disabled={!isAuthor}
+            placeholder="Add comment..."
+            className={lightSurface(
+              'text-sm text-gray-700 w-full block',
+              'dark:text-gray-300',
+              light
+            )}
+          />
           {depth < maxDepth && (
-            <button
-              onClick={() => setReplyingTo(replyingTo === comment._id.toString() ? null : comment._id.toString())}
-              className={lightSurface('mt-2 text-xs text-blue-600 hover:underline', 'dark:text-blue-400', light)}
-            >
-              {replyingTo === comment._id.toString() ? 'Cancel' : 'Reply'}
-            </button>
+            <div className="mt-2">
+              <Button variant="secondary" size="sm" onClick={() => toggleReplyComposer(commentId)}>
+                Add
+              </Button>
+            </div>
           )}
         </div>
 
-        {replyingTo === comment._id.toString() && (
+        {isReplyOpen && (
           <div className="mt-2 ml-6">
-            <div className="flex gap-2">
-              <Input
-                value={replyContent}
-                onChange={(e) => setReplyContent(e.target.value)}
-                placeholder="Write a reply..."
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmitComment(e as React.FormEvent, comment._id.toString());
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                onClick={(e) => handleSubmitComment(e, comment._id.toString())}
-                className="h-[38px] min-h-0"
-              >
-                Reply
-              </Button>
-            </div>
+            <EditableText
+              key={`reply-${commentId}-${replyComposerKey}`}
+              value=""
+              onSave={(v) => postComment(v, commentId)}
+              onEditBlur={(v) => {
+                if (!v.trim()) setReplyingTo(null);
+              }}
+              multiline
+              autoEditOnMount
+              placeholder="Add a reply..."
+              className={lightSurface(
+                'text-sm text-gray-700 w-full block',
+                'dark:text-gray-300',
+                light
+              )}
+            />
           </div>
         )}
 
@@ -347,12 +309,16 @@ export default function CommentThread({
     <div className="space-y-4">
       <div>
         {showHeading && (
-          <h4 className={lightSurface('text-sm font-semibold text-gray-900 mb-3', 'dark:text-white', light)}>Comments</h4>
+          <h4 className={lightSurface('text-sm font-semibold text-gray-900 mb-3', 'dark:text-white', light)}>
+            Comments
+          </h4>
         )}
         {comments.length === 0 ? (
-          <p className={lightSurface('text-sm text-gray-500', 'dark:text-gray-400', light)}>No comments yet. Be the first to comment!</p>
+          <p className={lightSurface('text-sm text-gray-500 mb-3', 'dark:text-gray-400', light)}>
+            No comments yet. Be the first to comment!
+          </p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 mb-4">
             {comments.map((comment) => renderComment(comment))}
           </div>
         )}
@@ -370,28 +336,14 @@ export default function CommentThread({
       )}
 
       <div className={`border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)} pt-4`}>
-        <div className="flex gap-2 mb-2">
-          <Input
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment..."
-            className="flex-1"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmitComment(e);
-              }
-            }}
-          />
-          <Button
-            type="button"
-            size="sm"
-            onClick={(e) => handleSubmitComment(e)}
-            className="h-[38px] min-h-0"
-          >
-            Post
-          </Button>
-        </div>
+        <EditableText
+          key={`root-${rootComposerKey}`}
+          value=""
+          onSave={postComment}
+          multiline
+          placeholder="Add a comment..."
+          className={commentBodyClass}
+        />
       </div>
     </div>
   );

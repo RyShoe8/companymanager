@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useLayoutEffect, TextareaHTMLAttributes } from 'react';
+import { adjustTextareaHeight } from '@/lib/ui/autoGrowTextarea';
 
 interface AutoGrowTextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'rows'> {
   minRows?: number;
@@ -18,10 +19,7 @@ export default function AutoGrowTextarea({
   const adjustHeight = () => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = 'auto';
-    const lineHeight = parseInt(getComputedStyle(el).lineHeight, 10) || 20;
-    const minHeight = lineHeight * minRows + (parseInt(getComputedStyle(el).paddingTop, 10) || 0) + (parseInt(getComputedStyle(el).paddingBottom, 10) || 0);
-    el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`;
+    adjustTextareaHeight(el, minRows);
   };
 
   useLayoutEffect(() => {
