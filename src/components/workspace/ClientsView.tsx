@@ -138,8 +138,8 @@ export default function ClientsView({
                                 </div>
                                 
                                 <h3 className="text-lg font-semibold text-text-primary group-hover:text-primary transition-colors">{client.name}</h3>
-                                {client.domain && (
-                                    <p className="text-sm text-text-secondary mt-1">{client.domain}</p>
+                                {client.description && (
+                                    <p className="text-sm text-text-secondary mt-1 line-clamp-2">{client.description}</p>
                                 )}
                                 
                                 <div className="mt-auto pt-6 flex items-center justify-between text-sm">

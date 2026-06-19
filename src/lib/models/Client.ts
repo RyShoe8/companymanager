@@ -14,6 +14,7 @@ export interface IClient extends Document, IPlatformOperationsFields {
   contactEmail?: string;
   contactPhone?: string;
   domain?: string;
+  description?: string;
   color: string;
   status: ClientStatus;
   createdAt: Date;
@@ -56,6 +57,10 @@ const ClientSchema: Schema = new Schema(
       type: String,
       trim: true,
       lowercase: true,
+    },
+    description: {
+      type: String,
+      trim: true,
     },
     logo: {
       type: String,

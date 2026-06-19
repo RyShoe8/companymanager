@@ -14,6 +14,7 @@ const CRM_FIELDS = new Set([
   'contactEmail',
   'contactPhone',
   'domain',
+  'description',
   'logo',
   'color',
   'status',
@@ -82,6 +83,9 @@ export function applyClientUpdates(
   if (body.contactEmail !== undefined) client.contactEmail = body.contactEmail ? String(body.contactEmail).trim().toLowerCase() : undefined;
   if (body.contactPhone !== undefined) client.contactPhone = body.contactPhone ? String(body.contactPhone).trim() : undefined;
   if (body.domain !== undefined) client.domain = body.domain ? String(body.domain).trim().toLowerCase() : undefined;
+  if (body.description !== undefined) {
+    client.description = body.description ? String(body.description).trim() : undefined;
+  }
   if (body.logo !== undefined) client.logo = body.logo ? String(body.logo).trim() : undefined;
   if (body.color !== undefined) client.color = String(body.color).trim() || '#3b82f6';
   if (body.status !== undefined) {

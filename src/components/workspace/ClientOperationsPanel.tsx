@@ -214,7 +214,7 @@ export default function ClientOperationsPanel({
       </div>
 
       <div className="rounded-lg border border-border bg-background p-3 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Platforms &amp; links</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Platforms</p>
         <div className="flex flex-wrap items-center gap-2">
           <ProjectSocialsBar
             socialLinks={(localClient.socialLinks ?? []) as IProjectSocialLink[]}
@@ -244,82 +244,6 @@ export default function ClientOperationsPanel({
               await onUpdateClient(clientId, updates as Partial<IClient>);
             }}
           />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-        {actionButtons.map((btn, idx) => {
-          const isEmail = btn.kind === 'email';
-          const linkHref = isEmail ? (emailSmartButtonHref(btn.url)?.href ?? '#') : (normalizeProjectUrlHref(btn.url) ?? '#');
-          return (
-            <span
-              key={idx}
-              className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm ${isEmail ? 'bg-violet-50 text-violet-800' : 'bg-indigo-50 text-indigo-700'}`}
-            >
-              <a href={linkHref} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline truncate max-w-[160px]">
-                {btn.label}
-              </a>
-              {isManagerOrAdmin && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await fetch(`/api/clients/${clientId}/buttons`, {
-                      method: 'DELETE',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ index: idx }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setActionButtons(Array.isArray(data) ? data : []);
-                    }
-                  }}
-                  className="p-0.5 opacity-70 hover:opacity-100"
-                  aria-label="Remove button"
-                >
-                  ×
-                </button>
-              )}
-            </span>
-          );
-        })}
-        {isManagerOrAdmin && (
-          <AddButton
-            clientId={clientId}
-            linkContext={{ linkedClientId: clientId }}
-            socialsToolbarHidden={localClient.socialsToolbarVisible === false}
-            surface="workspace"
-            label="+ Add"
-            onAddSocial={async (url) => {
-              const parsed = parseSocialLinkInput(url);
-              if (!parsed) throw new Error('Invalid URL');
-              const existing = (localClient.socialLinks ?? []) as IProjectSocialLink[];
-              if (existing.some((l) => l.url === parsed.url)) {
-                alert('That social link is already on this client.');
-                return;
-              }
-              await handleFieldUpdate('socialLinks', [...existing, parsed]);
-            }}
-            onAddButton={async (payload: AddSmartButtonPayload) => {
-              const body =
-                payload.kind === 'email'
-                  ? {
-                      kind: 'email',
-                      email: payload.email,
-                      ...(payload.label ? { label: payload.label } : {}),
-                    }
-                  : { label: payload.label, url: payload.url };
-              const res = await fetch(`/api/clients/${clientId}/buttons`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-              });
-              if (res.ok) {
-                const data = await res.json();
-                setActionButtons(Array.isArray(data) ? data : []);
-              }
-            }}
-            onDocumentCreated={() => void loadAssets()}
-          />
-        )}
         </div>
       </div>
 
@@ -353,6 +277,86 @@ export default function ClientOperationsPanel({
           </div>
         )}
       </div>
+
+      {(actionButtons.length > 0 || isManagerOrAdmin) && (
+        <div className="pt-2 border-t border-border">
+          <div className="flex flex-wrap items-center gap-2">
+            {actionButtons.map((btn, idx) => {
+              const isEmail = btn.kind === 'email';
+              const linkHref = isEmail ? (emailSmartButtonHref(btn.url)?.href ?? '#') : (normalizeProjectUrlHref(btn.url) ?? '#');
+              return (
+                <span
+                  key={idx}
+                  className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm ${isEmail ? 'bg-violet-50 text-violet-800' : 'bg-primary/10 text-primary'}`}
+                >
+                  <a href={linkHref} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline truncate max-w-[160px]">
+                    {btn.label}
+                  </a>
+                  {isManagerOrAdmin && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await fetch(`/api/clients/${clientId}/buttons`, {
+                          method: 'DELETE',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ index: idx }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setActionButtons(Array.isArray(data) ? data : []);
+                        }
+                      }}
+                      className="p-0.5 opacity-70 hover:opacity-100"
+                      aria-label="Remove button"
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+            {isManagerOrAdmin && (
+              <AddButton
+                clientId={clientId}
+                linkContext={{ linkedClientId: clientId }}
+                socialsToolbarHidden={localClient.socialsToolbarVisible === false}
+                triggerVariant="primary"
+                label="+ Add"
+                onAddSocial={async (url) => {
+                  const parsed = parseSocialLinkInput(url);
+                  if (!parsed) throw new Error('Invalid URL');
+                  const existing = (localClient.socialLinks ?? []) as IProjectSocialLink[];
+                  if (existing.some((l) => l.url === parsed.url)) {
+                    alert('That social link is already on this client.');
+                    return;
+                  }
+                  await handleFieldUpdate('socialLinks', [...existing, parsed]);
+                }}
+                onAddButton={async (payload: AddSmartButtonPayload) => {
+                  const body =
+                    payload.kind === 'email'
+                      ? {
+                          kind: 'email',
+                          email: payload.email,
+                          ...(payload.label ? { label: payload.label } : {}),
+                        }
+                      : { label: payload.label, url: payload.url };
+                  const res = await fetch(`/api/clients/${clientId}/buttons`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setActionButtons(Array.isArray(data) ? data : []);
+                  }
+                }}
+                onDocumentCreated={() => void loadAssets()}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {(projectOnlyPlatforms.techStack.length > 0 ||
         projectOnlyPlatforms.marketingStack.length > 0 ||

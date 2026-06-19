@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       contactEmail: body.contactEmail,
       contactPhone: body.contactPhone,
       domain: body.domain,
+      description: body.description,
       logo: body.logo,
       color: body.color || '#3b82f6',
       status: body.status || 'active',

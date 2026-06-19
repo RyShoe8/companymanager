@@ -88,10 +88,11 @@ export default function ClientDetailDashboard({
                     />
                     <div className="mt-1">
                         <EditableText
-                            value={client.domain || ''}
-                            onSave={(v) => onUpdateClient?.(String(client._id), { domain: v })}
+                            value={client.description || ''}
+                            onSave={(v) => onUpdateClient?.(String(client._id), { description: v })}
                             className="text-sm text-text-secondary hover:text-primary transition-colors block"
-                            placeholder="Add domain (e.g. acme.com)..."
+                            placeholder="Enter company description"
+                            autoMultilineAfter={80}
                             disabled={!onUpdateClient}
                         />
                     </div>

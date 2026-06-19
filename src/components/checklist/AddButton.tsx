@@ -25,6 +25,7 @@ interface AddButtonProps {
   onAddSocial?: (url: string) => Promise<void>;
   stackAboveLightbox?: boolean;
   surface?: ControlSurface;
+  triggerVariant?: 'primary' | 'secondary';
 }
 
 export default function AddButton({
@@ -40,6 +41,7 @@ export default function AddButton({
   onAddSocial,
   stackAboveLightbox = false,
   surface = 'inspector',
+  triggerVariant = 'secondary',
 }: AddButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -67,7 +69,7 @@ export default function AddButton({
           {label}
         </button>
       ) : (
-        <Button variant="secondary" size="sm" onClick={() => setShowModal(true)}>
+        <Button variant={triggerVariant} size="sm" onClick={() => setShowModal(true)}>
           {label}
         </Button>
       )}
