@@ -9,6 +9,8 @@ import {
   meetingHoursInViewRange,
   meetingOverlapsViewRange,
   meetingsForAgendaDay,
+  meetingsInStartRange,
+  meetingsOnCalendarDay,
   sortMeetingsByStart,
   sumMeetingHoursForEmployee,
 } from '@/lib/scheduling/meetingHours';
@@ -341,5 +343,54 @@ describe('meetingsForAgendaDay', () => {
     expect(result).toHaveLength(2);
     expect(new Date(result[0].start).getHours()).toBe(9);
     expect(new Date(result[1].start).getHours()).toBe(15);
+  });
+});
+
+describe('meetingsOnCalendarDay', () => {
+  it('returns same-day meetings in chronological order', () => {
+    const day = new Date(2026, 5, 9, 12, 0, 0);
+    const afternoon = meetingRow({
+      start: new Date(2026, 5, 9, 15, 0, 0),
+      end: new Date(2026, 5, 9, 16, 0, 0),
+    });
+    const morning = meetingRow({
+      start: new Date(2026, 5, 9, 9, 0, 0),
+      end: new Date(2026, 5, 9, 10, 0, 0),
+    });
+    const otherDay = meetingRow({
+      start: new Date(2026, 5, 10, 9, 0, 0),
+      end: new Date(2026, 5, 10, 10, 0, 0),
+    });
+
+    const result = meetingsOnCalendarDay([afternoon, otherDay, morning], day);
+
+    expect(result).toHaveLength(2);
+    expect(new Date(result[0].start).getHours()).toBe(9);
+    expect(new Date(result[1].start).getHours()).toBe(15);
+  });
+});
+
+describe('meetingsInStartRange', () => {
+  it('returns meetings with start in range, earliest first', () => {
+    const rangeStart = new Date(2026, 5, 8, 0, 0, 0);
+    const rangeEnd = new Date(2026, 5, 12, 23, 59, 59, 999);
+    const late = meetingRow({
+      start: new Date(2026, 5, 10, 15, 0, 0),
+      end: new Date(2026, 5, 10, 16, 0, 0),
+    });
+    const early = meetingRow({
+      start: new Date(2026, 5, 9, 9, 0, 0),
+      end: new Date(2026, 5, 9, 10, 0, 0),
+    });
+    const outOfRange = meetingRow({
+      start: new Date(2026, 5, 15, 9, 0, 0),
+      end: new Date(2026, 5, 15, 10, 0, 0),
+    });
+
+    const result = meetingsInStartRange([late, outOfRange, early], rangeStart, rangeEnd);
+
+    expect(result).toHaveLength(2);
+    expect(new Date(result[0].start).getDate()).toBe(9);
+    expect(new Date(result[1].start).getDate()).toBe(10);
   });
 });

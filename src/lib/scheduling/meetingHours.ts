@@ -136,6 +136,34 @@ export function sortMeetingsByStart<T extends Pick<IMeeting, 'start'>>(meetings:
   );
 }
 
+export function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+export function meetingsOnCalendarDay(meetings: IMeeting[], day: Date): IMeeting[] {
+  const filtered = meetings.filter((meeting) => {
+    const start = new Date(meeting.start);
+    return !Number.isNaN(start.getTime()) && isSameCalendarDay(start, day);
+  });
+  return sortMeetingsByStart(filtered);
+}
+
+export function meetingsInStartRange(
+  meetings: IMeeting[],
+  rangeStart: Date,
+  rangeEnd: Date
+): IMeeting[] {
+  const filtered = meetings.filter((meeting) => {
+    const start = new Date(meeting.start);
+    return !Number.isNaN(start.getTime()) && start >= rangeStart && start <= rangeEnd;
+  });
+  return sortMeetingsByStart(filtered);
+}
+
 export function meetingsForAgendaDay(
   meetings: IMeeting[],
   dayStart: Date,

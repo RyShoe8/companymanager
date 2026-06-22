@@ -13,6 +13,12 @@ import {
   navigateCalendarPeriod,
 } from '@/lib/utils/calendarPeriodNav';
 import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
+import {
+  isSameCalendarDay,
+  meetingsInStartRange,
+  meetingsOnCalendarDay,
+  sortMeetingsByStart,
+} from '@/lib/scheduling/meetingHours';
 
 function toMeetingRow(meeting: IMeeting): MeetingRow {
   return {
@@ -31,32 +37,6 @@ function toMeetingRow(meeting: IMeeting): MeetingRow {
     joinPlatform: meeting.joinPlatform,
     description: meeting.description,
   };
-}
-
-function isSameCalendarDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-function meetingsOnDay(meetings: IMeeting[], day: Date): IMeeting[] {
-  return meetings
-    .filter((m) => {
-      const start = new Date(m.start);
-      return !Number.isNaN(start.getTime()) && isSameCalendarDay(start, day);
-    })
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-}
-
-function meetingsInRange(meetings: IMeeting[], rangeStart: Date, rangeEnd: Date): IMeeting[] {
-  return meetings
-    .filter((m) => {
-      const start = new Date(m.start);
-      return start >= rangeStart && start <= rangeEnd;
-    })
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 }
 
 function isToday(day: Date): boolean {
@@ -99,6 +79,8 @@ export default function MeetingsCalendarView({
   onPopoutBlocked,
 }: MeetingsCalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
+
+  const sortedMeetings = useMemo(() => sortMeetingsByStart(meetings), [meetings]);
 
   useEffect(() => {
     setViewDate(currentDate);
@@ -157,7 +139,7 @@ export default function MeetingsCalendarView({
 
   const renderTodayView = () => {
     const today = new Date(startDate);
-    const dayMeetings = meetingsOnDay(meetings, today);
+    const dayMeetings = meetingsOnCalendarDay(sortedMeetings, today);
 
     return (
       <div className="p-6 min-h-[400px]">
@@ -196,7 +178,7 @@ export default function MeetingsCalendarView({
         </div>
         <div className="grid grid-cols-7 divide-x divide-border">
           {days.map((day, dayIdx) => {
-            const dayMeetings = meetingsOnDay(meetings, day);
+            const dayMeetings = meetingsOnCalendarDay(sortedMeetings, day);
             const currentDay = isToday(day);
             return (
               <div
@@ -264,7 +246,7 @@ export default function MeetingsCalendarView({
             weekStart.setHours(0, 0, 0, 0);
             const weekEnd = new Date(week[6]);
             weekEnd.setHours(23, 59, 59, 999);
-            const weekMeetings = meetingsInRange(meetings, weekStart, weekEnd);
+            const weekMeetings = meetingsInStartRange(sortedMeetings, weekStart, weekEnd);
 
             return (
               <div
@@ -332,7 +314,7 @@ export default function MeetingsCalendarView({
       <div className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {months.map(({ start, end, label }) => {
-            const monthMeetings = meetingsInRange(meetings, start, end);
+            const monthMeetings = meetingsInStartRange(sortedMeetings, start, end);
             return (
               <div
                 key={label}
@@ -385,7 +367,7 @@ export default function MeetingsCalendarView({
       <div className="p-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {months.map(({ start, end, label }) => {
-            const monthMeetings = meetingsInRange(meetings, start, end);
+            const monthMeetings = meetingsInStartRange(sortedMeetings, start, end);
             return (
               <div
                 key={label}
