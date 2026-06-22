@@ -21,6 +21,7 @@ import {
   shouldAutoExpandCommentThread,
 } from '@/lib/comments/commentReadState';
 import { CONTENT_CHANNELS, CONTENT_STATUSES, toContentInputDate } from '@/components/planning-map/contentItemFormConstants';
+import { canDeleteContentItem } from '@/lib/content/contentDeleteAuth';
 
 interface ContentItemDetailModalProps {
   isOpen: boolean;
@@ -258,6 +259,15 @@ export default function ContentItemDetailModal({
     }
   };
 
+  const canDelete = item
+    ? canDeleteContentItem({
+        item,
+        isManagerOrAdmin,
+        currentUserId,
+        currentUserEmployeeId,
+      })
+    : false;
+
   const formContent = loading ? (
     <div className="text-text-secondary py-4">Loading...</div>
   ) : !item ? (
@@ -352,9 +362,11 @@ export default function ContentItemDetailModal({
         <Button type="submit" disabled={saving} className="flex-1 min-w-0">
           {saving ? 'Saving...' : 'Save'}
         </Button>
-        <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1 min-w-0">
-          {deleting ? 'Deleting...' : 'Delete'}
-        </Button>
+        {canDelete && (
+          <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1 min-w-0">
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        )}
       </div>
     </form>
   );

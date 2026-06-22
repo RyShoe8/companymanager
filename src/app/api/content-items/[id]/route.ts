@@ -18,6 +18,7 @@ import {
   CONTENT_CHANNELS as CHANNELS,
   CONTENT_STATUSES as STATUSES,
 } from '@/lib/content/contentConstants';
+import { canAccessContentItem } from '@/lib/content/contentDeleteAuth';
 
 async function getContentItemWithAccess(id: string, session: { userId: string }) {
   if (!isValidObjectId(id)) return { item: null, error: { status: 400, message: 'Invalid ID' } };
@@ -39,12 +40,16 @@ async function getContentItemWithAccess(id: string, session: { userId: string })
   const projectInOrg = orgUserIds.some((uid) => uid.toString() === (project as any).userId?.toString());
   if (!projectInOrg) return { item: null, error: { status: 404, message: 'Content item not found' } };
 
-  if (userRole !== 'Administrator' && userRole !== 'Manager') {
-    const assignedId = String((item as any).assignedToEmployeeId?.toString?.() ?? '').trim();
-    const myId = String(currentUserEmployee?._id?.toString?.() ?? '').trim();
-    if (!myId || assignedId !== myId) {
-      return { item: null, error: { status: 404, message: 'Content item not found' } };
-    }
+  const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
+  if (
+    !canAccessContentItem({
+      isManagerOrAdmin,
+      currentUserId: session.userId,
+      currentUserEmployeeId: currentUserEmployee?._id?.toString() ?? null,
+      item: item as { userId?: { toString(): string } | string; assignedToEmployeeId?: { toString(): string } | string | null },
+    })
+  ) {
+    return { item: null, error: { status: 404, message: 'Content item not found' } };
   }
 
   return { item, userRole, currentUserEmployee };

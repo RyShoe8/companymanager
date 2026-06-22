@@ -20,6 +20,7 @@ import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupNewlyCompletedTasks, cleanupProjectMedia, normalizeTaskStatus } from '@/lib/projects/projectCleanup';
 import { cleanupRemovedTasks, findRemovedTasks } from '@/lib/cleanup/entityCleanup';
 import { resolveProjectCompletedAt, resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
+import { resolveTaskCreatedByEmployeeId } from '@/lib/projects/taskCreatorPreserve';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 import { diffNewLinkedCategorySlugs } from '@/lib/insights/getProjectLinkedCategorySlugs';
 import { syncInsightAutoCompletion } from '@/lib/insights/syncInsightAutoCompletion';
@@ -510,6 +511,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
           if (task._id && Types.ObjectId.isValid(String(task._id))) {
             taskData._id = new Types.ObjectId(String(task._id));
+          }
+
+          const preservedCreatorId = resolveTaskCreatedByEmployeeId(task, previousTask);
+          if (preservedCreatorId && Types.ObjectId.isValid(preservedCreatorId)) {
+            taskData.createdByEmployeeId = new Types.ObjectId(preservedCreatorId);
           }
 
           // Handle employee assignment for tasks - prefer employeeIds array, then single id, then legacy name

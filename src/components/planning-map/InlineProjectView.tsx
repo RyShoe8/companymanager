@@ -8,6 +8,7 @@ import { IContentItem, type ContentStatus } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
 import { taskIdString } from '@/lib/projects/taskArrayGuards';
 import { canDeleteTask } from '@/lib/projects/taskDeleteAuth';
+import { canDeleteContentItem } from '@/lib/content/contentDeleteAuth';
 import EditableDate from '@/components/ui/EditableDate';
 import EditableNumber from '@/components/ui/EditableNumber';
 import EditableSelect from '@/components/ui/EditableSelect';
@@ -1046,13 +1047,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     if (!confirm('Delete this content item? This cannot be undone.')) return;
     try {
       const res = await fetch(`/api/content-items/${item._id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setProjectContentItems((prev) => prev.filter((c) => c._id.toString() !== item._id.toString()));
-        notifyContentListChanged();
-        onRefresh();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === 'string' ? data.error : 'Failed to delete content item');
       }
-    } catch {
-      // ignore
+      setProjectContentItems((prev) => prev.filter((c) => c._id.toString() !== item._id.toString()));
+      notifyContentListChanged();
+      onRefresh();
+    } catch (error) {
+      console.error('Error deleting content item:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete content item');
     }
   };
 
@@ -2016,6 +2020,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [isManagerOrAdmin, currentUserEmployeeId]
   );
 
+  const userCanDeleteContentItem = useCallback(
+    (item: IContentItem) =>
+      canDeleteContentItem({
+        item,
+        isManagerOrAdmin,
+        currentUserId,
+        currentUserEmployeeId,
+      }),
+    [isManagerOrAdmin, currentUserId, currentUserEmployeeId]
+  );
+
   useEffect(() => {
     if (!autoAddTaskOnOpen) {
       autoAddTaskAppliedKeyRef.current = null;
@@ -2768,7 +2783,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       showColorDot
                       className="text-xs text-gray-900"
                     />
-                    <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
+                    {userCanDeleteContentItem(item) && (
+                      <button type="button" onClick={() => handleDeleteContentItem(item)} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500" onClick={(e) => e.stopPropagation()}>

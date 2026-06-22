@@ -47,7 +47,10 @@ export async function GET(request: NextRequest) {
 
     if (userRole !== 'Administrator' && userRole !== 'Manager') {
       if (currentUserEmployee) {
-        query.assignedToEmployeeId = currentUserEmployee._id;
+        query.$or = [
+          { assignedToEmployeeId: currentUserEmployee._id },
+          { userId: session.userId },
+        ];
       } else {
         return NextResponse.json([]);
       }
@@ -162,6 +165,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Assignee must be on the project team' }, { status: 400 });
       }
       doc.assignedToEmployeeId = new Types.ObjectId(assignedToEmployeeId);
+    } else if (currentUserEmployee) {
+      doc.assignedToEmployeeId = currentUserEmployee._id;
     }
     if (keywords !== undefined) {
       doc.keywords = Array.isArray(keywords) ? keywords.map(String) : (typeof keywords === 'string' ? keywords.split(',').map((s) => s.trim()).filter(Boolean) : []);
