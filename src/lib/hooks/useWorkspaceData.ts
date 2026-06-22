@@ -12,6 +12,12 @@ import { excludeClientHubProjects } from '@/lib/clients/clientProjectHelpers';
 import { mergeProjectsPreservingRecency } from '@/lib/utils/mergeProjectsPreservingRecency';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
+function toMs(d: Date | string | undefined): number {
+    if (!d) return 0;
+    const t = new Date(d).getTime();
+    return Number.isNaN(t) ? 0 : t;
+}
+
 export type LensType = 'schedule' | 'agenda' | 'projects' | 'clients' | 'capacity';
 export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule';
 
@@ -64,6 +70,9 @@ export interface WorkspaceState {
     fetchContentItems: () => Promise<void>;
     /** Merge one project from API (e.g. PUT response) without full reload — avoids inspector jitter */
     patchProjectInState: (updated: IProject) => void;
+    /** Bump local recency for content-only saves that do not patch the project document */
+    touchProjectLocalActivity: (projectId: string) => void;
+    projectLocalTouchMs: Record<string, number>;
 }
 
 export default function useWorkspaceData(
@@ -91,6 +100,7 @@ export default function useWorkspaceData(
     const [clients, setClients] = useState<IClient[]>([]);
     const [employees, setEmployees] = useState<IEmployee[]>([]);
     const [contentItems, setContentItems] = useState<IContentItem[]>([]);
+    const [projectLocalTouchMs, setProjectLocalTouchMs] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(true);
 
     // User
@@ -185,25 +195,47 @@ export default function useWorkspaceData(
         }
     }, [router]);
 
-    const patchProjectInState = useCallback((updated: IProject) => {
-        const id =
-            typeof updated._id === 'string' ? updated._id : (updated._id as { toString: () => string }).toString();
-        setAllProjects((prev) =>
-            prev.map((p) => {
-                if (p._id.toString() !== id) return p;
-                const next = {
-                    ...p,
-                    ...updated,
-                    _id: p._id,
-                    updatedAt: (updated as { updatedAt?: Date }).updatedAt ?? new Date(),
-                } as IProject;
-                if ('logo' in updated && (updated.logo === null || updated.logo === undefined)) {
-                    next.logo = undefined;
-                }
-                return next;
-            })
-        );
+    const bumpProjectLocalTouch = useCallback((projectId: string, ms?: number) => {
+        const touchMs = ms ?? Date.now();
+        setProjectLocalTouchMs((prev) => ({
+            ...prev,
+            [projectId]: Math.max(prev[projectId] ?? 0, touchMs),
+        }));
     }, []);
+
+    const touchProjectLocalActivity = useCallback(
+        (projectId: string) => {
+            bumpProjectLocalTouch(projectId);
+        },
+        [bumpProjectLocalTouch]
+    );
+
+    const patchProjectInState = useCallback(
+        (updated: IProject) => {
+            const id =
+                typeof updated._id === 'string'
+                    ? updated._id
+                    : (updated._id as { toString: () => string }).toString();
+            const updatedAt = (updated as { updatedAt?: Date }).updatedAt ?? new Date();
+            bumpProjectLocalTouch(id, Math.max(toMs(updatedAt), Date.now()));
+            setAllProjects((prev) =>
+                prev.map((p) => {
+                    if (p._id.toString() !== id) return p;
+                    const next = {
+                        ...p,
+                        ...updated,
+                        _id: p._id,
+                        updatedAt,
+                    } as IProject;
+                    if ('logo' in updated && (updated.logo === null || updated.logo === undefined)) {
+                        next.logo = undefined;
+                    }
+                    return next;
+                })
+            );
+        },
+        [bumpProjectLocalTouch]
+    );
 
     useEffect(() => {
         loadData();
@@ -330,5 +362,7 @@ export default function useWorkspaceData(
         loadData,
         fetchContentItems,
         patchProjectInState,
+        touchProjectLocalActivity,
+        projectLocalTouchMs,
     };
 }

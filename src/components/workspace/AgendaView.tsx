@@ -80,6 +80,8 @@ interface AgendaViewProps {
     onAddTask?: (project: IProject) => void;
     onContentItemClick: (item: IContentItem) => void;
     itemSeenRefreshTrigger?: number;
+    inspectorProjectId?: string | null;
+    projectLocalTouchMs?: Record<string, number>;
 }
 
 interface AgendaDay {
@@ -208,6 +210,8 @@ export default function AgendaView({
     onAddTask,
     onContentItemClick,
     itemSeenRefreshTrigger,
+    inspectorProjectId = null,
+    projectLocalTouchMs = {},
 }: AgendaViewProps) {
     const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
     const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
@@ -252,10 +256,12 @@ export default function AgendaView({
 
     useEffect(() => {
         if (!currentUserId) return;
-        const observed = observeItemsForUser(currentUserId, workspaceItemEntries);
+        const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
+            openProjectId: inspectorProjectId ?? undefined,
+        });
         setItemActivityByKey(observed.activityByKey);
         setItemStatusByKey(observed.statusByKey);
-    }, [currentUserId, workspaceItemEntries]);
+    }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
 
     useEffect(() => {
         if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
@@ -376,12 +382,16 @@ export default function AgendaView({
             orphanContent.sort((a, b) => contentActivityMs(b) - contentActivityMs(a));
 
             dayProjects.sort((a, b) => {
+                const aProjectId = a.project._id.toString();
+                const bProjectId = b.project._id.toString();
                 const aTop = Math.max(
+                    projectLocalTouchMs[aProjectId] ?? 0,
                     ...a.tasks.map((task) => taskActivityMs(a.project, task, resolveTaskIndexInProject(a.project, task))),
                     ...a.content.map((item) => contentActivityMs(item)),
                     0
                 );
                 const bTop = Math.max(
+                    projectLocalTouchMs[bProjectId] ?? 0,
                     ...b.tasks.map((task) => taskActivityMs(b.project, task, resolveTaskIndexInProject(b.project, task))),
                     ...b.content.map((item) => contentActivityMs(item)),
                     0
@@ -429,6 +439,14 @@ export default function AgendaView({
         assignmentFilterOpts,
         taskActivityMs,
         contentActivityMs,
+        projectLocalTouchMs,
+        teamFilter,
+        employees,
+        showTasks,
+        showContent,
+        showOnlyMyAssignments,
+        currentUserEmployeeId,
+        currentUserId,
     ]);
 
     const undatedContent = useMemo(() => {

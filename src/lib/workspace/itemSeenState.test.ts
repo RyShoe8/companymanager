@@ -172,4 +172,44 @@ describe('itemSeenState', () => {
     expect(drift.statusByKey[NEW_TASK_KEY]).toBe('none');
     expect(drift.isNewByKey[NEW_TASK_KEY]).toBe(false);
   });
+
+  it('does not mark signature drift as unseen when the project inspector is open', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+
+    observeItemsForUser(USER_ID, [observation(EXISTING_TASK_KEY, 'sig-v1', 500)]);
+    markProjectItemsSeen(USER_ID, PROJECT_ID);
+
+    vi.setSystemTime(20_000);
+    const edited = observeItemsForUser(
+      USER_ID,
+      [observation(EXISTING_TASK_KEY, 'sig-v2', 500)],
+      { openProjectId: PROJECT_ID }
+    );
+
+    expect(edited.statusByKey[EXISTING_TASK_KEY]).toBe('none');
+    expect(edited.isNewByKey[EXISTING_TASK_KEY]).toBe(false);
+    expect(edited.activityByKey[EXISTING_TASK_KEY]).toBe(20_000);
+  });
+
+  it('still marks signature drift as updated on other projects when inspector is open elsewhere', () => {
+    const otherProjectId = 'project-2';
+    const otherTaskKey = `task:${otherProjectId}:task-other`;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+
+    observeItemsForUser(USER_ID, [observation(otherTaskKey, 'sig-v1', 500)]);
+    markProjectItemsSeen(USER_ID, otherProjectId);
+
+    vi.setSystemTime(20_000);
+    const edited = observeItemsForUser(
+      USER_ID,
+      [observation(otherTaskKey, 'sig-v2', 500)],
+      { openProjectId: PROJECT_ID }
+    );
+
+    expect(edited.statusByKey[otherTaskKey]).toBe('updated');
+    expect(edited.isNewByKey[otherTaskKey]).toBe(true);
+  });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
 import type { IProject, IProjectTask } from '@/lib/models/Project';
-import { getProjectLatestActivityMs } from '@/lib/utils/projectLatestActivity';
+import { getProjectLatestActivityMs, getEffectiveProjectActivityMs } from '@/lib/utils/projectLatestActivity';
 
 describe('getProjectLatestActivityMs', () => {
   it('uses task completedAt when newer than project updatedAt', () => {
@@ -40,5 +40,13 @@ describe('getProjectLatestActivityMs', () => {
     const commentMs = new Date('2026-06-20').getTime();
 
     expect(getProjectLatestActivityMs(project, [], commentMs)).toBe(commentMs);
+  });
+});
+
+describe('getEffectiveProjectActivityMs', () => {
+  it('uses the highest of server, item, and local touch timestamps', () => {
+    expect(getEffectiveProjectActivityMs(100, 200, 150)).toBe(200);
+    expect(getEffectiveProjectActivityMs(100, 200, 300)).toBe(300);
+    expect(getEffectiveProjectActivityMs(400, 200, 300)).toBe(400);
   });
 });

@@ -39,6 +39,15 @@ export function getProjectLatestActivityMs(
   return max;
 }
 
+/** Max of server/item/local touch signals used for workspace project card sort. */
+export function getEffectiveProjectActivityMs(
+  serverMs: number,
+  itemMs: number,
+  localTouchMs?: number
+): number {
+  return Math.max(serverMs, itemMs, localTouchMs ?? 0);
+}
+
 export function buildContentItemsByProjectId(contentItems: IContentItem[]): Map<string, IContentItem[]> {
   const map = new Map<string, IContentItem[]>();
   for (const item of contentItems) {

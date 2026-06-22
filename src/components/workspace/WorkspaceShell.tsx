@@ -311,6 +311,12 @@ export default function WorkspaceShell({
         [ws.currentUserId]
     );
 
+    const inspectorProjectId = useMemo(
+        () =>
+            inspectorFocus?.startsWith('project:') ? inspectorFocus.split(':')[1] : null,
+        [inspectorFocus]
+    );
+
     const getProjectUnseenExpandFlags = useCallback(
         (projectId: string) => {
             if (!ws.currentUserId) {
@@ -1710,6 +1716,8 @@ _id.toString(), { tasks });
                                                 onAddTask={handleAddTaskToProject}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
                                                 itemSeenRefreshTrigger={itemSeenRefreshTrigger}
+                                                inspectorProjectId={inspectorProjectId}
+                                                projectLocalTouchMs={ws.projectLocalTouchMs}
                                             />
                                         ) : (
                                             <AgendaView
@@ -1742,6 +1750,8 @@ _id.toString(), { tasks });
                                                 onAddTask={handleAddTaskToProject}
                                                 onContentItemClick={handleContentItemClickFromSchedule}
                                                 itemSeenRefreshTrigger={itemSeenRefreshTrigger}
+                                                inspectorProjectId={inspectorProjectId}
+                                                projectLocalTouchMs={ws.projectLocalTouchMs}
                                             />
                                         )}
                                     </div>
@@ -1963,6 +1973,9 @@ _id.toString(), { tasks });
                             onContentItemClick={handleContentItemClickFromSchedule}
                             contentRefreshTrigger={contentRefreshTrigger}
                             onContentListChanged={() => {
+                                if (inspectorProjectId) {
+                                    ws.touchProjectLocalActivity(inspectorProjectId);
+                                }
                                 void ws.fetchContentItems();
                                 setContentRefreshTrigger((t) => t + 1);
                             }}

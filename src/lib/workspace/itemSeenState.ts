@@ -173,7 +173,22 @@ export function collectWorkspaceItemObservations(
   return [...taskEntries, ...contentEntries];
 }
 
-export function observeItemsForUser(userId: string, items: ItemObservation[]): ObservationResult {
+export type ObserveItemsOptions = {
+  /** Items on this project are self-edits while the inspector is open — skip unseen kind. */
+  openProjectId?: string;
+};
+
+function isOpenProjectItemKey(key: string, openProjectId?: string): boolean {
+  if (!openProjectId) return false;
+  return key.startsWith(`task:${openProjectId}:`) || key.startsWith(`content:${openProjectId}:`);
+}
+
+export function observeItemsForUser(
+  userId: string,
+  items: ItemObservation[],
+  options?: ObserveItemsOptions
+): ObservationResult {
+  const openProjectId = options?.openProjectId;
   const state = loadState(userId);
   let changed = false;
   const now = Date.now();
@@ -192,6 +207,8 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
       state.signatures[item.key] = item.signature;
       state.activityMs[item.key] = activity;
       if (firstObservation) {
+        state.seenMs[item.key] = activity;
+      } else if (isOpenProjectItemKey(item.key, openProjectId)) {
         state.seenMs[item.key] = activity;
       } else {
         state.kindByKey[item.key] = 'new';
@@ -215,9 +232,20 @@ export function observeItemsForUser(userId: string, items: ItemObservation[]): O
       }
 
       state.signatures[item.key] = item.signature;
-      state.activityMs[item.key] = Math.max(item.baseActivityMs, now);
-      const graceUntil = state.newGraceUntilMs[item.key] ?? 0;
-      state.kindByKey[item.key] = now < graceUntil ? 'new' : 'updated';
+      const nextActivity = Math.max(item.baseActivityMs, now);
+      state.activityMs[item.key] = nextActivity;
+      if (isOpenProjectItemKey(item.key, openProjectId)) {
+        state.seenMs[item.key] = Math.max(state.seenMs[item.key] ?? 0, nextActivity);
+        if (item.key in state.kindByKey) {
+          delete state.kindByKey[item.key];
+        }
+        if (item.key in state.newGraceUntilMs) {
+          delete state.newGraceUntilMs[item.key];
+        }
+      } else {
+        const graceUntil = state.newGraceUntilMs[item.key] ?? 0;
+        state.kindByKey[item.key] = now < graceUntil ? 'new' : 'updated';
+      }
       changed = true;
     } else if (!(item.key in state.activityMs)) {
       state.activityMs[item.key] = Math.max(0, item.baseActivityMs);

@@ -33,6 +33,7 @@ import { contentPassesAssignmentFilter } from '@/lib/utils/assigneeDisplay';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import {
   buildContentItemsByProjectId,
+  getEffectiveProjectActivityMs,
   getProjectLatestActivityMs,
 } from '@/lib/utils/projectLatestActivity';
 import ActionMenu from '@/components/ui/ActionMenu';
@@ -121,6 +122,8 @@ interface CalendarViewProps {
   onRefreshContent?: () => void;
   onTaskClick?: (project: IProject, taskIndex: number) => void;
   itemSeenRefreshTrigger?: number;
+  inspectorProjectId?: string | null;
+  projectLocalTouchMs?: Record<string, number>;
   teamFilter?: TeamFilterType;
 }
 
@@ -155,6 +158,8 @@ export default function CalendarView({
   onRefreshContent,
   onTaskClick,
   itemSeenRefreshTrigger,
+  inspectorProjectId = null,
+  projectLocalTouchMs = {},
   teamFilter = 'All Teams',
 }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
@@ -193,10 +198,12 @@ export default function CalendarView({
 
   useEffect(() => {
     if (!currentUserId) return;
-    const observed = observeItemsForUser(currentUserId, workspaceItemEntries);
+    const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
+      openProjectId: inspectorProjectId ?? undefined,
+    });
     setItemActivityByKey(observed.activityByKey);
     setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, workspaceItemEntries]);
+  }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
 
   useEffect(() => {
     if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
@@ -283,9 +290,13 @@ export default function CalendarView({
           if (ms > itemMs) itemMs = ms;
         }
       }
-      return Math.max(serverMs, itemMs);
+      return getEffectiveProjectActivityMs(
+        serverMs,
+        itemMs,
+        projectLocalTouchMs[projectId]
+      );
     },
-    [contentByProjectId, projectLatestComments, itemActivityByKey]
+    [contentByProjectId, projectLatestComments, itemActivityByKey, projectLocalTouchMs]
   );
 
   // Fetch latest project comment timestamps in one request
