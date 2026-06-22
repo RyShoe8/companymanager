@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
 import type { IProject, IProjectTask } from '@/lib/models/Project';
-import { getProjectLatestActivityMs, getEffectiveProjectActivityMs } from '@/lib/utils/projectLatestActivity';
+import { getProjectLatestActivityMs, getEffectiveProjectActivityMs, compareProjectsForWorkspaceSort } from '@/lib/utils/projectLatestActivity';
 
 describe('getProjectLatestActivityMs', () => {
   it('uses task completedAt when newer than project updatedAt', () => {
@@ -48,5 +48,17 @@ describe('getEffectiveProjectActivityMs', () => {
     expect(getEffectiveProjectActivityMs(100, 200, 150)).toBe(200);
     expect(getEffectiveProjectActivityMs(100, 200, 300)).toBe(300);
     expect(getEffectiveProjectActivityMs(400, 200, 300)).toBe(400);
+  });
+});
+
+describe('compareProjectsForWorkspaceSort', () => {
+  it('sorts by activity before unseen count', () => {
+    expect(compareProjectsForWorkspaceSort(100, 5, 200, 0)).toBeGreaterThan(0);
+    expect(compareProjectsForWorkspaceSort(300, 0, 200, 10)).toBeLessThan(0);
+  });
+
+  it('uses unseen count as a tiebreaker', () => {
+    expect(compareProjectsForWorkspaceSort(200, 1, 200, 3)).toBeGreaterThan(0);
+    expect(compareProjectsForWorkspaceSort(200, 3, 200, 1)).toBeLessThan(0);
   });
 });

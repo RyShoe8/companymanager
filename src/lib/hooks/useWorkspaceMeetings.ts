@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { IMeeting } from '@/lib/models/Meeting';
+import { sortMeetingsByStart } from '@/lib/scheduling/meetingHours';
 import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
 
 export function useWorkspaceMeetings(
@@ -33,7 +34,7 @@ export function useWorkspaceMeetings(
         return;
       }
       const data = await res.json();
-      setMeetings(Array.isArray(data) ? data : []);
+      setMeetings(Array.isArray(data) ? sortMeetingsByStart(data) : []);
     } catch {
       setMeetings([]);
     } finally {

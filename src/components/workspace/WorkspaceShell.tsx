@@ -1434,6 +1434,22 @@ _id.toString(), { tasks });
         }
     }, [handleScheduleCalendarSync]);
 
+    useEffect(() => {
+        if (ws.phase !== 'Schedule' || !scheduleCalendar?.connected) return;
+
+        const id = setTimeout(() => {
+            void handleScheduleSync();
+        }, 2000);
+
+        return () => clearTimeout(id);
+    }, [
+        ws.phase,
+        ws.timeframe,
+        ws.currentDate,
+        scheduleCalendar?.connected,
+        handleScheduleSync,
+    ]);
+
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
     // Default status for new projects depends on phase

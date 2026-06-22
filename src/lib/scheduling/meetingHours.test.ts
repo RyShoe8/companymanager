@@ -8,6 +8,8 @@ import {
   employeeAttendsMeeting,
   meetingHoursInViewRange,
   meetingOverlapsViewRange,
+  meetingsForAgendaDay,
+  sortMeetingsByStart,
   sumMeetingHoursForEmployee,
 } from '@/lib/scheduling/meetingHours';
 
@@ -295,5 +297,49 @@ describe('employeeAttendsMeeting', () => {
     const deduped = dedupeMeetingsForEmployee([...attended, notAttended], employee);
     expect(deduped).toHaveLength(1);
     expect(deduped[0].start).toEqual(sharedStart);
+  });
+});
+
+describe('sortMeetingsByStart', () => {
+  it('orders meetings earliest first', () => {
+    const afternoon = meetingRow({
+      start: new Date(2026, 5, 9, 15, 0, 0),
+      end: new Date(2026, 5, 9, 16, 0, 0),
+    });
+    const morning = meetingRow({
+      start: new Date(2026, 5, 9, 9, 0, 0),
+      end: new Date(2026, 5, 9, 10, 0, 0),
+    });
+    const noon = meetingRow({
+      start: new Date(2026, 5, 9, 12, 0, 0),
+      end: new Date(2026, 5, 9, 13, 0, 0),
+    });
+
+    const sorted = sortMeetingsByStart([afternoon, morning, noon]);
+    expect(sorted.map((m) => new Date(m.start).getHours())).toEqual([9, 12, 15]);
+  });
+});
+
+describe('meetingsForAgendaDay', () => {
+  it('returns same-day meetings in chronological order', () => {
+    const dayStart = new Date(2026, 5, 9, 0, 0, 0);
+    const afternoon = meetingRow({
+      start: new Date(2026, 5, 9, 15, 0, 0),
+      end: new Date(2026, 5, 9, 16, 0, 0),
+    });
+    const morning = meetingRow({
+      start: new Date(2026, 5, 9, 9, 0, 0),
+      end: new Date(2026, 5, 9, 10, 0, 0),
+    });
+
+    const result = meetingsForAgendaDay([afternoon, morning], dayStart, {
+      showOnlyMyAssignments: false,
+      currentUserEmployeeId: null,
+      currentUserId: null,
+    });
+
+    expect(result).toHaveLength(2);
+    expect(new Date(result[0].start).getHours()).toBe(9);
+    expect(new Date(result[1].start).getHours()).toBe(15);
   });
 });

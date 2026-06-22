@@ -130,6 +130,12 @@ function meetingOnViewDay(meetingStart: Date, dayStart: Date): boolean {
   return meetingStart >= dayStart && meetingStart <= dayEnd;
 }
 
+export function sortMeetingsByStart<T extends Pick<IMeeting, 'start'>>(meetings: T[]): T[] {
+  return [...meetings].sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+  );
+}
+
 export function meetingsForAgendaDay(
   meetings: IMeeting[],
   dayStart: Date,
@@ -139,9 +145,10 @@ export function meetingsForAgendaDay(
     currentUserId: string | null;
   }
 ): IMeeting[] {
-  return meetings.filter((meeting) => {
+  const filtered = meetings.filter((meeting) => {
     const start = new Date(meeting.start);
     if (Number.isNaN(start.getTime()) || !meetingOnViewDay(start, dayStart)) return false;
     return meetingPassesAssignmentFilter(meeting, filterOptions);
   });
+  return sortMeetingsByStart(filtered);
 }

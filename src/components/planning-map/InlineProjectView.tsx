@@ -126,6 +126,8 @@ interface InlineProjectViewProps {
   contentRefreshTrigger?: number;
   /** Notify workspace to refresh global content list after inspector content mutations. */
   onContentListChanged?: () => void;
+  /** Register a flush callback for pending debounced task saves (inspector close). */
+  registerFlushPendingSaves?: (flush: (() => Promise<void>) | null) => void;
   /** Open Tasks tab and focus this row (e.g. deep-link from workspace schedule). Cleared by parent via onInitialOpenTaskConsumed. */
   initialOpenTaskIndex?: number | null;
   onInitialOpenTaskConsumed?: () => void;
@@ -270,7 +272,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
   return canUserContributeToProject(project, currentUserEmployeeId ?? null, isManagerOrAdmin);
 }
 
-export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate, initialTasksExpanded = false, initialContentExpanded = false, itemSeenRefreshTrigger, sectionsOnly }: InlineProjectViewProps) {
+export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, registerFlushPendingSaves, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate, initialTasksExpanded = false, initialContentExpanded = false, itemSeenRefreshTrigger, sectionsOnly }: InlineProjectViewProps) {
   const [localProject, setLocalProject] = useState(project);
   const [urlList, setUrlList] = useState<string[]>(() => getPlatformUrlList(project));
   const localProjectRef = useRef(localProject);
@@ -345,6 +347,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const notifyContentListChanged = useCallback(() => {
     onContentListChanged?.();
   }, [onContentListChanged]);
+
+  const bumpWorkspaceRecency = useCallback(
+    (next?: IProject) => {
+      const projectSnapshot = next ?? localProjectRef.current;
+      onProjectPatched?.({ ...projectSnapshot, updatedAt: new Date() } as IProject);
+    },
+    [onProjectPatched]
+  );
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -1052,6 +1062,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         throw new Error(typeof data.error === 'string' ? data.error : 'Failed to delete content item');
       }
       setProjectContentItems((prev) => prev.filter((c) => c._id.toString() !== item._id.toString()));
+      bumpWorkspaceRecency();
       notifyContentListChanged();
       onRefresh();
     } catch (error) {
@@ -1068,6 +1079,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setProjectContentItems((prev) =>
       prev.map((c) => (c._id.toString() === id ? ({ ...c, title: trimmed } as IContentItem) : c))
     );
+    bumpWorkspaceRecency();
     try {
       const res = await fetch(`/api/content-items/${id}`, {
         method: 'PATCH',
@@ -1091,6 +1103,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         c._id.toString() === id ? ({ ...c, estimatedHours: hours ?? undefined } as IContentItem) : c
       )
     );
+    bumpWorkspaceRecency();
     try {
       const res = await fetch(`/api/content-items/${id}`, {
         method: 'PATCH',
@@ -1118,6 +1131,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           : c
       )
     );
+    bumpWorkspaceRecency();
     try {
       const res = await fetch(`/api/content-items/${id}`, {
         method: 'PATCH',
@@ -1183,6 +1197,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         c._id.toString() === id ? ({ ...c, status } as IContentItem) : c
       )
     );
+    bumpWorkspaceRecency();
     try {
       const res = await fetch(`/api/content-items/${id}`, {
         method: 'PATCH',
@@ -1454,6 +1469,26 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [persistProjectTasks]
   );
 
+  const flushPendingTaskSaves = useCallback(async () => {
+    if (taskSaveDebounceRef.current) {
+      clearTimeout(taskSaveDebounceRef.current);
+      taskSaveDebounceRef.current = null;
+    }
+    const pending = pendingTaskSaveRef.current;
+    pendingTaskSaveRef.current = null;
+    if (pending) {
+      await persistProjectTasks(pending.tasks, {
+        allowBulkTaskExpand: pending.allowBulkTaskExpand,
+        onSuccess: pending.onSuccess,
+      });
+    }
+  }, [persistProjectTasks]);
+
+  useEffect(() => {
+    registerFlushPendingSaves?.(flushPendingTaskSaves);
+    return () => registerFlushPendingSaves?.(null);
+  }, [registerFlushPendingSaves, flushPendingTaskSaves]);
+
   const patchContributorTask = useCallback(
     async (
       taskIndex: number,
@@ -1512,6 +1547,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       if (!existingTask) return;
       optimisticTasks[taskIndex] = { ...existingTask, status: value };
       setLocalProject((prev) => ({ ...prev, tasks: optimisticTasks } as IProject));
+      bumpWorkspaceRecency({ ...localProjectRef.current, tasks: optimisticTasks } as IProject);
       try {
         const taskId = (existingTask as { _id?: { toString?: () => string } })._id?.toString?.();
         const response = await fetch(`/api/tasks/${taskIndex}/status`, {
@@ -1579,6 +1615,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       if (!existingTask) return;
       updatedTasks[taskIndex] = { ...existingTask, [field]: value };
       setLocalProject((prev) => ({ ...prev, tasks: updatedTasks } as IProject));
+      bumpWorkspaceRecency({ ...localProjectRef.current, tasks: updatedTasks } as IProject);
       try {
         await patchContributorTask(taskIndex, { [field]: value } as {
           name?: string;
@@ -1618,6 +1655,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     updatedTasks[taskIndex] = updatedTask;
     const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, updatedTasks);
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
+    bumpWorkspaceRecency({ ...localProjectRef.current, tasks: tasksToSave } as IProject);
     const onSuccess =
       field === 'status' && previousStatus !== 'completed' && value === 'completed'
         ? async () => {
@@ -1804,10 +1842,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const newIdx = prevTasks.length + tasksToAppend.length - 1;
 
     if (!isManagerOrAdmin) {
-      setLocalProject((prev) => ({
-        ...prev,
+      const optimisticProject = {
+        ...localProject,
         tasks: [...prevTasks, ...tasksToAppend],
-      } as IProject));
+      } as IProject;
+      setLocalProject(optimisticProject);
+      bumpWorkspaceRecency(optimisticProject);
       setTasksExpanded(true);
       setTaskTab('active');
       setPendingScrollToTaskIndex(newIdx);
@@ -1840,7 +1880,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const nextTasks = [...prevTasks, ...tasksToAppend];
     const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, nextTasks);
     const addedIdx = tasksToSave.length - 1;
-    setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
+    const optimisticProject = { ...localProject, tasks: tasksToSave } as IProject;
+    setLocalProject(optimisticProject);
+    bumpWorkspaceRecency(optimisticProject);
     setTasksExpanded(true);
     setTaskTab('active');
     setPendingScrollToTaskIndex(addedIdx);

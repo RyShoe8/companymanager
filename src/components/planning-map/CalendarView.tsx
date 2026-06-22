@@ -33,6 +33,7 @@ import { contentPassesAssignmentFilter } from '@/lib/utils/assigneeDisplay';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import {
   buildContentItemsByProjectId,
+  compareProjectsForWorkspaceSort,
   getEffectiveProjectActivityMs,
   getProjectLatestActivityMs,
 } from '@/lib/utils/projectLatestActivity';
@@ -453,13 +454,16 @@ export default function CalendarView({
     return undefined;
   };
 
-  // Sort projects: unseen items first, then latest activity
+  // Sort projects: latest activity first, then unseen items
   const sortProjectsByLatestUpdate = (projectList: IProject[]): IProject[] => {
-    return [...projectList].sort((a, b) => {
-      const unseenDiff = countProjectUnseen(b) - countProjectUnseen(a);
-      if (unseenDiff !== 0) return unseenDiff;
-      return getLatestActivityMs(b) - getLatestActivityMs(a);
-    });
+    return [...projectList].sort((a, b) =>
+      compareProjectsForWorkspaceSort(
+        getLatestActivityMs(a),
+        countProjectUnseen(a),
+        getLatestActivityMs(b),
+        countProjectUnseen(b)
+      )
+    );
   };
 
   const toggleProjectExpanded = (projectId: string) => {

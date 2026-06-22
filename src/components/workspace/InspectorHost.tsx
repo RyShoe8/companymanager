@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useCallback, type RefObject } from 'react';
+import { useMemo, useRef, useCallback, useEffect, type RefObject } from 'react';
 import BottomSheet from '@/components/ui/BottomSheet';
 import InlineProjectView from '@/components/planning-map/InlineProjectView';
 import InlineClientView from '@/components/workspace/InlineClientView';
@@ -87,6 +87,16 @@ export default function InspectorHost({
 }: InspectorHostProps) {
     const internalScrollRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = scrollContainerRefProp ?? internalScrollRef;
+    const flushProjectSavesRef = useRef<(() => Promise<void>) | null>(null);
+
+    const handleInspectorClose = useCallback(async () => {
+        try {
+            await flushProjectSavesRef.current?.();
+        } catch {
+            // Ignore flush errors when closing the inspector.
+        }
+        onClose();
+    }, [onClose]);
 
     const { type, id } = useMemo(() => {
         if (!focusId) return { type: null, id: null };
@@ -213,8 +223,11 @@ export default function InspectorHost({
                         onProjectPatched={onProjectPatched}
                         onUpdate={handleProjectUpdate}
                         onDelete={handleProjectDelete}
-                        onClose={onClose}
+                        onClose={handleInspectorClose}
                         onRefresh={onRefresh}
+                        registerFlushPendingSaves={(flush) => {
+                            flushProjectSavesRef.current = flush;
+                        }}
                     />
                     </InspectorLightProvider>
                 </div>
@@ -238,7 +251,7 @@ export default function InspectorHost({
     return (
         <BottomSheet
             isOpen={!!focusId}
-            onClose={onClose}
+            onClose={handleInspectorClose}
             title={undefined}
             surface={isCenteredInspector ? 'chrome' : 'card'}
             layout={isCenteredInspector ? 'centeredInspector' : 'bottomSheet'}

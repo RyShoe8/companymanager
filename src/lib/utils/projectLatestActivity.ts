@@ -59,3 +59,15 @@ export function buildContentItemsByProjectId(contentItems: IContentItem[]): Map<
   }
   return map;
 }
+
+/** Sort workspace project cards by latest activity, then unseen count. */
+export function compareProjectsForWorkspaceSort(
+  aActivityMs: number,
+  aUnseenCount: number,
+  bActivityMs: number,
+  bUnseenCount: number
+): number {
+  const activityDiff = bActivityMs - aActivityMs;
+  if (activityDiff !== 0) return activityDiff;
+  return bUnseenCount - aUnseenCount;
+}

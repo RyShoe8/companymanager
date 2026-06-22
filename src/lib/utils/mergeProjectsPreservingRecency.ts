@@ -1,4 +1,6 @@
 import type { IProject, IProjectTask } from '@/lib/models/Project';
+import type { IContentItem } from '@/lib/models/ContentItem';
+import { buildContentItemsByProjectId } from '@/lib/utils/projectLatestActivity';
 
 function toMs(d: Date | string | undefined): number {
   if (!d) return 0;
@@ -16,18 +18,35 @@ function maxTaskCompletedAtMs(tasks: IProjectTask[] | undefined): number {
   return max;
 }
 
-function projectRecencyMs(project: IProject): number {
+function maxContentActivityMs(contentItems: IContentItem[] | undefined): number {
+  if (!contentItems?.length) return 0;
+  let max = 0;
+  for (const item of contentItems) {
+    const ms = toMs(item.updatedAt ?? item.createdAt);
+    if (ms > max) max = ms;
+  }
+  return max;
+}
+
+function projectRecencyMs(project: IProject, contentItems?: IContentItem[]): number {
   return Math.max(
     toMs((project as { updatedAt?: Date }).updatedAt ?? project.createdAt),
-    maxTaskCompletedAtMs(project.tasks)
+    maxTaskCompletedAtMs(project.tasks),
+    maxContentActivityMs(contentItems)
   );
 }
+
+export type MergeProjectsPreservingRecencyOptions = {
+  contentByProjectId?: Map<string, IContentItem[]>;
+};
 
 /** Merge fetched projects with local state, keeping newer recency signals and task snapshots. */
 export function mergeProjectsPreservingRecency(
   previous: IProject[],
-  fetched: IProject[]
+  fetched: IProject[],
+  options?: MergeProjectsPreservingRecencyOptions
 ): IProject[] {
+  const contentByProjectId = options?.contentByProjectId;
   const prevById = new Map(previous.map((p) => [p._id.toString(), p]));
 
   return fetched.map((fetchedProject) => {
@@ -35,8 +54,10 @@ export function mergeProjectsPreservingRecency(
     const prevProject = prevById.get(id);
     if (!prevProject) return fetchedProject;
 
-    const prevRecency = projectRecencyMs(prevProject);
-    const fetchedRecency = projectRecencyMs(fetchedProject);
+    const prevContent = contentByProjectId?.get(id);
+    const fetchedContent = contentByProjectId?.get(id);
+    const prevRecency = projectRecencyMs(prevProject, prevContent);
+    const fetchedRecency = projectRecencyMs(fetchedProject, fetchedContent);
 
     if (prevRecency <= fetchedRecency) {
       return fetchedProject;

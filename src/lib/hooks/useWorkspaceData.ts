@@ -10,7 +10,9 @@ import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
 import { excludeClientHubProjects } from '@/lib/clients/clientProjectHelpers';
 import { mergeProjectsPreservingRecency } from '@/lib/utils/mergeProjectsPreservingRecency';
+import { buildContentItemsByProjectId } from '@/lib/utils/projectLatestActivity';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
+import { filterContentItemsForMyAssignments } from '@/lib/workspace/workspaceContentFilter';
 
 function toMs(d: Date | string | undefined): number {
     if (!d) return 0;
@@ -143,6 +145,7 @@ export default function useWorkspaceData(
             const projectsData = await projectsRes.json();
             const clientsData = clientsRes.ok ? await clientsRes.json() : [];
             const employeesData = await employeesRes.json();
+            const contentData = contentRes.ok ? await contentRes.json() : [];
 
             // Get current user's role and employee info
             try {
@@ -178,13 +181,18 @@ export default function useWorkspaceData(
                 // Error loading current user
             }
 
-            setAllProjects((prev) => mergeProjectsPreservingRecency(prev, projectsData));
+            setAllProjects((prev) =>
+                mergeProjectsPreservingRecency(prev, projectsData, {
+                    contentByProjectId: buildContentItemsByProjectId(
+                        Array.isArray(contentData) ? contentData : []
+                    ),
+                })
+            );
             setClients(clientsData);
             setEmployees(employeesData);
 
             if (contentRes.ok) {
-                const contentData = await contentRes.json();
-                setContentItems(contentData);
+                setContentItems(Array.isArray(contentData) ? contentData : []);
             }
         } catch {
             // Error loading data
@@ -319,10 +327,12 @@ export default function useWorkspaceData(
         if (!shouldRestrictToMyAssignments || !currentUserEmployeeId) {
             return contentItems;
         }
-        return contentItems.filter(
-            (item) => item.assignedToEmployeeId?.toString() === currentUserEmployeeId
+        return filterContentItemsForMyAssignments(
+            contentItems,
+            currentUserEmployeeId,
+            currentUserId
         );
-    }, [contentItems, shouldRestrictToMyAssignments, currentUserEmployeeId]);
+    }, [contentItems, shouldRestrictToMyAssignments, currentUserEmployeeId, currentUserId]);
 
     return {
         projects,

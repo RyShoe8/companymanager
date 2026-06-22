@@ -80,4 +80,42 @@ describe('mergeProjectsPreservingRecency', () => {
     const merged = mergeProjectsPreservingRecency(previous, fetched);
     expect(new Date(merged[0].updatedAt!).getTime()).toBe(fetchedUpdatedAt.getTime());
   });
+
+  it('keeps newer local recency when content timestamps are newer than fetch', () => {
+    const localUpdatedAt = new Date('2026-06-01T12:00:00Z');
+    const contentUpdatedAt = new Date('2026-06-15T12:00:00Z');
+    const staleUpdatedAt = new Date('2026-06-01T12:00:00Z');
+    const projectIdStr = projectId.toString();
+    const previous = [
+      {
+        _id: projectId,
+        name: 'P',
+        updatedAt: localUpdatedAt,
+        tasks: [],
+      } as IProject,
+    ];
+    const fetched = [
+      {
+        _id: projectId,
+        name: 'P',
+        updatedAt: staleUpdatedAt,
+        tasks: [],
+      } as IProject,
+    ];
+    const contentByProjectId = new Map([
+      [
+        projectIdStr,
+        [
+          {
+            _id: projectId,
+            updatedAt: contentUpdatedAt,
+            createdAt: contentUpdatedAt,
+          } as import('@/lib/models/ContentItem').IContentItem,
+        ],
+      ],
+    ]);
+
+    const merged = mergeProjectsPreservingRecency(previous, fetched, { contentByProjectId });
+    expect(new Date(merged[0].updatedAt!).getTime()).toBe(localUpdatedAt.getTime());
+  });
 });
