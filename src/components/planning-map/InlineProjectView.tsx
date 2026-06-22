@@ -7,6 +7,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, type ContentStatus } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
 import { taskIdString } from '@/lib/projects/taskArrayGuards';
+import { canDeleteTask } from '@/lib/projects/taskDeleteAuth';
 import EditableDate from '@/components/ui/EditableDate';
 import EditableNumber from '@/components/ui/EditableNumber';
 import EditableSelect from '@/components/ui/EditableSelect';
@@ -298,12 +299,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
   const [tasksExpanded, setTasksExpanded] = useState(initialTasksExpanded);
   const [contentExpanded, setContentExpanded] = useState(initialContentExpanded);
+  const [draftTaskOpen, setDraftTaskOpen] = useState(false);
   const [addTaskNameDraft, setAddTaskNameDraft] = useState('');
-  const addTaskInputRef = useRef<HTMLInputElement>(null);
-  const [lastComposedTask, setLastComposedTask] = useState<{
-    index: number;
-    taskId?: string;
-  } | null>(null);
+  const addTaskInputRef = useRef<HTMLTextAreaElement>(null);
   const pendingNamedTaskEstimateRef = useRef<{ index: number; name: string } | null>(null);
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
@@ -1004,8 +1002,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     );
   }, [scrollContainerRef]);
 
-  const handleFocusComposeTaskInput = useCallback(() => {
+  const handleOpenDraftTask = useCallback(() => {
+    setDraftTaskOpen(true);
+    setAddTaskNameDraft('');
     setTasksExpanded(true);
+    setTaskTab('active');
     requestAnimationFrame(() => addTaskInputRef.current?.focus());
   }, []);
 
@@ -1736,11 +1737,50 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const handleCompleteTask = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'completed'); setShowTaskActions(false); };
   const handleDeclineReview = async (taskIndex: number) => { await handleTaskUpdate(taskIndex, 'status', 'active'); setShowTaskActions(false); };
   const handleDeleteTask = async (taskIndex: number) => {
-    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
-      localProject,
-      (localProject.tasks || []).filter((_, idx) => idx !== taskIndex)
-    );
-    await persistProjectTasks(tasksToSave);
+    const tasks = localProject.tasks || [];
+    const task = tasks[taskIndex];
+    if (!task) return;
+
+    try {
+      if (isManagerOrAdmin) {
+        const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
+          localProject,
+          tasks.filter((_, idx) => idx !== taskIndex)
+        );
+        await persistProjectTasks(tasksToSave);
+      } else {
+        const taskId = taskIdString(task);
+        const response = await fetch(`/api/tasks/${taskIndex}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: localProject._id.toString(),
+            taskIndex,
+            taskId,
+          }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(typeof data.error === 'string' ? data.error : 'Failed to delete task');
+        }
+        const data = (await response.json()) as {
+          tasks?: IProject['tasks'];
+          projectUpdatedAt?: string;
+        };
+        const nextProject = {
+          ...localProject,
+          tasks: data.tasks ?? tasks.filter((_, idx) => idx !== taskIndex),
+          updatedAt: data.projectUpdatedAt
+            ? new Date(data.projectUpdatedAt)
+            : localProject.updatedAt,
+        } as IProject;
+        setLocalProject(nextProject);
+        onProjectPatched?.(nextProject);
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete task');
+    }
     setShowTaskActions(false);
     setSelectedTaskIndex(null);
   };
@@ -1758,15 +1798,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const commitAddTasks = async (tasksToAppend: NonNullable<IProject['tasks']>) => {
     const prevTasks = localProject.tasks || [];
     const newIdx = prevTasks.length + tasksToAppend.length - 1;
-
-    const recordComposedTask = (tasks: IProject['tasks'] | undefined, index: number) => {
-      const addedTask = tasks?.[index];
-      if (!addedTask) return;
-      setLastComposedTask({
-        index,
-        taskId: taskIdString(addedTask) ?? undefined,
-      });
-    };
 
     if (!isManagerOrAdmin) {
       setLocalProject((prev) => ({
@@ -1790,16 +1821,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           tasks: IProject['tasks'];
           addedFromIndex?: number;
         };
-        const addedIdx = data.addedFromIndex ?? newIdx;
         const nextProject = { ...localProject, tasks: data.tasks ?? localProject.tasks } as IProject;
         setLocalProject(nextProject);
         onProjectPatched?.(nextProject);
-        recordComposedTask(data.tasks, addedIdx);
       } catch (error) {
         console.error('Error adding task:', error);
         setLocalProject(project);
         setPendingScrollToTaskIndex(null);
-        setLastComposedTask(null);
         alert(error instanceof Error ? error.message : 'Failed to save');
       }
       return;
@@ -1814,13 +1842,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setPendingScrollToTaskIndex(addedIdx);
     try {
       await persistProjectTasks(tasksToSave);
-      const savedTasks = localProjectRef.current.tasks;
-      recordComposedTask(savedTasks, addedIdx);
     } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);
       setPendingScrollToTaskIndex(null);
-      setLastComposedTask(null);
       alert(error instanceof Error ? error.message : 'Failed to save');
     }
   };
@@ -1952,7 +1977,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
   const buildNewTaskPayload = (name: string): NonNullable<IProject['tasks']>[number] => {
     const task: NonNullable<IProject['tasks']>[number] = {
-      name,
+      name: name.trim(),
       description: '',
       status: 'active' as TaskStatus,
       startDate: new Date(),
@@ -1967,18 +1992,29 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     return task;
   };
 
-  const submitComposeTask = (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const prevLen = (localProject.tasks || []).length;
-    pendingNamedTaskEstimateRef.current = { index: prevLen, name: trimmed };
-    void commitAddTasks([buildNewTaskPayload(trimmed)]);
+  const submitDraftTask = (name: string) => {
+    const normalized = name.trim();
+    setDraftTaskOpen(false);
     setAddTaskNameDraft('');
+    if (!normalized) return;
+    const prevLen = (localProject.tasks || []).length;
+    pendingNamedTaskEstimateRef.current = { index: prevLen, name: normalized };
+    void commitAddTasks([buildNewTaskPayload(normalized)]);
   };
 
-  const handleComposeTaskBlur = () => {
-    submitComposeTask(addTaskNameDraft);
+  const handleDraftTaskBlur = () => {
+    submitDraftTask(addTaskNameDraft);
   };
+
+  const userCanDeleteTask = useCallback(
+    (task: IProjectTask) =>
+      canDeleteTask({
+        task,
+        isManagerOrAdmin,
+        currentUserEmployeeId,
+      }),
+    [isManagerOrAdmin, currentUserEmployeeId]
+  );
 
   useEffect(() => {
     if (!autoAddTaskOnOpen) {
@@ -1992,9 +2028,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const key = project._id.toString();
     if (autoAddTaskAppliedKeyRef.current === key) return;
     autoAddTaskAppliedKeyRef.current = key;
-    handleFocusComposeTaskInput();
+    handleOpenDraftTask();
     onAutoAddTaskConsumed?.();
-  }, [autoAddTaskOnOpen, canContributeToProject, project._id, onAutoAddTaskConsumed, handleFocusComposeTaskInput]);
+  }, [autoAddTaskOnOpen, canContributeToProject, project._id, onAutoAddTaskConsumed, handleOpenDraftTask]);
 
   const handleCopyPalette = async () => {
     const text = formatColorPaletteForCopy(paletteDraft);
@@ -2439,67 +2475,46 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         collapsedSummary={`${activeTaskDisplayCount} active`}
         expanded={tasksExpanded}
         onToggle={() => setTasksExpanded((v) => !v)}
+        headerActions={
+          canContributeToProject ? (
+            <Button size="sm" onClick={handleOpenDraftTask}>
+              + Add Task
+            </Button>
+          ) : undefined
+        }
       >
-        {canContributeToProject && (
-          <div className="mb-3 pb-3 border-b border-gray-100">
-            <label htmlFor="inspector-compose-task-name" className="block text-xs font-medium text-gray-700 mb-0.5">
-              New task
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                id="inspector-compose-task-name"
-                ref={addTaskInputRef}
-                type="text"
-                value={addTaskNameDraft}
-                onChange={(e) => {
-                  setAddTaskNameDraft(e.target.value);
-                  setLastComposedTask(null);
-                }}
-                onBlur={handleComposeTaskBlur}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    submitComposeTask(addTaskNameDraft);
-                    addTaskInputRef.current?.blur();
-                  }
-                }}
-                placeholder="What needs to be done?"
-                className={`${formInputClassInspector} flex-1 min-w-[12rem]`}
-              />
-              <AddButton
-                projectId={localProject._id.toString()}
-                label="Add asset"
-                disabled={!lastComposedTask}
-                linkContext={
-                  lastComposedTask
-                    ? {
-                        linkedProjectId: localProject._id.toString(),
-                        linkedProjectTaskId: lastComposedTask.taskId,
-                        linkedProjectTaskIndex: lastComposedTask.index,
-                      }
-                    : undefined
-                }
-                onDocumentCreated={() => {
-                  setTaskAssetsRefreshToken((n) => n + 1);
-                  void loadLinkedAssets();
-                }}
-                onAddButton={async () => {}}
-              />
-            </div>
-          </div>
-        )}
         <div className="flex gap-2 mb-4 border-b border-gray-100 pb-2">
           <button onClick={() => setTaskTab('active')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'active' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Active ({activeTaskDisplayCount})</button>
           <button onClick={() => setTaskTab('completed')} className={`text-sm font-medium px-2 py-1 rounded-md ${taskTab === 'completed' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>Completed ({completedTaskDisplayCount})</button>
         </div>
-        {visibleTaskEntries.length === 0 ? (
+        {!draftTaskOpen && visibleTaskEntries.length === 0 ? (
           <EmptyStateIllustration
             title={`No ${taskTab} tasks`}
             description={`There are no ${taskTab} tasks. Add a task to start tracking work.`}
           />
         ) : (
           <div className="divide-y divide-gray-100">
-            {visibleTaskEntries.map(({ task, idx }, visibleIndex) => {
+            {draftTaskOpen && canContributeToProject && taskTab === 'active' && (
+              <div id="inspector-task-draft-row" className="p-4 scroll-mt-4">
+                <AutoGrowTextarea
+                  id="inspector-task-draft-name"
+                  ref={addTaskInputRef}
+                  minRows={1}
+                  value={addTaskNameDraft}
+                  onChange={(e) => setAddTaskNameDraft(e.target.value)}
+                  onBlur={handleDraftTaskBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setDraftTaskOpen(false);
+                      setAddTaskNameDraft('');
+                    }
+                  }}
+                  placeholder="What needs to be done?"
+                  className={`${formInputClassInspector} text-sm font-medium`}
+                />
+              </div>
+            )}
+            {visibleTaskEntries.map(({ task, idx }) => {
               const taskKey = taskItemKeyFor(task, idx);
               const taskSeenStatus: ItemSeenStatus = canShowTaskNewIndicator(task)
                 ? (itemStatusByKey[taskKey] ?? 'none')
@@ -2508,7 +2523,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               const taskRowId = taskIdString(task) ?? rowKey;
 
               return (
-                <SwipeableCard key={rowKey} rightActions={isManagerOrAdmin ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }] : []} leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}>
+                <SwipeableCard
+                  key={rowKey}
+                  rightActions={
+                    userCanDeleteTask(task)
+                      ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }]
+                      : []
+                  }
+                  leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}
+                >
                   <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
@@ -2517,9 +2540,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           <EditableText
                             value={task.name}
                             onSave={(v) => handleTaskNameSave(idx, v)}
-                            className={`font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                            className={`font-medium whitespace-pre-wrap ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}
                             placeholder="Task name"
-                            autoMultilineAfter={100}
+                            multiline
                             disabled={!canContributeToProject}
                           />
                         </div>
@@ -2536,7 +2559,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       </div>
                       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                         <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs text-gray-900" />
-                        {isManagerOrAdmin && (
+                        {userCanDeleteTask(task) && (
                           <button type="button" onClick={() => { if (confirm('Delete this task? This cannot be undone.')) handleDeleteTask(idx); }} className="text-red-600 hover:text-red-700 text-sm px-2 py-1">Delete</button>
                         )}
                       </div>
@@ -2945,7 +2968,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   variant="success"
                 />
               )}
-              {isManagerOrAdmin && (
+              {selectedTaskIndex != null &&
+                localProject.tasks[selectedTaskIndex] &&
+                userCanDeleteTask(localProject.tasks[selectedTaskIndex]) && (
                 <ModalAction
                   icon={
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

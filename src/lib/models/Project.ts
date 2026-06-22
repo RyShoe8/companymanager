@@ -47,6 +47,8 @@ export interface IProjectTask {
   recurrenceSeriesId?: string;
   /** Repeat interval for this series (daily, weekly, biweekly, monthly). */
   recurrencePreset?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  /** Employee who created this task (for creator delete permission). */
+  createdByEmployeeId?: Types.ObjectId;
 }
 
 export interface IProject extends Document {
@@ -284,6 +286,10 @@ const ProjectSchema: Schema = new Schema(
         recurrencePreset: {
           type: String,
           enum: ['daily', 'weekly', 'biweekly', 'monthly'],
+        },
+        createdByEmployeeId: {
+          type: Schema.Types.ObjectId,
+          ref: 'Employee',
         },
       },
     ],

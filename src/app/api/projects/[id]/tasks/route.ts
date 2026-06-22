@@ -50,7 +50,11 @@ function applyCreatorAssigneeDefault(
   };
 }
 
-async function buildTaskDocument(task: IncomingTask, organizationId: string) {
+async function buildTaskDocument(
+  task: IncomingTask,
+  organizationId: string,
+  createdByEmployeeId?: string | null
+) {
   const defaultDates = getDefaultTaskDates();
   const startDate = resolveTaskDateInput(task.startDate, { fallback: defaultDates.startDate });
   const endDate = resolveTaskDateInput(task.endDate, { fallback: defaultDates.endDate });
@@ -73,6 +77,10 @@ async function buildTaskDocument(task: IncomingTask, organizationId: string) {
     status: taskStatus,
     completedAt: resolveTaskCompletedAt(undefined, taskStatus),
   };
+
+  if (createdByEmployeeId) {
+    taskData.createdByEmployeeId = new Types.ObjectId(createdByEmployeeId);
+  }
 
   if (task.assignedToEmployeeIds !== undefined) {
     if (!Array.isArray(task.assignedToEmployeeIds) || task.assignedToEmployeeIds.length === 0) {
@@ -175,7 +183,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const built = await Promise.all(
       incoming
         .map((task) => applyCreatorAssigneeDefault(task, employeeId, Boolean(isManagerOrAdmin)))
-        .map((task) => buildTaskDocument(task, user.organizationId!))
+        .map((task) => buildTaskDocument(task, user.organizationId!, employeeId))
     );
 
     const existingTasks = [...(project.tasks ?? [])];

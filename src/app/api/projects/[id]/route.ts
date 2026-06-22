@@ -187,6 +187,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         assignedTo: task.assignedTo,
         assignedToEmployeeId: task.assignedToEmployeeId,
         assignedToEmployeeIds: task.assignedToEmployeeIds,
+        createdByEmployeeId: task.createdByEmployeeId,
       })),
     };
 

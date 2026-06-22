@@ -1,20 +1,19 @@
 'use client';
 
-import { useRef, useLayoutEffect, TextareaHTMLAttributes } from 'react';
+import { forwardRef, useLayoutEffect, useRef, useImperativeHandle, TextareaHTMLAttributes } from 'react';
 import { adjustTextareaHeight } from '@/lib/ui/autoGrowTextarea';
 
 interface AutoGrowTextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'rows'> {
   minRows?: number;
 }
 
-export default function AutoGrowTextarea({
-  minRows = 2,
-  className = '',
-  value,
-  onChange,
-  ...rest
-}: AutoGrowTextareaProps) {
+const AutoGrowTextarea = forwardRef<HTMLTextAreaElement, AutoGrowTextareaProps>(function AutoGrowTextarea(
+  { minRows = 2, className = '', value, onChange, ...rest },
+  forwardedRef
+) {
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(forwardedRef, () => ref.current as HTMLTextAreaElement);
 
   const adjustHeight = () => {
     const el = ref.current;
@@ -39,4 +38,6 @@ export default function AutoGrowTextarea({
       {...rest}
     />
   );
-}
+});
+
+export default AutoGrowTextarea;
