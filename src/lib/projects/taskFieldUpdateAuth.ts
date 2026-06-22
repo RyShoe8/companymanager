@@ -1,3 +1,5 @@
+import { getTaskCreatorEmployeeId } from '@/lib/projects/taskDeleteAuth';
+
 export const CONTRIBUTOR_TASK_FIELDS = ['name', 'description', 'estimatedHours'] as const;
 
 export type ContributorTaskField = (typeof CONTRIBUTOR_TASK_FIELDS)[number];
@@ -61,11 +63,18 @@ export function hasRestrictedTaskFieldUpdates(body: TaskFieldUpdateBody): boolea
   );
 }
 
+type TaskWithCreator = {
+  createdByEmployeeId?: { toString(): string } | string | null;
+};
+
 export function canContributorUpdateTaskFields(params: {
   isManagerOrAdmin: boolean;
-  canContribute: boolean;
   isAssigned: boolean;
+  task: TaskWithCreator;
+  currentUserEmployeeId?: string | null;
 }): boolean {
   if (params.isManagerOrAdmin) return true;
-  return params.canContribute || params.isAssigned;
+  if (params.isAssigned) return true;
+  const creatorId = getTaskCreatorEmployeeId(params.task);
+  return !!creatorId && creatorId === params.currentUserEmployeeId;
 }

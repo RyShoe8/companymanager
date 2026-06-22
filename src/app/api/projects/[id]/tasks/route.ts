@@ -15,6 +15,11 @@ import {
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 import { resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
+import {
+  allowBulkTaskExpandForRequest,
+  parseIncomingTaskStatus,
+  shouldForceActiveTaskStatus,
+} from '@/lib/projects/taskCreateAuth';
 
 type IncomingTask = {
   name?: string;
@@ -53,19 +58,14 @@ function applyCreatorAssigneeDefault(
 async function buildTaskDocument(
   task: IncomingTask,
   organizationId: string,
-  createdByEmployeeId?: string | null
+  createdByEmployeeId?: string | null,
+  options?: { forceActiveStatus?: boolean }
 ) {
   const defaultDates = getDefaultTaskDates();
   const startDate = resolveTaskDateInput(task.startDate, { fallback: defaultDates.startDate });
   const endDate = resolveTaskDateInput(task.endDate, { fallback: defaultDates.endDate });
 
-  let taskStatus: 'active' | 'completed' | 'in-review' = 'active';
-  if (task.status !== undefined && task.status !== null) {
-    const statusStr = String(task.status).toLowerCase().trim();
-    if (statusStr === 'completed' || statusStr === 'complete') taskStatus = 'completed';
-    else if (statusStr === 'in-review' || statusStr === 'in_review') taskStatus = 'in-review';
-    else if (statusStr === 'active') taskStatus = 'active';
-  }
+  const taskStatus = options?.forceActiveStatus ? 'active' : parseIncomingTaskStatus(task.status);
 
   const taskData: Record<string, unknown> = {
     name: typeof task.name === 'string' ? task.name.trim() : '',
@@ -167,7 +167,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const appendGuardError = validateIncomingTaskArray({
       previousCount: (project.tasks ?? []).length,
       incomingTasks: incoming,
-      allowBulkTaskExpand: body.allowBulkTaskExpand === true,
+      allowBulkTaskExpand: allowBulkTaskExpandForRequest(
+        Boolean(isManagerOrAdmin),
+        body.allowBulkTaskExpand
+      ),
       isAppend: true,
     });
     if (appendGuardError) {
@@ -180,10 +183,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: appendGuardError }, { status: 400 });
     }
 
+    const forceActiveStatus = shouldForceActiveTaskStatus(Boolean(isManagerOrAdmin));
     const built = await Promise.all(
       incoming
         .map((task) => applyCreatorAssigneeDefault(task, employeeId, Boolean(isManagerOrAdmin)))
-        .map((task) => buildTaskDocument(task, user.organizationId!, employeeId))
+        .map((task) =>
+          buildTaskDocument(task, user.organizationId!, employeeId, { forceActiveStatus })
+        )
     );
 
     const existingTasks = [...(project.tasks ?? [])];

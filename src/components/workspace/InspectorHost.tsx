@@ -221,15 +221,6 @@ export default function InspectorHost({
             );
         }
 
-        if (type === 'task' && id) {
-            return (
-                <div className="p-6 text-center text-gray-400">
-                    <p>Task Editor</p>
-                    <p className="text-sm mt-2">ID: {id}</p>
-                </div>
-            );
-        }
-
         return (
             <div className="p-8 text-center text-gray-400 flex flex-col items-center justify-center h-full">
                 <svg className="w-12 h-12 mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

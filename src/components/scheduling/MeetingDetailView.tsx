@@ -166,9 +166,11 @@ export default function MeetingDetailView({ token, popout = false }: MeetingDeta
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          startDate: meeting.start,
-          endDate: meeting.end,
+          task: {
+            name,
+            startDate: meeting.start,
+            endDate: meeting.end,
+          },
         }),
       });
       if (res.ok) {

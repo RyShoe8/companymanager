@@ -677,6 +677,22 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
+    const Employee = (await import('@/lib/models/Employee')).default;
+    const currentUserEmployee = await Employee.findOne({
+      userId: session.userId,
+      organizationId: user.organizationId,
+    });
+    const isManagerOrAdmin =
+      currentUserEmployee &&
+      (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+
+    if (!isManagerOrAdmin) {
+      return NextResponse.json(
+        { error: 'Only Managers and Administrators can delete projects' },
+        { status: 403 }
+      );
+    }
+
     // Find all users in the same organization
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
 

@@ -40,35 +40,47 @@ describe('canContributorUpdateTaskFields', () => {
     expect(
       canContributorUpdateTaskFields({
         isManagerOrAdmin: true,
-        canContribute: false,
         isAssigned: false,
+        task: {},
+        currentUserEmployeeId: 'emp1',
       })
     ).toBe(true);
   });
 
-  it('allows project contributors and assignees', () => {
+  it('allows assignees and task creators', () => {
     expect(
       canContributorUpdateTaskFields({
         isManagerOrAdmin: false,
-        canContribute: true,
-        isAssigned: false,
-      })
-    ).toBe(true);
-    expect(
-      canContributorUpdateTaskFields({
-        isManagerOrAdmin: false,
-        canContribute: false,
         isAssigned: true,
+        task: {},
+        currentUserEmployeeId: 'emp1',
+      })
+    ).toBe(true);
+    expect(
+      canContributorUpdateTaskFields({
+        isManagerOrAdmin: false,
+        isAssigned: false,
+        task: { createdByEmployeeId: 'emp1' },
+        currentUserEmployeeId: 'emp1',
       })
     ).toBe(true);
   });
 
-  it('denies unrelated users', () => {
+  it('denies contributors who are not assigned or creator', () => {
     expect(
       canContributorUpdateTaskFields({
         isManagerOrAdmin: false,
-        canContribute: false,
         isAssigned: false,
+        task: { createdByEmployeeId: 'emp2' },
+        currentUserEmployeeId: 'emp1',
+      })
+    ).toBe(false);
+    expect(
+      canContributorUpdateTaskFields({
+        isManagerOrAdmin: false,
+        isAssigned: false,
+        task: {},
+        currentUserEmployeeId: 'emp1',
       })
     ).toBe(false);
   });

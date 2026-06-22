@@ -13,7 +13,6 @@ import {
   parseContributorTaskFieldUpdates,
   type TaskFieldUpdateBody,
 } from '@/lib/projects/taskFieldUpdateAuth';
-import { canUserContributeToProject } from '@/lib/utils/projectTeam';
 import { canDeleteTask } from '@/lib/projects/taskDeleteAuth';
 import { cleanupRemovedTasks, findRemovedTasks } from '@/lib/cleanup/entityCleanup';
 
@@ -169,13 +168,13 @@ export async function PATCH(
 
     const { task, index } = resolved;
     const isAssigned = isEmployeeAssignedToTask(task, employeeId, employee.name);
-    const canContribute = canUserContributeToProject(project, employeeId, isManagerOrAdmin);
 
     if (
       !canContributorUpdateTaskFields({
         isManagerOrAdmin,
-        canContribute,
         isAssigned,
+        task: task as { createdByEmployeeId?: { toString(): string } | string | null },
+        currentUserEmployeeId: employeeId,
       })
     ) {
       return NextResponse.json({ error: 'You cannot update this task' }, { status: 403 });
