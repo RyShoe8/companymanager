@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import { headers } from "next/headers";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
@@ -9,6 +8,7 @@ import OrganizationSetupCheck from "@/components/OrganizationSetupCheck";
 import MobileBottomNav from "@/components/ui/MobileBottomNav";
 import { StructuredData } from "@/components/StructuredData";
 import PostHogProvider from "@/components/analytics/PostHogProvider";
+import AnalyticsScripts from "@/components/analytics/AnalyticsScripts";
 import PlatformGuideLayoutWrapper from "@/components/platformGuide/PlatformGuideLayoutWrapper";
 import RecaptchaScript from "@/components/recaptcha/RecaptchaScript";
 
@@ -114,30 +114,7 @@ export default async function RootLayout({
         />
         {!isMinimalShell && (
           <>
-            {/* Google tag (gtag.js) */}
-            <Script
-              src="https://www.googletagmanager.com/gtag/js?id=G-C71LD7T8PT"
-              strategy="afterInteractive"
-            />
-            <Script id="google-analytics" strategy="afterInteractive">
-              {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-C71LD7T8PT');
-          `}
-            </Script>
-            {/* Cookie Management Platform */}
-            <Script
-              src="//cdn.cookie-script.com/s/59ce82450accfaf4f6d3d94203a5d496.js"
-              strategy="afterInteractive"
-            />
-            {/* Ahrefs Analytics */}
-            <Script
-              src="https://analytics.ahrefs.com/analytics.js"
-              data-key="D3V+ZYBYBWGuq2N1WcMRgg"
-              strategy="afterInteractive"
-            />
+            <AnalyticsScripts />
             {!isBareShell ? <RecaptchaScript /> : null}
           </>
         )}

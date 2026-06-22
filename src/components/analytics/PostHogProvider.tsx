@@ -1,10 +1,14 @@
 'use client';
 
-import { Suspense, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider } from 'posthog-js/react';
 import { getPostHogHost, getPostHogKey, isPostHogEnabled } from '@/lib/analytics/posthog';
+import {
+  hasAnalyticsConsent,
+  onAnalyticsConsentChange,
+} from '@/lib/analytics/cookieScriptConsent';
 
 type AuthMe = {
   id?: string;
@@ -14,27 +18,27 @@ type AuthMe = {
   isOrgOwner?: boolean;
 };
 
-function PostHogPageView() {
+function PostHogPageView({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (!isPostHogEnabled()) return;
+    if (!enabled || !isPostHogEnabled()) return;
     let url = pathname ?? '/';
     const query = searchParams?.toString();
     if (query) url += `?${query}`;
     posthog.capture('$pageview', { $current_url: url });
-  }, [pathname, searchParams]);
+  }, [enabled, pathname, searchParams]);
 
   return null;
 }
 
-function PostHogIdentify() {
+function PostHogIdentify({ enabled }: { enabled: boolean }) {
   const pathname = usePathname();
   const lastIdentifiedId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isPostHogEnabled()) return;
+    if (!enabled || !isPostHogEnabled()) return;
 
     let cancelled = false;
 
@@ -69,20 +73,41 @@ function PostHogIdentify() {
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [enabled, pathname]);
 
   return null;
 }
 
 export default function PostHogProvider({ children }: { children: React.ReactNode }) {
   const initialized = useRef(false);
+  const [analyticsAllowed, setAnalyticsAllowed] = useState(false);
 
   useEffect(() => {
-    if (initialized.current || !isPostHogEnabled()) return;
+    return onAnalyticsConsentChange(setAnalyticsAllowed);
+  }, []);
+
+  useEffect(() => {
+    if (!isPostHogEnabled()) return;
+
+    if (!analyticsAllowed) {
+      if (initialized.current) {
+        posthog.opt_out_capturing();
+        posthog.reset();
+        initialized.current = false;
+      }
+      return;
+    }
+
+    if (initialized.current) {
+      posthog.opt_in_capturing();
+      return;
+    }
 
     const key = getPostHogKey();
     const host = getPostHogHost();
     if (!key || !host) return;
+
+    if (!hasAnalyticsConsent()) return;
 
     posthog.init(key, {
       api_host: host,
@@ -90,19 +115,20 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
       capture_pageview: false,
       capture_pageleave: true,
     });
+    posthog.opt_in_capturing();
     initialized.current = true;
-  }, []);
+  }, [analyticsAllowed]);
 
-  if (!isPostHogEnabled()) {
+  if (!isPostHogEnabled() || !analyticsAllowed) {
     return <>{children}</>;
   }
 
   return (
     <PHProvider client={posthog}>
       <Suspense fallback={null}>
-        <PostHogPageView />
+        <PostHogPageView enabled={analyticsAllowed} />
       </Suspense>
-      <PostHogIdentify />
+      <PostHogIdentify enabled={analyticsAllowed} />
       {children}
     </PHProvider>
   );
