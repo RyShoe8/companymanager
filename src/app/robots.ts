@@ -1,5 +1,19 @@
 import { MetadataRoute } from 'next';
 
+/** App/authenticated areas — not marketing. Everything else is crawlable. */
+const DISALLOW_PATHS = [
+  '/api/',
+  '/admin',
+  '/setup-organization',
+  '/planning-map',
+  '/workspace',
+  '/billing',
+  '/scheduling',
+  '/uploads/',
+  '/os',
+  '/recording/',
+] as const;
+
 export default function robots(): MetadataRoute.Robots {
   const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
 
@@ -8,23 +22,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: [
-          '/api/',
-          '/admin',
-          '/setup-organization',
-          '/planning-map',
-          '/projects',
-          '/workspace',
-          '/billing',
-          '/scheduling',
-          '/assets',
-          '/employees',
-          '/login',
-          '/register',
-          '/uploads/',
-          '/os',
-          '/recording/',
-        ],
+        disallow: [...DISALLOW_PATHS],
       },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
