@@ -94,6 +94,7 @@ export default function WorkspaceShell({
     const [showProjectForm, setShowProjectForm] = useState(false);
     const [createMenuOpen, setCreateMenuOpen] = useState(false);
     const [editingProject, setEditingProject] = useState<IProject | undefined>();
+    const [projectFormDefaultClientId, setProjectFormDefaultClientId] = useState<string | null>(null);
     const [addContentProject, setAddContentProject] = useState<IProject | null>(null);
     const [showContentCreateModal, setShowContentCreateModal] = useState(false);
     const [showClientCreateModal, setShowClientCreateModal] = useState(false);
@@ -299,8 +300,15 @@ export default function WorkspaceShell({
     // Handlers
     const handleCreateProject = () => {
         setEditingProject(undefined);
+        setProjectFormDefaultClientId(null);
         setShowProjectForm(true);
     };
+
+    const handleAddProjectForClient = useCallback((clientId: string) => {
+        setEditingProject(undefined);
+        setProjectFormDefaultClientId(clientId);
+        setShowProjectForm(true);
+    }, []);
 
     const markOpenedProjectSeen = useCallback(
         (projectId: string) => {
@@ -568,6 +576,7 @@ export default function WorkspaceShell({
             if (response.ok) {
                 setShowProjectForm(false);
                 setEditingProject(undefined);
+                setProjectFormDefaultClientId(null);
                 ws.loadData();
             }
         } catch {
@@ -1985,6 +1994,11 @@ _id.toString(), { tasks });
                             initialTasksExpanded={inspectorInitialTasksExpanded}
                             initialContentExpanded={inspectorInitialContentExpanded}
                             itemSeenRefreshTrigger={itemSeenRefreshTrigger}
+                            onAddProject={
+                                inspectorFocus?.startsWith('client:') && ws.isManagerOrAdmin
+                                    ? () => handleAddProjectForClient(inspectorFocus.split(':')[1])
+                                    : undefined
+                            }
                         />
                     )}
 
@@ -1995,6 +2009,7 @@ _id.toString(), { tasks });
                             onClose={() => {
                                 setShowProjectForm(false);
                                 setEditingProject(undefined);
+                                setProjectFormDefaultClientId(null);
                             }}
                             title="New Project"
                         >
@@ -2003,10 +2018,12 @@ _id.toString(), { tasks });
                                     clients={ws.clients}
                                     employees={ws.employees}
                                     defaultStatus={defaultStatus}
+                                    defaultClientId={projectFormDefaultClientId ?? undefined}
                                     onSubmit={handleSubmitProject}
                                     onCancel={() => {
                                         setShowProjectForm(false);
                                         setEditingProject(undefined);
+                                        setProjectFormDefaultClientId(null);
                                     }}
                                 />
                             </div>
@@ -2017,6 +2034,7 @@ _id.toString(), { tasks });
                             onClose={() => {
                                 setShowProjectForm(false);
                                 setEditingProject(undefined);
+                                setProjectFormDefaultClientId(null);
                             }}
                             title="New Project"
                         >
@@ -2024,10 +2042,12 @@ _id.toString(), { tasks });
                                 clients={ws.clients}
                                 employees={ws.employees}
                                 defaultStatus={defaultStatus}
+                                defaultClientId={projectFormDefaultClientId ?? undefined}
                                 onSubmit={handleSubmitProject}
                                 onCancel={() => {
                                     setShowProjectForm(false);
                                     setEditingProject(undefined);
+                                    setProjectFormDefaultClientId(null);
                                 }}
                             />
                         </Modal>

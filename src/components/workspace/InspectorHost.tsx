@@ -47,6 +47,7 @@ interface InspectorHostProps {
     initialTasksExpanded?: boolean;
     initialContentExpanded?: boolean;
     itemSeenRefreshTrigger?: number;
+    onAddProject?: () => void;
 }
 
 export default function InspectorHost({
@@ -82,6 +83,7 @@ export default function InspectorHost({
     initialTasksExpanded = false,
     initialContentExpanded = false,
     itemSeenRefreshTrigger,
+    onAddProject,
 }: InspectorHostProps) {
     const internalScrollRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = scrollContainerRefProp ?? internalScrollRef;
@@ -172,6 +174,7 @@ export default function InspectorHost({
                             onAddContentOpenConsumed={onAddContentOpenConsumed}
                             timeframe={timeframe}
                             referenceDate={referenceDate}
+                            onAddProject={onAddProject}
                         />
                     </InspectorLightProvider>
                 </div>

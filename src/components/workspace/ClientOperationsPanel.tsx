@@ -183,11 +183,6 @@ export default function ClientOperationsPanel({
     setUrlList((prev) => [...prev, '']);
   };
 
-  const portalUrl =
-    localClient.clientPortalSlug && localClient.clientPortalToken
-      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/portal/${localClient.clientPortalSlug}?token=${encodeURIComponent(localClient.clientPortalToken)}`
-      : null;
-
   const techName = (id: string) => TECH_STACK_CATALOG.find((t) => t.id === id)?.name ?? id;
   const marketingName = (id: string) => MARKETING_STACK_CATALOG.find((t) => t.id === id)?.name ?? id;
 
@@ -214,7 +209,7 @@ export default function ClientOperationsPanel({
             socialLinks={(localClient.socialLinks ?? []) as IProjectSocialLink[]}
             socialsToolbarVisible={localClient.socialsToolbarVisible !== false}
             isManagerOrAdmin={isManagerOrAdmin}
-            surface="workspace"
+            surface="inspector"
             onUpdate={async (updates) => {
               setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
               await onUpdateClient(clientId, updates as Partial<IClient>);
@@ -223,7 +218,7 @@ export default function ClientOperationsPanel({
           <ProjectTechStackBar
             techStack={(localClient.techStack ?? []) as IProjectTechStackItem[]}
             isManagerOrAdmin={isManagerOrAdmin}
-            surface="workspace"
+            surface="inspector"
             onUpdate={async (updates) => {
               setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
               await onUpdateClient(clientId, updates as Partial<IClient>);
@@ -232,7 +227,7 @@ export default function ClientOperationsPanel({
           <ProjectMarketingStackBar
             marketingStack={(localClient.marketingStack ?? []) as IProjectMarketingStackItem[]}
             isManagerOrAdmin={isManagerOrAdmin}
-            surface="workspace"
+            surface="inspector"
             onUpdate={async (updates) => {
               setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
               await onUpdateClient(clientId, updates as Partial<IClient>);
@@ -425,32 +420,6 @@ export default function ClientOperationsPanel({
                 </div>
               ))}
           </div>
-        </div>
-      )}
-
-      {isManagerOrAdmin && (
-        <div className="pt-2 border-t border-border">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Client portal</h4>
-          {portalUrl ? (
-            <div className="space-y-2">
-              <p className="text-xs text-text-secondary break-all">{portalUrl}</p>
-              <button
-                type="button"
-                className="text-xs px-2 py-1 rounded border border-border hover:bg-background-accent"
-                onClick={() => navigator.clipboard.writeText(portalUrl)}
-              >
-                Copy portal link
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="text-xs px-3 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20"
-              onClick={() => onUpdateClient(clientId, { ensurePortal: true })}
-            >
-              Generate portal link
-            </button>
-          )}
         </div>
       )}
 

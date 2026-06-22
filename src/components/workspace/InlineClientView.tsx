@@ -26,6 +26,7 @@ import {
 } from '@/lib/workspace/projectDisplayCounts';
 import Image from 'next/image';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
+import Button from '@/components/ui/Button';
 
 interface InlineClientViewProps {
   client: IClient;
@@ -51,6 +52,7 @@ interface InlineClientViewProps {
   initialAddContentOpen?: boolean;
   initialAddContentDate?: Date;
   onAddContentOpenConsumed?: () => void;
+  onAddProject?: () => void;
 }
 
 export default function InlineClientView({
@@ -76,6 +78,7 @@ export default function InlineClientView({
   initialAddContentOpen,
   initialAddContentDate,
   onAddContentOpenConsumed,
+  onAddProject,
   contentItems = [],
 }: InlineClientViewProps) {
   const [localClient, setLocalClient] = useState(client);
@@ -125,19 +128,51 @@ export default function InlineClientView({
     onRefresh();
   };
 
+  const portalUrl =
+    localClient.clientPortalSlug && localClient.clientPortalToken
+      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/portal/${localClient.clientPortalSlug}?token=${encodeURIComponent(localClient.clientPortalToken)}`
+      : null;
+
   return (
     <div className="space-y-4">
       <div className={`rounded-lg p-4 border ${lightSurface('bg-white border-gray-200', 'dark:bg-gray-800 dark:border-gray-700', light)}`}>
         <div className="flex items-start gap-3">
-          <ClientLogo
-            clientId={clientId}
-            logo={logo}
-            color={localClient.color || '#3b82f6'}
-            name={localClient.name}
-            isManagerOrAdmin={isManagerOrAdmin}
-            size="lg"
-            onLogoUpdate={setLogo}
-          />
+          <div className="flex flex-col items-center gap-2 shrink-0">
+            <ClientLogo
+              clientId={clientId}
+              logo={logo}
+              color={localClient.color || '#3b82f6'}
+              name={localClient.name}
+              isManagerOrAdmin={isManagerOrAdmin}
+              size="lg"
+              onLogoUpdate={setLogo}
+            />
+            {isManagerOrAdmin && (
+              <div className="w-full max-w-[7rem] text-center">
+                {portalUrl ? (
+                  <button
+                    type="button"
+                    className={`text-[11px] leading-tight px-2 py-1 rounded border transition-colors w-full ${lightSurface(
+                      'border-gray-200 text-gray-700 hover:bg-gray-50',
+                      'dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700',
+                      light
+                    )}`}
+                    onClick={() => navigator.clipboard.writeText(portalUrl)}
+                  >
+                    Copy portal link
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-[11px] leading-tight px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 w-full"
+                    onClick={() => onUpdateClient(clientId, { ensurePortal: true })}
+                  >
+                    Generate portal
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <EditableText
               value={localClient.name}
@@ -219,19 +254,26 @@ export default function InlineClientView({
 
       <CollapsibleInspectorSection
         id="inspector-client-projects-section"
-        title="Active Projects"
+        title="Projects"
         titleSuffix={
           <span className={`text-sm font-normal ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
             ({activeProjects.length})
           </span>
         }
-        collapsedSummary={`${activeProjects.length} active`}
+        collapsedSummary={`${activeProjects.length} project${activeProjects.length === 1 ? '' : 's'}`}
         expanded={projectsExpanded}
         onToggle={() => setProjectsExpanded((v) => !v)}
+        headerActions={
+          isManagerOrAdmin && onAddProject ? (
+            <Button size="sm" onClick={onAddProject}>
+              + Add Project
+            </Button>
+          ) : undefined
+        }
       >
         {activeProjects.length === 0 ? (
           <p className={`text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}>
-            No active projects for this client.
+            No projects for this client yet.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

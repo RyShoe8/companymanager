@@ -1,25 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import Button from '@/components/ui/Button';
 
-interface QuickProjectFormProps { clients: IClient[]; employees: IEmployee[]; defaultStatus?: 'planning' | 'in-development' | 'launched'; onSubmit: (data: any) => Promise<void>; onCancel: () => void; }
+interface QuickProjectFormProps {
+  clients: IClient[];
+  employees: IEmployee[];
+  defaultStatus?: 'planning' | 'in-development' | 'launched';
+  defaultClientId?: string;
+  onSubmit: (data: any) => Promise<void>;
+  onCancel: () => void;
+}
 
 const colorPalette = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
 
-export default function QuickProjectForm({ clients, employees, defaultStatus = 'planning', onSubmit, onCancel }: QuickProjectFormProps) {
+export default function QuickProjectForm({ clients, employees, defaultStatus = 'planning', defaultClientId, onSubmit, onCancel }: QuickProjectFormProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(colorPalette[Math.floor(Math.random() * colorPalette.length)]);
-  const [projectType, setProjectType] = useState<'internal' | 'client'>('client');
-  const [clientId, setClientId] = useState<string>('');
+  const [projectType, setProjectType] = useState<'internal' | 'client'>(defaultClientId ? 'client' : 'client');
+  const [clientId, setClientId] = useState<string>(defaultClientId ?? '');
   const [category, setCategory] = useState<'website' | 'store' | 'app' | 'generic'>('generic');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [assignedToEmployeeIds, setAssignedToEmployeeIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (defaultClientId) {
+      setProjectType('client');
+      setClientId(defaultClientId);
+    }
+  }, [defaultClientId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
