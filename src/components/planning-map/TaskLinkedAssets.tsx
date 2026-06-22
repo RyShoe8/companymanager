@@ -8,7 +8,10 @@ import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
 import LinkedAssetDocumentSheet, { type LinkedAssetDocument } from '@/components/shared/LinkedAssetDocumentSheet';
 import { mapStatusToStage } from '@/lib/utils/statusMapping';
-import { getTaskAssigneeEmployeeIds } from '@/lib/utils/projectTeam';
+import {
+  canUserContributeToProject,
+  getTaskAssigneeEmployeeIds,
+} from '@/lib/utils/projectTeam';
 import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import {
   canUserDeleteAsset,
@@ -74,7 +77,13 @@ export default function TaskLinkedAssets({
     !!task &&
     getTaskAssigneeEmployeeIds(task).includes(currentUserEmployeeId);
 
-  const canViewAssets = isManagerOrAdmin || isAssignedUser;
+  const canContribute = canUserContributeToProject(
+    project,
+    currentUserEmployeeId ?? null,
+    isManagerOrAdmin
+  );
+
+  const canViewAssets = isManagerOrAdmin || isAssignedUser || canContribute;
 
   const canAddAssets = canViewAssets;
 
@@ -240,7 +249,7 @@ export default function TaskLinkedAssets({
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <AddButton
                   projectId={projectId}
-                  label="Add"
+                  label="Add asset"
                   linkContext={{
                     linkedProjectId: projectId,
                     linkedProjectTaskId: taskId,

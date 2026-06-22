@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { IComment } from '@/lib/models/Comment';
 import Button from '@/components/ui/Button';
 import EditableText from '@/components/ui/EditableText';
+import AddButton from '@/components/checklist/AddButton';
+import type { AssetLinkContext } from '@/components/checklist/CategoryModal';
 import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import { getCommentTreeMeta } from '@/lib/comments/commentUtils';
@@ -22,6 +24,10 @@ interface CommentThreadProps {
   isManagerOrAdmin?: boolean;
   /** When false, screenshot gallery is not shown (parent renders it elsewhere). */
   showScreenshotGallery?: boolean;
+  projectId?: string;
+  canAddAssets?: boolean;
+  linkContext?: AssetLinkContext;
+  onAssetsChanged?: () => void;
   onMetaChange?: (meta: { count: number; latestActivityMs: number }) => void;
 }
 
@@ -39,6 +45,10 @@ export default function CommentThread({
   pollIntervalMs,
   isManagerOrAdmin = false,
   showScreenshotGallery = true,
+  projectId,
+  canAddAssets = false,
+  linkContext,
+  onAssetsChanged,
   onMetaChange,
 }: CommentThreadProps) {
   const light = useInspectorLight();
@@ -336,14 +346,27 @@ export default function CommentThread({
       )}
 
       <div className={`border-t ${lightSurface('border-gray-200', 'dark:border-gray-700', light)} pt-4`}>
-        <EditableText
-          key={`root-${rootComposerKey}`}
-          value=""
-          onSave={postComment}
-          multiline
-          placeholder="Add a comment..."
-          className={commentBodyClass}
-        />
+        <div className="flex flex-wrap items-start gap-2">
+          <div className="flex-1 min-w-[12rem]">
+            <EditableText
+              key={`root-${rootComposerKey}`}
+              value=""
+              onSave={postComment}
+              multiline
+              placeholder="Add a comment..."
+              className={commentBodyClass}
+            />
+          </div>
+          {canAddAssets && projectId && linkContext && (
+            <AddButton
+              projectId={projectId}
+              label="Add asset"
+              linkContext={linkContext}
+              onDocumentCreated={() => onAssetsChanged?.()}
+              onAddButton={async () => {}}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

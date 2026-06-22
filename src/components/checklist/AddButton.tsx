@@ -26,6 +26,7 @@ interface AddButtonProps {
   stackAboveLightbox?: boolean;
   surface?: ControlSurface;
   triggerVariant?: 'primary' | 'secondary';
+  disabled?: boolean;
 }
 
 export default function AddButton({
@@ -42,6 +43,7 @@ export default function AddButton({
   stackAboveLightbox = false,
   surface = 'inspector',
   triggerVariant = 'secondary',
+  disabled = false,
 }: AddButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -65,11 +67,16 @@ export default function AddButton({
   return (
     <>
       {surface === 'workspace' ? (
-        <button type="button" className={WORKSPACE_TOOLBAR_BUTTON_CLASS} onClick={() => setShowModal(true)}>
+        <button
+          type="button"
+          className={WORKSPACE_TOOLBAR_BUTTON_CLASS}
+          onClick={() => setShowModal(true)}
+          disabled={disabled}
+        >
           {label}
         </button>
       ) : (
-        <Button variant={triggerVariant} size="sm" onClick={() => setShowModal(true)}>
+        <Button variant={triggerVariant} size="sm" onClick={() => setShowModal(true)} disabled={disabled}>
           {label}
         </Button>
       )}

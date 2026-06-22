@@ -1,28 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import Project, { TaskStatus } from '@/lib/models/Project';
+import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
-import { cleanupCompletedTaskMedia } from '@/lib/recordings/recordingCleanup';
-import { normalizeTaskStatus } from '@/lib/projects/projectCleanup';
-import { resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { getTaskByProject, isEmployeeAssignedToTask, toTaskIndex } from '@/lib/projects/taskLookup';
 import {
-  getTaskByProject,
-  isEmployeeAssignedToTask,
-  toTaskIndex,
-} from '@/lib/projects/taskLookup';
-
-type TaskLike = {
-  status?: TaskStatus;
-  assignedTo?: string;
-  assignedToEmployeeId?: { toString: () => string };
-  assignedToEmployeeIds?: Array<{ toString: () => string }>;
-};
-
-const ALLOWED_TASK_STATUSES: TaskStatus[] = ['active', 'in-review', 'completed'];
+  canContributorUpdateTaskFields,
+  hasRestrictedTaskFieldUpdates,
+  parseContributorTaskFieldUpdates,
+  type TaskFieldUpdateBody,
+} from '@/lib/projects/taskFieldUpdateAuth';
+import { canUserContributeToProject } from '@/lib/utils/projectTeam';
 
 export async function PATCH(
   request: NextRequest,
@@ -35,19 +26,24 @@ export async function PATCH(
     await connectDB();
 
     const { id } = await params;
-    const body = await request.json();
-    const { projectId, taskId, taskIndex: bodyTaskIndex, status } = body;
+    const body = (await request.json()) as TaskFieldUpdateBody & {
+      projectId?: string;
+      taskId?: string;
+      taskIndex?: number;
+    };
+    const { projectId, taskId, taskIndex: bodyTaskIndex } = body;
     const taskIndex = toTaskIndex(id, bodyTaskIndex);
 
-    if (!projectId || (!taskId && taskIndex === undefined) || !status) {
+    if (!projectId || (!taskId && taskIndex === undefined)) {
       return NextResponse.json(
-        { error: 'projectId, status, and (taskId or taskIndex) are required' },
+        { error: 'projectId and (taskId or taskIndex) are required' },
         { status: 400 }
       );
     }
 
-    if (!ALLOWED_TASK_STATUSES.includes(status)) {
-      return NextResponse.json({ error: 'Invalid task status' }, { status: 400 });
+    const { updates, error: parseError } = parseContributorTaskFieldUpdates(body);
+    if (parseError) {
+      return NextResponse.json({ error: parseError }, { status: 400 });
     }
 
     const user = await User.findById(session.userId);
@@ -63,76 +59,84 @@ export async function PATCH(
 
     const employee = await Employee.findOne({
       userId: session.userId,
-      organizationId: user?.organizationId,
+      organizationId: user.organizationId,
     });
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 403 });
     }
 
     const isManagerOrAdmin = employee.role === 'Manager' || employee.role === 'Administrator';
+    const employeeId = employee._id.toString();
     const resolved = getTaskByProject(project, taskId, taskIndex);
     if (!resolved) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    const { task: resolvedTask, index } = resolved;
-    const task = resolvedTask as TaskLike;
-    const employeeId = employee._id.toString();
+    const { task, index } = resolved;
     const isAssigned = isEmployeeAssignedToTask(task, employeeId, employee.name);
+    const canContribute = canUserContributeToProject(project, employeeId, isManagerOrAdmin);
 
-    if (!isManagerOrAdmin && !isAssigned) {
+    if (
+      !canContributorUpdateTaskFields({
+        isManagerOrAdmin,
+        canContribute,
+        isAssigned,
+      })
+    ) {
+      return NextResponse.json({ error: 'You cannot update this task' }, { status: 403 });
+    }
+
+    if (!isManagerOrAdmin && hasRestrictedTaskFieldUpdates(body)) {
       return NextResponse.json(
-        { error: 'You can only update status for tasks assigned to you' },
+        { error: 'You can only update task name, description, and estimated hours' },
         { status: 403 }
       );
     }
 
-    const previousStatus = normalizeTaskStatus(task.status);
-    const taskObjectId = (project.tasks as { _id?: { toString: () => string } }[])[index]?._id?.toString();
-    const taskDoc = (project.tasks as Array<{ status: TaskStatus; completedAt?: Date }>)[index];
+    const taskDoc = project.tasks?.[index] as {
+      name?: string;
+      description?: string;
+      estimatedHours?: number;
+    };
+    if (!taskDoc) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
 
-    taskDoc.status = status;
-    taskDoc.completedAt = resolveTaskCompletedAt(
-      previousStatus,
-      status,
-      taskDoc.completedAt
-    );
+    if (typeof updates.name === 'string') taskDoc.name = updates.name;
+    if (typeof updates.description === 'string') {
+      taskDoc.description = updates.description || undefined;
+    }
+    if (typeof updates.estimatedHours === 'number') {
+      taskDoc.estimatedHours = updates.estimatedHours;
+    }
+
+    project.markModified('tasks');
     await project.save();
     await touchProjectActivity(projectId);
-
-    if (previousStatus !== 'completed' && status === 'completed') {
-      await cleanupCompletedTaskMedia({
-        taskId: taskObjectId,
-        taskIndex: index,
-        projectId,
-      });
-    }
 
     const refreshed = await Project.findById(projectId).select('updatedAt').lean();
     const projectUpdatedAt = (refreshed as { updatedAt?: Date } | null)?.updatedAt;
 
     void import('@/lib/workspace/workspaceNotifications').then(({ notifyTaskChange }) => {
-      if (!user?.organizationId) return;
       void notifyTaskChange({
         project,
         task: project.tasks?.[index] as Parameters<typeof notifyTaskChange>[0]['task'],
         taskIndex: index,
         actorUserId: session.userId,
-        actorEmployeeId: employee._id.toString(),
-        organizationId: user.organizationId,
+        actorEmployeeId: employeeId,
+        organizationId: user.organizationId!,
         isNew: false,
-        changeLabel: 'Task status updated',
-      }).catch((err) => console.error('[workspaceNotifications] task_status', err));
+        changeLabel: 'Task updated',
+      }).catch((err) => console.error('[workspaceNotifications] task_field', err));
     });
 
     return NextResponse.json({
       success: true,
       task: project.tasks?.[index],
-      status,
       projectUpdatedAt: projectUpdatedAt?.toISOString(),
     });
   } catch (error) {
-    console.error('PATCH /api/tasks/[id]/status error:', error);
+    console.error('PATCH /api/tasks/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

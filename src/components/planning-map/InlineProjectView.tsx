@@ -295,13 +295,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
-  const [autoEditTaskId, setAutoEditTaskId] = useState<string | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
   const [tasksExpanded, setTasksExpanded] = useState(initialTasksExpanded);
   const [contentExpanded, setContentExpanded] = useState(initialContentExpanded);
-  const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addTaskNameDraft, setAddTaskNameDraft] = useState('');
   const addTaskInputRef = useRef<HTMLInputElement>(null);
+  const [lastComposedTask, setLastComposedTask] = useState<{
+    index: number;
+    taskId?: string;
+  } | null>(null);
   const pendingNamedTaskEstimateRef = useRef<{ index: number; name: string } | null>(null);
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
@@ -1002,9 +1004,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     );
   }, [scrollContainerRef]);
 
-  const handleOpenAddTask = useCallback(() => {
+  const handleFocusComposeTaskInput = useCallback(() => {
     setTasksExpanded(true);
-    setAddTaskOpen(true);
     requestAnimationFrame(() => addTaskInputRef.current?.focus());
   }, []);
 
@@ -1448,6 +1449,56 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [persistProjectTasks]
   );
 
+  const patchContributorTask = useCallback(
+    async (
+      taskIndex: number,
+      fields: { name?: string; description?: string; estimatedHours?: number }
+    ) => {
+      const proj = localProjectRef.current;
+      const task = proj.tasks?.[taskIndex];
+      if (!task) return;
+
+      const taskId = taskIdString(task);
+      const response = await fetch(`/api/tasks/${taskIndex}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: proj._id.toString(),
+          taskIndex,
+          taskId,
+          ...fields,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data.error === 'string' ? data.error : 'Failed to save task');
+      }
+
+      const data = (await response.json()) as {
+        task?: IProjectTask;
+        projectUpdatedAt?: string;
+      };
+      const projectUpdatedAt = data.projectUpdatedAt
+        ? new Date(data.projectUpdatedAt)
+        : new Date();
+
+      setLocalProject((prev) => {
+        const tasks = [...(prev.tasks || [])];
+        if (data.task) {
+          tasks[taskIndex] = data.task;
+        } else {
+          tasks[taskIndex] = { ...tasks[taskIndex], ...fields };
+        }
+        const next = { ...prev, tasks, updatedAt: projectUpdatedAt } as IProject;
+        onProjectPatched?.(next);
+        return next;
+      });
+      setTaskAssetsRefreshToken((n) => n + 1);
+    },
+    [onProjectPatched]
+  );
+
   const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
     if (field === 'status' && !isManagerOrAdmin) {
       const previousTasks = [...(localProject.tasks || [])];
@@ -1515,6 +1566,28 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       return;
     }
 
+    const contributorPatchFields = new Set(['name', 'description', 'estimatedHours']);
+    if (!isManagerOrAdmin && contributorPatchFields.has(field)) {
+      const previousTasks = [...(localProject.tasks || [])];
+      const updatedTasks = [...previousTasks];
+      const existingTask = updatedTasks[taskIndex];
+      if (!existingTask) return;
+      updatedTasks[taskIndex] = { ...existingTask, [field]: value };
+      setLocalProject((prev) => ({ ...prev, tasks: updatedTasks } as IProject));
+      try {
+        await patchContributorTask(taskIndex, { [field]: value } as {
+          name?: string;
+          description?: string;
+          estimatedHours?: number;
+        });
+      } catch (error) {
+        console.error('Error updating task:', error);
+        setLocalProject((prev) => ({ ...prev, tasks: previousTasks } as IProject));
+        alert(error instanceof Error ? error.message : 'Failed to save');
+      }
+      return;
+    }
+
     const updatedTasks = [...(localProject.tasks || [])];
     const previousStatus = updatedTasks[taskIndex]?.status;
     const updatedTask = {
@@ -1565,7 +1638,14 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(proj, updatedTasks);
       setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
       try {
-        await persistProjectTasks(tasksToSave);
+        if (!isManagerOrAdmin) {
+          await patchContributorTask(taskIndex, {
+            estimatedHours: hours,
+            name: mergedName,
+          });
+        } else {
+          await persistProjectTasks(tasksToSave);
+        }
       } catch (error) {
         setLocalProject((prev) => {
           const tasks = [...(prev.tasks || [])];
@@ -1577,7 +1657,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         throw error;
       }
     },
-    [persistProjectTasks]
+    [persistProjectTasks, patchContributorTask, isManagerOrAdmin]
   );
 
   const scheduleTaskHourEstimate = useCallback((taskIndex: number, title: string) => {
@@ -1643,8 +1723,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       if (pendingEstimate && pendingEstimate.index === idx) {
         pendingNamedTaskEstimateRef.current = null;
         scheduleTaskHourEstimate(idx, pendingEstimate.name);
-      } else {
-        setAutoEditTaskId(taskId);
       }
     });
   }, [localProject.tasks, pendingScrollToTaskIndex, scrollContainerRef, scheduleTaskHourEstimate]);
@@ -1681,6 +1759,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const prevTasks = localProject.tasks || [];
     const newIdx = prevTasks.length + tasksToAppend.length - 1;
 
+    const recordComposedTask = (tasks: IProject['tasks'] | undefined, index: number) => {
+      const addedTask = tasks?.[index];
+      if (!addedTask) return;
+      setLastComposedTask({
+        index,
+        taskId: taskIdString(addedTask) ?? undefined,
+      });
+    };
+
     if (!isManagerOrAdmin) {
       setLocalProject((prev) => ({
         ...prev,
@@ -1689,26 +1776,32 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setTasksExpanded(true);
       setTaskTab('active');
       setPendingScrollToTaskIndex(newIdx);
-      fetch(`/api/projects/${localProject._id.toString()}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tasks: tasksToAppend }),
-      }).then(async (res) => {
+      try {
+        const res = await fetch(`/api/projects/${localProject._id.toString()}/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks: tasksToAppend }),
+        });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(typeof data.error === 'string' ? data.error : 'Failed to add task');
         }
-        const data = (await res.json()) as { tasks: IProject['tasks']; addedFromIndex?: number };
+        const data = (await res.json()) as {
+          tasks: IProject['tasks'];
+          addedFromIndex?: number;
+        };
+        const addedIdx = data.addedFromIndex ?? newIdx;
         const nextProject = { ...localProject, tasks: data.tasks ?? localProject.tasks } as IProject;
         setLocalProject(nextProject);
         onProjectPatched?.(nextProject);
-      }).catch((error) => {
+        recordComposedTask(data.tasks, addedIdx);
+      } catch (error) {
         console.error('Error adding task:', error);
         setLocalProject(project);
         setPendingScrollToTaskIndex(null);
-        setAutoEditTaskId(null);
+        setLastComposedTask(null);
         alert(error instanceof Error ? error.message : 'Failed to save');
-      });
+      }
       return;
     }
 
@@ -1719,13 +1812,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setTasksExpanded(true);
     setTaskTab('active');
     setPendingScrollToTaskIndex(addedIdx);
-    persistProjectTasks(tasksToSave).catch((error) => {
+    try {
+      await persistProjectTasks(tasksToSave);
+      const savedTasks = localProjectRef.current.tasks;
+      recordComposedTask(savedTasks, addedIdx);
+    } catch (error) {
       console.error('Error adding task:', error);
       setLocalProject(project);
       setPendingScrollToTaskIndex(null);
-      setAutoEditTaskId(null);
+      setLastComposedTask(null);
       alert(error instanceof Error ? error.message : 'Failed to save');
-    });
+    }
   };
 
   const applyTaskRecurrence = useCallback(
@@ -1853,10 +1950,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [reloadProjectContent]
   );
 
-  const handleSubmitInlineAddTask = () => {
-    const name = addTaskNameDraft.trim();
-    if (!name) return;
-    const newTask = {
+  const buildNewTaskPayload = (name: string): NonNullable<IProject['tasks']>[number] => {
+    const task: NonNullable<IProject['tasks']>[number] = {
       name,
       description: '',
       status: 'active' as TaskStatus,
@@ -1864,11 +1959,25 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       estimatedHours: 0,
     };
+    if (!isManagerOrAdmin && currentUserEmployeeId) {
+      (task as { assignedToEmployeeIds?: string[] }).assignedToEmployeeIds = [
+        currentUserEmployeeId,
+      ];
+    }
+    return task;
+  };
+
+  const submitComposeTask = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
     const prevLen = (localProject.tasks || []).length;
-    pendingNamedTaskEstimateRef.current = { index: prevLen, name };
-    void commitAddTasks([newTask]);
+    pendingNamedTaskEstimateRef.current = { index: prevLen, name: trimmed };
+    void commitAddTasks([buildNewTaskPayload(trimmed)]);
     setAddTaskNameDraft('');
-    setAddTaskOpen(false);
+  };
+
+  const handleComposeTaskBlur = () => {
+    submitComposeTask(addTaskNameDraft);
   };
 
   useEffect(() => {
@@ -1883,9 +1992,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const key = project._id.toString();
     if (autoAddTaskAppliedKeyRef.current === key) return;
     autoAddTaskAppliedKeyRef.current = key;
-    handleOpenAddTask();
+    handleFocusComposeTaskInput();
     onAutoAddTaskConsumed?.();
-  }, [autoAddTaskOnOpen, canContributeToProject, project._id, onAutoAddTaskConsumed, handleOpenAddTask]);
+  }, [autoAddTaskOnOpen, canContributeToProject, project._id, onAutoAddTaskConsumed, handleFocusComposeTaskInput]);
 
   const handleCopyPalette = async () => {
     const text = formatColorPaletteForCopy(paletteDraft);
@@ -2330,52 +2439,52 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         collapsedSummary={`${activeTaskDisplayCount} active`}
         expanded={tasksExpanded}
         onToggle={() => setTasksExpanded((v) => !v)}
-        headerActions={
-          canContributeToProject ? (
-            <Button size="sm" onClick={handleOpenAddTask}>
-              + Add Task
-            </Button>
-          ) : undefined
-        }
       >
-        {addTaskOpen && canContributeToProject && (
+        {canContributeToProject && (
           <div className="mb-3 pb-3 border-b border-gray-100">
-            <label htmlFor="inspector-add-task-name" className="block text-xs font-medium text-gray-700 mb-0.5">
-              Task name
+            <label htmlFor="inspector-compose-task-name" className="block text-xs font-medium text-gray-700 mb-0.5">
+              New task
             </label>
             <div className="flex flex-wrap items-center gap-2">
               <input
-                id="inspector-add-task-name"
+                id="inspector-compose-task-name"
                 ref={addTaskInputRef}
                 type="text"
                 value={addTaskNameDraft}
-                onChange={(e) => setAddTaskNameDraft(e.target.value)}
+                onChange={(e) => {
+                  setAddTaskNameDraft(e.target.value);
+                  setLastComposedTask(null);
+                }}
+                onBlur={handleComposeTaskBlur}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleSubmitInlineAddTask();
-                  }
-                  if (e.key === 'Escape') {
-                    setAddTaskOpen(false);
-                    setAddTaskNameDraft('');
+                    submitComposeTask(addTaskNameDraft);
+                    addTaskInputRef.current?.blur();
                   }
                 }}
                 placeholder="What needs to be done?"
                 className={`${formInputClassInspector} flex-1 min-w-[12rem]`}
               />
-              <Button size="sm" onClick={handleSubmitInlineAddTask} disabled={!addTaskNameDraft.trim()}>
-                Add
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setAddTaskOpen(false);
-                  setAddTaskNameDraft('');
+              <AddButton
+                projectId={localProject._id.toString()}
+                label="Add asset"
+                disabled={!lastComposedTask}
+                linkContext={
+                  lastComposedTask
+                    ? {
+                        linkedProjectId: localProject._id.toString(),
+                        linkedProjectTaskId: lastComposedTask.taskId,
+                        linkedProjectTaskIndex: lastComposedTask.index,
+                      }
+                    : undefined
+                }
+                onDocumentCreated={() => {
+                  setTaskAssetsRefreshToken((n) => n + 1);
+                  void loadLinkedAssets();
                 }}
-              >
-                Cancel
-              </Button>
+                onAddButton={async () => {}}
+              />
             </div>
           </div>
         )}
@@ -2412,15 +2521,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             placeholder="Task name"
                             autoMultilineAfter={100}
                             disabled={!canContributeToProject}
-                            autoEditOnMount={!!taskRowId && autoEditTaskId === taskRowId}
-                            onAutoEditMount={() => {
-                              requestAnimationFrame(() => {
-                                setAutoEditTaskId(null);
-                              });
-                            }}
                           />
                         </div>
-                        {(task.description || isManagerOrAdmin) && <EditableText value={task.description || ''} onSave={(v) => handleTaskUpdate(idx, 'description', v)} className="text-sm text-gray-500 mt-1" placeholder="Add description..." autoMultilineAfter={100} disabled={!isManagerOrAdmin} />}
+                        {canContributeToProject && (
+                          <EditableText
+                            value={task.description || ''}
+                            onSave={(v) => handleTaskUpdate(idx, 'description', v)}
+                            className="text-sm text-gray-500 mt-1"
+                            placeholder="Add description..."
+                            autoMultilineAfter={100}
+                            disabled={!canContributeToProject}
+                          />
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                         <EditableSelect value={task.status || 'active'} options={taskStatusOptions} onSave={(v) => handleTaskUpdate(idx, 'status', v)} showColorDot className="text-xs text-gray-900" />
@@ -2510,6 +2622,17 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           showHeading={false}
                           isManagerOrAdmin={isManagerOrAdmin}
                           showScreenshotGallery={false}
+                          projectId={localProject._id.toString()}
+                          canAddAssets={canContributeToProject}
+                          linkContext={{
+                            linkedProjectId: localProject._id.toString(),
+                            linkedProjectTaskId: (localProject.tasks?.[idx] as { _id?: { toString: () => string } })?._id?.toString(),
+                            linkedProjectTaskIndex: idx,
+                          }}
+                          onAssetsChanged={() => {
+                            setTaskAssetsRefreshToken((n) => n + 1);
+                            void loadLinkedAssets();
+                          }}
                           onMetaChange={(meta) => handleTaskCommentMetaChange(idx, meta)}
                         />
                       </CommentsCollapsibleSection>
@@ -2523,7 +2646,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                       currentUserId={currentUserId}
                       currentUserEmployeeId={currentUserEmployeeId}
                       refreshToken={taskAssetsRefreshToken}
-                      showAddHintText={visibleIndex === 0}
+                      showAddHintText
                       onAssetsChanged={() => {
                         setTaskAssetsRefreshToken((n) => n + 1);
                         void loadLinkedAssets();
