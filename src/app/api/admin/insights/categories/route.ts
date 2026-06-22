@@ -17,10 +17,15 @@ export async function GET() {
   const items = await InsightItem.find().sort({ itemOrder: 1 }).lean();
   const vendors = await InsightVendor.find().sort({ displayOrder: 1 }).lean();
 
-  const vendorCountByItem = new Map<string, number>();
+  const activeVendorCountByItem = new Map<string, number>();
+  const hiddenVendorCountByItem = new Map<string, number>();
   for (const v of vendors) {
     const key = v.itemId.toString();
-    vendorCountByItem.set(key, (vendorCountByItem.get(key) ?? 0) + 1);
+    if (v.isActive) {
+      activeVendorCountByItem.set(key, (activeVendorCountByItem.get(key) ?? 0) + 1);
+    } else {
+      hiddenVendorCountByItem.set(key, (hiddenVendorCountByItem.get(key) ?? 0) + 1);
+    }
   }
 
   const itemsByCategory = new Map<string, typeof items>();
@@ -55,7 +60,8 @@ export async function GET() {
         itemOrder: item.itemOrder,
         detectsFromCategorySlug: item.detectsFromCategorySlug,
         isActive: item.isActive,
-        vendorCount: vendorCountByItem.get(item._id.toString()) ?? 0,
+        vendorCount: activeVendorCountByItem.get(item._id.toString()) ?? 0,
+        hiddenVendorCount: hiddenVendorCountByItem.get(item._id.toString()) ?? 0,
         vendors: (vendorsByItem.get(item._id.toString()) ?? []).map((v) => ({
           id: v._id.toString(),
           itemId: v.itemId.toString(),

@@ -26,6 +26,7 @@ interface ItemRow {
   detectsFromCategorySlug?: string;
   isActive: boolean;
   vendorCount: number;
+  hiddenVendorCount?: number;
   vendors: VendorRow[];
 }
 
@@ -48,6 +49,18 @@ const emptyVendor = (): VendorRow => ({
   displayOrder: 0,
   isActive: true,
 });
+
+function formatVendorSummary(item: ItemRow): string {
+  const hidden =
+    item.hiddenVendorCount ??
+    item.vendors.filter((v) => !v.isActive).length;
+  const active = item.vendorCount;
+  const vendorLabel = `${active} vendor${active === 1 ? '' : 's'}`;
+  if (hidden > 0) {
+    return `${vendorLabel} · ${hidden} hidden`;
+  }
+  return vendorLabel;
+}
 
 export default function AdminInsightsPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
@@ -283,7 +296,7 @@ export default function AdminInsightsPage() {
                       <button type="button" className="flex-1 text-left min-w-0" onClick={() => openItem(item)}>
                         <p className="font-medium text-text-primary truncate">{item.title}</p>
                         <p className="text-xs text-text-secondary">
-                          {item.vendorCount} vendors · order {item.itemOrder}
+                          {formatVendorSummary(item)} · order {item.itemOrder}
                           {!item.isActive && ' · hidden'}
                         </p>
                       </button>
@@ -356,7 +369,22 @@ export default function AdminInsightsPage() {
                             </Button>
                           </div>
                           {draft.vendors.map((vendor, vi) => (
-                            <div key={vendor.id ?? `new-${vi}`} className="grid gap-2 p-3 rounded border border-border">
+                            <div
+                              key={vendor.id ?? `new-${vi}`}
+                              className={`grid gap-2 p-3 rounded border border-border ${
+                                vendor.isActive ? '' : 'opacity-60 bg-background-elevated/50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium text-text-secondary">
+                                  Vendor {vi + 1}
+                                </span>
+                                {!vendor.isActive && (
+                                  <span className="text-xs text-text-muted border border-border rounded px-1.5 py-0.5">
+                                    Hidden
+                                  </span>
+                                )}
+                              </div>
                               <Input value={vendor.name} onChange={(e) => {
                                 const vendors = [...draft.vendors];
                                 vendors[vi] = { ...vendor, name: e.target.value };
@@ -388,6 +416,18 @@ export default function AdminInsightsPage() {
                                   }}
                                 />
                                 Affiliate link
+                              </label>
+                              <label className="flex items-center gap-2 text-xs text-text-secondary">
+                                <input
+                                  type="checkbox"
+                                  checked={vendor.isActive}
+                                  onChange={(e) => {
+                                    const vendors = [...draft.vendors];
+                                    vendors[vi] = { ...vendor, isActive: e.target.checked };
+                                    setDraft({ ...draft, vendors });
+                                  }}
+                                />
+                                Show on frontend
                               </label>
                               <button
                                 type="button"
