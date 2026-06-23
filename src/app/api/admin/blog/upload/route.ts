@@ -5,7 +5,7 @@ import { existsSync } from 'fs';
 import { put } from '@vercel/blob';
 import { requireAdminUser } from '@/lib/blog/requireAdmin';
 import { validateImageFile } from '@/lib/utils/security';
-import { blogApiErrorResponse } from '@/lib/blog/blogApiErrors';
+import { blogApiErrorResponse } from '@/lib/blog/blogApiErrorResponse';
 
 export async function POST(request: NextRequest) {
   try {

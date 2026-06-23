@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { sanitizeBlogHtml } from '@/lib/blog/sanitizeBlogHtml';
 
 export function blogApiErrorResponse(error: unknown): { message: string; status: number } {
   if (error instanceof mongoose.Error.ValidationError) {
@@ -13,14 +12,4 @@ export function blogApiErrorResponse(error: unknown): { message: string; status:
   }
 
   return { message: 'Internal server error', status: 500 };
-}
-
-export function safeSanitizeBlogHtml(
-  html: string
-): { ok: true; html: string } | { ok: false; error: string } {
-  try {
-    return { ok: true, html: sanitizeBlogHtml(html) };
-  } catch {
-    return { ok: false, error: 'Could not sanitize post body' };
-  }
 }

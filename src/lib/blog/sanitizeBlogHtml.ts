@@ -1,4 +1,4 @@
-import DOMPurify from 'isomorphic-dompurify';
+import sanitizeHtml from 'sanitize-html';
 
 const ALLOWED_TAGS = [
   'p',
@@ -26,9 +26,20 @@ const ALLOWED_ATTR = ['href', 'target', 'rel', 'src', 'alt', 'title', 'class'];
 
 export function sanitizeBlogHtml(html: string): string {
   if (!html) return '';
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    ALLOW_DATA_ATTR: false,
+  return sanitizeHtml(html, {
+    allowedTags: ALLOWED_TAGS,
+    allowedAttributes: {
+      '*': ALLOWED_ATTR,
+    },
   });
+}
+
+export function safeSanitizeBlogHtml(
+  html: string
+): { ok: true; html: string } | { ok: false; error: string } {
+  try {
+    return { ok: true, html: sanitizeBlogHtml(html) };
+  } catch {
+    return { ok: false, error: 'Could not sanitize post body' };
+  }
 }

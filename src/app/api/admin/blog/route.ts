@@ -4,7 +4,8 @@ import BlogPost from '@/lib/models/BlogPost';
 import { requireAdminUser } from '@/lib/blog/requireAdmin';
 import { slugifyTitle } from '@/lib/blog/slugify';
 import { serializeBlogPost } from '@/lib/blog/serializeBlogPost';
-import { blogApiErrorResponse, safeSanitizeBlogHtml } from '@/lib/blog/blogApiErrors';
+import { blogApiErrorResponse } from '@/lib/blog/blogApiErrorResponse';
+import { safeSanitizeBlogHtml } from '@/lib/blog/sanitizeBlogHtml';
 import { applyDerivedSeoOnSave } from '@/lib/blog/deriveBlogSeo';
 import { coverImageUrlError } from '@/lib/blog/coverImageUrl';
 
