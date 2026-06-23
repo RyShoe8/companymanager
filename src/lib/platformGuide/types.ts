@@ -37,6 +37,7 @@ export interface GuideStep {
   onEnter?: (ctx: GuideActionContext) => void | Promise<void>;
   onExit?: (ctx: GuideActionContext) => void | Promise<void>;
   skipIfTargetMissing?: boolean;
+  showCommunityLinks?: boolean;
 }
 
 export interface PlatformGuideUser {

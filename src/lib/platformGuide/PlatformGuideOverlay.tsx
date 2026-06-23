@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
+import { COMMUNITY_SOCIAL_LINKS } from '@/lib/constants/communitySocialLinks';
 import type { GuideStep } from '@/lib/platformGuide/types';
 
 const POLL_MS = 100;
@@ -167,6 +168,24 @@ export default function PlatformGuideOverlay({
           {step.title}
         </h2>
         <p className="text-sm text-text-secondary mb-5 leading-relaxed">{step.body}</p>
+        {step.showCommunityLinks ? (
+          <div className="flex flex-col gap-2 mb-5">
+            {COMMUNITY_SOCIAL_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-background-hover"
+              >
+                {link.label}
+                <svg className="h-4 w-4 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />
+                </svg>
+              </a>
+            ))}
+          </div>
+        ) : null}
         <div className="flex gap-2 justify-end">
           <Button type="button" variant="secondary" onClick={onEnd}>
             End Guide

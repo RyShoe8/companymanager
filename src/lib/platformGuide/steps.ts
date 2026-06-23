@@ -280,4 +280,16 @@ export const PLATFORM_GUIDE_STEPS: GuideStep[] = [
       router.push('/workspace?phase=Plan');
     },
   },
+  {
+    id: 'join-community',
+    title: 'Join the community',
+    body: 'Stay in the loop on Discord, Bluesky, and Reddit — product updates, tips, and a place to ask questions.',
+    target: null,
+    placement: 'center',
+    routePrefix: '/workspace',
+    showCommunityLinks: true,
+    onEnter: ({ router }) => {
+      router.push('/workspace?phase=Plan');
+    },
+  },
 ];

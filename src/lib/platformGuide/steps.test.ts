@@ -34,4 +34,15 @@ describe('filterStepsForRole', () => {
     expect(ids).not.toContain('command-palette');
     expect(ids).not.toContain('voice');
   });
+
+  it('ends with join-community for all roles', () => {
+    const lastId = PLATFORM_GUIDE_STEPS[PLATFORM_GUIDE_STEPS.length - 1]?.id;
+    expect(lastId).toBe('join-community');
+
+    for (const role of ['User', 'Manager', 'Administrator'] as const) {
+      const steps = filterStepsForRole(PLATFORM_GUIDE_STEPS, role);
+      expect(steps[steps.length - 1]?.id).toBe('join-community');
+      expect(steps.some((s) => s.id === 'join-community')).toBe(true);
+    }
+  });
 });
