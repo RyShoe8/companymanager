@@ -15,8 +15,10 @@ import Button from '@/components/ui/Button';
 import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
 import type { MeetingUpdateScope } from '@/components/scheduling/MeetingFormModal';
-import { appendMeetingNotesMessage } from '@/lib/scheduling/meetingNotesDoc';
-import { parseMeetingNotesFeedback } from '@/lib/scheduling/meetingNotesFeedback';
+import {
+  appendMeetingNotesMessage,
+  parseMeetingNotesFeedback,
+} from '@/lib/scheduling/meetingNotesFeedback';
 interface SchedulingPanelProps {
   projects: IProject[];
   clients: IClient[];

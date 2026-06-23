@@ -1,6 +1,13 @@
-import type { MeetingNotesResult } from '@/lib/scheduling/meetingNotesDoc';
+export type MeetingNotesAssetSummary = {
+  projectId: string;
+  assetId: string;
+  name: string;
+};
 
-export type MeetingNotesFeedback = Pick<MeetingNotesResult, 'created' | 'notice'>;
+export type MeetingNotesFeedback = {
+  created: MeetingNotesAssetSummary[];
+  notice?: string;
+};
 
 export function parseMeetingNotesFeedback(data: unknown): MeetingNotesFeedback | undefined {
   if (!data || typeof data !== 'object' || !('meetingNotes' in data)) return undefined;
@@ -9,7 +16,7 @@ export function parseMeetingNotesFeedback(data: unknown): MeetingNotesFeedback |
   const meetingNotes = raw as { created?: unknown; notice?: unknown };
   const created = Array.isArray(meetingNotes.created)
     ? meetingNotes.created.filter(
-        (item): item is { projectId: string; assetId: string; name: string } =>
+        (item): item is MeetingNotesAssetSummary =>
           !!item &&
           typeof item === 'object' &&
           typeof (item as { projectId?: unknown }).projectId === 'string' &&
@@ -20,4 +27,23 @@ export function parseMeetingNotesFeedback(data: unknown): MeetingNotesFeedback |
   const notice = typeof meetingNotes.notice === 'string' ? meetingNotes.notice : undefined;
   if (created.length === 0 && !notice) return undefined;
   return { created, notice };
+}
+
+export function appendMeetingNotesMessage(
+  baseMessage: string,
+  meetingNotes?: MeetingNotesFeedback | null
+): string {
+  if (!meetingNotes) return baseMessage;
+  const parts: string[] = [baseMessage];
+  if (meetingNotes.created.length > 0) {
+    parts.push(
+      meetingNotes.created.length === 1
+        ? 'Meeting notes Doc created.'
+        : `${meetingNotes.created.length} meeting notes Docs created.`
+    );
+  }
+  if (meetingNotes.notice) {
+    parts.push(meetingNotes.notice);
+  }
+  return parts.join(' ');
 }

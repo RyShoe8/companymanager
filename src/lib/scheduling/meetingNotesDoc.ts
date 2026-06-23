@@ -1,4 +1,5 @@
-﻿import { Types } from 'mongoose';
+﻿import 'server-only';
+import { Types } from 'mongoose';
 import connectDB from '@/lib/db/mongodb';
 import Asset from '@/lib/models/Asset';
 import Project from '@/lib/models/Project';
@@ -126,23 +127,4 @@ export async function ensureMeetingNotesDocsForProjects(params: {
   }
 
   return { created, shareWarnings, notice };
-}
-
-export function appendMeetingNotesMessage(
-  baseMessage: string,
-  meetingNotes?: Pick<MeetingNotesResult, 'created' | 'notice'> | null
-): string {
-  if (!meetingNotes) return baseMessage;
-  const parts: string[] = [baseMessage];
-  if (meetingNotes.created.length > 0) {
-    parts.push(
-      meetingNotes.created.length === 1
-        ? 'Meeting notes Doc created.'
-        : `${meetingNotes.created.length} meeting notes Docs created.`
-    );
-  }
-  if (meetingNotes.notice) {
-    parts.push(meetingNotes.notice);
-  }
-  return parts.join(' ');
 }

@@ -1,3 +1,4 @@
+import 'server-only';
 import Organization from '@/lib/models/Organization';
 import { organizationSlugFromUserId } from '@/lib/utils/organizationSlug';
 

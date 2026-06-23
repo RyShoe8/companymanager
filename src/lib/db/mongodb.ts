@@ -1,3 +1,4 @@
+import 'server-only';
 import mongoose from 'mongoose';
 import { migrateOrganizationSlugs } from '@/lib/db/migrateOrganizationSlugs';
 
