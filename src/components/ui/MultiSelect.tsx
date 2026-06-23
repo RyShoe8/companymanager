@@ -129,7 +129,14 @@ export default function MultiSelect({
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {options.map((option) => (
+            {options.length === 0 ? (
+              <p
+                className={`px-3 py-2 text-sm ${lightSurface('text-gray-500', 'dark:text-gray-400', light)}`}
+              >
+                No team members available — assign team on the client or project first
+              </p>
+            ) : (
+              options.map((option) => (
               <label
                 key={option.value}
                 className={`flex items-center px-3 py-2 cursor-pointer ${lightSurface(
@@ -150,7 +157,8 @@ export default function MultiSelect({
                   {option.label}
                 </span>
               </label>
-            ))}
+            ))
+            )}
           </div>,
           document.body
         )

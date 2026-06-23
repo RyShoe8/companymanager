@@ -10,7 +10,9 @@ import { Types } from 'mongoose';
 import {
   canUserContributeToProject,
   findTaskAssigneeOffProjectTeam,
+  mergeProjectTeamWithClient,
   sanitizeTaskAssigneesForProjectTeam,
+  type ProjectTeamSource,
 } from '@/lib/utils/projectTeam';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
@@ -194,12 +196,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const existingTasks = [...(project.tasks ?? [])];
     const merged = [...existingTasks, ...built];
+    let taskAssigneeTeam: ProjectTeamSource = project;
+    if (project.clientId) {
+      const Client = (await import('@/lib/models/Client')).default;
+      const client = await Client.findById(project.clientId);
+      taskAssigneeTeam = mergeProjectTeamWithClient(project, client);
+    }
     const { tasks: sanitizedTasks } = sanitizeTaskAssigneesForProjectTeam(
-      project,
+      taskAssigneeTeam,
       merged as IncomingTask[]
     );
 
-    const assigneeIssue = findTaskAssigneeOffProjectTeam(project, sanitizedTasks);
+    const assigneeIssue = findTaskAssigneeOffProjectTeam(taskAssigneeTeam, sanitizedTasks);
     if (assigneeIssue) {
       return NextResponse.json(
         {

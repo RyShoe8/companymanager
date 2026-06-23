@@ -11,7 +11,9 @@ import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput } from '@/lib/utils/fontPaletteInput';
 import {
   findTaskAssigneeOffProjectTeam,
+  mergeProjectTeamWithClient,
   sanitizeTaskAssigneesForProjectTeam,
+  type ProjectTeamSource,
 } from '@/lib/utils/projectTeam';
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
@@ -411,7 +413,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Only process tasks if they're being updated (skip if only status/other fields are being updated)
     if (tasks !== undefined) {
       if (Array.isArray(tasks)) {
-        const { tasks: sanitizedTasks, stripped } = sanitizeTaskAssigneesForProjectTeam(project, tasks);
+        let taskAssigneeTeam: ProjectTeamSource = project;
+        if (project.clientId) {
+          const Client = (await import('@/lib/models/Client')).default;
+          const client = await Client.findById(project.clientId);
+          taskAssigneeTeam = mergeProjectTeamWithClient(project, client);
+        }
+
+        const { tasks: sanitizedTasks, stripped } = sanitizeTaskAssigneesForProjectTeam(taskAssigneeTeam, tasks);
         if (stripped.length > 0) {
           console.warn(
             'Stripped off-team task assignees:',
@@ -419,7 +428,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           );
         }
 
-        const assigneeIssue = findTaskAssigneeOffProjectTeam(project, sanitizedTasks);
+        const assigneeIssue = findTaskAssigneeOffProjectTeam(taskAssigneeTeam, sanitizedTasks);
         if (assigneeIssue) {
           return NextResponse.json(
             {
@@ -567,7 +576,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
           return taskData;
         }));
-        const postAssigneeIssue = findTaskAssigneeOffProjectTeam(project, project.tasks ?? []);
+        let postTaskAssigneeTeam: ProjectTeamSource = project;
+        if (project.clientId) {
+          const Client = (await import('@/lib/models/Client')).default;
+          const client = await Client.findById(project.clientId);
+          postTaskAssigneeTeam = mergeProjectTeamWithClient(project, client);
+        }
+        const postAssigneeIssue = findTaskAssigneeOffProjectTeam(postTaskAssigneeTeam, project.tasks ?? []);
         if (postAssigneeIssue) {
           return NextResponse.json(
             {

@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
 import { buildProjectsListQuery } from '@/lib/utils/projectsListQuery';
 import { getDefaultTaskDates, resolveTaskDateInput } from '@/lib/utils/dateUtils';
-import { validateTaskAssigneesOnProjectTeam } from '@/lib/utils/projectTeam';
+import { validateTaskAssigneesOnProjectTeam, mergeProjectTeamWithClient, type ProjectTeamSource } from '@/lib/utils/projectTeam';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -147,7 +147,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (tasks && Array.isArray(tasks)) {
-      const assigneeError = validateTaskAssigneesOnProjectTeam(projectData, tasks);
+      let taskAssigneeTeam: ProjectTeamSource = projectData;
+      if (clientId) {
+        const Client = (await import('@/lib/models/Client')).default;
+        const client = await Client.findById(clientId);
+        taskAssigneeTeam = mergeProjectTeamWithClient(projectData, client);
+      }
+
+      const assigneeError = validateTaskAssigneesOnProjectTeam(taskAssigneeTeam, tasks);
       if (assigneeError) {
         return NextResponse.json({ error: assigneeError }, { status: 400 });
       }
@@ -197,7 +204,13 @@ export async function POST(request: NextRequest) {
 
         return taskData;
       }));
-      const postAssigneeError = validateTaskAssigneesOnProjectTeam(projectData, projectData.tasks ?? []);
+      let postTaskAssigneeTeam: ProjectTeamSource = projectData;
+      if (clientId) {
+        const Client = (await import('@/lib/models/Client')).default;
+        const client = await Client.findById(clientId);
+        postTaskAssigneeTeam = mergeProjectTeamWithClient(projectData, client);
+      }
+      const postAssigneeError = validateTaskAssigneesOnProjectTeam(postTaskAssigneeTeam, projectData.tasks ?? []);
       if (postAssigneeError) {
         return NextResponse.json({ error: postAssigneeError }, { status: 400 });
       }

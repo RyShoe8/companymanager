@@ -1,5 +1,6 @@
 import type { IEmployee } from '@/lib/models/Employee';
 import type { IProject } from '@/lib/models/Project';
+import { getClientTeamEmployeeIds, type ClientTeamSource } from '@/lib/utils/clientTeam';
 
 export type ProjectTeamSource = {
   assignedToEmployeeIds?: unknown[];
@@ -110,6 +111,25 @@ export function getTaskAssigneeEmployeeIds(task: {
     if (legacy) ids.push(legacy);
   }
   return ids;
+}
+
+/** Union project team with linked client team (for client hub / client-linked projects). */
+export function mergeProjectTeamWithClient(
+  project: ProjectTeamSource,
+  client?: ClientTeamSource | null
+): ProjectTeamSource {
+  if (!client) return project;
+  const clientIds = getClientTeamEmployeeIds(client);
+  if (clientIds.size === 0) return project;
+  const projectIds = getProjectTeamEmployeeIds(project);
+  const merged = [...new Set([...projectIds, ...clientIds])];
+  if (merged.length === projectIds.size && projectIds.size > 0) return project;
+  if (merged.length === 0) return project;
+  return {
+    ...project,
+    assignedToEmployeeIds: merged,
+    assignedToEmployeeId: merged[0],
+  };
 }
 
 /** True when a task is assigned to the employee (IDs array, legacy ID, or legacy name). */

@@ -46,6 +46,7 @@ import {
   isEmployeeOnProjectTeam,
   isTaskAssigneeOnProjectTeam,
   sanitizeTaskAssigneesForProjectTeam,
+  mergeProjectTeamWithClient,
 } from '@/lib/utils/projectTeam';
 import {
   labelForFontPaletteIndex,
@@ -278,6 +279,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [urlList, setUrlList] = useState<string[]>(() => getPlatformUrlList(project));
   const localProjectRef = useRef(localProject);
   localProjectRef.current = localProject;
+  const linkedClient = useMemo(() => {
+    if (!localProject.clientId) return undefined;
+    return clients.find((c) => String(c._id) === String(localProject.clientId));
+  }, [clients, localProject.clientId]);
+  const projectTeamForTasks = useMemo(
+    () => mergeProjectTeamWithClient(localProject, linkedClient),
+    [localProject, linkedClient]
+  );
+  const getProjectTeamForTasks = useCallback(
+    (proj: IProject) => mergeProjectTeamWithClient(proj, linkedClient),
+    [linkedClient]
+  );
   const [expandedTaskComments, setExpandedTaskComments] = useState<Set<number>>(new Set());
   const [expandedContentComments, setExpandedContentComments] = useState<Set<string>>(new Set());
   const [commentSummaries, setCommentSummaries] = useState<{
@@ -1654,7 +1667,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
 
     updatedTasks[taskIndex] = updatedTask;
-    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, updatedTasks);
+    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(getProjectTeamForTasks(localProject), updatedTasks);
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
     bumpWorkspaceRecency({ ...localProjectRef.current, tasks: tasksToSave } as IProject);
     const onSuccess =
@@ -1679,7 +1692,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         estimatedHours: hours,
         name: mergedName,
       };
-      const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(proj, updatedTasks);
+      const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(getProjectTeamForTasks(proj), updatedTasks);
       setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
       try {
         if (!isManagerOrAdmin) {
@@ -1787,7 +1800,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     try {
       if (isManagerOrAdmin) {
         const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
-          localProject,
+          getProjectTeamForTasks(localProject),
           tasks.filter((_, idx) => idx !== taskIndex)
         );
         await persistProjectTasks(tasksToSave);
@@ -1879,7 +1892,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
 
     const nextTasks = [...prevTasks, ...tasksToAppend];
-    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(localProject, nextTasks);
+    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(getProjectTeamForTasks(localProject), nextTasks);
     const addedIdx = tasksToSave.length - 1;
     const optimisticProject = { ...localProject, tasks: tasksToSave } as IProject;
     setLocalProject(optimisticProject);
@@ -1920,7 +1933,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           ...tasks.slice(taskIndex + 1),
         ];
         const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
-          localProjectRef.current,
+          getProjectTeamForTasks(localProjectRef.current),
           nextTasks
         );
         setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
@@ -1955,7 +1968,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
 
       const newInstances = expandTaskExtensionInstances(last, extensionDates);
       const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
-        localProjectRef.current,
+        getProjectTeamForTasks(localProjectRef.current),
         [...tasks, ...newInstances]
       );
       setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
@@ -2662,13 +2675,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                             <MultiSelect
                               value={getTaskAssigneeEmployeeIds(task)}
-                              options={taskAssigneeSelectOptions(employees, localProject, getTaskAssigneeEmployeeIds(task))}
+                              options={taskAssigneeSelectOptions(employees, projectTeamForTasks, getTaskAssigneeEmployeeIds(task))}
                               onChange={(selectedIds) => handleTaskUpdate(idx, 'assignedToEmployeeIds', selectedIds)}
                               disabled={!isManagerOrAdmin}
                               className="text-xs min-w-[8rem]"
                             />
                           </div>
-                          {!isTaskAssigneeOnProjectTeam(localProject, task) && (
+                          {!isTaskAssigneeOnProjectTeam(projectTeamForTasks, task) && (
                             <p className="text-[10px] text-amber-600 leading-snug max-w-[14rem]">
                               Assignee is not on the project team—reassign or clear to save changes.
                             </p>
