@@ -18,6 +18,7 @@ import {
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
 import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
+import { loadPlatformCatalog } from '@/lib/platformCatalog/loadPlatformCatalog';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupNewlyCompletedTasks, cleanupProjectMedia, normalizeTaskStatus } from '@/lib/projects/projectCleanup';
 import { cleanupRemovedTasks, findRemovedTasks } from '@/lib/cleanup/entityCleanup';
@@ -254,18 +255,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       project.socialsToolbarVisible = socialsToolbarVisible !== false;
     }
     if (techStack !== undefined) {
-      const techStackError = validateTechStackUpdate(techStack);
+      const platformCatalog = await loadPlatformCatalog();
+      const techStackError = validateTechStackUpdate(techStack, platformCatalog);
       if (techStackError) {
         return NextResponse.json({ error: techStackError }, { status: 400 });
       }
-      project.techStack = sanitizeTechStack(techStack) ?? [];
+      project.techStack = sanitizeTechStack(techStack, platformCatalog) ?? [];
     }
     if (marketingStack !== undefined) {
-      const marketingStackError = validateMarketingStackUpdate(marketingStack);
+      const platformCatalog = await loadPlatformCatalog();
+      const marketingStackError = validateMarketingStackUpdate(marketingStack, platformCatalog);
       if (marketingStackError) {
         return NextResponse.json({ error: marketingStackError }, { status: 400 });
       }
-      project.marketingStack = sanitizeMarketingStack(marketingStack) ?? [];
+      project.marketingStack = sanitizeMarketingStack(marketingStack, platformCatalog) ?? [];
     }
     if (category !== undefined) project.category = category;
     if (projectType !== undefined) {

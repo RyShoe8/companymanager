@@ -65,4 +65,19 @@ describe('buildProjectsListQuery', () => {
     });
     expect(query).toEqual({ userId: { $in: orgUserIds }, status: 'active' });
   });
+
+  it('includes client-admin hubs for users on client team', () => {
+    const clientId = new Types.ObjectId();
+    const query = buildProjectsListQuery({
+      orgUserIds,
+      userRole: 'User',
+      currentUserEmployee: employee,
+      clientIdsForHubAccess: [clientId],
+    });
+    const and = (query as { $and: Record<string, unknown>[] }).$and;
+    const or = (and[1] as { $or: Record<string, unknown>[] }).$or;
+    expect(or).toContainEqual({
+      $and: [{ projectType: 'client-admin' }, { clientId: { $in: [clientId] } }],
+    });
+  });
 });

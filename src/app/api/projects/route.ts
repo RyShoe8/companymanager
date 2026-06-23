@@ -33,6 +33,21 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
+    let clientIdsForHubAccess: Types.ObjectId[] | undefined;
+    if (userRole === 'User' && currentUserEmployee) {
+      const Client = (await import('@/lib/models/Client')).default;
+      const assignedClients = await Client.find({
+        organizationId: user.organizationId,
+        $or: [
+          { assignedToEmployeeIds: currentUserEmployee._id },
+          { assignedToEmployeeId: currentUserEmployee._id },
+        ],
+      })
+        .select('_id')
+        .lean();
+      clientIdsForHubAccess = assignedClients.map((c) => c._id as Types.ObjectId);
+    }
+
     const query = buildProjectsListQuery({
       orgUserIds,
       status,
@@ -40,6 +55,7 @@ export async function GET(request: NextRequest) {
       currentUserEmployee: currentUserEmployee
         ? { _id: currentUserEmployee._id as Types.ObjectId, name: currentUserEmployee.name }
         : null,
+      clientIdsForHubAccess,
     });
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();

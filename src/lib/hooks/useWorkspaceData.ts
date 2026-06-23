@@ -8,7 +8,8 @@ import { IContentItem } from '@/lib/models/ContentItem';
 import { IClient } from '@/lib/models/Client';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import { getProjectsForStage, ProjectStage } from '@/lib/utils/statusMapping';
-import { excludeClientHubProjects } from '@/lib/clients/clientProjectHelpers';
+import { excludeClientHubProjects, isClientHubProject, mergeClientHubProjectsForAgenda } from '@/lib/clients/clientProjectHelpers';
+import { isEmployeeAssignedToClient } from '@/lib/utils/clientTeam';
 import { mergeProjectsPreservingRecency } from '@/lib/utils/mergeProjectsPreservingRecency';
 import { buildContentItemsByProjectId } from '@/lib/utils/projectLatestActivity';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
@@ -65,6 +66,8 @@ export interface WorkspaceState {
 
     // Filtered data
     filteredProjects: IProject[];
+    /** Projects for Agenda lens — includes client hub projects with client-level tasks. */
+    filteredProjectsForAgenda: IProject[];
     filteredContentItems: IContentItem[];
     filteredClients: IClient[];
 
@@ -275,8 +278,19 @@ export default function useWorkspaceData(
     }, [currentUserRole, showOnlyMyAssignments, currentUserEmployeeName, currentUserEmployeeId]);
 
     const filterProjectsToMyAssignments = useCallback(
-        (list: IProject[]) =>
-            list.filter((project) => {
+        (list: IProject[], clientsList: IClient[]) => {
+            const clientsById = new Map(clientsList.map((c) => [String(c._id), c]));
+            return list.filter((project) => {
+                if (
+                    isClientHubProject(project) &&
+                    project.clientId != null &&
+                    currentUserEmployeeId
+                ) {
+                    const client = clientsById.get(String(project.clientId));
+                    if (client && isEmployeeAssignedToClient(client, currentUserEmployeeId)) {
+                        return true;
+                    }
+                }
                 const projectAssignedToIds = (project as any).assignedToEmployeeIds;
                 if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
                     if (projectAssignedToIds.some((id: any) => id?.toString() === currentUserEmployeeId))
@@ -299,7 +313,8 @@ export default function useWorkspaceData(
                 )
                     return true;
                 return false;
-            }),
+            });
+        },
         [currentUserEmployeeId, currentUserEmployeeName]
     );
 
@@ -328,7 +343,7 @@ export default function useWorkspaceData(
         if (!currentUserRole) return [];
 
         const list = shouldRestrictToMyAssignments
-            ? filterProjectsToMyAssignments(projects)
+            ? filterProjectsToMyAssignments(projects, clients)
             : projects;
 
         if (lens === 'schedule') {
@@ -344,17 +359,6 @@ export default function useWorkspaceData(
         lens,
     ]);
 
-    const filteredContentItems = useMemo(() => {
-        if (!shouldRestrictToMyAssignments || !currentUserEmployeeId) {
-            return contentItems;
-        }
-        return filterContentItemsForMyAssignments(
-            contentItems,
-            currentUserEmployeeId,
-            currentUserId
-        );
-    }, [contentItems, shouldRestrictToMyAssignments, currentUserEmployeeId, currentUserId]);
-
     const filteredClients = useMemo(() => {
         if (!shouldRestrictToMyAssignments || !currentUserEmployeeId) {
             return clients;
@@ -366,6 +370,48 @@ export default function useWorkspaceData(
         currentUserEmployeeId,
         filterClientsToMyAssignments,
     ]);
+
+    const filteredProjectsForAgenda = useMemo(() => {
+        if (!currentUserRole) return [];
+
+        const base = shouldRestrictToMyAssignments
+            ? filterProjectsToMyAssignments(projects, clients)
+            : projects;
+
+        let withHubs = mergeClientHubProjectsForAgenda(base, allProjects, filteredClients);
+
+        if (shouldRestrictToMyAssignments) {
+            const seen = new Set(withHubs.map((p) => String(p._id)));
+            for (const hub of allProjects) {
+                if (!isClientHubProject(hub) || seen.has(String(hub._id))) continue;
+                if (filterProjectsToMyAssignments([hub], clients).length > 0) {
+                    withHubs = [...withHubs, hub];
+                    seen.add(String(hub._id));
+                }
+            }
+        }
+
+        return withHubs.filter((p) => p.status !== 'completed');
+    }, [
+        projects,
+        allProjects,
+        clients,
+        filteredClients,
+        currentUserRole,
+        shouldRestrictToMyAssignments,
+        filterProjectsToMyAssignments,
+    ]);
+
+    const filteredContentItems = useMemo(() => {
+        if (!shouldRestrictToMyAssignments || !currentUserEmployeeId) {
+            return contentItems;
+        }
+        return filterContentItemsForMyAssignments(
+            contentItems,
+            currentUserEmployeeId,
+            currentUserId
+        );
+    }, [contentItems, shouldRestrictToMyAssignments, currentUserEmployeeId, currentUserId]);
 
     return {
         projects,
@@ -402,6 +448,7 @@ export default function useWorkspaceData(
         teamFilter,
         setTeamFilter,
         filteredProjects,
+        filteredProjectsForAgenda,
         filteredContentItems,
         loadData,
         fetchContentItems,

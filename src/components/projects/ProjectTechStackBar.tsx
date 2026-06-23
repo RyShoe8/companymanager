@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import type { IProject, IProjectTechStackItem, TechStackCategory } from '@/lib/models/Project';
+import type { IProject, IProjectTechStackItem } from '@/lib/models/Project';
 import ProjectStackBar, { type StackItem } from '@/components/projects/ProjectStackBar';
 import TechStackIcon from '@/components/projects/TechStackIcon';
-import { getCatalogByCategory, TECH_STACK_CATEGORIES } from '@/lib/techStack/catalog';
-import { TECH_STACK_CATEGORY_LABELS, getTechStackEntry } from '@/lib/utils/techStack';
+import { TECH_STACK_CATEGORY_LABELS } from '@/lib/utils/techStack';
+import { usePlatformCatalog } from '@/contexts/PlatformCatalogContext';
 
 interface ProjectTechStackBarProps {
   techStack: IProjectTechStackItem[];
@@ -14,25 +14,21 @@ interface ProjectTechStackBarProps {
   surface?: import('@/lib/ui/surfaceStyles').ControlSurface;
 }
 
-const CONFIG = {
-  buttonLabel: 'Tech Stack',
-  itemNoun: 'technology',
-  browsePrompt: 'Choose a category to browse technologies.',
-  modalFallbackTitle: 'Technology',
-  categories: TECH_STACK_CATEGORIES,
-  categoryLabels: TECH_STACK_CATEGORY_LABELS,
-  getCatalogByCategory,
-  getEntry: getTechStackEntry,
-  renderIcon: (id: string, size: number) => <TechStackIcon technologyId={id} size={size} />,
-};
-
 export default function ProjectTechStackBar({
   techStack,
   isManagerOrAdmin,
   onUpdate,
   surface = 'inspector',
 }: ProjectTechStackBarProps) {
-  const items = useMemo<StackItem<TechStackCategory>[]>(
+  const {
+    snapshot,
+    getTechCategories,
+    getTechByCategory,
+    getTechEntry,
+    getTechIconSrc,
+  } = usePlatformCatalog();
+
+  const items = useMemo<StackItem<string>[]>(
     () =>
       techStack.map((t) => ({
         category: t.category,
@@ -42,8 +38,28 @@ export default function ProjectTechStackBar({
     [techStack]
   );
 
+  const config = useMemo(
+    () => ({
+      buttonLabel: 'Tech Stack',
+      itemNoun: 'technology',
+      browsePrompt: 'Choose a category to browse technologies.',
+      modalFallbackTitle: 'Technology',
+      categories: getTechCategories(),
+      categoryLabels: {
+        ...TECH_STACK_CATEGORY_LABELS,
+        ...(snapshot?.tech.categoryLabels ?? {}),
+      },
+      getCatalogByCategory: (category: string) => getTechByCategory(category),
+      getEntry: (id: string) => getTechEntry(id),
+      renderIcon: (id: string, size: number) => (
+        <TechStackIcon technologyId={id} size={size} iconSrc={getTechIconSrc(id)} />
+      ),
+    }),
+    [snapshot, getTechCategories, getTechByCategory, getTechEntry, getTechIconSrc]
+  );
+
   const handleSave = useCallback(
-    (next: StackItem<TechStackCategory>[]) =>
+    (next: StackItem<string>[]) =>
       onUpdate({
         techStack: next.map((t) => ({
           category: t.category,
@@ -59,7 +75,7 @@ export default function ProjectTechStackBar({
       items={items}
       isManagerOrAdmin={isManagerOrAdmin}
       onSave={handleSave}
-      config={CONFIG}
+      config={config}
       surface={surface}
     />
   );

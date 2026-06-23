@@ -1,4 +1,5 @@
 import type { TechStackCategory } from '@/lib/models/Project';
+import type { PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
 
 export interface TechStackCatalogEntry {
   id: string;
@@ -75,12 +76,47 @@ export const TECH_STACK_CATALOG: TechStackCatalogEntry[] = [
 
 const catalogById = new Map(TECH_STACK_CATALOG.map((e) => [e.id, e]));
 
-export function getCatalogEntry(technologyId: string): TechStackCatalogEntry | undefined {
+export function getCatalogEntry(
+  technologyId: string,
+  catalog?: PlatformCatalogSnapshot
+): TechStackCatalogEntry | undefined {
+  if (catalog) {
+    const row = catalog.techOptionsById.get(technologyId);
+    if (!row) return undefined;
+    return {
+      id: row.optionId,
+      name: row.name,
+      category: row.categorySlug,
+      homepageUrl: row.homepageUrl,
+      simpleIconSlug: row.simpleIconSlug ?? row.optionId,
+    };
+  }
   return catalogById.get(technologyId);
 }
 
-export function getCatalogByCategory(category: TechStackCategory): TechStackCatalogEntry[] {
+export function getCatalogByCategory(
+  category: TechStackCategory,
+  catalog?: PlatformCatalogSnapshot
+): TechStackCatalogEntry[] {
+  if (catalog) {
+    return catalog.tech.options
+      .filter((o) => o.categorySlug === category && o.isActive)
+      .map((row) => ({
+        id: row.optionId,
+        name: row.name,
+        category: row.categorySlug,
+        homepageUrl: row.homepageUrl,
+        simpleIconSlug: row.simpleIconSlug ?? row.optionId,
+      }));
+  }
   return TECH_STACK_CATALOG.filter((e) => e.category === category);
+}
+
+export function getTechStackCategories(catalog?: PlatformCatalogSnapshot): TechStackCategory[] {
+  if (catalog) {
+    return catalog.tech.categories.filter((c) => c.isActive).map((c) => c.slug);
+  }
+  return TECH_STACK_CATEGORIES;
 }
 
 export const TECH_STACK_CATEGORIES: TechStackCategory[] = [

@@ -6,6 +6,7 @@ import { IProject, TaskStatus } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IClient } from '@/lib/models/Client';
 import useWorkspaceData, { PhaseType, LensType } from '@/lib/hooks/useWorkspaceData';
+import { PlatformCatalogProvider } from '@/contexts/PlatformCatalogContext';
 import useWorkspaceMeetings from '@/lib/hooks/useWorkspaceMeetings';
 import useIsMobile from '@/lib/hooks/useIsMobile';
 import PhaseFilter from '@/components/workspace/PhaseFilter';
@@ -1483,6 +1484,7 @@ _id.toString(), { tasks });
                 isPlatformAdmin={isPlatformAdmin}
                 getWorkspaceContext={() => workspaceIntentContext}
             >
+                <PlatformCatalogProvider>
                 <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
                     <div className="w-full mx-auto pt-[30px] pb-8">
                     {/* ===== Workspace Header ===== */}
@@ -1753,7 +1755,7 @@ _id.toString(), { tasks });
                                             />
                                         ) : (
                                             <AgendaView
-                                                projects={ws.filteredProjects}
+                                                projects={ws.filteredProjectsForAgenda}
                                                 contentItems={ws.filteredContentItems}
                                                 employees={ws.employees}
                                                 meetings={workspaceMeetings}
@@ -2110,6 +2112,7 @@ _id.toString(), { tasks });
                         <VoiceOverlay />
                     </div>
                 </div>
+                </PlatformCatalogProvider>
             </VoiceProvider>
         </IntentConfirmationProvider>
     );

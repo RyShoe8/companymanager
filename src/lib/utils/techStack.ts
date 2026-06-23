@@ -1,7 +1,8 @@
-import type { IProjectTechStackItem, TechStackCategory } from '@/lib/models/Project';
-import { getCatalogEntry } from '@/lib/techStack/catalog';
+import type { IProjectTechStackItem } from '@/lib/models/Project';
+import type { PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
+import { getStaticSeedSnapshot } from '@/lib/platformCatalog/staticSeedSnapshot';
 
-export const TECH_STACK_CATEGORY_LABELS: Record<TechStackCategory, string> = {
+export const TECH_STACK_CATEGORY_LABELS: Record<string, string> = {
   hosting: 'Hosting',
   database: 'Database',
   api: 'API',
@@ -9,8 +10,9 @@ export const TECH_STACK_CATEGORY_LABELS: Record<TechStackCategory, string> = {
   payments: 'Payments',
 };
 
-export function getTechStackEntry(technologyId: string) {
-  return getCatalogEntry(technologyId);
+export function getTechStackEntry(technologyId: string, catalog?: PlatformCatalogSnapshot) {
+  const snap = catalog ?? getStaticSeedSnapshot();
+  return snap.techOptionsById.get(technologyId);
 }
 
 function readLoginField(o: Record<string, unknown>): { login?: string } {
@@ -18,7 +20,10 @@ function readLoginField(o: Record<string, unknown>): { login?: string } {
   return login ? { login } : {};
 }
 
-export function sanitizeTechStack(raw: unknown): IProjectTechStackItem[] | null {
+export function sanitizeTechStack(
+  raw: unknown,
+  catalog: PlatformCatalogSnapshot = getStaticSeedSnapshot()
+): IProjectTechStackItem[] | null {
   if (!Array.isArray(raw)) return null;
   const out: IProjectTechStackItem[] = [];
   const seen = new Set<string>();
@@ -26,18 +31,21 @@ export function sanitizeTechStack(raw: unknown): IProjectTechStackItem[] | null 
     if (!item || typeof item !== 'object') continue;
     const o = item as Record<string, unknown>;
     const technologyId = typeof o.technologyId === 'string' ? o.technologyId.trim() : '';
-    const category = o.category as TechStackCategory;
+    const category = typeof o.category === 'string' ? o.category : '';
     if (!technologyId) continue;
-    const entry = getCatalogEntry(technologyId);
-    if (!entry || entry.category !== category) continue;
+    const entry = catalog.techOptionsById.get(technologyId);
+    if (!entry || entry.categorySlug !== category) continue;
     if (seen.has(technologyId)) continue;
     seen.add(technologyId);
-    out.push({ category: entry.category, technologyId: entry.id, ...readLoginField(o) });
+    out.push({ category: entry.categorySlug, technologyId: entry.optionId, ...readLoginField(o) });
   }
   return out;
 }
 
-export function validateTechStackUpdate(raw: unknown): string | null {
+export function validateTechStackUpdate(
+  raw: unknown,
+  catalog: PlatformCatalogSnapshot = getStaticSeedSnapshot()
+): string | null {
   if (raw === undefined) return null;
   if (!Array.isArray(raw)) return 'techStack must be an array';
   const seen = new Set<string>();
@@ -48,9 +56,9 @@ export function validateTechStackUpdate(raw: unknown): string | null {
     const category = o.category;
     if (!technologyId) return 'Invalid tech stack technologyId';
     if (typeof category !== 'string') return 'Invalid tech stack category';
-    const entry = getCatalogEntry(technologyId);
+    const entry = catalog.techOptionsById.get(technologyId);
     if (!entry) return `Unknown technology: ${technologyId}`;
-    if (entry.category !== category) {
+    if (entry.categorySlug !== category) {
       return `Category mismatch for ${technologyId}`;
     }
     if (seen.has(technologyId)) return `Duplicate technology: ${technologyId}`;

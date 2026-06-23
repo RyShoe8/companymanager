@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import type { IProject, IProjectMarketingStackItem, MarketingStackCategory } from '@/lib/models/Project';
+import type { IProject, IProjectMarketingStackItem } from '@/lib/models/Project';
 import ProjectStackBar, { type StackItem } from '@/components/projects/ProjectStackBar';
 import MarketingStackIcon from '@/components/projects/MarketingStackIcon';
-import { getMarketingCatalogByCategory, MARKETING_STACK_CATEGORIES } from '@/lib/marketingStack/catalog';
-import { MARKETING_STACK_CATEGORY_LABELS, getMarketingStackEntry } from '@/lib/utils/marketingStack';
+import { MARKETING_STACK_CATEGORY_LABELS } from '@/lib/utils/marketingStack';
+import { usePlatformCatalog } from '@/contexts/PlatformCatalogContext';
 
 interface ProjectMarketingStackBarProps {
   marketingStack: IProjectMarketingStackItem[];
@@ -14,25 +14,21 @@ interface ProjectMarketingStackBarProps {
   surface?: import('@/lib/ui/surfaceStyles').ControlSurface;
 }
 
-const CONFIG = {
-  buttonLabel: <>Marketing &amp; Analytics</>,
-  itemNoun: 'tool',
-  browsePrompt: 'Choose a category to browse tools.',
-  modalFallbackTitle: 'Tool',
-  categories: MARKETING_STACK_CATEGORIES,
-  categoryLabels: MARKETING_STACK_CATEGORY_LABELS,
-  getCatalogByCategory: getMarketingCatalogByCategory,
-  getEntry: getMarketingStackEntry,
-  renderIcon: (id: string, size: number) => <MarketingStackIcon toolId={id} size={size} />,
-};
-
 export default function ProjectMarketingStackBar({
   marketingStack,
   isManagerOrAdmin,
   onUpdate,
   surface = 'inspector',
 }: ProjectMarketingStackBarProps) {
-  const items = useMemo<StackItem<MarketingStackCategory>[]>(
+  const {
+    snapshot,
+    getMarketingCategories,
+    getMarketingByCategory,
+    getMarketingEntry,
+    getMarketingIconSrc,
+  } = usePlatformCatalog();
+
+  const items = useMemo<StackItem<string>[]>(
     () =>
       marketingStack.map((t) => ({
         category: t.category,
@@ -42,8 +38,28 @@ export default function ProjectMarketingStackBar({
     [marketingStack]
   );
 
+  const config = useMemo(
+    () => ({
+      buttonLabel: 'Marketing & Analytics',
+      itemNoun: 'tool',
+      browsePrompt: 'Choose a category to browse tools.',
+      modalFallbackTitle: 'Tool',
+      categories: getMarketingCategories(),
+      categoryLabels: {
+        ...MARKETING_STACK_CATEGORY_LABELS,
+        ...(snapshot?.marketing.categoryLabels ?? {}),
+      },
+      getCatalogByCategory: (category: string) => getMarketingByCategory(category),
+      getEntry: (id: string) => getMarketingEntry(id),
+      renderIcon: (id: string, size: number) => (
+        <MarketingStackIcon toolId={id} size={size} iconSrc={getMarketingIconSrc(id)} />
+      ),
+    }),
+    [snapshot, getMarketingCategories, getMarketingByCategory, getMarketingEntry, getMarketingIconSrc]
+  );
+
   const handleSave = useCallback(
-    (next: StackItem<MarketingStackCategory>[]) =>
+    (next: StackItem<string>[]) =>
       onUpdate({
         marketingStack: next.map((t) => ({
           category: t.category,
@@ -59,7 +75,7 @@ export default function ProjectMarketingStackBar({
       items={items}
       isManagerOrAdmin={isManagerOrAdmin}
       onSave={handleSave}
-      config={CONFIG}
+      config={config}
       surface={surface}
     />
   );

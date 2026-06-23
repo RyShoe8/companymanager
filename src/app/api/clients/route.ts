@@ -4,6 +4,7 @@ import Client from '@/lib/models/Client';
 import { requireAuth } from '@/lib/auth/middleware';
 import { applyClientUpdates, sanitizeClientForResponse } from '@/lib/clients/clientApiHelpers';
 import { buildClientsListQuery, validateClientAssignedEmployeeIds } from '@/lib/utils/clientTeam';
+import { loadPlatformCatalog } from '@/lib/platformCatalog/loadPlatformCatalog';
 import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
@@ -176,7 +177,12 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const result = applyClientUpdates(client, body, true);
+    const platformCatalog =
+      body.techStack !== undefined || body.marketingStack !== undefined
+        ? await loadPlatformCatalog()
+        : undefined;
+
+    const result = applyClientUpdates(client, body, true, platformCatalog);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

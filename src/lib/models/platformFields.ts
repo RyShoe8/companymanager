@@ -18,7 +18,7 @@ export interface IProjectSocialLink {
   login?: string;
 }
 
-export type TechStackCategory = 'hosting' | 'database' | 'api' | 'framework' | 'payments';
+export type TechStackCategory = string;
 
 export interface IProjectTechStackItem {
   category: TechStackCategory;
@@ -26,7 +26,7 @@ export interface IProjectTechStackItem {
   login?: string;
 }
 
-export type MarketingStackCategory = 'email' | 'analytics' | 'social' | 'crm';
+export type MarketingStackCategory = string;
 
 export interface IProjectMarketingStackItem {
   category: MarketingStackCategory;
@@ -76,8 +76,8 @@ export const techStackSchemaDefinition = {
     {
       category: {
         type: String,
-        enum: ['hosting', 'database', 'api', 'framework', 'payments'],
         required: true,
+        trim: true,
       },
       technologyId: { type: String, trim: true, required: true },
       login: { type: String, trim: true },
@@ -91,8 +91,8 @@ export const marketingStackSchemaDefinition = {
     {
       category: {
         type: String,
-        enum: ['email', 'analytics', 'social', 'crm'],
         required: true,
+        trim: true,
       },
       toolId: { type: String, trim: true, required: true },
       login: { type: String, trim: true },

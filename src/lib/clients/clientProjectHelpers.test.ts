@@ -4,7 +4,9 @@ import {
   countActiveClientProjects,
   excludeClientHubProjects,
   isClientHubProject,
+  mergeClientHubProjectsForAgenda,
 } from '@/lib/clients/clientProjectHelpers';
+import type { IClient } from '@/lib/models/Client';
 import type { IProject } from '@/lib/models/Project';
 
 function project(partial: Partial<IProject> & { _id: string }): IProject {
@@ -42,5 +44,26 @@ describe('clientProjectHelpers', () => {
       project({ _id: '3', projectType: 'internal', name: 'Internal' }),
     ];
     expect(excludeClientHubProjects(projects).map((p) => p._id)).toEqual(['2', '3']);
+  });
+
+  it('mergeClientHubProjectsForAgenda appends hubs for visible clients only', () => {
+    const clients = [{ _id: 'c1', name: 'Acme' }] as IClient[];
+    const base = [
+      project({ _id: '2', projectType: 'client', clientId: 'c1', name: 'Acme Website' }),
+    ];
+    const allProjects = [
+      project({ _id: '1', projectType: 'client-admin', clientId: 'c1', name: 'Acme' }),
+      project({ _id: '2', projectType: 'client', clientId: 'c1', name: 'Acme Website' }),
+      project({ _id: '3', projectType: 'client-admin', clientId: 'c2', name: 'Other HQ' }),
+    ];
+    const merged = mergeClientHubProjectsForAgenda(base, allProjects, clients);
+    expect(merged.map((p) => p._id)).toEqual(['2', '1']);
+  });
+
+  it('mergeClientHubProjectsForAgenda dedupes hubs already in base', () => {
+    const clients = [{ _id: 'c1', name: 'Acme' }] as IClient[];
+    const hub = project({ _id: '1', projectType: 'client-admin', clientId: 'c1', name: 'Acme' });
+    const merged = mergeClientHubProjectsForAgenda([hub], [hub], clients);
+    expect(merged).toHaveLength(1);
   });
 });

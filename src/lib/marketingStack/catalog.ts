@@ -1,4 +1,5 @@
 import type { MarketingStackCategory } from '@/lib/models/Project';
+import type { PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
 
 export interface MarketingStackCatalogEntry {
   id: string;
@@ -63,12 +64,49 @@ export const MARKETING_STACK_CATALOG: MarketingStackCatalogEntry[] = [
 
 const catalogById = new Map(MARKETING_STACK_CATALOG.map((e) => [e.id, e]));
 
-export function getMarketingCatalogEntry(toolId: string): MarketingStackCatalogEntry | undefined {
+export function getMarketingCatalogEntry(
+  toolId: string,
+  catalog?: PlatformCatalogSnapshot
+): MarketingStackCatalogEntry | undefined {
+  if (catalog) {
+    const row = catalog.marketingOptionsById.get(toolId);
+    if (!row) return undefined;
+    return {
+      id: row.optionId,
+      name: row.name,
+      category: row.categorySlug,
+      homepageUrl: row.homepageUrl,
+      simpleIconSlug: row.simpleIconSlug ?? row.optionId,
+      iconExtension: row.iconExtension,
+    };
+  }
   return catalogById.get(toolId);
 }
 
-export function getMarketingCatalogByCategory(category: MarketingStackCategory): MarketingStackCatalogEntry[] {
+export function getMarketingCatalogByCategory(
+  category: MarketingStackCategory,
+  catalog?: PlatformCatalogSnapshot
+): MarketingStackCatalogEntry[] {
+  if (catalog) {
+    return catalog.marketing.options
+      .filter((o) => o.categorySlug === category && o.isActive)
+      .map((row) => ({
+        id: row.optionId,
+        name: row.name,
+        category: row.categorySlug,
+        homepageUrl: row.homepageUrl,
+        simpleIconSlug: row.simpleIconSlug ?? row.optionId,
+        iconExtension: row.iconExtension,
+      }));
+  }
   return MARKETING_STACK_CATALOG.filter((e) => e.category === category);
+}
+
+export function getMarketingStackCategories(catalog?: PlatformCatalogSnapshot): MarketingStackCategory[] {
+  if (catalog) {
+    return catalog.marketing.categories.filter((c) => c.isActive).map((c) => c.slug);
+  }
+  return MARKETING_STACK_CATEGORIES;
 }
 
 export const MARKETING_STACK_CATEGORIES: MarketingStackCategory[] = [

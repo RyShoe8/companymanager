@@ -10,6 +10,7 @@ import {
   sanitizeClientForResponse,
 } from '@/lib/clients/clientApiHelpers';
 import { canUserAccessClient, validateClientAssignedEmployeeIds } from '@/lib/utils/clientTeam';
+import { loadPlatformCatalog } from '@/lib/platformCatalog/loadPlatformCatalog';
 
 async function getSessionContext(request: NextRequest) {
   const session = await requireAuth(request);
@@ -102,7 +103,12 @@ export async function PUT(
       }
     }
 
-    const result = applyClientUpdates(client, body, ctx.isManagerOrAdmin);
+    const platformCatalog =
+      body.techStack !== undefined || body.marketingStack !== undefined
+        ? await loadPlatformCatalog()
+        : undefined;
+
+    const result = applyClientUpdates(client, body, ctx.isManagerOrAdmin, platformCatalog);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

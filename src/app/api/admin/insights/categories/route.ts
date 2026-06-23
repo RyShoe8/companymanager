@@ -5,6 +5,7 @@ import InsightItem from '@/lib/models/InsightItem';
 import InsightVendor from '@/lib/models/InsightVendor';
 import { requireAdminInsights } from '@/lib/insights/requireAdminInsights';
 import { seedInsightCategoriesIfEmpty } from '@/lib/insights/seedInsightCategories';
+import { loadPlatformCatalog } from '@/lib/platformCatalog/loadPlatformCatalog';
 
 export async function GET() {
   const auth = await requireAdminInsights();
@@ -12,6 +13,7 @@ export async function GET() {
 
   await connectDB();
   await seedInsightCategoriesIfEmpty();
+  const platformCatalog = await loadPlatformCatalog();
 
   const categories = await InsightCategory.find().sort({ stageOrder: 1 }).lean();
   const items = await InsightItem.find().sort({ itemOrder: 1 }).lean();
@@ -77,15 +79,8 @@ export async function GET() {
       })),
     })),
     platformCategorySlugs: [
-      'hosting',
-      'database',
-      'api',
-      'framework',
-      'payments',
-      'email',
-      'analytics',
-      'social',
-      'crm',
+      ...platformCatalog.tech.categories.filter((c) => c.isActive).map((c) => c.slug),
+      ...platformCatalog.marketing.categories.filter((c) => c.isActive).map((c) => c.slug),
     ],
   });
 }

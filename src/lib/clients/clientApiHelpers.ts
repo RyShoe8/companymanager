@@ -7,6 +7,7 @@ import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput }
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
 import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
+import type { PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
 
 const CRM_FIELDS = new Set([
   'name',
@@ -55,7 +56,8 @@ const SPECIAL_FIELDS = new Set(['ensurePortal', 'generatePortal']);
 export function applyClientUpdates(
   client: IClient,
   body: Record<string, unknown>,
-  isManagerOrAdmin: boolean
+  isManagerOrAdmin: boolean,
+  catalog?: PlatformCatalogSnapshot
 ): ClientUpdateResult {
   const forbiddenKeys = Object.keys(body).filter(
     (k) =>
@@ -142,14 +144,14 @@ export function applyClientUpdates(
     client.socialsToolbarVisible = body.socialsToolbarVisible !== false;
   }
   if (body.techStack !== undefined) {
-    const techStackError = validateTechStackUpdate(body.techStack);
+    const techStackError = validateTechStackUpdate(body.techStack, catalog);
     if (techStackError) return { ok: false, status: 400, error: techStackError };
-    client.techStack = sanitizeTechStack(body.techStack) ?? [];
+    client.techStack = sanitizeTechStack(body.techStack, catalog) ?? [];
   }
   if (body.marketingStack !== undefined) {
-    const marketingStackError = validateMarketingStackUpdate(body.marketingStack);
+    const marketingStackError = validateMarketingStackUpdate(body.marketingStack, catalog);
     if (marketingStackError) return { ok: false, status: 400, error: marketingStackError };
-    client.marketingStack = sanitizeMarketingStack(body.marketingStack) ?? [];
+    client.marketingStack = sanitizeMarketingStack(body.marketingStack, catalog) ?? [];
   }
   if (body.colorPalette !== undefined) {
     if (!Array.isArray(body.colorPalette)) return { ok: false, status: 400, error: 'colorPalette must be an array' };
