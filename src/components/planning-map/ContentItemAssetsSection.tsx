@@ -21,7 +21,7 @@ import {
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 function isTextDocumentAssetType(type: string): boolean {
-  return type === 'text' || type === 'document';
+  return type === 'text';
 }
 
 function formatLinkedAssetTypeLabel(type: string): string {

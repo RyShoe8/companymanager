@@ -1434,21 +1434,28 @@ _id.toString(), { tasks });
         }
     }, [handleScheduleCalendarSync]);
 
+    const prevPhaseRef = useRef<PhaseType | null>(null);
+    const prevCalendarConnectedRef = useRef(false);
+
     useEffect(() => {
-        if (ws.phase !== 'Schedule' || !scheduleCalendar?.connected) return;
+        const prevPhase = prevPhaseRef.current;
+        const prevConnected = prevCalendarConnectedRef.current;
+        prevPhaseRef.current = ws.phase;
+        prevCalendarConnectedRef.current = !!scheduleCalendar?.connected;
+
+        const enteredSchedule = ws.phase === 'Schedule' && prevPhase !== 'Schedule';
+        const calendarJustConnected =
+            ws.phase === 'Schedule' && !!scheduleCalendar?.connected && !prevConnected;
+
+        if (!scheduleCalendar?.connected) return;
+        if (!enteredSchedule && !calendarJustConnected) return;
 
         const id = setTimeout(() => {
             void handleScheduleSync();
         }, 2000);
 
         return () => clearTimeout(id);
-    }, [
-        ws.phase,
-        ws.timeframe,
-        ws.currentDate,
-        scheduleCalendar?.connected,
-        handleScheduleSync,
-    ]);
+    }, [ws.phase, scheduleCalendar?.connected, handleScheduleSync]);
 
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 

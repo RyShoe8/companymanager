@@ -21,6 +21,11 @@ export interface IAsset extends Document {
   linkedClientId?: Types.ObjectId;
   /** When true, asset is visible in the client portal for linked project or client. */
   clientAccessible?: boolean;
+  /** Google Drive file id when asset is linked via Workspace integration. */
+  googleFileId?: string;
+  googleMimeType?: string;
+  /** User whose Drive OAuth token created or attached this file. */
+  googleConnectedByUserId?: Types.ObjectId;
   userId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +90,18 @@ const AssetSchema: Schema = new Schema(
     clientAccessible: {
       type: Boolean,
       default: false,
+    },
+    googleFileId: {
+      type: String,
+      trim: true,
+    },
+    googleMimeType: {
+      type: String,
+      trim: true,
+    },
+    googleConnectedByUserId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
     },
     userId: {
       type: Schema.Types.ObjectId,

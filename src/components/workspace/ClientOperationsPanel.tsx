@@ -56,7 +56,7 @@ function linkedAssetOpenHref(asset: LinkedAssetRow): string | null {
 }
 
 function isTextDocumentAssetType(type: string): boolean {
-  return type === 'text' || type === 'document';
+  return type === 'text';
 }
 
 interface ClientOperationsPanelProps {

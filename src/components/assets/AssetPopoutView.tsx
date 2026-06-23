@@ -75,7 +75,9 @@ export default function AssetPopoutView({ assetId, popout = false }: AssetPopout
       <div className={popout ? 'max-w-4xl mx-auto space-y-4' : 'max-w-3xl mx-auto space-y-4'}>
         <header>
           <h1 className={`font-bold ${popout ? 'text-xl' : 'text-2xl'}`}>{asset.name}</h1>
-          <p className="text-sm text-text-muted mt-1 capitalize">{asset.type}</p>
+          <p className="text-sm text-text-muted mt-1">
+            {asset.type === 'text' ? 'Note' : asset.type}
+          </p>
         </header>
 
         <div className="rounded-lg border border-border bg-background-card p-4">
@@ -86,10 +88,22 @@ export default function AssetPopoutView({ assetId, popout = false }: AssetPopout
               alt={asset.name}
               className="max-w-full h-auto mx-auto rounded"
             />
-          ) : textContent || asset.type === 'text' || asset.type === 'document' ? (
+          ) : textContent || asset.type === 'text' ? (
             <pre className="text-sm whitespace-pre-wrap text-text-primary font-sans bg-background-elevated rounded-lg p-3 max-h-[70vh] overflow-y-auto">
               {textContent || 'No content yet.'}
             </pre>
+          ) : externalUrl && (asset.type === 'document' || asset.type === 'spreadsheet' || asset.type === 'file') ? (
+            <div className="space-y-3">
+              <p className="text-sm text-text-secondary">Open this file in Google.</p>
+              <a
+                href={externalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex text-sm text-primary hover:text-primary-hover underline"
+              >
+                Open in Google
+              </a>
+            </div>
           ) : fileUrl ? (
             <div className="space-y-3">
               <p className="text-sm text-text-secondary">Open or download this file.</p>

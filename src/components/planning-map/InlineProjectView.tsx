@@ -220,10 +220,11 @@ function linkedAssetOpenHref(asset: LinkedAssetRow): string | null {
 }
 
 function isTextDocumentAssetType(type: string): boolean {
-  return type === 'text' || type === 'document';
+  return type === 'text';
 }
 
 function formatLinkedAssetTypeLabel(type: string): string {
+  if (type === 'text') return 'Note';
   if (!type) return 'Other';
   return type.charAt(0).toUpperCase() + type.slice(1);
 }

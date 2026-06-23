@@ -10,7 +10,20 @@ import RecordingToolPanel from '@/components/shared/RecordingToolPanel';
 import { detectSocialNetwork, parseSocialLinkInput, SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
 import type { MediaUploadTarget } from '@/lib/mediaUploadTarget';
 
-type AddStep = 'type' | 'link' | 'email' | 'document' | 'social' | 'screenshot' | 'recording';
+import { openGoogleDrivePicker } from '@/lib/google/loadPicker';
+import { useGoogleWorkspace } from '@/hooks/google/useGoogleWorkspace';
+
+type AddStep =
+  | 'type'
+  | 'link'
+  | 'email'
+  | 'note'
+  | 'googleDocument'
+  | 'googleSpreadsheet'
+  | 'googleFile'
+  | 'social'
+  | 'screenshot'
+  | 'recording';
 
 export type AddSmartButtonPayload =
   | { kind: 'link'; label: string; url: string }
@@ -96,8 +109,12 @@ export default function CategoryModal({
   const [addingEmail, setAddingEmail] = useState(false);
   const [socialUrl, setSocialUrl] = useState('');
   const [addingSocial, setAddingSocial] = useState(false);
+  const [googleName, setGoogleName] = useState('');
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [uploadFileInput, setUploadFileInput] = useState<File | null>(null);
   const effectiveProjectId = linkContext?.linkedProjectId ?? projectId;
   const effectiveClientId = linkContext?.linkedClientId ?? clientId;
+  const googleWorkspace = useGoogleWorkspace(linkContext, projectId, clientId);
   const defaultMediaTarget: MediaUploadTarget | null = effectiveProjectId
     ? { entityType: 'project', entityId: effectiveProjectId }
     : effectiveClientId
@@ -246,7 +263,7 @@ export default function CategoryModal({
     }
   };
 
-  const handleDocumentSubmit = async (e: React.FormEvent) => {
+  const handleNoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docName.trim()) return;
     setSavingDoc(true);
@@ -263,6 +280,67 @@ export default function CategoryModal({
       setSavingDoc(false);
     }
   };
+
+  const runGoogleAction = async (
+    googleStep: 'googleDocument' | 'googleSpreadsheet' | 'googleFile',
+    action: () => Promise<unknown | false>
+  ) => {
+    const connected = await googleWorkspace.ensureConnected({
+      step: googleStep,
+      linkContext: googleWorkspace.linkFieldsFromContext(),
+      draftName: googleName.trim() || undefined,
+    });
+    if (!connected) return;
+    setGoogleBusy(true);
+    try {
+      const result = await action();
+      if (result === false) return;
+      googleWorkspace.clearPendingAction();
+      onDocumentCreated?.();
+      onClose();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Google action failed');
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+
+  const handleGoogleDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleName.trim()) return;
+    await runGoogleAction('googleDocument', () => googleWorkspace.createDoc(googleName.trim()));
+  };
+
+  const handleGoogleSheetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleName.trim()) return;
+    await runGoogleAction('googleSpreadsheet', () => googleWorkspace.createSheet(googleName.trim()));
+  };
+
+  const handleAttachFromDrive = async () => {
+    await runGoogleAction('googleFile', async () => {
+      const picked = await openGoogleDrivePicker();
+      if (!picked) return false;
+      await googleWorkspace.attachPickedFile(picked.id, picked.name);
+    });
+  };
+
+  const handleUploadToDrive = async () => {
+    if (!uploadFileInput) return;
+    await runGoogleAction('googleFile', () =>
+      googleWorkspace.uploadFile(uploadFileInput, googleName.trim() || uploadFileInput.name)
+    );
+  };
+
+  useEffect(() => {
+    const pending = googleWorkspace.readPendingAction();
+    if (!pending || !googleWorkspace.status.connected) return;
+    googleWorkspace.clearPendingAction();
+    if (pending.draftName) setGoogleName(pending.draftName);
+    if (pending.step === 'googleDocument' || pending.step === 'googleSpreadsheet' || pending.step === 'googleFile') {
+      setStep(pending.step);
+    }
+  }, [googleWorkspace.status.connected]);
 
   const handleSocialSubmit = async () => {
     if (!onAddSocial || !socialUrl.trim()) return;
@@ -285,7 +363,10 @@ export default function CategoryModal({
   const renderStep = () => {
     if (step === 'type') {
       const typeOptions: { id: AddStep; label: string; desc: string }[] = [
-        { id: 'document', label: 'Document', desc: 'Create and save a document' },
+        { id: 'note', label: 'Note', desc: 'In-app text note linked to this item' },
+        { id: 'googleDocument', label: 'Document', desc: 'Create a Google Doc' },
+        { id: 'googleSpreadsheet', label: 'Spreadsheet', desc: 'Create a Google Sheet' },
+        { id: 'googleFile', label: 'File', desc: 'Attach from Drive or upload a file' },
         { id: 'screenshot', label: 'Screenshot', desc: 'Capture a screen or upload an image' },
         { id: 'recording', label: 'Recording', desc: 'Record screen + voice or upload video' },
         { id: 'link', label: 'Link', desc: 'Any URL with a button label' },
@@ -312,14 +393,14 @@ export default function CategoryModal({
       );
     }
 
-    if (step === 'document') {
+    if (step === 'note') {
       return (
-        <form onSubmit={handleDocumentSubmit} className="space-y-3">
+        <form onSubmit={handleNoteSubmit} className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            {isEntityContext ? 'Create a document linked to this item.' : 'Create a document linked to this project.'}
+            {isEntityContext ? 'Create a note linked to this item.' : 'Create a note linked to this project.'}
           </p>
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Document name</label>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Note name</label>
             <input
               type="text"
               value={docName}
@@ -341,13 +422,128 @@ export default function CategoryModal({
           </div>
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={savingDoc || !docName.trim()}>
-              {savingDoc ? 'Creating...' : 'Create document'}
+              {savingDoc ? 'Creating...' : 'Create note'}
             </Button>
             <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
               Back
             </Button>
           </div>
         </form>
+      );
+    }
+
+    const googleConnectionHint = googleWorkspace.status.loading ? (
+      <p className="text-xs text-gray-500 dark:text-gray-400">Checking Google connection…</p>
+    ) : googleWorkspace.status.connected ? (
+      <p className="text-xs text-green-600 dark:text-green-400">Google Drive connected</p>
+    ) : (
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        You&apos;ll connect Google Drive on first use (non-sensitive file access only).
+      </p>
+    );
+
+    if (step === 'googleDocument') {
+      return (
+        <form onSubmit={(e) => void handleGoogleDocSubmit(e)} className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Create a Google Doc and link it here. It will be shared with everyone on this project or client.
+          </p>
+          {googleConnectionHint}
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Document name</label>
+            <input
+              type="text"
+              value={googleName}
+              onChange={(e) => setGoogleName(e.target.value)}
+              placeholder="e.g. Meeting notes, Proposal"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              required
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={googleBusy || !googleName.trim()}>
+              {googleBusy ? 'Creating...' : 'Create Google Doc'}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
+              Back
+            </Button>
+          </div>
+        </form>
+      );
+    }
+
+    if (step === 'googleSpreadsheet') {
+      return (
+        <form onSubmit={(e) => void handleGoogleSheetSubmit(e)} className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Create a Google Sheet and link it here. It will be shared with everyone on this project or client.
+          </p>
+          {googleConnectionHint}
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Spreadsheet name</label>
+            <input
+              type="text"
+              value={googleName}
+              onChange={(e) => setGoogleName(e.target.value)}
+              placeholder="e.g. Budget, Tracker"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              required
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={googleBusy || !googleName.trim()}>
+              {googleBusy ? 'Creating...' : 'Create Google Sheet'}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
+              Back
+            </Button>
+          </div>
+        </form>
+      );
+    }
+
+    if (step === 'googleFile') {
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Attach an existing Drive file or upload a new one. Linked files are shared with everyone on this project or client.
+          </p>
+          {googleConnectionHint}
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Display name (upload only, optional)</label>
+            <input
+              type="text"
+              value={googleName}
+              onChange={(e) => setGoogleName(e.target.value)}
+              placeholder="Defaults to file name"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Upload file</label>
+            <input
+              type="file"
+              onChange={(e) => setUploadFileInput(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-gray-700 dark:text-gray-200"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={() => void handleAttachFromDrive()} disabled={googleBusy}>
+              {googleBusy ? 'Working...' : 'Attach from Drive'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleUploadToDrive()}
+              disabled={googleBusy || !uploadFileInput}
+            >
+              {googleBusy ? 'Uploading...' : 'Upload to Drive'}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setStep('type')}>
+              Back
+            </Button>
+          </div>
+        </div>
       );
     }
 
@@ -523,7 +719,25 @@ export default function CategoryModal({
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'type' ? 'Add' : step === 'document' ? 'Document' : step === 'screenshot' ? 'Screenshot' : step === 'recording' ? 'Recording' : step === 'link' ? 'Link' : step === 'email' ? 'Email' : 'Socials'}
+            {step === 'type'
+              ? 'Add'
+              : step === 'note'
+                ? 'Note'
+                : step === 'googleDocument'
+                  ? 'Document'
+                  : step === 'googleSpreadsheet'
+                    ? 'Spreadsheet'
+                    : step === 'googleFile'
+                      ? 'File'
+                      : step === 'screenshot'
+                        ? 'Screenshot'
+                        : step === 'recording'
+                          ? 'Recording'
+                          : step === 'link'
+                            ? 'Link'
+                            : step === 'email'
+                              ? 'Email'
+                              : 'Socials'}
           </h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
