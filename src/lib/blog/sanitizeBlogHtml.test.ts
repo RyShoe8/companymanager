@@ -12,6 +12,15 @@ describe('normalizeBlogBodyHtml', () => {
     expect(normalizeBlogBodyHtml('<p>Hello</p><p><br /></p>')).toBe('<p>Hello</p>');
   });
 
+  it('preserves intentional blank lines at end (cursor + spacer)', () => {
+    expect(normalizeBlogBodyHtml('<p>Hello</p><p></p><p></p>')).toBe(
+      '<p>Hello</p><p><br></p>'
+    );
+    expect(normalizeBlogBodyHtml('<p>Hello</p><p></p><p></p><p></p>')).toBe(
+      '<p>Hello</p><p><br></p><p><br></p>'
+    );
+  });
+
   it('converts internal empty paragraphs to br placeholders', () => {
     expect(normalizeBlogBodyHtml('<p>A</p><p></p><p>B</p>')).toBe(
       '<p>A</p><p><br></p><p>B</p>'

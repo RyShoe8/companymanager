@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
@@ -65,15 +65,18 @@ export default function BlogPostForm({ mode, postId, initial }: BlogPostFormProp
   const [coverError, setCoverError] = useState('');
   const [uploadingCover, setUploadingCover] = useState(false);
   const [preview, setPreview] = useState(false);
+  const appliedInitialKey = useRef<string | null>(null);
 
   useEffect(() => {
-    if (initial) {
-      setValues({ ...emptyValues, ...initial });
-      setSlugTouched(Boolean(initial.slug));
-      setMetaTitleTouched(Boolean(initial.metaTitle));
-      setMetaDescriptionTouched(Boolean(initial.metaDescription));
-    }
-  }, [initial]);
+    if (!initial) return;
+    const key = postId ?? 'create';
+    if (appliedInitialKey.current === key) return;
+    appliedInitialKey.current = key;
+    setValues({ ...emptyValues, ...initial });
+    setSlugTouched(Boolean(initial.slug));
+    setMetaTitleTouched(Boolean(initial.metaTitle));
+    setMetaDescriptionTouched(Boolean(initial.metaDescription));
+  }, [initial, postId]);
 
   const update = (patch: Partial<BlogPostFormValues>) => {
     setValues((prev) => ({ ...prev, ...patch }));
@@ -157,7 +160,13 @@ export default function BlogPostForm({ mode, postId, initial }: BlogPostFormProp
       }
 
       const saved = (await res.json()) as SerializedBlogPost;
-      update({ bodyHtml: saved.bodyHtml, status: saved.status });
+      update({
+        status: saved.status,
+        slug: saved.slug,
+        excerpt: saved.excerpt,
+        metaTitle: saved.metaTitle,
+        metaDescription: saved.metaDescription,
+      });
       if (mode === 'create') {
         router.push(`/admin/blog/${saved.id}/edit`);
       } else {

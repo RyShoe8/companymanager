@@ -4,7 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import Button from '@/components/ui/Button';
 import { canonicalizeBlogHtmlForCompare } from '@/lib/blog/normalizeBlogBodyHtml';
 
@@ -42,6 +42,8 @@ function ToolbarButton({
 }
 
 export default function RichTextEditor({ content, onChange, onUploadImage }: RichTextEditorProps) {
+  const skipContentSync = useRef(false);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -51,6 +53,7 @@ export default function RichTextEditor({ content, onChange, onUploadImage }: Ric
     ],
     content,
     onUpdate: ({ editor: ed }) => {
+      skipContentSync.current = true;
       onChange(ed.getHTML());
     },
     editorProps: {
@@ -63,6 +66,10 @@ export default function RichTextEditor({ content, onChange, onUploadImage }: Ric
 
   useEffect(() => {
     if (!editor) return;
+    if (skipContentSync.current) {
+      skipContentSync.current = false;
+      return;
+    }
     const current = editor.getHTML();
     if (canonicalizeBlogHtmlForCompare(content) !== canonicalizeBlogHtmlForCompare(current)) {
       editor.commands.setContent(content || '<p></p>', { emitUpdate: false });
