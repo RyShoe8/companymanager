@@ -34,9 +34,16 @@ export function PricingPlanMarketingCard({
       billingInterval={billingInterval}
       hideIntervalToggle={hideIntervalToggle}
       footer={({ billingInterval: interval }) => (
-        <Link href={withInterval(href, interval)} className="block w-full">
-          <Button className="w-full">Start Free Trial — {plan.name}</Button>
-        </Link>
+        <div className="flex w-full flex-col gap-2">
+          <Link href={withInterval(href, interval)} className="block w-full">
+            <Button className="w-full">Start Free Trial — {plan.name}</Button>
+          </Link>
+          <Link href="/book-call" className="block w-full">
+            <Button variant="secondary" className="w-full">
+              Book a call
+            </Button>
+          </Link>
+        </div>
       )}
     />
   );
