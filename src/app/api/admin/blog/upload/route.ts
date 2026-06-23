@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { put } from '@vercel/blob';
 import { requireAdminUser } from '@/lib/blog/requireAdmin';
 import { validateImageFile } from '@/lib/utils/security';
+import { blogApiErrorResponse } from '@/lib/blog/blogApiErrors';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,24 +32,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid image file' }, { status: 400 });
     }
 
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'blog');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
     const timestamp = Date.now();
     const extension = file.type.split('/')[1]?.toLowerCase() || 'png';
     const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     const finalExtension = validExtensions.includes(extension) ? extension : 'png';
     const filename = `blog-${timestamp}.${finalExtension}`;
-    const filepath = join(uploadsDir, filename);
 
-    const bytes = await file.arrayBuffer();
-    await writeFile(filepath, Buffer.from(bytes));
+    let url: string;
 
-    return NextResponse.json({ url: `/uploads/blog/${filename}` });
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      const blob = await put(`blog/${filename}`, file, {
+        access: 'public',
+        contentType: file.type,
+      });
+      url = blob.url;
+    } else {
+      const uploadsDir = join(process.cwd(), 'public', 'uploads', 'blog');
+      if (!existsSync(uploadsDir)) {
+        await mkdir(uploadsDir, { recursive: true });
+      }
+      const filepath = join(uploadsDir, filename);
+      const bytes = await file.arrayBuffer();
+      await writeFile(filepath, Buffer.from(bytes));
+      url = `/uploads/blog/${filename}`;
+    }
+
+    return NextResponse.json({ url });
   } catch (error) {
     console.error('Blog image upload error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = blogApiErrorResponse(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }

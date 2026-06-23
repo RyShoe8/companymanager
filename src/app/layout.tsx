@@ -67,6 +67,12 @@ export const metadata: Metadata = {
     title: "Nucleas — The Smart Operating System for Building and Running a Business",
     description: "Not another project manager. The business management layer that brings it all together. Build. Organize. Operate.",
     images: ['/images/nucleas-logo.png'],
+    ...(process.env.NEXT_PUBLIC_TWITTER_SITE
+      ? {
+          site: process.env.NEXT_PUBLIC_TWITTER_SITE,
+          creator: process.env.NEXT_PUBLIC_TWITTER_SITE,
+        }
+      : {}),
   },
   robots: {
     index: true,

@@ -14,6 +14,8 @@ export interface IBlogPost extends Document {
   metaTitle?: string;
   metaDescription?: string;
   tags: string[];
+  /** Historical slugs for 301 redirects after slug changes. */
+  previousSlugs: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,11 +33,13 @@ const BlogPostSchema = new Schema<IBlogPost>(
     metaTitle: { type: String, trim: true, maxlength: 300 },
     metaDescription: { type: String, trim: true, maxlength: 500 },
     tags: { type: [String], default: [] },
+    previousSlugs: { type: [String], default: [] },
   },
   { timestamps: true }
 );
 
 BlogPostSchema.index({ slug: 1 }, { unique: true });
+BlogPostSchema.index({ previousSlugs: 1 });
 BlogPostSchema.index({ status: 1, publishedAt: -1 });
 
 const BlogPost: Model<IBlogPost> =

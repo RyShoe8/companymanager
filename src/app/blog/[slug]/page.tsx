@@ -1,9 +1,18 @@
+import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { getPublishedPostBySlug } from '@/lib/blog/getPublishedPosts';
-import { buildBlogPostMetadata } from '@/lib/blog/buildBlogMetadata';
-import { BLOG_NAME, BLOG_PATH } from '@/lib/blog/blogConstants';
-import { getBlogPostUrl, toAbsoluteAssetUrl } from '@/lib/blog/getBlogShareUrl';
+import connectDB from '@/lib/db/mongodb';
+import User from '@/lib/models/User';
+import {
+  getPublishedPostBySlug,
+  getPublishedPostRedirectSlug,
+} from '@/lib/blog/getPublishedPosts';
+import {
+  buildBlogPostMetadata,
+  blogBreadcrumbStructuredData,
+} from '@/lib/blog/buildBlogMetadata';
+import { resolveBlogSeoFields } from '@/lib/blog/deriveBlogSeo';
+import { BLOG_NAME, BLOG_PATH, SITE_LOGO_URL } from '@/lib/blog/blogConstants';
+import { getBlogPostUrl, getSiteBaseUrl, toAbsoluteAssetUrl } from '@/lib/blog/getBlogShareUrl';
 import BlogPostBody from '@/components/blog/BlogPostBody';
 import BlogPostShareBar from '@/components/blog/BlogPostShareBar';
 import { StructuredData } from '@/components/StructuredData';
@@ -14,7 +23,18 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const post = await getPublishedPostBySlug(slug);
   if (!post) return { title: 'Post not found' };
-  return buildBlogPostMetadata(post);
+
+  let authorName: string | null = null;
+  if (post.authorId) {
+    await connectDB();
+    const author = await User.findById(post.authorId).select('name email').lean();
+    authorName = author?.name || author?.email || null;
+  }
+
+  return buildBlogPostMetadata({
+    ...post,
+    authorName,
+  });
 }
 
 function formatDate(value?: Date | string | null) {
@@ -29,10 +49,26 @@ function formatDate(value?: Date | string | null) {
 export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params;
   const post = await getPublishedPostBySlug(slug);
-  if (!post) notFound();
+
+  if (!post) {
+    const redirectSlug = await getPublishedPostRedirectSlug(slug);
+    if (redirectSlug) {
+      redirect(`/blog/${redirectSlug}`);
+    }
+    notFound();
+  }
+
+  let authorName: string | null = null;
+  if (post.authorId) {
+    await connectDB();
+    const author = await User.findById(post.authorId).select('name email').lean();
+    authorName = author?.name || author?.email || null;
+  }
 
   const postUrl = getBlogPostUrl(post.slug);
-  const shareTitle = post.metaTitle?.trim() || post.title;
+  const seo = resolveBlogSeoFields(post);
+  const shareTitle = seo.seoTitle;
+  const siteBase = getSiteBaseUrl();
 
   return (
     <article className="min-h-screen">
@@ -40,18 +76,39 @@ export default async function BlogPostPage({ params }: Props) {
         type="BlogPosting"
         data={{
           headline: post.title,
-          description: post.excerpt || post.metaDescription || post.title,
+          description: seo.seoDescription,
           datePublished: post.publishedAt
             ? new Date(post.publishedAt).toISOString()
             : undefined,
           dateModified: post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
           image: post.coverImageUrl ? toAbsoluteAssetUrl(post.coverImageUrl) : undefined,
           url: postUrl,
+          keywords: Array.isArray(post.tags) && post.tags.length ? post.tags.join(', ') : undefined,
+          author: authorName
+            ? { '@type': 'Person', name: authorName }
+            : undefined,
+          mainEntityOfPage: {
+            '@type': 'WebPage',
+            '@id': postUrl,
+          },
           publisher: {
             '@type': 'Organization',
             name: 'Nucleas',
+            url: siteBase,
+            logo: {
+              '@type': 'ImageObject',
+              url: toAbsoluteAssetUrl(SITE_LOGO_URL),
+            },
           },
         }}
+      />
+      <StructuredData
+        type="BreadcrumbList"
+        data={blogBreadcrumbStructuredData([
+          { name: 'Home', path: '/' },
+          { name: BLOG_NAME, path: BLOG_PATH },
+          { name: post.title, path: `/blog/${post.slug}` },
+        ])}
       />
       <header className="px-4 sm:px-6 lg:px-8 py-12 md:py-16 border-b border-border">
         <div className="max-w-3xl mx-auto">
@@ -73,7 +130,7 @@ export default async function BlogPostPage({ params }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={post.coverImageUrl}
-            alt=""
+            alt={post.title}
             className="w-full max-h-[420px] object-cover rounded-2xl border border-border"
           />
         </div>

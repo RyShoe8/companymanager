@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Types } from 'mongoose';
+import connectDB from '@/lib/db/mongodb';
 import BlogPost from '@/lib/models/BlogPost';
 import { requireAdminUser } from '@/lib/blog/requireAdmin';
-import { sanitizeBlogHtml } from '@/lib/blog/sanitizeBlogHtml';
 import { slugifyTitle } from '@/lib/blog/slugify';
 import { serializeBlogPost } from '@/lib/blog/serializeBlogPost';
+import { blogApiErrorResponse, safeSanitizeBlogHtml } from '@/lib/blog/blogApiErrors';
+import { applyDerivedSeoOnSave } from '@/lib/blog/deriveBlogSeo';
+import { coverImageUrlError } from '@/lib/blog/coverImageUrl';
 
 async function uniqueSlug(base: string, excludeId: string): Promise<string> {
   let slug = base || 'post';
@@ -19,6 +22,11 @@ async function uniqueSlug(base: string, excludeId: string): Promise<string> {
   }
 }
 
+function parseTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((t): t is string => typeof t === 'string').map((t) => t.trim()).filter(Boolean);
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -26,6 +34,8 @@ export async function GET(
   try {
     const auth = await requireAdminUser();
     if (auth.error) return auth.error;
+
+    await connectDB();
 
     const { id } = await params;
     if (!Types.ObjectId.isValid(id)) {
@@ -40,7 +50,8 @@ export async function GET(
     return NextResponse.json(serializeBlogPost(post));
   } catch (error) {
     console.error('Admin blog get error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = blogApiErrorResponse(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
@@ -51,6 +62,8 @@ export async function PATCH(
   try {
     const auth = await requireAdminUser();
     if (auth.error) return auth.error;
+
+    await connectDB();
 
     const { id } = await params;
     if (!Types.ObjectId.isValid(id)) {
@@ -67,27 +80,55 @@ export async function PATCH(
     if (typeof body.title === 'string' && body.title.trim()) {
       post.title = body.title.trim();
     }
-    if (typeof body.excerpt === 'string') {
-      post.excerpt = body.excerpt.trim();
-    }
+
+    let nextBodyHtml = post.bodyHtml;
     if (typeof body.bodyHtml === 'string') {
-      post.bodyHtml = sanitizeBlogHtml(body.bodyHtml);
+      const sanitized = safeSanitizeBlogHtml(body.bodyHtml);
+      if (!sanitized.ok) {
+        return NextResponse.json({ error: sanitized.error }, { status: 400 });
+      }
+      nextBodyHtml = sanitized.html;
+      post.bodyHtml = nextBodyHtml;
     }
+
     if (typeof body.coverImageUrl === 'string') {
+      const coverErr = coverImageUrlError(body.coverImageUrl);
+      if (coverErr) {
+        return NextResponse.json({ error: coverErr }, { status: 400 });
+      }
       post.coverImageUrl = body.coverImageUrl.trim();
     }
-    if (typeof body.metaTitle === 'string') {
-      post.metaTitle = body.metaTitle.trim();
-    }
-    if (typeof body.metaDescription === 'string') {
-      post.metaDescription = body.metaDescription.trim();
-    }
+
     if (Array.isArray(body.tags)) {
-      post.tags = body.tags.filter((t: unknown) => typeof t === 'string').map((t: string) => t.trim());
+      post.tags = parseTags(body.tags);
     }
+
+    const excerptInput = typeof body.excerpt === 'string' ? body.excerpt : post.excerpt ?? '';
+    const metaTitleInput = typeof body.metaTitle === 'string' ? body.metaTitle : post.metaTitle ?? '';
+    const metaDescriptionInput =
+      typeof body.metaDescription === 'string' ? body.metaDescription : post.metaDescription ?? '';
+
+    const seo = applyDerivedSeoOnSave({
+      title: post.title,
+      excerpt: excerptInput,
+      bodyHtml: nextBodyHtml,
+      metaTitle: metaTitleInput,
+      metaDescription: metaDescriptionInput,
+    });
+    post.excerpt = seo.excerpt;
+    post.metaTitle = seo.metaTitle;
+    post.metaDescription = seo.metaDescription;
+
     if (typeof body.slug === 'string' && body.slug.trim()) {
-      post.slug = await uniqueSlug(slugifyTitle(body.slug), id);
+      const nextSlug = await uniqueSlug(slugifyTitle(body.slug), id);
+      if (nextSlug !== post.slug) {
+        const history = new Set(post.previousSlugs ?? []);
+        history.add(post.slug);
+        post.previousSlugs = [...history];
+        post.slug = nextSlug;
+      }
     }
+
     if (body.status === 'draft' || body.status === 'published') {
       const wasPublished = post.status === 'published';
       post.status = body.status;
@@ -100,7 +141,8 @@ export async function PATCH(
     return NextResponse.json(serializeBlogPost(post));
   } catch (error) {
     console.error('Admin blog update error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = blogApiErrorResponse(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
@@ -111,6 +153,8 @@ export async function DELETE(
   try {
     const auth = await requireAdminUser();
     if (auth.error) return auth.error;
+
+    await connectDB();
 
     const { id } = await params;
     if (!Types.ObjectId.isValid(id)) {
@@ -125,6 +169,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Admin blog delete error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = blogApiErrorResponse(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }

@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 interface StructuredDataProps {
-  type: 'Organization' | 'WebSite' | 'WebPage' | 'SoftwareApplication' | 'FAQPage' | 'BreadcrumbList' | 'BlogPosting';
+  type: 'Organization' | 'WebSite' | 'WebPage' | 'SoftwareApplication' | 'FAQPage' | 'BreadcrumbList' | 'BlogPosting' | 'Blog';
   data: Record<string, any>;
 }
 

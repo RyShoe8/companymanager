@@ -25,7 +25,7 @@ export default function BlogPostCard({ post }: { post: IBlogPost | Record<string
     >
       {coverImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={coverImageUrl} alt="" className="w-full h-48 object-cover" />
+        <img src={coverImageUrl} alt={title} className="w-full h-48 object-cover" />
       )}
       <div className="p-6">
         {publishedAt && (

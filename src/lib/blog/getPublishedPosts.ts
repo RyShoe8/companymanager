@@ -21,7 +21,21 @@ export async function getPublishedPosts(options?: { limit?: number; skip?: numbe
 
 export async function getPublishedPostBySlug(slug: string) {
   await connectDB();
-  return BlogPost.findOne({ slug: slug.toLowerCase(), status: 'published' }).lean();
+  const normalized = slug.toLowerCase();
+  return BlogPost.findOne({ slug: normalized, status: 'published' }).lean();
+}
+
+/** If slug is a retired slug, returns the current published post slug for redirect. */
+export async function getPublishedPostRedirectSlug(slug: string): Promise<string | null> {
+  await connectDB();
+  const normalized = slug.toLowerCase();
+  const post = await BlogPost.findOne({
+    status: 'published',
+    previousSlugs: normalized,
+  })
+    .select('slug')
+    .lean();
+  return post?.slug ?? null;
 }
 
 export async function getAllPublishedSlugs() {

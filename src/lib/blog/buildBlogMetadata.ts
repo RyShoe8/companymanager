@@ -5,8 +5,11 @@ import {
   BLOG_OG_IMAGE,
   BLOG_OG_IMAGE_HEIGHT,
   BLOG_OG_IMAGE_WIDTH,
+  BLOG_PATH,
   BLOG_TAGLINE,
+  SITE_LOGO_URL,
 } from '@/lib/blog/blogConstants';
+import { resolveBlogSeoFields } from '@/lib/blog/deriveBlogSeo';
 import {
   getBlogIndexUrl,
   getBlogPostUrl,
@@ -48,7 +51,12 @@ export function buildBlogIndexMetadata(): Metadata {
   return {
     title,
     description,
-    alternates: { canonical: '/blog' },
+    alternates: {
+      canonical: BLOG_PATH,
+      types: {
+        'application/rss+xml': `${getSiteBaseUrl()}${BLOG_PATH}/feed.xml`,
+      },
+    },
     openGraph: {
       title,
       description,
@@ -66,43 +74,67 @@ export function buildBlogIndexMetadata(): Metadata {
   };
 }
 
-export function buildBlogPostMetadata(post: {
+export type BlogPostMetadataInput = {
   slug: string;
   title: string;
   excerpt?: string | null;
+  bodyHtml?: string | null;
   metaTitle?: string | null;
   metaDescription?: string | null;
   coverImageUrl?: string | null;
   publishedAt?: Date | string | null;
-}): Metadata {
-  const title = post.metaTitle?.trim() || post.title;
-  const description = post.metaDescription?.trim() || post.excerpt?.trim() || title;
+  updatedAt?: Date | string | null;
+  tags?: string[];
+  authorName?: string | null;
+};
+
+export function buildBlogPostMetadata(post: BlogPostMetadataInput): Metadata {
+  const seo = resolveBlogSeoFields(post);
   const url = getBlogPostUrl(post.slug);
-  const images = postOgImages(post.coverImageUrl, title);
+  const images = postOgImages(post.coverImageUrl, seo.seoTitle);
+
+  const openGraph: Metadata['openGraph'] = {
+    title: seo.seoTitle,
+    description: seo.seoDescription,
+    url,
+    type: 'article',
+    siteName: 'Nucleas',
+    publishedTime: post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
+    modifiedTime: post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
+    images,
+    tags: post.tags?.length ? post.tags : undefined,
+    authors: post.authorName ? [post.authorName] : undefined,
+  };
 
   return {
-    title,
-    description,
+    title: seo.seoTitle,
+    description: seo.seoDescription,
+    keywords: post.tags?.length ? post.tags : undefined,
     alternates: { canonical: `/blog/${post.slug}` },
-    openGraph: {
-      title,
-      description,
-      url,
-      type: 'article',
-      siteName: 'Nucleas',
-      publishedTime: post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
-      images,
-    },
+    openGraph,
     twitter: {
       card: 'summary_large_image',
-      title,
-      description,
+      title: seo.seoTitle,
+      description: seo.seoDescription,
       images: images.map((img) => img.url),
     },
   };
 }
 
-export function getBlogIndexStructuredData() {
+export function getBlogIndexStructuredData(posts?: { title: string; slug: string }[]) {
+  const base = getSiteBaseUrl();
+  const itemList = posts?.length
+    ? {
+        '@type': 'ItemList',
+        itemListElement: posts.map((post, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          url: `${base}/blog/${post.slug}`,
+          name: post.title,
+        })),
+      }
+    : undefined;
+
   return {
     name: BLOG_NAME,
     description: BLOG_TAGLINE,
@@ -110,7 +142,26 @@ export function getBlogIndexStructuredData() {
     publisher: {
       '@type': 'Organization',
       name: 'Nucleas',
-      url: getSiteBaseUrl(),
+      url: base,
+      logo: {
+        '@type': 'ImageObject',
+        url: toAbsoluteAssetUrl(SITE_LOGO_URL),
+      },
     },
+    ...(itemList ? { hasPart: itemList } : {}),
+  };
+}
+
+export function blogBreadcrumbStructuredData(
+  items: { name: string; path: string }[]
+) {
+  const base = getSiteBaseUrl();
+  return {
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: item.name,
+      item: `${base}${item.path}`,
+    })),
   };
 }

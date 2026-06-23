@@ -8,3 +8,4 @@ export const BLOG_PATH = '/blog';
 export const BLOG_OG_IMAGE = '/images/marketing/builders-journal-header.png';
 export const BLOG_OG_IMAGE_WIDTH = 1200;
 export const BLOG_OG_IMAGE_HEIGHT = 630;
+export const SITE_LOGO_URL = '/images/nucleas-logo.png';

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getPublishedPosts } from '@/lib/blog/getPublishedPosts';
 import {
   buildBlogIndexMetadata,
+  blogBreadcrumbStructuredData,
   getBlogIndexStructuredData,
 } from '@/lib/blog/buildBlogMetadata';
 import {
@@ -16,10 +17,21 @@ export const metadata = buildBlogIndexMetadata();
 
 export default async function BlogIndexPage() {
   const { posts } = await getPublishedPosts({ limit: 24 });
+  const postSummaries = posts.map((p) => ({
+    title: String(p.title),
+    slug: String(p.slug),
+  }));
 
   return (
     <div className="min-h-screen">
-      <StructuredData type="WebPage" data={getBlogIndexStructuredData()} />
+      <StructuredData type="Blog" data={getBlogIndexStructuredData(postSummaries)} />
+      <StructuredData
+        type="BreadcrumbList"
+        data={blogBreadcrumbStructuredData([
+          { name: 'Home', path: '/' },
+          { name: BLOG_NAME, path: '/blog' },
+        ])}
+      />
       <section className="px-4 sm:px-6 lg:px-8 py-12 md:py-16 border-b border-border">
         <div className="max-w-4xl mx-auto">
           <div className="relative overflow-hidden rounded-2xl border border-border mb-8">
