@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeBlogBodyHtml } from '@/lib/blog/normalizeBlogBodyHtml';
+import {
+  canonicalizeBlogHtmlForCompare,
+  normalizeBlogBodyHtml,
+} from '@/lib/blog/normalizeBlogBodyHtml';
 import { sanitizeBlogHtml } from '@/lib/blog/sanitizeBlogHtml';
 
 describe('normalizeBlogBodyHtml', () => {
-  it('converts empty paragraphs to br placeholders', () => {
+  it('strips trailing empty paragraphs from single Enter cursor artifacts', () => {
+    expect(normalizeBlogBodyHtml('<p>Hello</p><p></p>')).toBe('<p>Hello</p>');
+    expect(normalizeBlogBodyHtml('<p>Hello</p><p><br></p>')).toBe('<p>Hello</p>');
+    expect(normalizeBlogBodyHtml('<p>Hello</p><p><br /></p>')).toBe('<p>Hello</p>');
+  });
+
+  it('converts internal empty paragraphs to br placeholders', () => {
     expect(normalizeBlogBodyHtml('<p>A</p><p></p><p>B</p>')).toBe(
       '<p>A</p><p><br></p><p>B</p>'
     );
@@ -15,6 +24,12 @@ describe('normalizeBlogBodyHtml', () => {
   it('leaves paragraphs with soft breaks unchanged', () => {
     const html = '<p>line1<br><br>line2</p>';
     expect(normalizeBlogBodyHtml(html)).toBe(html);
+  });
+
+  it('canonicalize treats br variants as equivalent', () => {
+    const raw = '<p>line1<br><br>line2</p>';
+    const saved = '<p>line1<br /><br />line2</p>';
+    expect(canonicalizeBlogHtmlForCompare(raw)).toBe(canonicalizeBlogHtmlForCompare(saved));
   });
 });
 
@@ -42,7 +57,11 @@ describe('sanitizeBlogHtml', () => {
     expect(clean).toContain('src="/uploads/blog/test.webp"');
   });
 
-  it('normalizes empty paragraphs after sanitization', () => {
+  it('strips trailing empty paragraphs on save', () => {
+    expect(sanitizeBlogHtml('<p>A</p><p></p>')).toBe('<p>A</p>');
+  });
+
+  it('normalizes internal empty paragraphs after sanitization', () => {
     expect(sanitizeBlogHtml('<p>A</p><p></p><p>B</p>')).toBe(
       '<p>A</p><p><br></p><p>B</p>'
     );

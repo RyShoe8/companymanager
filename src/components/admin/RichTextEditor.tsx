@@ -6,7 +6,7 @@ import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import { useCallback, useEffect } from 'react';
 import Button from '@/components/ui/Button';
-import { normalizeBlogBodyHtml } from '@/lib/blog/normalizeBlogBodyHtml';
+import { canonicalizeBlogHtmlForCompare } from '@/lib/blog/normalizeBlogBodyHtml';
 
 interface RichTextEditorProps {
   content: string;
@@ -51,7 +51,7 @@ export default function RichTextEditor({ content, onChange, onUploadImage }: Ric
     ],
     content,
     onUpdate: ({ editor: ed }) => {
-      onChange(normalizeBlogBodyHtml(ed.getHTML()));
+      onChange(ed.getHTML());
     },
     editorProps: {
       attributes: {
@@ -64,7 +64,7 @@ export default function RichTextEditor({ content, onChange, onUploadImage }: Ric
   useEffect(() => {
     if (!editor) return;
     const current = editor.getHTML();
-    if (content !== current) {
+    if (canonicalizeBlogHtmlForCompare(content) !== canonicalizeBlogHtmlForCompare(current)) {
       editor.commands.setContent(content || '<p></p>', { emitUpdate: false });
     }
   }, [content, editor]);

@@ -12,4 +12,4 @@ export const SITE_LOGO_URL = '/images/nucleas-logo.png';
 
 /** Shared typography + spacing for blog body HTML (editor preview, public post). */
 export const BLOG_PROSE_CLASS =
-  'prose prose-invert max-w-none prose-headings:text-text-primary prose-p:text-text-secondary prose-a:text-primary prose-img:rounded-lg [&_p:empty]:min-h-[1.25em] [&_p:has(>br:only-child)]:min-h-[1.25em]';
+  'prose prose-invert max-w-none prose-headings:text-text-primary prose-p:text-text-secondary prose-a:text-primary prose-img:rounded-lg [&_p:empty]:min-h-[1.25em]';
