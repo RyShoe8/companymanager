@@ -7,6 +7,10 @@ import { labelForFontPaletteIndex, maxFontPaletteEntries, parseFontFamilyInput }
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
 import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
+import {
+  sanitizePlatformStacks,
+  validatePlatformStacksUpdate,
+} from '@/lib/platformCatalog/validatePlatformStacks';
 import type { PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
 
 const CRM_FIELDS = new Set([
@@ -31,6 +35,7 @@ const OPS_FIELDS = new Set([
   'socialsToolbarVisible',
   'techStack',
   'marketingStack',
+  'platformStacks',
   'colorPalette',
   'fontPalette',
   'actionButtons',
@@ -153,6 +158,11 @@ export function applyClientUpdates(
     if (marketingStackError) return { ok: false, status: 400, error: marketingStackError };
     client.marketingStack = sanitizeMarketingStack(body.marketingStack, catalog) ?? [];
   }
+  if (body.platformStacks !== undefined) {
+    const platformStacksError = validatePlatformStacksUpdate(body.platformStacks, catalog);
+    if (platformStacksError) return { ok: false, status: 400, error: platformStacksError };
+    client.platformStacks = sanitizePlatformStacks(body.platformStacks, catalog) ?? {};
+  }
   if (body.colorPalette !== undefined) {
     if (!Array.isArray(body.colorPalette)) return { ok: false, status: 400, error: 'colorPalette must be an array' };
     const sanitized: string[] = [];
@@ -240,6 +250,7 @@ export function migrateHubOpsToClient(client: IClient, hubProject: IProject | nu
   copyIfEmpty('socialLinks', hubProject.socialLinks);
   copyIfEmpty('techStack', hubProject.techStack);
   copyIfEmpty('marketingStack', hubProject.marketingStack);
+  copyIfEmpty('platformStacks', hubProject.platformStacks);
   copyIfEmpty('actionButtons', hubProject.actionButtons);
   copyIfEmpty('logo', hubProject.logo);
   copyIfEmpty('colorPalette', hubProject.colorPalette);

@@ -5,7 +5,17 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
-type StackTab = 'tech' | 'marketing';
+type StackTab = string;
+
+interface StackRow {
+  id: string;
+  slug: string;
+  label: string;
+  displayOrder: number;
+  isActive: boolean;
+  iconFolder?: string;
+  linkingMode: 'catalog' | 'url';
+}
 
 interface OptionRow {
   id: string;
@@ -31,9 +41,11 @@ interface CategoryRow {
 }
 
 interface CatalogData {
-  tech: { categories: CategoryRow[] };
-  marketing: { categories: CategoryRow[] };
+  stacks: StackRow[];
+  catalogByStack: Record<string, { categories: CategoryRow[] }>;
 }
+
+const PROTECTED_STACK_SLUGS = new Set(['tech', 'marketing', 'socials']);
 
 const emptyOptionDraft = (): Partial<OptionRow> => ({
   name: '',
@@ -52,6 +64,7 @@ export default function AdminPlatformCatalogPage() {
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
   const [optionDraft, setOptionDraft] = useState<Partial<OptionRow>>(emptyOptionDraft());
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
+  const [newStackLabel, setNewStackLabel] = useState('');
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetOptionId, setUploadTargetOptionId] = useState<string | null>(null);
 
@@ -66,7 +79,16 @@ export default function AdminPlatformCatalogPage() {
       }
       if (!res.ok) throw new Error('Failed to load');
       const json = await res.json();
-      setData({ tech: json.tech, marketing: json.marketing });
+      setData({
+        stacks: json.stacks ?? [],
+        catalogByStack: json.catalogByStack ?? {
+          tech: json.tech,
+          marketing: json.marketing,
+        },
+      });
+      if (!json.stacks?.some((s: StackRow) => s.slug === tab)) {
+        setTab(json.stacks?.[0]?.slug ?? 'tech');
+      }
     } catch {
       setError('Failed to load platform catalog');
     } finally {
@@ -78,7 +100,9 @@ export default function AdminPlatformCatalogPage() {
     void load();
   }, [load]);
 
-  const categories = tab === 'tech' ? data?.tech.categories ?? [] : data?.marketing.categories ?? [];
+  const stacks = data?.stacks ?? [];
+  const currentStack = stacks.find((s) => s.slug === tab);
+  const categories = data?.catalogByStack[tab]?.categories ?? [];
 
   const saveCategory = async (category: CategoryRow, updates: Partial<CategoryRow>) => {
     setSaving(true);
@@ -95,6 +119,57 @@ export default function AdminPlatformCatalogPage() {
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to save category');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addStack = async () => {
+    if (!newStackLabel.trim()) {
+      alert('Stack name is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/platform-catalog/stacks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newStackLabel.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to add stack');
+      }
+      const created = await res.json();
+      setNewStackLabel('');
+      setTab(created.slug);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to add stack');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteStack = async (stack: StackRow) => {
+    if (PROTECTED_STACK_SLUGS.has(stack.slug)) {
+      alert('Built-in stacks cannot be deleted.');
+      return;
+    }
+    if (!confirm(`Delete stack "${stack.label}" and all its categories and options?`)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/platform-catalog/stacks/${stack.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete stack');
+      }
+      setTab('tech');
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to delete stack');
     } finally {
       setSaving(false);
     }
@@ -302,7 +377,7 @@ export default function AdminPlatformCatalogPage() {
   const optionIconPreview = (option: OptionRow) => {
     if (option.iconUrl) return option.iconUrl;
     const ext = option.iconExtension ?? 'svg';
-    const folder = tab === 'tech' ? 'tech-stack' : 'marketing-stack';
+    const folder = currentStack?.iconFolder ?? `${tab}-stack`;
     return `/icons/${folder}/${option.optionId}.${ext}`;
   };
 
@@ -340,7 +415,7 @@ export default function AdminPlatformCatalogPage() {
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Platform catalog</h1>
           <p className="text-sm text-text-secondary mt-1">
-            Manage categories and linkable platforms for tech and marketing stacks.
+            Manage platform stacks, categories, and linkable options for projects and clients.
           </p>
         </div>
         <Button variant="secondary" size="sm" onClick={() => void load()} disabled={saving}>
@@ -348,26 +423,65 @@ export default function AdminPlatformCatalogPage() {
         </Button>
       </div>
 
-      <div className="flex gap-2 mb-6">
-        {(['tech', 'marketing'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => {
-              setTab(t);
-              setExpandedCategoryId(null);
-              setEditingOptionId(null);
-            }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium border ${
-              tab === t
-                ? 'bg-primary text-white border-primary'
-                : 'bg-background-card border-border text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {t === 'tech' ? 'Tech stack' : 'Marketing & analytics'}
-          </button>
+      <Card className="p-4 mb-6">
+        <h2 className="text-sm font-semibold mb-3">Add stack</h2>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-[12rem]">
+            <label className="text-xs text-text-secondary">Name</label>
+            <Input
+              value={newStackLabel}
+              onChange={(e) => setNewStackLabel(e.target.value)}
+              placeholder="e.g. Design tools"
+            />
+          </div>
+          <Button onClick={() => void addStack()} disabled={saving}>
+            Add stack
+          </Button>
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {stacks.map((stack) => (
+          <div key={stack.id} className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setTab(stack.slug);
+                setExpandedCategoryId(null);
+                setEditingOptionId(null);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+                tab === stack.slug
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-background-card border-border text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {stack.label}
+              {stack.linkingMode === 'url' ? ' (URL)' : ''}
+            </button>
+            {!PROTECTED_STACK_SLUGS.has(stack.slug) ? (
+              <button
+                type="button"
+                title={`Delete ${stack.label}`}
+                className="text-xs text-red-600 hover:underline px-1"
+                onClick={() => void deleteStack(stack)}
+                disabled={saving}
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
         ))}
       </div>
+
+      {currentStack?.linkingMode === 'url' ? (
+        <Card className="p-4 mb-6">
+          <p className="text-sm text-text-secondary">
+            This stack uses URL-based linking on projects (e.g. Socials). Manage network definitions
+            and icons here; project links stay on the Socials toolbar.
+          </p>
+        </Card>
+      ) : null}
 
       <Card className="p-4 mb-6">
         <h2 className="text-sm font-semibold mb-3">Add category</h2>

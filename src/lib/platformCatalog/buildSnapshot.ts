@@ -1,14 +1,15 @@
 import type {
   CatalogCategoryRow,
   CatalogOptionRow,
+  CatalogStackRow,
   PlatformCatalogSnapshot,
   PublicPlatformCatalog,
   StackCatalogSlice,
 } from '@/lib/platformCatalog/types';
-import type { PlatformStackType } from '@/lib/models/PlatformCategory';
+import type { PlatformStackSlug } from '@/lib/models/PlatformCategory';
 
 function buildStackSlice(
-  stackType: PlatformStackType,
+  stackType: PlatformStackSlug,
   categories: CatalogCategoryRow[],
   options: CatalogOptionRow[]
 ): StackCatalogSlice {
@@ -30,19 +31,44 @@ function buildStackSlice(
   };
 }
 
+function emptySlice(): StackCatalogSlice {
+  return { categories: [], options: [], categoryLabels: {}, categorySlugs: [] };
+}
+
 export function buildPlatformCatalogSnapshot(
+  stacks: CatalogStackRow[],
   categories: CatalogCategoryRow[],
   options: CatalogOptionRow[]
 ): PlatformCatalogSnapshot {
-  const tech = buildStackSlice('tech', categories, options);
-  const marketing = buildStackSlice('marketing', categories, options);
-  const techOptionsById = new Map<string, CatalogOptionRow>();
-  const marketingOptionsById = new Map<string, CatalogOptionRow>();
-  for (const opt of options) {
-    if (opt.stackType === 'tech') techOptionsById.set(opt.optionId, opt);
-    else marketingOptionsById.set(opt.optionId, opt);
+  const stackSlugs = new Set<string>([
+    ...stacks.map((s) => s.slug),
+    ...categories.map((c) => c.stackType),
+    'tech',
+    'marketing',
+    'socials',
+  ]);
+
+  const slices: Record<string, StackCatalogSlice> = {};
+  const optionsByStack: Record<string, Map<string, CatalogOptionRow>> = {};
+
+  for (const slug of stackSlugs) {
+    slices[slug] = buildStackSlice(slug, categories, options);
+    const map = new Map<string, CatalogOptionRow>();
+    for (const opt of options) {
+      if (opt.stackType === slug) map.set(opt.optionId, opt);
+    }
+    optionsByStack[slug] = map;
   }
-  return { tech, marketing, techOptionsById, marketingOptionsById };
+
+  return {
+    stacks,
+    slices,
+    optionsByStack,
+    tech: slices.tech ?? emptySlice(),
+    marketing: slices.marketing ?? emptySlice(),
+    techOptionsById: optionsByStack.tech ?? new Map(),
+    marketingOptionsById: optionsByStack.marketing ?? new Map(),
+  };
 }
 
 export function toPublicCatalog(snapshot: PlatformCatalogSnapshot): PublicPlatformCatalog {
@@ -61,8 +87,29 @@ export function toPublicCatalog(snapshot: PlatformCatalogSnapshot): PublicPlatfo
       categorySlugs: slice.categorySlugs.filter((slug) => activeCategorySlugs.has(slug)),
     };
   };
+
+  const activeStacks = snapshot.stacks.filter((s) => s.isActive);
+  const catalogByStack: Record<string, StackCatalogSlice> = {};
+  for (const stack of activeStacks) {
+    const slice = snapshot.slices[stack.slug];
+    if (slice) catalogByStack[stack.slug] = filterActive(slice);
+  }
+
   return {
+    stacks: activeStacks,
+    catalogByStack,
     tech: filterActive(snapshot.tech),
     marketing: filterActive(snapshot.marketing),
   };
+}
+
+export function getStackSlice(snapshot: PlatformCatalogSnapshot, slug: string): StackCatalogSlice {
+  return snapshot.slices[slug] ?? emptySlice();
+}
+
+export function getStackOptionsById(
+  snapshot: PlatformCatalogSnapshot,
+  slug: string
+): Map<string, CatalogOptionRow> {
+  return snapshot.optionsByStack[slug] ?? new Map();
 }

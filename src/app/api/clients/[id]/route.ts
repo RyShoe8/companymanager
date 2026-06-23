@@ -104,7 +104,9 @@ export async function PUT(
     }
 
     const platformCatalog =
-      body.techStack !== undefined || body.marketingStack !== undefined
+      body.techStack !== undefined ||
+      body.marketingStack !== undefined ||
+      body.platformStacks !== undefined
         ? await loadPlatformCatalog()
         : undefined;
 

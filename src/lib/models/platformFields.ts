@@ -34,6 +34,12 @@ export interface IProjectMarketingStackItem {
   login?: string;
 }
 
+export interface IPlatformStackItem {
+  category: string;
+  optionId: string;
+  login?: string;
+}
+
 export type ProjectActionButtonKind = 'link' | 'email';
 
 export interface IProjectActionButton {
@@ -101,6 +107,17 @@ export const marketingStackSchemaDefinition = {
   default: [],
 };
 
+export const platformStackItemSchemaDefinition = {
+  category: { type: String, required: true, trim: true },
+  optionId: { type: String, trim: true, required: true },
+  login: { type: String, trim: true },
+};
+
+export const platformStacksSchemaDefinition = {
+  type: Schema.Types.Mixed,
+  default: {},
+};
+
 export const actionButtonsSchemaDefinition = [
   {
     label: { type: String, required: true, trim: true },
@@ -124,6 +141,7 @@ export interface IPlatformOperationsFields {
   socialsToolbarVisible?: boolean;
   techStack?: IProjectTechStackItem[];
   marketingStack?: IProjectMarketingStackItem[];
+  platformStacks?: Record<string, IPlatformStackItem[]>;
   colorPalette?: string[];
   fontPalette?: string[];
   logo?: string;
@@ -142,6 +160,7 @@ export const platformOperationsSchemaFields = {
   socialsToolbarVisible: { type: Boolean, default: true },
   techStack: techStackSchemaDefinition,
   marketingStack: marketingStackSchemaDefinition,
+  platformStacks: platformStacksSchemaDefinition,
   colorPalette: { type: [String], default: undefined },
   fontPalette: { type: [String], default: undefined },
   actionButtons: actionButtonsSchemaDefinition,

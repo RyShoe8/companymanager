@@ -1,8 +1,8 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-import type { PlatformStackType } from '@/lib/models/PlatformCategory';
+import type { PlatformStackSlug } from '@/lib/models/PlatformCategory';
 
 export interface IPlatformOption extends Document {
-  stackType: PlatformStackType;
+  stackType: PlatformStackSlug;
   optionId: string;
   categorySlug: string;
   name: string;
@@ -18,7 +18,7 @@ export interface IPlatformOption extends Document {
 
 const PlatformOptionSchema = new Schema<IPlatformOption>(
   {
-    stackType: { type: String, enum: ['tech', 'marketing'], required: true },
+    stackType: { type: String, required: true, trim: true, lowercase: true },
     optionId: { type: String, required: true, trim: true, lowercase: true },
     categorySlug: { type: String, required: true, trim: true, lowercase: true },
     name: { type: String, required: true, trim: true },

@@ -9,9 +9,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { PublicPlatformCatalog } from '@/lib/platformCatalog/types';
+import type { CatalogCategoryRow, CatalogOptionRow, PublicPlatformCatalog } from '@/lib/platformCatalog/types';
 import { getStaticSeedSnapshot } from '@/lib/platformCatalog/staticSeedSnapshot';
-import { toPublicCatalog } from '@/lib/platformCatalog/buildSnapshot';
+import {
+  buildPlatformCatalogSnapshot,
+  getStackOptionsById,
+  getStackSlice,
+  toPublicCatalog,
+} from '@/lib/platformCatalog/buildSnapshot';
 import { getCatalogByCategory, getCatalogEntry, getTechStackCategories } from '@/lib/techStack/catalog';
 import {
   getMarketingCatalogByCategory,
@@ -19,6 +24,7 @@ import {
   getMarketingStackCategories,
 } from '@/lib/marketingStack/catalog';
 import type { PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
+import { isProtectedPlatformStackSlug } from '@/lib/platformCatalog/platformStackConstants';
 
 type PlatformCatalogContextValue = {
   catalog: PublicPlatformCatalog | null;
@@ -30,24 +36,74 @@ type PlatformCatalogContextValue = {
 
 const PlatformCatalogContext = createContext<PlatformCatalogContextValue | null>(null);
 
+function rowsFromPublicCatalog(publicCatalog: PublicPlatformCatalog): {
+  categories: CatalogCategoryRow[];
+  options: CatalogOptionRow[];
+} {
+  const categories: CatalogCategoryRow[] = [];
+  const options: CatalogOptionRow[] = [];
+  const seenStacks = new Set<string>();
+
+  const ingestSlice = (stackSlug: string, slice: PublicPlatformCatalog['tech']) => {
+    if (seenStacks.has(stackSlug)) return;
+    seenStacks.add(stackSlug);
+    for (const c of slice.categories) {
+      categories.push({ ...c, stackType: stackSlug });
+    }
+    for (const o of slice.options) {
+      options.push({ ...o, stackType: stackSlug });
+    }
+  };
+
+  for (const [stackSlug, slice] of Object.entries(publicCatalog.catalogByStack ?? {})) {
+    ingestSlice(stackSlug, slice);
+  }
+  ingestSlice('tech', publicCatalog.tech);
+  ingestSlice('marketing', publicCatalog.marketing);
+
+  return { categories, options };
+}
+
 function snapshotFromPublic(publicCatalog: PublicPlatformCatalog): PlatformCatalogSnapshot {
-  const categories = [
-    ...publicCatalog.tech.categories.map((c) => ({ ...c, stackType: 'tech' as const })),
-    ...publicCatalog.marketing.categories.map((c) => ({ ...c, stackType: 'marketing' as const })),
-  ];
-  const options = [
-    ...publicCatalog.tech.options.map((o) => ({ ...o, stackType: 'tech' as const })),
-    ...publicCatalog.marketing.options.map((o) => ({ ...o, stackType: 'marketing' as const })),
-  ];
-  const techOptionsById = new Map(publicCatalog.tech.options.map((o) => [o.optionId, { ...o, stackType: 'tech' as const }]));
-  const marketingOptionsById = new Map(
-    publicCatalog.marketing.options.map((o) => [o.optionId, { ...o, stackType: 'marketing' as const }])
-  );
+  const { categories, options } = rowsFromPublicCatalog(publicCatalog);
+  return buildPlatformCatalogSnapshot(publicCatalog.stacks ?? [], categories, options);
+}
+
+function createStackHelpers(snap: PlatformCatalogSnapshot) {
   return {
-    tech: publicCatalog.tech,
-    marketing: publicCatalog.marketing,
-    techOptionsById,
-    marketingOptionsById,
+    getCustomCatalogStacks: () =>
+      snap.stacks
+        .filter(
+          (s) => s.isActive && s.linkingMode === 'catalog' && !isProtectedPlatformStackSlug(s.slug)
+        )
+        .sort((a, b) => a.displayOrder - b.displayOrder),
+    getStackCategories: (stackSlug: string) => getStackSlice(snap, stackSlug).categorySlugs,
+    getStackByCategory: (stackSlug: string, category: string) => {
+      const slice = getStackSlice(snap, stackSlug);
+      return slice.options
+        .filter((o) => o.categorySlug === category && o.isActive)
+        .map((o) => ({ id: o.optionId, name: o.name }));
+    },
+    getStackEntry: (stackSlug: string, optionId: string) => {
+      const row = getStackOptionsById(snap, stackSlug).get(optionId);
+      if (!row) return undefined;
+      return {
+        id: row.optionId,
+        name: row.name,
+        category: row.categorySlug,
+        homepageUrl: row.homepageUrl,
+      };
+    },
+    getStackIconSrc: (stackSlug: string, optionId: string) => {
+      const row = getStackOptionsById(snap, stackSlug).get(optionId);
+      if (row?.iconUrl) return row.iconUrl;
+      const stack = snap.stacks.find((s) => s.slug === stackSlug);
+      const folder = stack?.iconFolder ?? `${stackSlug}-stack`;
+      const ext = row?.iconExtension ?? 'svg';
+      return `/icons/${folder}/${optionId}.${ext}`;
+    },
+    getStackLabel: (stackSlug: string) =>
+      snap.stacks.find((s) => s.slug === stackSlug)?.label ?? stackSlug,
   };
 }
 
@@ -93,36 +149,36 @@ export function PlatformCatalogProvider({ children }: { children: ReactNode }) {
 
 export function usePlatformCatalog() {
   const ctx = useContext(PlatformCatalogContext);
+  const snap = ctx?.snapshot ?? snapshotFromPublic(toPublicCatalog(getStaticSeedSnapshot()));
+  const stackHelpers = useMemo(() => createStackHelpers(snap), [snap]);
+
   if (!ctx) {
-    const fallback = toPublicCatalog(getStaticSeedSnapshot());
-    const snapshot = snapshotFromPublic(fallback);
     return {
-      catalog: fallback,
-      snapshot,
+      catalog: toPublicCatalog(getStaticSeedSnapshot()),
+      snapshot: snap,
       loading: false,
       error: null,
       refresh: async () => {},
-      getTechCategories: () => getTechStackCategories(snapshot),
-      getMarketingCategories: () => getMarketingStackCategories(snapshot),
-      getTechEntry: (id: string) => getCatalogEntry(id, snapshot),
-      getMarketingEntry: (id: string) => getMarketingCatalogEntry(id, snapshot),
-      getTechByCategory: (cat: string) => getCatalogByCategory(cat, snapshot),
-      getMarketingByCategory: (cat: string) => getMarketingCatalogByCategory(cat, snapshot),
+      getTechCategories: () => getTechStackCategories(snap),
+      getMarketingCategories: () => getMarketingStackCategories(snap),
+      getTechEntry: (id: string) => getCatalogEntry(id, snap),
+      getMarketingEntry: (id: string) => getMarketingCatalogEntry(id, snap),
+      getTechByCategory: (cat: string) => getCatalogByCategory(cat, snap),
+      getMarketingByCategory: (cat: string) => getMarketingCatalogByCategory(cat, snap),
       getTechIconSrc: (optionId: string) => {
-        const row = snapshot.techOptionsById.get(optionId);
+        const row = snap.techOptionsById.get(optionId);
         if (row?.iconUrl) return row.iconUrl;
         return `/icons/tech-stack/${optionId}.svg`;
       },
       getMarketingIconSrc: (optionId: string) => {
-        const row = snapshot.marketingOptionsById.get(optionId);
+        const row = snap.marketingOptionsById.get(optionId);
         if (row?.iconUrl) return row.iconUrl;
         const ext = row?.iconExtension ?? 'svg';
         return `/icons/marketing-stack/${optionId}.${ext}`;
       },
+      ...stackHelpers,
     };
   }
-
-  const snap = ctx.snapshot ?? snapshotFromPublic(toPublicCatalog(getStaticSeedSnapshot()));
 
   return {
     ...ctx,
@@ -143,5 +199,6 @@ export function usePlatformCatalog() {
       const ext = row?.iconExtension ?? 'svg';
       return `/icons/marketing-stack/${optionId}.${ext}`;
     },
+    ...stackHelpers,
   };
 }

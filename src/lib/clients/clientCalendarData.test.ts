@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildClientCalendarRows } from '@/lib/clients/clientCalendarData';
+import { buildClientCalendarRows, clientExpandSections } from '@/lib/clients/clientCalendarData';
 import type { IClient } from '@/lib/models/Client';
 import type { IProject } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
@@ -115,5 +115,37 @@ describe('buildClientCalendarRows', () => {
     expect(rows[0].activeContentCount).toBe(1);
     expect(rows[0].hubProject?.activeContentCount).toBe(1);
     expect(rows[0].hasActivityInRange).toBe(true);
+  });
+});
+
+describe('clientExpandSections', () => {
+  it('orders hub before delivery projects', () => {
+    const hub = project({
+      _id: 'hub1',
+      clientId: 'c1',
+      projectType: 'client-admin',
+      name: 'Acme Hub',
+      status: 'planning',
+    });
+    const delivery = project({
+      _id: 'p1',
+      clientId: 'c1',
+      name: 'Website',
+      status: 'active',
+    });
+    const row = buildClientCalendarRows(
+      [client('c1', 'Acme')],
+      [hub, delivery],
+      [],
+      'today',
+      referenceDate
+    )[0];
+
+    const sections = clientExpandSections(row);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].label).toBe('Client tasks');
+    expect(String(sections[0].project._id)).toBe('hub1');
+    expect(sections[1].label).toBe('Website');
+    expect(String(sections[1].project._id)).toBe('p1');
   });
 });

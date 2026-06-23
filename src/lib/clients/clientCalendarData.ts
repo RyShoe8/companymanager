@@ -228,6 +228,20 @@ export function clientOverlapsDateRange(
   );
 }
 
+export type ClientExpandProjectSection = { project: IProject; label: string };
+
+/** Ordered project sections for client card expansion (hub first, then delivery projects). */
+export function clientExpandSections(row: ClientCalendarRow): ClientExpandProjectSection[] {
+  const sections: ClientExpandProjectSection[] = [];
+  if (row.hubProject) {
+    sections.push({ project: row.hubProject.project, label: 'Client tasks' });
+  }
+  for (const projectRow of row.projects) {
+    sections.push({ project: projectRow.project, label: projectRow.project.name });
+  }
+  return sections;
+}
+
 /** Clients with activity in [rangeStart, rangeEnd], sorted by activity then name. */
 export function clientsForRange(
   rows: ClientCalendarRow[],

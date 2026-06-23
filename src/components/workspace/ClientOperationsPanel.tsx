@@ -14,6 +14,7 @@ import PlatformUrlsSection from '@/components/shared/PlatformUrlsSection';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import ProjectTechStackBar from '@/components/projects/ProjectTechStackBar';
 import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStackBar';
+import ProjectCustomPlatformStacks from '@/components/projects/ProjectCustomPlatformStacks';
 import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
@@ -226,6 +227,15 @@ export default function ClientOperationsPanel({
           />
           <ProjectMarketingStackBar
             marketingStack={(localClient.marketingStack ?? []) as IProjectMarketingStackItem[]}
+            isManagerOrAdmin={isManagerOrAdmin}
+            surface="inspector"
+            onUpdate={async (updates) => {
+              setLocalClient((prev) => ({ ...prev, ...updates } as unknown as IClient));
+              await onUpdateClient(clientId, updates as Partial<IClient>);
+            }}
+          />
+          <ProjectCustomPlatformStacks
+            platformStacks={localClient.platformStacks}
             isManagerOrAdmin={isManagerOrAdmin}
             surface="inspector"
             onUpdate={async (updates) => {

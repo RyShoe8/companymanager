@@ -5,7 +5,7 @@ import PlatformOption from '@/lib/models/PlatformOption';
 import { requireAdminUser } from '@/lib/blog/requireAdmin';
 import { invalidatePlatformCatalogCache } from '@/lib/platformCatalog/loadPlatformCatalog';
 import { slugifyCatalogName } from '@/lib/platformCatalog/slugify';
-import type { PlatformStackType } from '@/lib/models/PlatformCategory';
+import PlatformStack from '@/lib/models/PlatformStack';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdminUser();
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
   await connectDB();
   const body = await request.json();
-  const stackType = body.stackType as PlatformStackType;
+  const stackType = typeof body.stackType === 'string' ? body.stackType.trim().toLowerCase() : '';
   const categorySlug = typeof body.categorySlug === 'string' ? body.categorySlug.trim().toLowerCase() : '';
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   const optionIdInput = typeof body.optionId === 'string' ? body.optionId.trim() : '';
@@ -25,8 +25,9 @@ export async function POST(request: NextRequest) {
       : optionId;
   const iconExtension = body.iconExtension === 'png' ? 'png' : 'svg';
 
-  if (stackType !== 'tech' && stackType !== 'marketing') {
-    return NextResponse.json({ error: 'stackType must be tech or marketing' }, { status: 400 });
+  const stack = await PlatformStack.findOne({ slug: stackType, isActive: true });
+  if (!stack) {
+    return NextResponse.json({ error: 'stackType must match an active platform stack' }, { status: 400 });
   }
   if (!categorySlug) return NextResponse.json({ error: 'categorySlug is required' }, { status: 400 });
   if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });

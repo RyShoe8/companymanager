@@ -64,6 +64,7 @@ import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/l
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import ProjectTechStackBar from '@/components/projects/ProjectTechStackBar';
 import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStackBar';
+import ProjectCustomPlatformStacks from '@/components/projects/ProjectCustomPlatformStacks';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectMarketingStackItem, IProjectSocialLink, IProjectTechStackItem } from '@/lib/models/Project';
 import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoContainer';
@@ -2284,6 +2285,19 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             />
             <ProjectMarketingStackBar
               marketingStack={(localProject.marketingStack ?? []) as IProjectMarketingStackItem[]}
+              isManagerOrAdmin={isManagerOrAdmin}
+              onUpdate={async (updates) => {
+                setLocalProject((prev) => ({ ...prev, ...updates } as IProject));
+                try {
+                  await onUpdate(updates);
+                } catch (error) {
+                  setLocalProject(project);
+                  alert(error instanceof Error ? error.message : 'Failed to save');
+                }
+              }}
+            />
+            <ProjectCustomPlatformStacks
+              platformStacks={localProject.platformStacks}
               isManagerOrAdmin={isManagerOrAdmin}
               onUpdate={async (updates) => {
                 setLocalProject((prev) => ({ ...prev, ...updates } as IProject));

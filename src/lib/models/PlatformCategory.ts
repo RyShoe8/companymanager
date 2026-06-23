@@ -1,9 +1,11 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export type PlatformStackType = 'tech' | 'marketing';
+export type PlatformStackSlug = string;
+/** @deprecated Use PlatformStackSlug — stack type is any active stack slug. */
+export type PlatformStackType = PlatformStackSlug;
 
 export interface IPlatformCategory extends Document {
-  stackType: PlatformStackType;
+  stackType: PlatformStackSlug;
   slug: string;
   label: string;
   displayOrder: number;
@@ -14,7 +16,7 @@ export interface IPlatformCategory extends Document {
 
 const PlatformCategorySchema = new Schema<IPlatformCategory>(
   {
-    stackType: { type: String, enum: ['tech', 'marketing'], required: true },
+    stackType: { type: String, required: true, trim: true, lowercase: true },
     slug: { type: String, required: true, trim: true, lowercase: true },
     label: { type: String, required: true, trim: true },
     displayOrder: { type: Number, default: 0 },

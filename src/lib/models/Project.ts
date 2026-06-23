@@ -6,11 +6,13 @@ import {
   type IProjectTechStackItem,
   type MarketingStackCategory,
   type IProjectMarketingStackItem,
+  type IPlatformStackItem,
   type ProjectActionButtonKind,
   type IProjectActionButton,
   socialLinksSchemaDefinition,
   techStackSchemaDefinition,
   marketingStackSchemaDefinition,
+  platformStacksSchemaDefinition,
   actionButtonsSchemaDefinition,
 } from '@/lib/models/platformFields';
 
@@ -21,6 +23,7 @@ export type {
   IProjectTechStackItem,
   MarketingStackCategory,
   IProjectMarketingStackItem,
+  IPlatformStackItem,
   ProjectActionButtonKind,
   IProjectActionButton,
 };
@@ -68,6 +71,8 @@ export interface IProject extends Document {
   techStack?: IProjectTechStackItem[];
   /** Marketing & analytics tools (email, analytics, social management, CRM). */
   marketingStack?: IProjectMarketingStackItem[];
+  /** Custom catalog-backed platform stacks (user-created stack types). */
+  platformStacks?: Record<string, IPlatformStackItem[]>;
   projectType: ProjectType;
   clientId?: Types.ObjectId | string;
   category: ProjectCategory;
@@ -134,6 +139,7 @@ const ProjectSchema: Schema = new Schema(
     },
     techStack: techStackSchemaDefinition,
     marketingStack: marketingStackSchemaDefinition,
+    platformStacks: platformStacksSchemaDefinition,
     projectType: {
       type: String,
       enum: ['internal', 'client', 'client-admin'],

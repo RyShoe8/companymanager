@@ -1,9 +1,15 @@
 import connectDB from '@/lib/db/mongodb';
 import PlatformCategory from '@/lib/models/PlatformCategory';
 import PlatformOption from '@/lib/models/PlatformOption';
+import PlatformStack from '@/lib/models/PlatformStack';
 import { buildPlatformCatalogSnapshot } from '@/lib/platformCatalog/buildSnapshot';
 import { seedPlatformCatalogIfEmpty } from '@/lib/platformCatalog/seedPlatformCatalog';
-import type { CatalogCategoryRow, CatalogOptionRow, PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
+import {
+  ensureBuiltinPlatformStacks,
+  seedPlatformStacksIfEmpty,
+  seedSocialsCatalogIfMissing,
+} from '@/lib/platformCatalog/seedPlatformStacks';
+import type { CatalogCategoryRow, CatalogOptionRow, CatalogStackRow, PlatformCatalogSnapshot } from '@/lib/platformCatalog/types';
 
 let cachedSnapshot: PlatformCatalogSnapshot | null = null;
 
@@ -15,12 +21,26 @@ export async function loadPlatformCatalog(): Promise<PlatformCatalogSnapshot> {
   if (cachedSnapshot) return cachedSnapshot;
 
   await connectDB();
+  await seedPlatformStacksIfEmpty();
+  await ensureBuiltinPlatformStacks();
   await seedPlatformCatalogIfEmpty();
+  await seedSocialsCatalogIfMissing();
 
-  const [categories, options] = await Promise.all([
+  const [stacks, categories, options] = await Promise.all([
+    PlatformStack.find().sort({ displayOrder: 1 }).lean(),
     PlatformCategory.find().sort({ stackType: 1, displayOrder: 1 }).lean(),
     PlatformOption.find().sort({ stackType: 1, displayOrder: 1 }).lean(),
   ]);
+
+  const stackRows: CatalogStackRow[] = stacks.map((s) => ({
+    id: s._id.toString(),
+    slug: s.slug,
+    label: s.label,
+    displayOrder: s.displayOrder,
+    isActive: s.isActive,
+    iconFolder: s.iconFolder,
+    linkingMode: s.linkingMode,
+  }));
 
   const categoryRows: CatalogCategoryRow[] = categories.map((c) => ({
     id: c._id.toString(),
@@ -45,6 +65,6 @@ export async function loadPlatformCatalog(): Promise<PlatformCatalogSnapshot> {
     isActive: o.isActive,
   }));
 
-  cachedSnapshot = buildPlatformCatalogSnapshot(categoryRows, optionRows);
+  cachedSnapshot = buildPlatformCatalogSnapshot(stackRows, categoryRows, optionRows);
   return cachedSnapshot;
 }

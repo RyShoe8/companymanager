@@ -18,6 +18,10 @@ import {
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
 import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
+import {
+  sanitizePlatformStacks,
+  validatePlatformStacksUpdate,
+} from '@/lib/platformCatalog/validatePlatformStacks';
 import { loadPlatformCatalog } from '@/lib/platformCatalog/loadPlatformCatalog';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { cleanupNewlyCompletedTasks, cleanupProjectMedia, normalizeTaskStatus } from '@/lib/projects/projectCleanup';
@@ -148,6 +152,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       socialsToolbarVisible,
       techStack,
       marketingStack,
+      platformStacks,
       allowBulkTaskExpand,
     } = body;
 
@@ -269,6 +274,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: marketingStackError }, { status: 400 });
       }
       project.marketingStack = sanitizeMarketingStack(marketingStack, platformCatalog) ?? [];
+    }
+    if (platformStacks !== undefined) {
+      const platformCatalog = await loadPlatformCatalog();
+      const platformStacksError = validatePlatformStacksUpdate(platformStacks, platformCatalog);
+      if (platformStacksError) {
+        return NextResponse.json({ error: platformStacksError }, { status: 400 });
+      }
+      project.platformStacks = sanitizePlatformStacks(platformStacks, platformCatalog) ?? {};
     }
     if (category !== undefined) project.category = category;
     if (projectType !== undefined) {

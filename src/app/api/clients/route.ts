@@ -178,7 +178,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const platformCatalog =
-      body.techStack !== undefined || body.marketingStack !== undefined
+      body.techStack !== undefined ||
+      body.marketingStack !== undefined ||
+      body.platformStacks !== undefined
         ? await loadPlatformCatalog()
         : undefined;
 

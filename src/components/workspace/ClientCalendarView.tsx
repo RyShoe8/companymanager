@@ -36,9 +36,19 @@ import {
   clientsForRange,
   computeClientTimeframeProgress,
   computeProjectTimeframeProgress,
+  clientExpandSections,
   type ClientCalendarProjectRow,
   type ClientCalendarRow,
 } from '@/lib/clients/clientCalendarData';
+import { buildProjectEntityRangeItems } from '@/lib/calendar/projectEntityRangeItems';
+import { isActiveMergedCalendarItem } from '@/lib/calendar/mergedCalendarItems';
+import CalendarExpandedRangeItems from '@/components/planning-map/CalendarExpandedRangeItems';
+import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
+import type { IProjectTask } from '@/lib/models/Project';
+import {
+  buildContentItemKey,
+  buildTaskItemKey,
+} from '@/lib/workspace/itemSeenState';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
 import {
@@ -485,13 +495,105 @@ export default function ClientCalendarView({
       }
       return <div className="p-6">{renderItemCardList(items)}</div>;
     }
+
+    const today = new Date(startDate);
+    today.setHours(0, 0, 0, 0);
+
+    const taskSeenStatus = (project: IProject, task: IProjectTask): ItemSeenStatus => {
+      const idx = resolveTaskIndexInProject(project, task);
+      if (idx < 0) return 'none';
+      const key = buildTaskItemKey(
+        project._id.toString(),
+        (task as { _id?: { toString(): string } })._id?.toString() ?? null,
+        idx
+      );
+      return itemStatusByKey[key] ?? 'none';
+    };
+
+    const contentSeenStatus = (project: IProject, item: IContentItem): ItemSeenStatus =>
+      itemStatusByKey[
+        buildContentItemKey(item.projectId?.toString() ?? project._id.toString(), item._id.toString())
+      ] ?? 'none';
+
+    if (visibleRows.length === 0) {
+      return (
+        <div className="p-8 min-h-[600px]">
+          <EmptyStateIllustration
+            title="No clients in this period"
+            description="Add a client or adjust your timeframe to see client activity."
+          />
+        </div>
+      );
+    }
+
     return (
-      <div className="p-6">
-        {renderClientGrid(
-          visibleRows,
-          'No clients in this period',
-          'Add a client or adjust your timeframe to see client activity.'
-        )}
+      <div className="p-8 min-h-[600px]">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">
+          Clients ({visibleRows.length})
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {visibleRows.map((row) => {
+            const clientId = String(row.client._id);
+            const isExpanded = expandedClients.has(clientId);
+            const displayColor = row.client.color || '#3b82f6';
+            return (
+              <div
+                key={clientId}
+                className="p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
+                style={{
+                  backgroundColor: `${displayColor}F0`,
+                  borderColor: displayColor,
+                }}
+              >
+                <CalendarCardHeader
+                  name={row.client.name}
+                  logo={row.client.logo}
+                  color={displayColor}
+                  progressPercent={row.progressPercent}
+                  activeTaskCount={row.activeTaskCount}
+                  activeContentCount={row.activeContentCount}
+                  showTasks={true}
+                  showContent={true}
+                  isExpanded={isExpanded}
+                  onToggleExpand={() => toggleClientExpanded(clientId)}
+                  onTitleClick={() => onClientClick(row.client)}
+                />
+                {isExpanded ? (
+                  <div className="mt-4 space-y-4">
+                    {clientExpandSections(row).map((section) => {
+                      const projectId = String(section.project._id);
+                      const { merged } = buildProjectEntityRangeItems(
+                        section.project,
+                        contentItems,
+                        today,
+                        today,
+                        currentDate
+                      );
+                      const displayList = merged.filter(isActiveMergedCalendarItem);
+                      if (displayList.length === 0) return null;
+                      return (
+                        <div key={projectId}>
+                          <h4 className="text-sm font-semibold text-text-primary mb-2 opacity-90">
+                            {section.label}
+                          </h4>
+                          <CalendarExpandedRangeItems
+                            project={section.project}
+                            items={displayList}
+                            keyPrefix={`${clientId}-${projectId}-today`}
+                            onTaskClick={onTaskClick}
+                            onContentItemClick={onContentItemClick}
+                            getTaskSeenStatus={taskSeenStatus}
+                            getContentSeenStatus={contentSeenStatus}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };

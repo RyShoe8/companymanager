@@ -12,6 +12,7 @@ describe('platform catalog snapshot', () => {
     expect(snap.marketing.categorySlugs).toEqual(MARKETING_STACK_CATEGORIES);
     expect(snap.techOptionsById.size).toBe(TECH_STACK_CATALOG.length);
     expect(snap.marketingOptionsById.size).toBe(MARKETING_STACK_CATALOG.length);
+    expect(snap.stacks.map((s) => s.slug)).toEqual(['tech', 'marketing', 'socials']);
   });
 
   it('public catalog filters inactive categories and options', () => {
@@ -24,7 +25,7 @@ describe('platform catalog snapshot', () => {
       ...snap.tech.options.map((o) => ({ ...o, isActive: o.optionId !== 'vercel' })),
       ...snap.marketing.options,
     ];
-    const modified = buildPlatformCatalogSnapshot(categories, options);
+    const modified = buildPlatformCatalogSnapshot(snap.stacks, categories, options);
     const pub = toPublicCatalog(modified);
     expect(pub.tech.categorySlugs).not.toContain('api');
     expect(pub.tech.options.find((o) => o.optionId === 'vercel')).toBeUndefined();
@@ -49,6 +50,7 @@ describe('platform catalog validation', () => {
 
   it('keeps inactive option when already linked', () => {
     const inactive = buildPlatformCatalogSnapshot(
+      snap.stacks,
       snap.tech.categories.map((c) => ({ ...c })),
       snap.tech.options.map((o) =>
         o.optionId === 'vercel' ? { ...o, isActive: false } : { ...o }
