@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Types } from 'mongoose';
 import connectDB from '@/lib/db/mongodb';
-import Asset, { type AssetType } from '@/lib/models/Asset';
+import Asset, { type AssetType, type IAsset } from '@/lib/models/Asset';
 import { validateAssetLinkExclusivity } from '@/lib/assets/validateAssetLinks';
 import {
   assertCanLinkAsset,
@@ -21,12 +21,17 @@ export type GoogleAssetLinkBody = {
   linkedProjectTaskId?: string;
   linkedContentItemId?: string;
   clientAccessible?: boolean;
+  tags?: string[];
 };
 
-export async function createGoogleLinkedAsset(
+export type CreateGoogleLinkedAssetResult =
+  | { ok: true; asset: IAsset }
+  | { ok: false; error: string; status: number };
+
+export async function createGoogleLinkedAssetRecord(
   session: { userId: string },
   body: GoogleAssetLinkBody
-): Promise<NextResponse> {
+): Promise<CreateGoogleLinkedAssetResult> {
   const {
     name,
     type,
@@ -39,10 +44,11 @@ export async function createGoogleLinkedAsset(
     linkedProjectTaskId,
     linkedContentItemId,
     clientAccessible,
+    tags,
   } = body;
 
   if (!name?.trim() || !type || !googleFileId || !url) {
-    return NextResponse.json({ error: 'Name, type, googleFileId, and url are required' }, { status: 400 });
+    return { ok: false, error: 'Name, type, googleFileId, and url are required', status: 400 };
   }
 
   const linkError = validateAssetLinkExclusivity({
@@ -53,13 +59,15 @@ export async function createGoogleLinkedAsset(
     linkedContentItemId,
   });
   if (linkError) {
-    return NextResponse.json({ error: linkError }, { status: 400 });
+    return { ok: false, error: linkError, status: 400 };
   }
 
   await connectDB();
 
   const ctx = await getAssetSessionContext(session.userId);
-  if (ctx instanceof NextResponse) return ctx;
+  if (ctx instanceof NextResponse) {
+    return { ok: false, error: 'Unauthorized', status: 401 };
+  }
 
   const scope = ctx.isManagerOrAdmin ? null : await buildAssetAccessScope(ctx);
   const linkDenied = await assertCanLinkAsset(
@@ -73,7 +81,17 @@ export async function createGoogleLinkedAsset(
     },
     scope ?? undefined
   );
-  if (linkDenied) return linkDenied;
+  if (linkDenied) {
+    const deniedBody = await linkDenied.json().catch(() => ({}));
+    const message =
+      typeof deniedBody === 'object' &&
+      deniedBody &&
+      'error' in deniedBody &&
+      typeof deniedBody.error === 'string'
+        ? deniedBody.error
+        : 'Cannot link asset';
+    return { ok: false, error: message, status: linkDenied.status };
+  }
 
   const assetData: Record<string, unknown> = {
     name: name.trim(),
@@ -82,7 +100,7 @@ export async function createGoogleLinkedAsset(
     googleFileId,
     googleMimeType,
     googleConnectedByUserId: new Types.ObjectId(session.userId),
-    tags: [],
+    tags: Array.isArray(tags) ? tags.filter((t) => typeof t === 'string' && t.trim()) : [],
     clientAccessible: clientAccessible === true,
     userId: session.userId,
   };
@@ -103,7 +121,18 @@ export async function createGoogleLinkedAsset(
   }
 
   const asset = await Asset.create(assetData);
-  return NextResponse.json(asset, { status: 201 });
+  return { ok: true, asset };
+}
+
+export async function createGoogleLinkedAsset(
+  session: { userId: string },
+  body: GoogleAssetLinkBody
+): Promise<NextResponse> {
+  const result = await createGoogleLinkedAssetRecord(session, body);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+  return NextResponse.json(result.asset, { status: 201 });
 }
 
 export type GoogleAssetLinkFields = Pick<

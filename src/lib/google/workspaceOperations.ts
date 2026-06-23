@@ -13,10 +13,13 @@ import {
 import { getGoogleDriveAccessTokenForUser } from '@/lib/google/driveConnection';
 import {
   createGoogleLinkedAsset,
+  createGoogleLinkedAssetRecord,
   parseGoogleAssetLinkFields,
   type GoogleAssetLinkFields,
 } from '@/lib/google/createGoogleLinkedAsset';
+import type { IAsset } from '@/lib/models/Asset';
 import { resolveShareEmailsForAssetLink } from '@/lib/google/resolveShareEmails';
+import type { ShareWarning } from '@/lib/google/drive';
 
 export async function requireDriveAccessToken(
   userId: string
@@ -31,18 +34,24 @@ export async function requireDriveAccessToken(
   return { accessToken };
 }
 
-export async function finalizeGoogleFileAsAsset(
+export type FinalizeGoogleFileResult =
+  | { ok: true; asset: IAsset; shareWarnings: ShareWarning[] }
+  | { ok: false; reason: 'no_drive' }
+  | { ok: false; reason: 'asset_error'; error: string };
+
+export async function finalizeGoogleFileAsAssetRecord(
   session: { userId: string },
   file: GoogleDriveFile,
   options: {
     name?: string;
     type?: 'document' | 'spreadsheet' | 'file';
     linkFields: GoogleAssetLinkFields;
+    tags?: string[];
   }
-): Promise<NextResponse> {
+): Promise<FinalizeGoogleFileResult> {
   const accessToken = await getGoogleDriveAccessTokenForUser(new Types.ObjectId(session.userId));
   if (!accessToken) {
-    return NextResponse.json({ error: 'Google Drive not connected' }, { status: 403 });
+    return { ok: false, reason: 'no_drive' };
   }
 
   const shareEmails = await resolveShareEmailsForAssetLink({
@@ -56,19 +65,70 @@ export async function finalizeGoogleFileAsAsset(
   const webViewLink =
     file.webViewLink ?? `https://drive.google.com/file/d/${file.id}/view`;
 
-  const assetResponse = await createGoogleLinkedAsset(session, {
+  const assetResult = await createGoogleLinkedAssetRecord(session, {
     name: (options.name ?? file.name).trim(),
     type: assetType,
     url: webViewLink,
     googleFileId: file.id,
     googleMimeType: file.mimeType,
+    tags: options.tags,
     ...options.linkFields,
   });
 
-  if (assetResponse.status !== 201) return assetResponse;
+  if (!assetResult.ok) {
+    return { ok: false, reason: 'asset_error', error: assetResult.error };
+  }
 
-  const asset = await assetResponse.json();
-  return NextResponse.json({ asset, shareWarnings }, { status: 201 });
+  return { ok: true, asset: assetResult.asset, shareWarnings };
+}
+
+export async function finalizeGoogleFileAsAsset(
+  session: { userId: string },
+  file: GoogleDriveFile,
+  options: {
+    name?: string;
+    type?: 'document' | 'spreadsheet' | 'file';
+    linkFields: GoogleAssetLinkFields;
+    tags?: string[];
+  }
+): Promise<NextResponse> {
+  const result = await finalizeGoogleFileAsAssetRecord(session, file, options);
+  if (!result.ok) {
+    if (result.reason === 'no_drive') {
+      return NextResponse.json({ error: 'Google Drive not connected' }, { status: 403 });
+    }
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  return NextResponse.json(
+    { asset: result.asset, shareWarnings: result.shareWarnings },
+    { status: 201 }
+  );
+}
+
+export type CreateGoogleDocLinkedAssetResult =
+  | { ok: true; asset: IAsset; shareWarnings: ShareWarning[] }
+  | { ok: false; reason: 'no_drive' }
+  | { ok: false; reason: 'asset_error'; error: string };
+
+export async function createGoogleDocLinkedAsset(
+  session: { userId: string },
+  name: string,
+  linkFields: GoogleAssetLinkFields,
+  tags?: string[]
+): Promise<CreateGoogleDocLinkedAssetResult> {
+  const accessToken = await getGoogleDriveAccessTokenForUser(new Types.ObjectId(session.userId));
+  if (!accessToken) {
+    return { ok: false, reason: 'no_drive' };
+  }
+
+  const file = await createGoogleDriveFile(accessToken, name.trim(), GOOGLE_DOC_MIME);
+  return finalizeGoogleFileAsAssetRecord(session, file, {
+    name,
+    type: 'document',
+    linkFields,
+    tags,
+  });
 }
 
 export async function createGoogleDocAsset(
@@ -76,11 +136,21 @@ export async function createGoogleDocAsset(
   name: string,
   linkFields: GoogleAssetLinkFields
 ): Promise<NextResponse> {
-  const tokenResult = await requireDriveAccessToken(session.userId);
-  if (tokenResult instanceof NextResponse) return tokenResult;
+  const result = await createGoogleDocLinkedAsset(session, name, linkFields);
+  if (!result.ok) {
+    if (result.reason === 'no_drive') {
+      return NextResponse.json(
+        { error: 'Google Drive not connected', code: 'GOOGLE_DRIVE_NOT_CONNECTED' },
+        { status: 403 }
+      );
+    }
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
 
-  const file = await createGoogleDriveFile(tokenResult.accessToken, name.trim(), GOOGLE_DOC_MIME);
-  return finalizeGoogleFileAsAsset(session, file, { name, type: 'document', linkFields });
+  return NextResponse.json(
+    { asset: result.asset, shareWarnings: result.shareWarnings },
+    { status: 201 }
+  );
 }
 
 export async function createGoogleSheetAsset(

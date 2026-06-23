@@ -21,6 +21,7 @@ import {
   listCalendarEvents,
 } from '@/lib/scheduling/googleCalendar';
 import { extractMeetingJoinUrl, type MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
+import { ensureMeetingNotesDocsForProjects } from '@/lib/scheduling/meetingNotesDoc';
 import {
   buildRecurrenceRule,
   type RecurrencePreset,
@@ -316,6 +317,15 @@ export async function POST(request: NextRequest) {
         .sort({ start: 1 })
         .lean();
 
+      let meetingNotes;
+      if (projectIds.length > 0 && meetings.length > 0) {
+        meetingNotes = await ensureMeetingNotesDocsForProjects({
+          userId: session.userId,
+          meeting: meetings[0],
+          newlyLinkedProjectIds: projectIds.map((id) => id.toString()),
+        });
+      }
+
       return NextResponse.json(
         {
           seriesId: created.id,
@@ -325,6 +335,7 @@ export async function POST(request: NextRequest) {
           meetings,
           invitesSent: invitees.googleAttendees.length,
           skippedAttendees: invitees.skipped,
+          ...(meetingNotes ? { meetingNotes } : {}),
         },
         { status: 201 }
       );
@@ -396,11 +407,21 @@ export async function POST(request: NextRequest) {
         : {}),
     });
 
+    let meetingNotes;
+    if (projectIds.length > 0) {
+      meetingNotes = await ensureMeetingNotesDocsForProjects({
+        userId: session.userId,
+        meeting,
+        newlyLinkedProjectIds: projectIds.map((id) => id.toString()),
+      });
+    }
+
     return NextResponse.json(
       {
         ...meeting.toObject(),
         invitesSent: invitees.googleAttendees.length,
         skippedAttendees: invitees.skipped,
+        ...(meetingNotes ? { meetingNotes } : {}),
       },
       { status: 201 }
     );

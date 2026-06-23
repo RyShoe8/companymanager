@@ -15,11 +15,16 @@ import { inferVideoModeFromMeeting } from '@/lib/scheduling/meetingVideoConferen
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
+import type { MeetingNotesFeedback } from '@/lib/scheduling/meetingNotesFeedback';
+import { parseMeetingNotesFeedback } from '@/lib/scheduling/meetingNotesFeedback';
 
 export type MeetingCreateSuccessInfo = {
   invitesSent?: number;
   skippedAttendees?: { name: string; reason: string }[];
+  meetingNotes?: MeetingNotesFeedback;
 };
+
+export { parseMeetingNotesFeedback };
 
 export type MeetingFormMeeting = {
   _id: string;
@@ -239,7 +244,7 @@ export default function MeetingFormModal({
           setError(typeof data.error === 'string' ? data.error : 'Failed to update meeting.');
           return;
         }
-        onSuccess?.();
+        onSuccess?.({ meetingNotes: parseMeetingNotesFeedback(data) });
         onClose();
         return;
       }
@@ -276,6 +281,7 @@ export default function MeetingFormModal({
       onSuccess?.({
         invitesSent: typeof data.invitesSent === 'number' ? data.invitesSent : undefined,
         skippedAttendees: Array.isArray(data.skippedAttendees) ? data.skippedAttendees : undefined,
+        meetingNotes: parseMeetingNotesFeedback(data),
       });
       onClose();
     } catch {

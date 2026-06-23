@@ -48,6 +48,7 @@ export async function PATCH(
       participantsUpdatedCount: result.participantsUpdatedCount,
       calendarsPatchedCount: result.calendarsPatchedCount,
       seriesUpdatedCount: result.seriesUpdatedCount,
+      ...(result.meetingNotes ? { meetingNotes: result.meetingNotes } : {}),
     });
   } catch (error) {
     console.error('Meeting PATCH error:', error);

@@ -25,6 +25,11 @@ import {
 } from '@/lib/scheduling/meetingVideoConference';
 import { upsertMeetingSeriesSettings } from '@/lib/scheduling/seriesProjectLinks';
 import {
+  diffNewlyLinkedProjects,
+  ensureMeetingNotesDocsForProjects,
+  type MeetingNotesResult,
+} from '@/lib/scheduling/meetingNotesDoc';
+import {
   getOrganizationUserIds,
   migrateProjectFields,
   migrateStagesToTasks,
@@ -141,6 +146,27 @@ async function syncGoogleEventForMeeting(params: {
   }
 }
 
+async function applyMeetingNotesOnLinkChange(
+  userId: string,
+  meeting: IMeeting,
+  previousLinkedProjectIds: string[]
+): Promise<MeetingNotesResult | undefined> {
+  const currentIds = (meeting.linkedProjectIds || []).map((id) => id.toString());
+  const newlyLinked = diffNewlyLinkedProjects(previousLinkedProjectIds, currentIds);
+  if (newlyLinked.length === 0) return undefined;
+
+  const result = await ensureMeetingNotesDocsForProjects({
+    userId,
+    meeting,
+    newlyLinkedProjectIds: newlyLinked,
+  });
+
+  if (result.created.length === 0 && !result.notice && result.shareWarnings.length === 0) {
+    return undefined;
+  }
+  return result;
+}
+
 export async function updateMeetingRecord(params: {
   meeting: IMeeting;
   userId: string;
@@ -152,8 +178,10 @@ export async function updateMeetingRecord(params: {
   participantsUpdatedCount?: number;
   calendarsPatchedCount?: number;
   seriesUpdatedCount?: number;
+  meetingNotes?: MeetingNotesResult;
 }> {
   const { meeting, userId, organizationId, body, baseUrl } = params;
+  const previousLinkedProjectIds = (meeting.linkedProjectIds || []).map((id) => id.toString());
   const scope: MeetingUpdateScope =
     body.scope === 'series' && meeting.googleRecurringEventId ? 'series' : 'instance';
 
@@ -212,6 +240,7 @@ export async function updateMeetingRecord(params: {
       attendeeEmployeeIds: meeting.attendeeEmployeeIds,
       externalAttendeeEmails: meeting.externalAttendeeEmails,
     });
+    const meetingNotes = await applyMeetingNotesOnLinkChange(userId, meeting, previousLinkedProjectIds);
     return {
       meeting,
       participantsUpdatedCount: result.participantsUpdatedCount,
@@ -219,6 +248,7 @@ export async function updateMeetingRecord(params: {
       seriesUpdatedCount: meeting.googleRecurringEventId
         ? result.participantsUpdatedCount
         : undefined,
+      meetingNotes,
     };
   }
 
@@ -366,11 +396,14 @@ export async function updateMeetingRecord(params: {
     await meeting.save();
   }
 
+  const meetingNotes = await applyMeetingNotesOnLinkChange(userId, meeting, previousLinkedProjectIds);
+
   return {
     meeting,
     participantsUpdatedCount: scope === 'series' ? targets.length : undefined,
     calendarsPatchedCount,
     seriesUpdatedCount: scope === 'series' ? targets.length : undefined,
+    meetingNotes,
   };
 }
 

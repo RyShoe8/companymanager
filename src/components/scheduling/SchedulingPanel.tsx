@@ -15,6 +15,8 @@ import Button from '@/components/ui/Button';
 import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker';
 import type { TimeframeType } from '@/lib/utils/dateUtils';
 import type { MeetingUpdateScope } from '@/components/scheduling/MeetingFormModal';
+import { appendMeetingNotesMessage } from '@/lib/scheduling/meetingNotesDoc';
+import { parseMeetingNotesFeedback } from '@/lib/scheduling/meetingNotesFeedback';
 interface SchedulingPanelProps {
   projects: IProject[];
   clients: IClient[];
@@ -122,7 +124,9 @@ export default function SchedulingPanel({
       } else if (calendars > 0) {
         msg = 'Meeting links updated; agenda refreshed in your Google Calendar.';
       }
-      setPanelMessage(msg);
+      setPanelMessage(
+        appendMeetingNotesMessage(msg, parseMeetingNotesFeedback(data))
+      );
     } else {
       setPanelMessage(data.error || 'Failed to update meeting.');
     }
@@ -149,12 +153,12 @@ export default function SchedulingPanel({
     if (info?.skippedAttendees?.length) {
       msg += ` ${info.skippedAttendees.length} could not be invited (missing email).`;
     }
-    setPanelMessage(msg);
+    setPanelMessage(appendMeetingNotesMessage(msg, info?.meetingNotes));
   };
 
-  const handleMeetingUpdated = () => {
+  const handleMeetingUpdated = (info?: MeetingCreateSuccessInfo) => {
     onRefreshMeetings();
-    setPanelMessage('Meeting updated.');
+    setPanelMessage(appendMeetingNotesMessage('Meeting updated.', info?.meetingNotes));
   };
 
   const handleConfirmDelete = async () => {
