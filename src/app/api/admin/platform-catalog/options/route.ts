@@ -4,11 +4,8 @@ import PlatformCategory from '@/lib/models/PlatformCategory';
 import PlatformOption from '@/lib/models/PlatformOption';
 import { requireAdminUser } from '@/lib/blog/requireAdmin';
 import { invalidatePlatformCatalogCache } from '@/lib/platformCatalog/loadPlatformCatalog';
+import { slugifyCatalogName } from '@/lib/platformCatalog/slugify';
 import type { PlatformStackType } from '@/lib/models/PlatformCategory';
-
-function normalizeOptionId(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, '-');
-}
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdminUser();
@@ -18,8 +15,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const stackType = body.stackType as PlatformStackType;
   const categorySlug = typeof body.categorySlug === 'string' ? body.categorySlug.trim().toLowerCase() : '';
-  const optionId = typeof body.optionId === 'string' ? normalizeOptionId(body.optionId) : '';
   const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const optionIdInput = typeof body.optionId === 'string' ? body.optionId.trim() : '';
+  const optionId = optionIdInput ? slugifyCatalogName(optionIdInput) : slugifyCatalogName(name);
   const homepageUrl = typeof body.homepageUrl === 'string' ? body.homepageUrl.trim() : '';
   const simpleIconSlug =
     typeof body.simpleIconSlug === 'string' && body.simpleIconSlug.trim()
@@ -31,8 +29,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'stackType must be tech or marketing' }, { status: 400 });
   }
   if (!categorySlug) return NextResponse.json({ error: 'categorySlug is required' }, { status: 400 });
-  if (!optionId) return NextResponse.json({ error: 'optionId is required' }, { status: 400 });
   if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
+  if (!optionId) return NextResponse.json({ error: 'Could not derive optionId from name' }, { status: 400 });
   if (!homepageUrl) return NextResponse.json({ error: 'homepageUrl is required' }, { status: 400 });
 
   const category = await PlatformCategory.findOne({ stackType, slug: categorySlug });

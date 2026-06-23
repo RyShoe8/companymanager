@@ -56,8 +56,7 @@ export async function DELETE(
   const option = await PlatformOption.findById(id);
   if (!option) return NextResponse.json({ error: 'Option not found' }, { status: 404 });
 
-  option.isActive = false;
-  await option.save();
+  await option.deleteOne();
   invalidatePlatformCatalogCache();
   return NextResponse.json({ ok: true });
 }

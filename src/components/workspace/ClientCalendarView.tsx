@@ -73,12 +73,15 @@ function ProjectSubCard({
   row,
   client,
   onProjectClick,
+  titleOverride,
 }: {
   row: ClientCalendarProjectRow;
   client: IClient;
   onProjectClick?: (client: IClient, project: IProject) => void;
+  titleOverride?: string;
 }) {
   const { project, activeTaskCount, activeContentCount, progressPercent } = row;
+  const displayName = titleOverride ?? project.name;
   const displayColor = project.status === 'in-review' ? '#ef4444' : project.color || '#3b82f6';
   const headerTextClass = getProjectCardHeaderTextClass(displayColor);
 
@@ -100,11 +103,11 @@ function ProjectSubCard({
           {project.logo ? (
             <Image src={project.logo} alt="" width={28} height={28} className="w-full h-full object-cover" unoptimized />
           ) : (
-            <span className="text-xs">{project.name.charAt(0).toUpperCase()}</span>
+            <span className="text-xs">{displayName.charAt(0).toUpperCase()}</span>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h5 className={`text-sm font-bold truncate ${headerTextClass}`}>{project.name}</h5>
+          <h5 className={`text-sm font-bold truncate ${headerTextClass}`}>{displayName}</h5>
         </div>
       </div>
       <CalendarProgressBar progressPercent={progressPercent} headerTextClass={headerTextClass} />
@@ -138,7 +141,16 @@ function ClientCardBody({
   compact?: boolean;
   scheduledHoursOverride?: number;
 }) {
-  const { client, projects, activeTaskCount, activeContentCount, scheduledHours, progressPercent } = row;
+  const {
+    client,
+    projects,
+    hubProject,
+    activeTaskCount,
+    activeContentCount,
+    scheduledHours,
+    progressPercent,
+  } = row;
+  const hasExpandedContent = projects.length > 0 || !!hubProject;
   const displayColor = client.color || '#3b82f6';
 
   return (
@@ -159,8 +171,17 @@ function ClientCardBody({
         compact={compact}
         hoursInline={compact}
       />
-      {isExpanded && projects.length > 0 ? (
+      {isExpanded && hasExpandedContent ? (
         <div className="mt-3 pt-3 border-t border-white/20 space-y-2">
+          {hubProject ? (
+            <ProjectSubCard
+              key={`hub-${String(hubProject.project._id)}`}
+              row={hubProject}
+              client={client}
+              onProjectClick={onProjectClick}
+              titleOverride="Client tasks"
+            />
+          ) : null}
           {projects.map((projectRow) => (
             <ProjectSubCard
               key={String(projectRow.project._id)}
@@ -544,7 +565,7 @@ export default function ClientCalendarView({
       const clientId = String(row.client._id);
       const isExpanded = expandedClients.has(clientId);
       if (!isExpanded) return WEEKLY_HEADER_HEIGHT + 16;
-      const projectCount = row.projects.length;
+      const projectCount = row.projects.length + (row.hubProject ? 1 : 0);
       return (
         WEEKLY_HEADER_HEIGHT +
         (projectCount > 0 ? 12 + projectCount * WEEKLY_EXPANDED_PROJECT_HEIGHT : 0) +

@@ -47,14 +47,13 @@ export async function DELETE(
     stackType: category.stackType,
     categorySlug: category.slug,
   });
-  if (optionCount > 0) {
-    return NextResponse.json(
-      { error: 'Cannot delete category with options — deactivate instead' },
-      { status: 400 }
-    );
-  }
+
+  const deleteResult = await PlatformOption.deleteMany({
+    stackType: category.stackType,
+    categorySlug: category.slug,
+  });
 
   await category.deleteOne();
   invalidatePlatformCatalogCache();
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, deletedOptions: deleteResult.deletedCount ?? optionCount });
 }

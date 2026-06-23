@@ -4,11 +4,8 @@ import PlatformCategory from '@/lib/models/PlatformCategory';
 import PlatformOption from '@/lib/models/PlatformOption';
 import { requireAdminUser } from '@/lib/blog/requireAdmin';
 import { invalidatePlatformCatalogCache } from '@/lib/platformCatalog/loadPlatformCatalog';
+import { slugifyCatalogName } from '@/lib/platformCatalog/slugify';
 import type { PlatformStackType } from '@/lib/models/PlatformCategory';
-
-function normalizeSlug(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, '-');
-}
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdminUser();
@@ -17,14 +14,15 @@ export async function POST(request: NextRequest) {
   await connectDB();
   const body = await request.json();
   const stackType = body.stackType as PlatformStackType;
-  const slug = typeof body.slug === 'string' ? normalizeSlug(body.slug) : '';
   const label = typeof body.label === 'string' ? body.label.trim() : '';
+  const slugInput = typeof body.slug === 'string' ? body.slug.trim() : '';
+  const slug = slugInput ? slugifyCatalogName(slugInput) : slugifyCatalogName(label);
 
   if (stackType !== 'tech' && stackType !== 'marketing') {
     return NextResponse.json({ error: 'stackType must be tech or marketing' }, { status: 400 });
   }
-  if (!slug) return NextResponse.json({ error: 'slug is required' }, { status: 400 });
   if (!label) return NextResponse.json({ error: 'label is required' }, { status: 400 });
+  if (!slug) return NextResponse.json({ error: 'Could not derive slug from label' }, { status: 400 });
 
   const existing = await PlatformCategory.findOne({ stackType, slug });
   if (existing) {

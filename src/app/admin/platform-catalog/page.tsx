@@ -36,10 +36,8 @@ interface CatalogData {
 }
 
 const emptyOptionDraft = (): Partial<OptionRow> => ({
-  optionId: '',
   name: '',
   homepageUrl: '',
-  simpleIconSlug: '',
   iconExtension: 'svg',
   isActive: true,
 });
@@ -54,7 +52,6 @@ export default function AdminPlatformCatalogPage() {
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
   const [optionDraft, setOptionDraft] = useState<Partial<OptionRow>>(emptyOptionDraft());
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
-  const [newCategorySlug, setNewCategorySlug] = useState('');
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetOptionId, setUploadTargetOptionId] = useState<string | null>(null);
 
@@ -104,8 +101,8 @@ export default function AdminPlatformCatalogPage() {
   };
 
   const addCategory = async () => {
-    if (!newCategoryLabel.trim() || !newCategorySlug.trim()) {
-      alert('Label and slug are required');
+    if (!newCategoryLabel.trim()) {
+      alert('Label is required');
       return;
     }
     setSaving(true);
@@ -116,7 +113,6 @@ export default function AdminPlatformCatalogPage() {
         body: JSON.stringify({
           stackType: tab,
           label: newCategoryLabel.trim(),
-          slug: newCategorySlug.trim().toLowerCase(),
         }),
       });
       if (!res.ok) {
@@ -124,10 +120,34 @@ export default function AdminPlatformCatalogPage() {
         throw new Error(err.error || 'Failed to add category');
       }
       setNewCategoryLabel('');
-      setNewCategorySlug('');
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to add category');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteCategory = async (category: CategoryRow) => {
+    const count = category.options.length;
+    const message =
+      count > 0
+        ? `Delete "${category.label}" and ${count} option${count === 1 ? '' : 's'}? This cannot be undone.`
+        : `Delete "${category.label}"? This cannot be undone.`;
+    if (!confirm(message)) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/platform-catalog/categories/${category.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete category');
+      }
+      if (expandedCategoryId === category.id) setExpandedCategoryId(null);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to delete category');
     } finally {
       setSaving(false);
     }
@@ -176,20 +196,14 @@ export default function AdminPlatformCatalogPage() {
     setSaving(true);
     try {
       if (editingOptionId === 'new') {
-        if (!optionDraft.optionId?.trim()) {
-          alert('Option ID is required');
-          return;
-        }
         const res = await fetch('/api/admin/platform-catalog/options', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             stackType: tab,
             categorySlug: optionDraft.categorySlug,
-            optionId: optionDraft.optionId.trim(),
             name: optionDraft.name.trim(),
             homepageUrl: optionDraft.homepageUrl.trim(),
-            simpleIconSlug: optionDraft.simpleIconSlug?.trim() || optionDraft.optionId.trim(),
             iconExtension: optionDraft.iconExtension ?? 'svg',
           }),
         });
@@ -204,7 +218,6 @@ export default function AdminPlatformCatalogPage() {
           body: JSON.stringify({
             name: optionDraft.name.trim(),
             homepageUrl: optionDraft.homepageUrl.trim(),
-            simpleIconSlug: optionDraft.simpleIconSlug?.trim(),
             iconExtension: optionDraft.iconExtension ?? 'svg',
             isActive: optionDraft.isActive !== false,
           }),
@@ -270,17 +283,17 @@ export default function AdminPlatformCatalogPage() {
     }
   };
 
-  const hideOption = async (option: OptionRow) => {
-    if (!confirm(`Hide "${option.name}" from the linking picker?`)) return;
+  const deleteOption = async (option: OptionRow) => {
+    if (!confirm(`Permanently delete "${option.name}"? This cannot be undone.`)) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/admin/platform-catalog/options/${option.id}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to hide option');
+      if (!res.ok) throw new Error('Failed to delete option');
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to hide option');
+      alert(e instanceof Error ? e.message : 'Failed to delete option');
     } finally {
       setSaving(false);
     }
@@ -359,27 +372,12 @@ export default function AdminPlatformCatalogPage() {
       <Card className="p-4 mb-6">
         <h2 className="text-sm font-semibold mb-3">Add category</h2>
         <div className="flex flex-wrap gap-2 items-end">
-          <div className="flex-1 min-w-[10rem]">
-            <label className="text-xs text-text-secondary">Label</label>
+          <div className="flex-1 min-w-[12rem]">
+            <label className="text-xs text-text-secondary">Name</label>
             <Input
               value={newCategoryLabel}
-              onChange={(e) => {
-                setNewCategoryLabel(e.target.value);
-                if (!newCategorySlug) {
-                  setNewCategorySlug(
-                    e.target.value.trim().toLowerCase().replace(/\s+/g, '-')
-                  );
-                }
-              }}
+              onChange={(e) => setNewCategoryLabel(e.target.value)}
               placeholder="e.g. Hosting"
-            />
-          </div>
-          <div className="flex-1 min-w-[10rem]">
-            <label className="text-xs text-text-secondary">Slug</label>
-            <Input
-              value={newCategorySlug}
-              onChange={(e) => setNewCategorySlug(e.target.value)}
-              placeholder="e.g. hosting"
             />
           </div>
           <Button onClick={() => void addCategory()} disabled={saving}>
@@ -402,7 +400,6 @@ export default function AdminPlatformCatalogPage() {
                 >
                   {category.label}
                 </button>
-                <span className="text-xs text-text-secondary font-mono">{category.slug}</span>
                 {!category.isActive && (
                   <span className="text-xs text-amber-600">Hidden</span>
                 )}
@@ -440,6 +437,14 @@ export default function AdminPlatformCatalogPage() {
                 <Button size="sm" disabled={saving} onClick={() => startNewOption(category)}>
                   Add option
                 </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={saving}
+                  onClick={() => void deleteCategory(category)}
+                >
+                  Delete
+                </Button>
               </div>
             </div>
 
@@ -462,7 +467,6 @@ export default function AdminPlatformCatalogPage() {
                     />
                     <div className="flex-1 min-w-[12rem]">
                       <div className="text-sm font-medium">{option.name}</div>
-                      <div className="text-xs text-text-secondary font-mono">{option.optionId}</div>
                     </div>
                     {editingOptionId === option.id ? (
                       <div className="w-full grid gap-2 sm:grid-cols-2 mt-2">
@@ -476,13 +480,6 @@ export default function AdminPlatformCatalogPage() {
                           value={optionDraft.homepageUrl ?? ''}
                           onChange={(e) =>
                             setOptionDraft((d) => ({ ...d, homepageUrl: e.target.value }))
-                          }
-                        />
-                        <Input
-                          label="Simple Icons slug"
-                          value={optionDraft.simpleIconSlug ?? ''}
-                          onChange={(e) =>
-                            setOptionDraft((d) => ({ ...d, simpleIconSlug: e.target.value }))
                           }
                         />
                         <label className="flex items-center gap-2 text-sm mt-6">
@@ -536,16 +533,14 @@ export default function AdminPlatformCatalogPage() {
                         >
                           Upload icon
                         </Button>
-                        {option.isActive && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={saving}
-                            onClick={() => void hideOption(option)}
-                          >
-                            Hide
-                          </Button>
-                        )}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={saving}
+                          onClick={() => void deleteOption(option)}
+                        >
+                          Delete
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -556,17 +551,6 @@ export default function AdminPlatformCatalogPage() {
                     <h3 className="text-sm font-medium mb-2">New option</h3>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <Input
-                        label="Option ID (slug)"
-                        value={optionDraft.optionId ?? ''}
-                        onChange={(e) =>
-                          setOptionDraft((d) => ({
-                            ...d,
-                            optionId: e.target.value,
-                            simpleIconSlug: d.simpleIconSlug || e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
                         label="Name"
                         value={optionDraft.name ?? ''}
                         onChange={(e) => setOptionDraft((d) => ({ ...d, name: e.target.value }))}
@@ -576,13 +560,6 @@ export default function AdminPlatformCatalogPage() {
                         value={optionDraft.homepageUrl ?? ''}
                         onChange={(e) =>
                           setOptionDraft((d) => ({ ...d, homepageUrl: e.target.value }))
-                        }
-                      />
-                      <Input
-                        label="Simple Icons slug"
-                        value={optionDraft.simpleIconSlug ?? ''}
-                        onChange={(e) =>
-                          setOptionDraft((d) => ({ ...d, simpleIconSlug: e.target.value }))
                         }
                       />
                     </div>
