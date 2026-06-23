@@ -1,25 +1,40 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { IClient } from '@/lib/models/Client';
+import { IEmployee } from '@/lib/models/Employee';
 
 interface ClientCreateModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess?: (client: IClient) => void;
+    employees?: IEmployee[];
+    isManagerOrAdmin?: boolean;
 }
 
-export default function ClientCreateModal({ isOpen, onClose, onSuccess }: ClientCreateModalProps) {
+export default function ClientCreateModal({
+    isOpen,
+    onClose,
+    onSuccess,
+    employees = [],
+    isManagerOrAdmin = false,
+}: ClientCreateModalProps) {
     const [name, setName] = useState('');
     const [contactName, setContactName] = useState('');
     const [contactEmail, setContactEmail] = useState('');
     const [contactPhone, setContactPhone] = useState('');
     const [color, setColor] = useState('#3b82f6');
+    const [assignedToEmployeeIds, setAssignedToEmployeeIds] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setAssignedToEmployeeIds([]);
+    }, [isOpen]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -42,6 +57,7 @@ export default function ClientCreateModal({ isOpen, onClose, onSuccess }: Client
                     contactPhone: contactPhone.trim(),
                     color,
                     status: 'active',
+                    ...(assignedToEmployeeIds.length > 0 ? { assignedToEmployeeIds } : {}),
                 }),
             });
 
@@ -58,6 +74,7 @@ export default function ClientCreateModal({ isOpen, onClose, onSuccess }: Client
             setContactEmail('');
             setContactPhone('');
             setColor('#3b82f6');
+            setAssignedToEmployeeIds([]);
             
             onSuccess?.(client);
             onClose();
@@ -122,6 +139,38 @@ export default function ClientCreateModal({ isOpen, onClose, onSuccess }: Client
                         <span className="text-sm text-text-secondary">{color}</span>
                     </div>
                 </div>
+
+                {isManagerOrAdmin && employees.length > 0 && (
+                    <div>
+                        <label className="block text-sm font-medium text-text-primary mb-1">
+                            Assign Team Members
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {employees.map((emp) => {
+                                const id = emp._id.toString();
+                                const isSelected = assignedToEmployeeIds.includes(id);
+                                return (
+                                    <button
+                                        key={id}
+                                        type="button"
+                                        onClick={() => {
+                                            setAssignedToEmployeeIds((prev) =>
+                                                isSelected ? prev.filter((x) => x !== id) : [...prev, id]
+                                            );
+                                        }}
+                                        className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                                            isSelected
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        {emp.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
                     <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>

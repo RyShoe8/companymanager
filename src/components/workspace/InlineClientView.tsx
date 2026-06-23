@@ -27,6 +27,7 @@ import {
 import Image from 'next/image';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 import Button from '@/components/ui/Button';
+import MultiSelect from '@/components/ui/MultiSelect';
 
 interface InlineClientViewProps {
   client: IClient;
@@ -100,7 +101,7 @@ export default function InlineClientView({
     [timeframe, referenceDate]
   );
 
-  const handleClientFieldUpdate = async (updates: Partial<IClient> & Record<string, unknown>) => {
+  const handleClientFieldUpdate = async (updates: Record<string, unknown>) => {
     setLocalClient((prev) => ({ ...prev, ...updates } as IClient));
     try {
       await onUpdateClient(clientId, updates);
@@ -209,6 +210,29 @@ export default function InlineClientView({
                 Generate Impact Report
               </button>
             </div>
+            {isManagerOrAdmin && employees.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <MultiSelect
+                  label="Assigned to (client)"
+                  value={(() => {
+                    const ids = localClient.assignedToEmployeeIds ?? [];
+                    if (ids.length > 0) {
+                      return ids.map((id) =>
+                        typeof id === 'string' ? id : (id as { toString(): string }).toString()
+                      );
+                    }
+                    const single = localClient.assignedToEmployeeId;
+                    return single
+                      ? [typeof single === 'string' ? single : (single as { toString(): string }).toString()]
+                      : [];
+                  })()}
+                  onChange={(selectedIds) =>
+                    handleClientFieldUpdate({ assignedToEmployeeIds: selectedIds })
+                  }
+                  options={employees.map((emp) => ({ value: emp._id.toString(), label: emp.name }))}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

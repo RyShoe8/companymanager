@@ -503,17 +503,17 @@ export default function WorkspaceShell({
     );
 
     useEffect(() => {
-        if (!initialDeepLinkClientId || ws.clients.length === 0) return;
+        if (!initialDeepLinkClientId || ws.filteredClients.length === 0) return;
         ws.setLens('clients');
-    }, [initialDeepLinkClientId, ws.clients.length, ws.setLens]);
+    }, [initialDeepLinkClientId, ws.filteredClients.length, ws.setLens]);
 
     useEffect(() => {
-        if (deepLinkHandledRef.current || !initialDeepLinkClientId || ws.clients.length === 0) return;
-        const client = ws.clients.find((c) => c._id.toString() === initialDeepLinkClientId);
+        if (deepLinkHandledRef.current || !initialDeepLinkClientId || ws.filteredClients.length === 0) return;
+        const client = ws.filteredClients.find((c) => c._id.toString() === initialDeepLinkClientId);
         if (!client) return;
         deepLinkHandledRef.current = true;
         handleViewClient(client);
-    }, [initialDeepLinkClientId, ws.clients, handleViewClient]);
+    }, [initialDeepLinkClientId, ws.filteredClients, handleViewClient]);
 
     useEffect(() => {
         if (deepLinkHandledRef.current || !initialDeepLinkProjectId || ws.allProjects.length === 0) return;
@@ -1646,7 +1646,7 @@ _id.toString(), { tasks });
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0" data-tour="clients-main">
                                         <ClientScheduleLens
-                                                clients={ws.clients}
+                                                clients={ws.filteredClients}
                                                 allProjects={ws.allProjects}
                                                 contentItems={ws.contentItems}
                                                 showTasks={ws.showTasks}
@@ -1681,7 +1681,7 @@ _id.toString(), { tasks });
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <SchedulingPanel
                                             projects={ws.projectsForLens}
-                                            clients={ws.clients}
+                                            clients={ws.filteredClients}
                                             employees={ws.employees}
                                             currentUserEmployeeId={ws.currentUserEmployeeId}
                                             currentUserId={ws.currentUserId}
@@ -1825,6 +1825,8 @@ _id.toString(), { tasks });
                     <ClientCreateModal
                         isOpen={showClientCreateModal}
                         onClose={() => setShowClientCreateModal(false)}
+                        employees={ws.employees}
+                        isManagerOrAdmin={ws.isManagerOrAdmin}
                         onSuccess={() => {
                             ws.loadData({ silent: true });
                         }}
@@ -1834,7 +1836,7 @@ _id.toString(), { tasks });
                         isOpen={showMeetingModal}
                         onClose={() => setShowMeetingModal(false)}
                         projects={ws.allProjects}
-                        clients={ws.clients}
+                        clients={ws.filteredClients}
                         employees={ws.employees}
                         currentUserEmployeeId={ws.currentUserEmployeeId}
                         schedulingTimeZone={schedulingAvailability.timezone}
@@ -1855,7 +1857,7 @@ _id.toString(), { tasks });
                     <LinkTargetPickerModal
                         isOpen={projectPickerMode !== null}
                         title={projectPickerMode === 'task' ? 'Add task' : 'Add content'}
-                        clients={ws.clients}
+                        clients={ws.filteredClients}
                         projects={ws.allProjects}
                         currentUserEmployeeId={ws.currentUserEmployeeId}
                         isManagerOrAdmin={ws.isManagerOrAdmin}
@@ -1961,7 +1963,7 @@ _id.toString(), { tasks });
                             setAddContentVoicePrefill(null);
                         }}
                         project={addContentProject}
-                        clients={ws.clients}
+                        clients={ws.filteredClients}
                         defaultPublishDate={addContentDefaultDate}
                         initialTitle={addContentVoicePrefill?.title}
                         initialChannel={addContentVoicePrefill?.channel}
@@ -1979,7 +1981,7 @@ _id.toString(), { tasks });
                             focusId={inspectorFocus}
                             onClose={closeInspector}
                             projects={ws.allProjects}
-                            clients={ws.clients}
+                            clients={ws.filteredClients}
                             employees={ws.employees}
                             isManagerOrAdmin={ws.isManagerOrAdmin}
                             currentUserEmployeeId={ws.currentUserEmployeeId || undefined}
@@ -2038,7 +2040,7 @@ _id.toString(), { tasks });
                         >
                             <div className="p-4">
                                 <QuickProjectForm
-                                    clients={ws.clients}
+                                    clients={ws.filteredClients}
                                     employees={ws.employees}
                                     defaultStatus={defaultStatus}
                                     defaultClientId={projectFormDefaultClientId ?? undefined}
@@ -2062,7 +2064,7 @@ _id.toString(), { tasks });
                             title="New Project"
                         >
                             <QuickProjectForm
-                                clients={ws.clients}
+                                clients={ws.filteredClients}
                                 employees={ws.employees}
                                 defaultStatus={defaultStatus}
                                 defaultClientId={projectFormDefaultClientId ?? undefined}

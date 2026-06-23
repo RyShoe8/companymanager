@@ -309,7 +309,18 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Clean up assignments in projects and tasks using employeeId
     const Project = (await import('@/lib/models/Project')).default;
+    const Client = (await import('@/lib/models/Client')).default;
     const employeeId = id;
+
+    // Remove employee assignments from clients
+    await Client.updateMany(
+      { assignedToEmployeeIds: employeeId },
+      { $pull: { assignedToEmployeeIds: employeeId } }
+    );
+    await Client.updateMany(
+      { assignedToEmployeeId: employeeId },
+      { $unset: { assignedToEmployeeId: '' } }
+    );
 
     // Remove employee assignments from projects using employeeId
     await Project.updateMany(

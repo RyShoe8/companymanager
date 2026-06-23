@@ -9,6 +9,9 @@ export type ClientStatus = 'active' | 'inactive' | 'lead';
 export interface IClient extends Document, IPlatformOperationsFields {
   organizationId: Types.ObjectId;
   userIds: Types.ObjectId[];
+  /** Internal team members assigned to this client. */
+  assignedToEmployeeId?: Types.ObjectId;
+  assignedToEmployeeIds?: Types.ObjectId[];
   name: string;
   contactName?: string;
   contactEmail?: string;
@@ -35,6 +38,15 @@ const ClientSchema: Schema = new Schema(
         ref: 'User',
       },
     ],
+    assignedToEmployeeId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Employee',
+    },
+    assignedToEmployeeIds: {
+      type: [Schema.Types.ObjectId],
+      ref: 'Employee',
+      default: [],
+    },
     name: {
       type: String,
       required: true,
@@ -84,6 +96,7 @@ const ClientSchema: Schema = new Schema(
 );
 
 ClientSchema.index({ organizationId: 1, name: 1 });
+ClientSchema.index({ assignedToEmployeeIds: 1 });
 ClientSchema.index({ clientPortalSlug: 1 }, { sparse: true });
 ClientSchema.index({ 'techStack.technologyId': 1 });
 ClientSchema.index({ 'marketingStack.toolId': 1 });

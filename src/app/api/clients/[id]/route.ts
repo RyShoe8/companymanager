@@ -9,6 +9,7 @@ import {
   migrateHubOpsToClient,
   sanitizeClientForResponse,
 } from '@/lib/clients/clientApiHelpers';
+import { canUserAccessClient, validateClientAssignedEmployeeIds } from '@/lib/utils/clientTeam';
 
 async function getSessionContext(request: NextRequest) {
   const session = await requireAuth(request);
@@ -26,7 +27,7 @@ async function getSessionContext(request: NextRequest) {
   const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
   const isManagerOrAdmin = employee?.role === 'Administrator' || employee?.role === 'Manager';
 
-  return { session, user, isManagerOrAdmin, employee };
+  return { session, user, isManagerOrAdmin, employee, userRole: employee?.role || 'User' };
 }
 
 export async function GET(
@@ -50,6 +51,15 @@ export async function GET(
 
     if (migrateHubOpsToClient(client, hubProject as Parameters<typeof migrateHubOpsToClient>[1])) {
       await client.save();
+    }
+
+    if (
+      !canUserAccessClient(client, {
+        userRole: ctx.userRole,
+        employeeId: ctx.employee?._id?.toString() ?? null,
+      })
+    ) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
     const lean = client.toObject();
@@ -81,6 +91,16 @@ export async function PUT(
     }
 
     const beforeClient = client.toObject();
+
+    if (body.assignedToEmployeeIds !== undefined) {
+      const validation = await validateClientAssignedEmployeeIds(
+        ctx.user.organizationId,
+        body.assignedToEmployeeIds
+      );
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: validation.status });
+      }
+    }
 
     const result = applyClientUpdates(client, body, ctx.isManagerOrAdmin);
     if (!result.ok) {

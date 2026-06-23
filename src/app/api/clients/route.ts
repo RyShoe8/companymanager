@@ -3,6 +3,8 @@ import connectDB from '@/lib/db/mongodb';
 import Client from '@/lib/models/Client';
 import { requireAuth } from '@/lib/auth/middleware';
 import { applyClientUpdates, sanitizeClientForResponse } from '@/lib/clients/clientApiHelpers';
+import { buildClientsListQuery, validateClientAssignedEmployeeIds } from '@/lib/utils/clientTeam';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,11 +19,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User or organization not found' }, { status: 404 });
     }
 
-    const clients = await Client.find({ organizationId: user.organizationId }).sort({ name: 1 }).lean();
-
     const Employee = (await import('@/lib/models/Employee')).default;
     const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
     const isManagerOrAdmin = employee?.role === 'Administrator' || employee?.role === 'Manager';
+    const userRole = employee?.role || 'User';
+
+    const query = buildClientsListQuery({
+      organizationId: user.organizationId,
+      userRole,
+      currentUserEmployee: employee ? { _id: employee._id as Types.ObjectId } : null,
+    });
+
+    const clients = await Client.find(query).sort({ name: 1 }).lean();
 
     const sanitized = clients.map((c) =>
       sanitizeClientForResponse(c as object, isManagerOrAdmin)
@@ -59,6 +68,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client name is required' }, { status: 400 });
     }
 
+    let assignedToEmployeeIds: Types.ObjectId[] = [];
+    if (body.assignedToEmployeeIds !== undefined) {
+      const validation = await validateClientAssignedEmployeeIds(
+        user.organizationId,
+        body.assignedToEmployeeIds
+      );
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: validation.status });
+      }
+      assignedToEmployeeIds = validation.ids;
+    }
+
     const newClient = await Client.create({
       organizationId: user.organizationId,
       name: body.name,
@@ -71,6 +92,10 @@ export async function POST(request: NextRequest) {
       color: body.color || '#3b82f6',
       status: body.status || 'active',
       userIds: [],
+      assignedToEmployeeIds,
+      ...(assignedToEmployeeIds.length > 0
+        ? { assignedToEmployeeId: assignedToEmployeeIds[0] }
+        : {}),
     });
 
     const Project = (await import('@/lib/models/Project')).default;
@@ -140,6 +165,16 @@ export async function PATCH(request: NextRequest) {
         : null;
 
     const beforeClient = client.toObject();
+
+    if (body.assignedToEmployeeIds !== undefined) {
+      const validation = await validateClientAssignedEmployeeIds(
+        user.organizationId,
+        body.assignedToEmployeeIds
+      );
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: validation.status });
+      }
+    }
 
     const result = applyClientUpdates(client, body, true);
     if (!result.ok) {

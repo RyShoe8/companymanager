@@ -66,6 +66,7 @@ export interface WorkspaceState {
     // Filtered data
     filteredProjects: IProject[];
     filteredContentItems: IContentItem[];
+    filteredClients: IClient[];
 
     // Actions
     loadData: (options?: { silent?: boolean }) => Promise<void>;
@@ -302,6 +303,26 @@ export default function useWorkspaceData(
         [currentUserEmployeeId, currentUserEmployeeName]
     );
 
+    const filterClientsToMyAssignments = useCallback(
+        (list: IClient[]) =>
+            list.filter((client) => {
+                const assignedIds = (client as { assignedToEmployeeIds?: unknown[] }).assignedToEmployeeIds;
+                if (assignedIds && Array.isArray(assignedIds)) {
+                    if (
+                        assignedIds.some(
+                            (id: unknown) => id?.toString() === currentUserEmployeeId
+                        )
+                    ) {
+                        return true;
+                    }
+                }
+                const assignedId = (client as { assignedToEmployeeId?: { toString(): string } })
+                    .assignedToEmployeeId?.toString();
+                return assignedId === currentUserEmployeeId;
+            }),
+        [currentUserEmployeeId]
+    );
+
     // User-role + "my assignments" filter
     const filteredProjects = useMemo(() => {
         if (!currentUserRole) return [];
@@ -334,11 +355,24 @@ export default function useWorkspaceData(
         );
     }, [contentItems, shouldRestrictToMyAssignments, currentUserEmployeeId, currentUserId]);
 
+    const filteredClients = useMemo(() => {
+        if (!shouldRestrictToMyAssignments || !currentUserEmployeeId) {
+            return clients;
+        }
+        return filterClientsToMyAssignments(clients);
+    }, [
+        clients,
+        shouldRestrictToMyAssignments,
+        currentUserEmployeeId,
+        filterClientsToMyAssignments,
+    ]);
+
     return {
         projects,
         allProjects,
         projectsForLens,
         clients,
+        filteredClients,
         employees,
         contentItems,
         loading,

@@ -18,6 +18,7 @@ const CRM_FIELDS = new Set([
   'logo',
   'color',
   'status',
+  'assignedToEmployeeIds',
 ]);
 
 const OPS_FIELDS = new Set([
@@ -94,6 +95,31 @@ export function applyClientUpdates(
       return { ok: false, status: 400, error: 'Invalid status' };
     }
     client.status = status as IClient['status'];
+  }
+
+  if (body.assignedToEmployeeIds !== undefined) {
+    if (!Array.isArray(body.assignedToEmployeeIds)) {
+      return { ok: false, status: 400, error: 'assignedToEmployeeIds must be an array' };
+    }
+    const unique = [
+      ...new Set(
+        body.assignedToEmployeeIds
+          .map((id) => (id == null ? '' : String(id).trim()))
+          .filter(Boolean)
+      ),
+    ];
+    for (const id of unique) {
+      if (!Types.ObjectId.isValid(id)) {
+        return { ok: false, status: 400, error: `Invalid employee id: ${id}` };
+      }
+    }
+    if (unique.length === 0) {
+      client.assignedToEmployeeIds = [];
+      client.assignedToEmployeeId = undefined;
+    } else {
+      client.assignedToEmployeeIds = unique.map((id) => new Types.ObjectId(id));
+      client.assignedToEmployeeId = client.assignedToEmployeeIds[0];
+    }
   }
 
   if (body.url !== undefined) client.url = body.url ? String(body.url).trim() : undefined;
