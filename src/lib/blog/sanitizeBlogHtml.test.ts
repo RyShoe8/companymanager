@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeBlogBodyHtml } from '@/lib/blog/normalizeBlogBodyHtml';
 import { sanitizeBlogHtml } from '@/lib/blog/sanitizeBlogHtml';
+
+describe('normalizeBlogBodyHtml', () => {
+  it('converts empty paragraphs to br placeholders', () => {
+    expect(normalizeBlogBodyHtml('<p>A</p><p></p><p>B</p>')).toBe(
+      '<p>A</p><p><br></p><p>B</p>'
+    );
+    expect(normalizeBlogBodyHtml('<p>A</p><p> </p><p>&nbsp;</p><p>B</p>')).toBe(
+      '<p>A</p><p><br></p><p><br></p><p>B</p>'
+    );
+  });
+
+  it('leaves paragraphs with soft breaks unchanged', () => {
+    const html = '<p>line1<br><br>line2</p>';
+    expect(normalizeBlogBodyHtml(html)).toBe(html);
+  });
+});
 
 describe('sanitizeBlogHtml', () => {
   it('strips script tags and event handlers', () => {
@@ -23,6 +40,17 @@ describe('sanitizeBlogHtml', () => {
     const clean = sanitizeBlogHtml(html);
     expect(clean).toContain('href="https://example.com"');
     expect(clean).toContain('src="/uploads/blog/test.webp"');
+  });
+
+  it('normalizes empty paragraphs after sanitization', () => {
+    expect(sanitizeBlogHtml('<p>A</p><p></p><p>B</p>')).toBe(
+      '<p>A</p><p><br></p><p>B</p>'
+    );
+  });
+
+  it('preserves soft breaks inside paragraphs', () => {
+    const html = '<p>line1<br><br>line2</p>';
+    expect(sanitizeBlogHtml(html)).toBe('<p>line1<br /><br />line2</p>');
   });
 
   it('returns empty string for empty input', () => {

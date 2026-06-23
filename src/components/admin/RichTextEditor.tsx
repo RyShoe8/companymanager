@@ -6,6 +6,7 @@ import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import { useCallback, useEffect } from 'react';
 import Button from '@/components/ui/Button';
+import { normalizeBlogBodyHtml } from '@/lib/blog/normalizeBlogBodyHtml';
 
 interface RichTextEditorProps {
   content: string;
@@ -50,7 +51,7 @@ export default function RichTextEditor({ content, onChange, onUploadImage }: Ric
     ],
     content,
     onUpdate: ({ editor: ed }) => {
-      onChange(ed.getHTML());
+      onChange(normalizeBlogBodyHtml(ed.getHTML()));
     },
     editorProps: {
       attributes: {

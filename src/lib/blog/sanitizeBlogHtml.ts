@@ -1,4 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
+import { normalizeBlogBodyHtml } from '@/lib/blog/normalizeBlogBodyHtml';
 
 const ALLOWED_TAGS = [
   'p',
@@ -26,12 +27,13 @@ const ALLOWED_ATTR = ['href', 'target', 'rel', 'src', 'alt', 'title', 'class'];
 
 export function sanitizeBlogHtml(html: string): string {
   if (!html) return '';
-  return sanitizeHtml(html, {
+  const clean = sanitizeHtml(html, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: {
       '*': ALLOWED_ATTR,
     },
   });
+  return normalizeBlogBodyHtml(clean);
 }
 
 export function safeSanitizeBlogHtml(

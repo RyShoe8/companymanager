@@ -9,6 +9,7 @@ import RichTextEditor from '@/components/admin/RichTextEditor';
 import { slugifyTitle } from '@/lib/blog/slugify';
 import { resolveBlogSeoFields } from '@/lib/blog/deriveBlogSeo';
 import { coverImageUrlError, COVER_IMAGE_URL_MAX } from '@/lib/blog/coverImageUrl';
+import { BLOG_PROSE_CLASS } from '@/lib/blog/blogConstants';
 import type { SerializedBlogPost } from '@/lib/blog/serializeBlogPost';
 
 export type BlogPostFormValues = {
@@ -156,6 +157,7 @@ export default function BlogPostForm({ mode, postId, initial }: BlogPostFormProp
       }
 
       const saved = (await res.json()) as SerializedBlogPost;
+      update({ bodyHtml: saved.bodyHtml, status: saved.status });
       if (mode === 'create') {
         router.push(`/admin/blog/${saved.id}/edit`);
       } else {
@@ -225,7 +227,7 @@ export default function BlogPostForm({ mode, postId, initial }: BlogPostFormProp
       {error && <p className="text-sm text-error">{error}</p>}
 
       {preview ? (
-        <article className="prose prose-invert max-w-none bg-background-card border border-border rounded-lg p-6">
+        <article className={`${BLOG_PROSE_CLASS} bg-background-card border border-border rounded-lg p-6`}>
           {values.coverImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img

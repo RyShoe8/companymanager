@@ -1,10 +1,11 @@
 import { sanitizeBlogHtml } from '@/lib/blog/sanitizeBlogHtml';
+import { BLOG_PROSE_CLASS } from '@/lib/blog/blogConstants';
 
 export default function BlogPostBody({ html }: { html: string }) {
   const safe = sanitizeBlogHtml(html);
   return (
     <div
-      className="prose prose-invert max-w-none prose-headings:text-text-primary prose-p:text-text-secondary prose-a:text-primary prose-img:rounded-lg"
+      className={BLOG_PROSE_CLASS}
       dangerouslySetInnerHTML={{ __html: safe }}
     />
   );
