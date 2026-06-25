@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import Button from '@/components/ui/Button';
 import ScreenshotNameDialog from '@/components/shared/ScreenshotNameDialog';
 import ScreenshotSaveDialog from '@/components/shared/ScreenshotSaveDialog';
@@ -58,7 +58,11 @@ export default function ScreenshotToolPanel({
     confirmName: screenshotConfirmName,
     downloadByName: screenshotDownloadByName,
     cancelNaming: screenshotCancelNaming,
+    captureFromUrl,
   } = useScreenshotUpload(target, onUploaded);
+
+  const [urlInput, setUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const controlsDisabled = screenshotBusy || isSelectingRegion;
 
@@ -114,8 +118,55 @@ export default function ScreenshotToolPanel({
               >
                 Select area
               </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  if (!controlsDisabled) setShowUrlInput(!showUrlInput);
+                }}
+                disabled={controlsDisabled}
+              >
+                Capture full page from URL
+              </Button>
             </>
           )}
+
+          {showUrlInput && (
+            <div className="flex gap-2">
+              <input
+                type="url"
+                placeholder="https://example.com"
+                className="flex-1 bg-background-elevated border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && urlInput.trim()) {
+                    e.preventDefault();
+                    void captureFromUrl(urlInput.trim());
+                    setShowUrlInput(false);
+                    setUrlInput('');
+                  }
+                }}
+                disabled={controlsDisabled}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (urlInput.trim()) {
+                    void captureFromUrl(urlInput.trim());
+                    setShowUrlInput(false);
+                    setUrlInput('');
+                  }
+                }}
+                disabled={controlsDisabled || !urlInput.trim()}
+              >
+                Capture
+              </Button>
+            </div>
+          )}
+
           {showFileUpload && (
             <Button
               type="button"

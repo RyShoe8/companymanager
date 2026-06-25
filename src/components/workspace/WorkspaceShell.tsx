@@ -1559,13 +1559,7 @@ _id.toString(), { tasks });
                                     onCreateTask={() => setProjectPickerMode('task')}
                                     onCreateContent={() => setProjectPickerMode('content')}
                                     onCreateMeeting={() => setShowMeetingModal(true)}
-                                    onCreateScreenshot={() => {
-                                        if (!isScreenshotCaptureSupported()) {
-                                            setShowScreenshotModal(true);
-                                            return;
-                                        }
-                                        void createScreenshot.captureAndUpload();
-                                    }}
+                                    onCreateScreenshot={() => setShowScreenshotModal(true)}
                                     onCreateRecord={() => {
                                         if (!isRecordingCaptureSupported()) {
                                             setShowRecordingModal(true);

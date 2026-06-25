@@ -247,6 +247,36 @@ export function useScreenshotUpload(
     },
     [reset]
   );
+  const captureFromUrl = useCallback(
+    async (url: string) => {
+      setStatus('capturing');
+      setStatusMessage('Capturing full page from URL...');
+      setErrorMessage(null);
+
+      try {
+        const res = await fetch('/api/screenshots/capture-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url }),
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || 'Failed to capture URL screenshot');
+        }
+
+        const blob = await res.blob();
+        const file = new File([blob], `screenshot-${new Date().getTime()}.png`, { type: 'image/png' });
+
+        await stageForNaming([file]);
+      } catch (error) {
+        handleCaptureError(error);
+      }
+    },
+    [stageForNaming, handleCaptureError]
+  );
 
   const startCapture = useCallback(
     async (mode: ScreenshotCaptureMode) => {
@@ -326,6 +356,7 @@ export function useScreenshotUpload(
     regionPreviewUrl,
     uploadFromFiles,
     startCapture,
+    captureFromUrl,
     captureAndUpload,
     confirmRegion,
     cancelRegionSelection,
