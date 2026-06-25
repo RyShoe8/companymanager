@@ -4,6 +4,7 @@ import {
   buildMeetingAgenda,
   formatAgendaPlainText,
 } from '@/lib/scheduling/buildMeetingAgenda';
+import { stripNucleasAgendaFromDescription } from '@/lib/scheduling/meetingAgendaDescription';
 import { patchCalendarEventDescription } from '@/lib/scheduling/googleCalendar';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
 import { Types } from 'mongoose';
@@ -26,7 +27,8 @@ export function buildMeetingFullDescription(
     projects
   );
   const agendaText = formatAgendaPlainText(agendaPayload);
-  return [meeting.description, agendaText].filter(Boolean).join('\n\n');
+  const userNotes = stripNucleasAgendaFromDescription(meeting.description);
+  return [userNotes, agendaText].filter(Boolean).join('\n\n');
 }
 
 export async function pushMeetingDescriptionToGoogle(

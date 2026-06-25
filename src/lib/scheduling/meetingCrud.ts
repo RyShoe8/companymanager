@@ -12,6 +12,7 @@ import {
   buildMeetingFullDescription,
   pushMeetingDescriptionToGoogle,
 } from '@/lib/scheduling/meetingCalendarSync';
+import { stripNucleasAgendaFromDescription } from '@/lib/scheduling/meetingAgendaDescription';
 import {
   findMeetingsForProjectPropagation,
   propagateMeetingProjectsAndCalendars,
@@ -255,7 +256,10 @@ export async function updateMeetingRecord(params: {
   if (body.title !== undefined) meeting.title = String(body.title).trim();
   if (body.start !== undefined) meeting.start = new Date(body.start);
   if (body.end !== undefined) meeting.end = new Date(body.end);
-  if (body.description !== undefined) meeting.description = body.description;
+  if (body.description !== undefined) {
+    const stripped = stripNucleasAgendaFromDescription(body.description);
+    meeting.description = stripped || undefined;
+  }
 
   if (linkedProjectsChanged) {
     meeting.linkedProjectIds = body.linkedProjectIds!
@@ -371,7 +375,14 @@ export async function updateMeetingRecord(params: {
       externalAttendeeEmails: meeting.externalAttendeeEmails,
     });
   } else {
-    if (video || body.title !== undefined || body.start !== undefined || body.end !== undefined || invitees) {
+    if (
+      video ||
+      body.title !== undefined ||
+      body.start !== undefined ||
+      body.end !== undefined ||
+      body.description !== undefined ||
+      invitees
+    ) {
       await syncGoogleEventForMeeting({
         meeting,
         userId: new Types.ObjectId(userId),

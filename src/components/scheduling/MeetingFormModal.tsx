@@ -12,6 +12,7 @@ import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import { formInputClass } from '@/components/ui/formClasses';
 import type { MeetingVideoMode } from '@/lib/scheduling/meetingVideoConference';
 import { inferVideoModeFromMeeting } from '@/lib/scheduling/meetingVideoConference';
+import { stripNucleasAgendaFromDescription } from '@/lib/scheduling/meetingAgendaDescription';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
@@ -127,7 +128,7 @@ export default function MeetingFormModal({
 
     if (mode === 'edit' && meeting) {
       setTitle(meeting.title);
-      setDescription(meeting.description || '');
+      setDescription(stripNucleasAgendaFromDescription(meeting.description) || '');
       setStart(toDatetimeLocal(meeting.start));
       setEnd(toDatetimeLocal(meeting.end));
       setLinkedProjectIds(meeting.linkedProjectIds || []);

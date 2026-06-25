@@ -11,6 +11,7 @@ import {
   resolveAttendeesFromGoogleEmails,
 } from '@/lib/scheduling/seriesProjectLinks';
 import { propagateMeetingInstanceToOrgCopies } from '@/lib/scheduling/propagateMeetingInstance';
+import { stripNucleasAgendaFromDescription } from '@/lib/scheduling/meetingAgendaDescription';
 import { Types } from 'mongoose';
 
 export type UpsertGoogleMeetingsOptions = {
@@ -27,23 +28,51 @@ export type UpsertGoogleMeetingsResult = {
   updated: number;
 };
 
+function descriptionForImport(
+  evDescription: string | undefined,
+  createdInNucleas: boolean,
+  defaultDescription?: string
+): string | undefined {
+  if (createdInNucleas) {
+    return defaultDescription || stripNucleasAgendaFromDescription(evDescription) || undefined;
+  }
+  const stripped = stripNucleasAgendaFromDescription(evDescription);
+  return stripped || defaultDescription || undefined;
+}
+
 export async function loadExistingMeetingsByGoogleEventId(
   userId: Types.ObjectId
-): Promise<Map<string, { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[]; linkedClientIds: Types.ObjectId[] }>> {
+): Promise<
+  Map<
+    string,
+    {
+      _id: Types.ObjectId;
+      linkedProjectIds: Types.ObjectId[];
+      linkedClientIds: Types.ObjectId[];
+      createdInNucleas: boolean;
+    }
+  >
+> {
   const existingByGoogleId = new Map<
     string,
-    { _id: Types.ObjectId; linkedProjectIds: Types.ObjectId[]; linkedClientIds: Types.ObjectId[] }
+    {
+      _id: Types.ObjectId;
+      linkedProjectIds: Types.ObjectId[];
+      linkedClientIds: Types.ObjectId[];
+      createdInNucleas: boolean;
+    }
   >();
   const existing = await Meeting.find({
     userId,
     googleEventId: { $exists: true, $ne: null },
-  }).select('googleEventId linkedProjectIds linkedClientIds');
+  }).select('googleEventId linkedProjectIds linkedClientIds createdInNucleas');
   for (const m of existing) {
     if (m.googleEventId) {
       existingByGoogleId.set(m.googleEventId, {
         _id: m._id,
         linkedProjectIds: m.linkedProjectIds || [],
         linkedClientIds: m.linkedClientIds || [],
+        createdInNucleas: m.createdInNucleas ?? false,
       });
     }
   }
@@ -122,8 +151,8 @@ export async function upsertMeetingsFromGoogleEvents(
     if (found) {
       const hasLinkedProjects = found.linkedProjectIds.length > 0;
       const hasLinkedClients = found.linkedClientIds.length > 0;
-      if (!hasLinkedProjects) {
-        payload.description = ev.description ?? defaultDescription;
+      if (!found.createdInNucleas && !hasLinkedProjects) {
+        payload.description = descriptionForImport(ev.description, false, defaultDescription);
       }
       if (!hasLinkedProjects && !hasLinkedClients) {
         // preserve explicit links from options when meeting has none yet
@@ -155,7 +184,7 @@ export async function upsertMeetingsFromGoogleEvents(
           userId: ctx.userId,
           organizationId: ctx.organizationId,
           ...payload,
-          description: ev.description ?? defaultDescription,
+          description: descriptionForImport(ev.description, createdInNucleas, defaultDescription),
           googleEventId: ev.id,
           agendaToken: generateAgendaToken(),
           createdInNucleas,
