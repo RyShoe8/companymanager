@@ -35,6 +35,7 @@ import { formInputClassInspector } from '@/components/ui/formClasses';
 import { IClient } from '@/lib/models/Client';
 import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
+import { useOnGoogleAssetCreated } from '@/hooks/google/useGoogleWorkspaceResume';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
 import { labelForPaletteIndex, parseCssColorInput, formatColorPaletteForCopy } from '@/lib/utils/cssColorInput';
@@ -405,6 +406,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   useEffect(() => {
     void loadLinkedAssets();
   }, [loadLinkedAssets]);
+
+  useOnGoogleAssetCreated(() => {
+    void loadLinkedAssets();
+    setTaskAssetsRefreshToken((n) => n + 1);
+  });
 
   useEffect(() => {
     setLinkedAssetTypeFilter('');

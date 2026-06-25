@@ -31,6 +31,7 @@ import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
 import { isRecordingCaptureSupported } from '@/lib/captureRecording';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
 import { useRecordingUpload } from '@/hooks/useRecordingUpload';
+import { useGoogleWorkspaceResume } from '@/hooks/google/useGoogleWorkspaceResume';
 import { useSchedulingCalendar } from '@/hooks/scheduling/useSchedulingCalendar';
 import { useSchedulingAvailability } from '@/hooks/scheduling/useSchedulingAvailability';
 import EmployeeSidebar from '@/components/planning-map/EmployeeSidebar';
@@ -155,7 +156,16 @@ export default function WorkspaceShell({
     }, []);
 
     const createScreenshot = useScreenshotUpload(null);
-    const createRecording = useRecordingUpload(null, undefined, () => setShowRecordingModal(false));
+    const closeRecordingModal = useCallback(() => setShowRecordingModal(false), []);
+    const createRecording = useRecordingUpload(null, closeRecordingModal, closeRecordingModal);
+
+    useEffect(() => {
+        if (createRecording.isNaming) {
+            setShowRecordingModal(false);
+        }
+    }, [createRecording.isNaming]);
+
+    useGoogleWorkspaceResume(setSchedulePanelMessage);
 
     const canCreateTaskOrContent = useMemo(
         () =>

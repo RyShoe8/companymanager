@@ -62,6 +62,13 @@ function formatElapsed(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+const VIDEO_FILE_EXTENSION = /\.(mp4|webm|mov|m4v|mkv|avi|ogv)$/i;
+
+function isVideoFile(file: File): boolean {
+  if (file.type.startsWith('video/')) return true;
+  return VIDEO_FILE_EXTENSION.test(file.name);
+}
+
 function postPopoutState(
   phase: 'stabilizing' | 'armed' | 'recording',
   elapsedSeconds: number,
@@ -614,7 +621,7 @@ export function useRecordingUpload(
 
   const uploadFromFiles = useCallback(
     async (files: File[]) => {
-      const video = files.find((f) => f.type.startsWith('video/'));
+      const video = files.find(isVideoFile);
       if (!video) {
         setStatus('error');
         setErrorMessage('Please select a video file.');

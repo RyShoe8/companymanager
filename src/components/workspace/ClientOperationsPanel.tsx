@@ -17,6 +17,7 @@ import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStac
 import ProjectCustomPlatformStacks from '@/components/projects/ProjectCustomPlatformStacks';
 import AddButton from '@/components/checklist/AddButton';
 import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
+import { useOnGoogleAssetCreated } from '@/hooks/google/useGoogleWorkspaceResume';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
@@ -141,6 +142,10 @@ export default function ClientOperationsPanel({
   useEffect(() => {
     void loadAssets();
   }, [loadAssets]);
+
+  useOnGoogleAssetCreated(() => {
+    void loadAssets();
+  });
 
   const handleFieldUpdate = async (field: keyof IClient, value: unknown) => {
     setLocalClient((prev) => ({ ...prev, [field]: value } as IClient));

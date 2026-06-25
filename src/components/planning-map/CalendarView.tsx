@@ -105,10 +105,8 @@ function taskOverlapsWeek(
 
 const UNSEEN_COLLAPSED_ROW_HEIGHT = 28;
 const UNSEEN_SECTION_PADDING = 12;
-const WEEKLY_EXPANDED_LIST_MAX_HEIGHT = 360;
 const WEEKLY_HEADER_HEIGHT = 72;
 const WEEKLY_BOTTOM_PADDING = 24;
-const MONTHLY_EXPANDED_LIST_MAX_HEIGHT = 400;
 
 interface CalendarViewProps {
   projects: IProject[];
@@ -1236,10 +1234,7 @@ export default function CalendarView({
 
                   const displayedCount = rangeDisplayList.length;
                   const taskGapHeight = displayedCount > 0 ? (displayedCount - 1) * 8 : 0;
-                  const listHeight = Math.min(
-                    displayedCount * RANGE_ITEM_ROW_HEIGHT + taskGapHeight,
-                    WEEKLY_EXPANDED_LIST_MAX_HEIGHT
-                  );
+                  const listHeight = displayedCount * RANGE_ITEM_ROW_HEIGHT + taskGapHeight;
                   return (
                     WEEKLY_HEADER_HEIGHT +
                     16 +
@@ -1376,19 +1371,14 @@ export default function CalendarView({
                           : [];
 
                         return (
-                          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                          <div className="px-2 pb-2">
                             {weekSummary.displayList.length > 0 ? (
-                              <div className="mt-4 px-6 pb-6 flex flex-col flex-1 min-h-0">
-                                <div
-                                  className="overflow-y-auto"
-                                  style={{ maxHeight: WEEKLY_EXPANDED_LIST_MAX_HEIGHT }}
-                                >
-                                  {expandedRangeItems(
-                                    project,
-                                    weekSummary.displayList,
-                                    `${projectId}-weekly`
-                                  )}
-                                </div>
+                              <div className="mt-4 px-4 pb-4">
+                                {expandedRangeItems(
+                                  project,
+                                  weekSummary.displayList,
+                                  `${projectId}-weekly`
+                                )}
                               </div>
                             ) : visibleTasks.length === 0 &&
                               hasTasks &&
@@ -1571,10 +1561,7 @@ export default function CalendarView({
                             return (
                             <div className="px-2 pb-2">
                               {summary.displayList.length > 0 ? (
-                                <div
-                                  className="overflow-y-auto"
-                                  style={{ maxHeight: MONTHLY_EXPANDED_LIST_MAX_HEIGHT }}
-                                >
+                                <div className="mt-2 px-1">
                                   {expandedRangeItems(
                                     project,
                                     summary.displayList,

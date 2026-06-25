@@ -335,7 +335,6 @@ export default function CategoryModal({
   useEffect(() => {
     const pending = googleWorkspace.readPendingAction();
     if (!pending || !googleWorkspace.status.connected) return;
-    googleWorkspace.clearPendingAction();
     if (pending.draftName) setGoogleName(pending.draftName);
     if (pending.step === 'googleDocument' || pending.step === 'googleSpreadsheet' || pending.step === 'googleFile') {
       setStep(pending.step);

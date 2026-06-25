@@ -19,6 +19,7 @@ import {
   type LinkedAssetChip,
 } from '@/lib/utils/linkedAssets';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+import { useOnGoogleAssetCreated } from '@/hooks/google/useGoogleWorkspaceResume';
 
 function isTextDocumentAssetType(type: string): boolean {
   return type === 'text';
@@ -113,6 +114,10 @@ export default function ContentItemAssetsSection({
   useEffect(() => {
     void loadAssets();
   }, [loadAssets, refreshToken]);
+
+  useOnGoogleAssetCreated(() => {
+    void loadAssets();
+  });
 
   const confirmDeleteAsset = async () => {
     if (!assetPendingDelete) return;
