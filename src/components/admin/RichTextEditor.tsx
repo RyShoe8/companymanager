@@ -6,6 +6,7 @@ import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import { useCallback, useEffect, useRef } from 'react';
 import Button from '@/components/ui/Button';
+import { BLOG_EDITOR_PROSE_CLASS } from '@/lib/blog/blogConstants';
 import { canonicalizeBlogHtmlForCompare } from '@/lib/blog/normalizeBlogBodyHtml';
 
 interface RichTextEditorProps {
@@ -58,8 +59,7 @@ export default function RichTextEditor({ content, onChange, onUploadImage }: Ric
     },
     editorProps: {
       attributes: {
-        class:
-          'prose prose-invert max-w-none min-h-[280px] px-4 py-3 focus:outline-none text-text-primary',
+        class: BLOG_EDITOR_PROSE_CLASS,
       },
     },
   });

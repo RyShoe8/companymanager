@@ -9,7 +9,7 @@ import RichTextEditor from '@/components/admin/RichTextEditor';
 import { slugifyTitle } from '@/lib/blog/slugify';
 import { resolveBlogSeoFields } from '@/lib/blog/deriveBlogSeo';
 import { coverImageUrlError, COVER_IMAGE_URL_MAX } from '@/lib/blog/coverImageUrl';
-import { BLOG_PROSE_CLASS } from '@/lib/blog/blogConstants';
+import BlogPostBody from '@/components/blog/BlogPostBody';
 import type { SerializedBlogPost } from '@/lib/blog/serializeBlogPost';
 
 export type BlogPostFormValues = {
@@ -236,7 +236,7 @@ export default function BlogPostForm({ mode, postId, initial }: BlogPostFormProp
       {error && <p className="text-sm text-error">{error}</p>}
 
       {preview ? (
-        <article className={`${BLOG_PROSE_CLASS} bg-background-card border border-border rounded-lg p-6`}>
+        <article className="bg-background-card border border-border rounded-lg p-6">
           {values.coverImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -245,9 +245,9 @@ export default function BlogPostForm({ mode, postId, initial }: BlogPostFormProp
               className="w-full max-h-80 object-cover rounded-lg mb-6"
             />
           )}
-          <h1>{values.title || 'Untitled'}</h1>
+          <h1 className="text-text-primary text-2xl font-bold">{values.title || 'Untitled'}</h1>
           {values.excerpt && <p className="text-text-secondary text-lg">{values.excerpt}</p>}
-          <div dangerouslySetInnerHTML={{ __html: values.bodyHtml }} />
+          <BlogPostBody html={values.bodyHtml} />
         </article>
       ) : (
         <>
