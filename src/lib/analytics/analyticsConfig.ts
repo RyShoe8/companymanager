@@ -1,5 +1,5 @@
 export const COOKIE_SCRIPT_SRC =
-  '//cdn.cookie-script.com/s/59ce82450accfaf4f6d3d94203a5d496.js';
+  'https://cdn.cookie-script.com/s/59ce82450accfaf4f6d3d94203a5d496.js';
 
 export const GA_MEASUREMENT_ID = 'G-C71LD7T8PT';
 
