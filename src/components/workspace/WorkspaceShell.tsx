@@ -1877,7 +1877,7 @@ _id.toString(), { tasks });
                         onClose={() => setShowScreenshotModal(false)}
                         target={null}
                         projects={ws.allProjects}
-                        uploadOnly
+                        uploadOnly={!isScreenshotCaptureSupported()}
                     />
 
                     <RecordingToolModal
