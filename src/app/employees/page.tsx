@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import type { EmployeeLimitInfo, PublicPricingPlan } from 'billing-engine/client';
 import { seatUsageLine } from '@/lib/billing/seatDisplay';
+import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
 
 type BillingSeatPayload = {
   seatLimits?: EmployeeLimitInfo | null;
@@ -174,7 +175,7 @@ export default function EmployeesPage() {
   const atSeatLimit = seatLimits !== null && !seatLimits.canAddMore;
 
   return (
-    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
+    <div className={`min-h-screen bg-background ${PAGE_GUTTER_WIDE_CLASS} py-8`}>
       <div className="w-full mx-auto max-w-7xl">
         <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <h1 className="text-3xl font-bold text-text-primary">Team</h1>

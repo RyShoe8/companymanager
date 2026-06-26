@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { BLOG_NAME } from '@/lib/blog/blogConstants';
 import { COMMUNITY_SOCIAL_LINKS } from '@/lib/constants/communitySocialLinks';
 import RecaptchaNotice from '@/components/recaptcha/RecaptchaNotice';
+import { PAGE_GUTTER_CLASS } from '@/lib/ui/mobileLayout';
 
 const featureLinks = [
   { href: '/features/projects', label: 'Projects' },
@@ -62,7 +63,7 @@ const legalLinks = [
 export default function Footer() {
   return (
     <footer className="bg-background border-t border-white/10 mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+      <div className={`max-w-7xl mx-auto ${PAGE_GUTTER_CLASS} py-12 md:py-16`}>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-10 lg:gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-4 lg:col-span-2">

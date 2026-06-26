@@ -136,7 +136,7 @@ export default function InlineClientView({
 
   return (
     <div className="space-y-4">
-      <div className={`rounded-lg p-4 border ${lightSurface('bg-white border-gray-200', 'dark:bg-gray-800 dark:border-gray-700', light)}`}>
+      <div className={`rounded-lg p-2 md:p-4 border ${lightSurface('bg-white border-gray-200', 'dark:bg-gray-800 dark:border-gray-700', light)}`}>
         <div className="flex items-start gap-3">
           <div className="flex flex-col items-center gap-2 shrink-0">
             <ClientLogo
@@ -327,7 +327,7 @@ export default function InlineClientView({
                   key={String(project._id)}
                   type="button"
                   onClick={() => onViewProject(project)}
-                  className="text-left p-4 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative w-full"
+                  className="text-left p-2 md:p-4 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative w-full"
                   style={{
                     backgroundColor: `${displayColor}F0`,
                     borderColor: displayColor,

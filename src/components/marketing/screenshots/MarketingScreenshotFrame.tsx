@@ -7,6 +7,8 @@ type MarketingScreenshotFrameProps = {
   glow?: GlowVariant;
   className?: string;
   alt?: string;
+  /** When true, touch/click passes through the frame (marketing previews). */
+  nonInteractive?: boolean;
 };
 
 const glowClasses: Record<GlowVariant, string> = {
@@ -20,6 +22,7 @@ export default function MarketingScreenshotFrame({
   glow = 'primary',
   className,
   alt,
+  nonInteractive = false,
 }: MarketingScreenshotFrameProps) {
   return (
     <div className={cn('max-w-4xl mx-auto relative', className)}>
@@ -31,7 +34,10 @@ export default function MarketingScreenshotFrame({
         aria-hidden
       />
       <div
-        className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
+        className={cn(
+          'relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl',
+          nonInteractive && 'pointer-events-none select-none'
+        )}
         role={alt ? 'img' : undefined}
         aria-label={alt}
       >

@@ -51,7 +51,9 @@ import CommandRegistry from '@/lib/commands/CommandRegistry';
 import CommandPalette from '@/components/workspace/CommandPalette';
 import VoiceProvider from '@/components/voice/VoiceProvider';
 import FeedbackLauncher from '@/components/feedback/FeedbackLauncher';
-import VoiceOverlay, { VoiceButton } from '@/components/voice/VoiceOverlay';
+import VoiceOverlay from '@/components/voice/VoiceOverlay';
+import MobileShellBridge from '@/components/mobile/MobileShellBridge';
+import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
 import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmationContext';
 import { fetchEstimatedHoursBatch } from '@/lib/ai/clientEstimateHours';
 import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
@@ -511,6 +513,42 @@ export default function WorkspaceShell({
             applyProjectInspectorExpandFlags(project._id.toString(), { contentExpanded: true });
         },
         [applyProjectInspectorExpandFlags]
+    );
+
+    const handleCreateRecord = useCallback(() => {
+        setShowRecordingModal(true);
+    }, []);
+
+    const handleMobileViewProject = useCallback(
+        (projectId: string) => {
+            const project = ws.allProjects.find((p) => p._id.toString() === projectId);
+            if (project) handleViewProject(project);
+        },
+        [ws.allProjects, handleViewProject]
+    );
+
+    const handleMobileViewClient = useCallback(
+        (clientId: string) => {
+            const client = ws.filteredClients.find((c) => c._id.toString() === clientId);
+            if (client) handleViewClient(client);
+        },
+        [ws.filteredClients, handleViewClient]
+    );
+
+    const handleMobileOpenTask = useCallback(
+        (projectId: string, taskIndex: number) => {
+            const project = ws.allProjects.find((p) => p._id.toString() === projectId);
+            if (project) handleViewProjectTask(project, taskIndex);
+        },
+        [ws.allProjects, handleViewProjectTask]
+    );
+
+    const handleMobileOpenContent = useCallback(
+        (projectId: string, contentId: string) => {
+            const project = ws.allProjects.find((p) => p._id.toString() === projectId);
+            if (project) handleViewProjectContent(project, contentId);
+        },
+        [ws.allProjects, handleViewProjectContent]
     );
 
     useEffect(() => {
@@ -1495,7 +1533,30 @@ _id.toString(), { tasks });
                 getWorkspaceContext={() => workspaceIntentContext}
             >
                 <PlatformCatalogProvider>
-                <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px]">
+                <div className={`min-h-screen bg-background ${PAGE_GUTTER_WIDE_CLASS}`}>
+                    <MobileShellBridge
+                        isManagerOrAdmin={ws.isManagerOrAdmin}
+                        currentUserId={ws.currentUserId}
+                        currentUserEmployeeId={ws.currentUserEmployeeId}
+                        projects={ws.allProjects}
+                        contentItems={ws.contentItems}
+                        clients={ws.filteredClients}
+                        inspectorProjectId={inspectorProjectId}
+                        itemSeenRefreshTrigger={itemSeenRefreshTrigger}
+                        onLensSelect={handleLensSelect}
+                        onPhaseSelect={handlePhaseSelect}
+                        onViewProject={handleMobileViewProject}
+                        onViewClient={handleMobileViewClient}
+                        onCreateProject={handleCreateProject}
+                        onCreateClient={() => setShowClientCreateModal(true)}
+                        onCreateTask={() => setProjectPickerMode('task')}
+                        onCreateContent={() => setProjectPickerMode('content')}
+                        onCreateMeeting={() => setShowMeetingModal(true)}
+                        onCreateScreenshot={() => setShowScreenshotModal(true)}
+                        onCreateRecord={handleCreateRecord}
+                        onOpenTask={handleMobileOpenTask}
+                        onOpenContent={handleMobileOpenContent}
+                    />
                     <div className="w-full mx-auto pt-[30px] pb-8">
                     {/* ===== Workspace Header ===== */}
                     <div className="mb-4">

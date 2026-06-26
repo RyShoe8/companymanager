@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import AnimateIn from '@/components/home/AnimateIn';
 import type { FAQItem } from '@/data/faq';
+import { PAGE_GUTTER_CLASS } from '@/lib/ui/mobileLayout';
 
 function FaqAccordionItem({
   item,
@@ -87,7 +88,7 @@ export default function MarketingFaq({
   return (
     <section
       id={id}
-      className={`relative py-20 md:py-28 px-4 sm:px-6 lg:px-8 overflow-hidden ${
+      className={`relative py-20 md:py-28 ${PAGE_GUTTER_CLASS} overflow-hidden ${
         isDark ? '' : 'bg-background-card/50'
       }`}
     >

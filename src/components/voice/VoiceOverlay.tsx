@@ -11,7 +11,7 @@ export function VoiceButton() {
     return (
         <button
             onClick={voice.state === 'listening' ? voice.stopListening : voice.startListening}
-            className={`fixed bottom-20 md:bottom-6 right-6 z-[90] p-4 rounded-full shadow-2xl transition-all duration-300 scale-110 flex items-center justify-center ${voice.state === 'listening'
+            className={`hidden md:flex fixed bottom-20 md:bottom-6 right-6 z-[90] p-4 rounded-full shadow-2xl transition-all duration-300 scale-110 items-center justify-center ${voice.state === 'listening'
                 ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-500/20'
                 : voice.state === 'processing'
                     ? 'bg-yellow-500 text-white'
@@ -74,7 +74,7 @@ export default function VoiceOverlay() {
                 <button
                     type="button"
                     onClick={voice.toggleWakeWord}
-                    className={`fixed bottom-36 md:bottom-24 right-6 z-[90] px-3 py-1.5 rounded-full text-xs border ${
+                    className={`hidden md:block fixed bottom-36 md:bottom-24 right-6 z-[90] px-3 py-1.5 rounded-full text-xs border ${
                         voice.wakeWordEnabled
                             ? 'bg-emerald-900/80 text-emerald-200 border-emerald-600'
                             : 'bg-gray-900/80 text-gray-300 border-gray-700'

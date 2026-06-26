@@ -12,6 +12,7 @@ import { seatUsageLine } from '@/lib/billing/seatDisplay';
 import { consumeSelectedPlanId, consumeSelectedBillingInterval } from '@/lib/billing/selectedPlanStorage';
 import { BillingPlanSelectCard } from '@/components/billing/BillingPlanSelectCard';
 import { OnboardingBookingPanel } from '@/components/billing/OnboardingBookingPanel';
+import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
 
 type BillingSummary = {
   renewsAt?: string | null;
@@ -240,7 +241,7 @@ function BillingPageInner() {
 
   if (!accessChecked) {
     return (
-      <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
+      <div className={`min-h-screen bg-background ${PAGE_GUTTER_WIDE_CLASS} py-8`}>
         <div className="max-w-3xl min-w-0 mx-auto w-full">
           <p className="text-sm text-text-secondary">Loading billing…</p>
         </div>
@@ -249,7 +250,7 @@ function BillingPageInner() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
+    <div className={`min-h-screen bg-background ${PAGE_GUTTER_WIDE_CLASS} py-8`}>
       <div className="max-w-3xl min-w-0 mx-auto w-full space-y-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-text-primary">Billing</h1>
@@ -405,7 +406,7 @@ export default function BillingPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-[100px] py-8">
+        <div className={`min-h-screen bg-background ${PAGE_GUTTER_WIDE_CLASS} py-8`}>
           <div className="max-w-3xl min-w-0 mx-auto w-full">
             <p className="text-sm text-text-secondary">Loading billing…</p>
           </div>

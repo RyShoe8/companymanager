@@ -941,7 +941,7 @@ export default function CalendarView({
                     return (
                       <div
                         key={projectId}
-                        className="p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
+                        className="p-3 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
                         style={{
                           backgroundColor: displayColor + 'F0',
                           borderColor: displayColor,
@@ -1115,7 +1115,7 @@ export default function CalendarView({
             return (
               <div
                 key={dayIdx}
-                className={`p-4 min-h-[1200px] relative z-0 ${isCurrentDay ? 'bg-primary-light' : ''}`}
+                className={`p-2 md:p-4 min-h-[1200px] relative z-0 ${isCurrentDay ? 'bg-primary-light' : ''}`}
               >
                 <div
                   className={`text-lg font-semibold mb-3 ${isCurrentDay ? 'text-primary' : 'text-text-primary'
@@ -1443,7 +1443,7 @@ export default function CalendarView({
     };
 
     return (
-      <div className="p-4">
+      <div className="p-2 md:p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {weeks.map((week, weekIdx) => {
             const weekStart = new Date(week[0]);
@@ -1472,7 +1472,7 @@ export default function CalendarView({
             return (
               <div
                 key={weekIdx}
-                className="bg-background rounded-lg border border-border p-4 min-h-[300px]"
+                className="bg-background rounded-lg border border-border p-2 md:p-4 min-h-[300px]"
               >
                 <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {formatWeekLabel(week)}
@@ -1606,7 +1606,7 @@ export default function CalendarView({
     }
 
     return (
-      <div className="p-4">
+      <div className="p-2 md:p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthProjects = sortProjectsByLatestUpdate(
@@ -1628,7 +1628,7 @@ export default function CalendarView({
               : [];
 
             return (
-              <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+              <div key={idx} className="bg-background rounded-lg border border-border p-2 md:p-4 min-h-[300px]">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                 </h3>
@@ -1682,7 +1682,7 @@ export default function CalendarView({
     }
 
     return (
-      <div className="p-4">
+      <div className="p-2 md:p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthProjects = projects;
@@ -1702,7 +1702,7 @@ export default function CalendarView({
             return (
               <div
                 key={idx}
-                className="bg-background rounded-lg border border-border p-4 min-h-[300px]"
+                className="bg-background rounded-lg border border-border p-2 md:p-4 min-h-[300px]"
               >
                 <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {monthStart.toLocaleDateString('en-US', { month: 'short' })}

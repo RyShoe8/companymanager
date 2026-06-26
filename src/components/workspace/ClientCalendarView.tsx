@@ -494,7 +494,7 @@ export default function ClientCalendarView({
           return (
             <div
               key={clientId}
-              className="rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden p-5"
+              className="rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden p-3 md:p-5"
               style={{
                 backgroundColor: `${displayColor}F0`,
                 borderColor: displayColor,
@@ -849,7 +849,7 @@ export default function ClientCalendarView({
               : [];
 
             return (
-              <div key={weekStart.toISOString()} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+              <div key={weekStart.toISOString()} className="bg-background rounded-lg border border-border p-2 md:p-4 min-h-[300px]">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">{formatWeekLabel(week)}</h3>
                 <div className="space-y-2">
                   {itemMode ? (
@@ -940,7 +940,7 @@ export default function ClientCalendarView({
                 )
               : [];
             return (
-              <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+              <div key={idx} className="bg-background rounded-lg border border-border p-2 md:p-4 min-h-[300px]">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                 </h3>
@@ -995,7 +995,7 @@ export default function ClientCalendarView({
                 )
               : [];
             return (
-              <div key={idx} className="bg-background rounded-lg border border-border p-4 min-h-[300px]">
+              <div key={idx} className="bg-background rounded-lg border border-border p-2 md:p-4 min-h-[300px]">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">
                   {monthStart.toLocaleDateString('en-US', { month: 'short' })}
                 </h3>

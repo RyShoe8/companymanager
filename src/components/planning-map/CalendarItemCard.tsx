@@ -92,7 +92,7 @@ export default function CalendarItemCard({
           if (taskIndex >= 0) onTaskClick?.(entry.project, taskIndex);
         }}
         className={`w-full h-full min-w-0 text-left overflow-hidden cursor-pointer transition-colors hover:opacity-90 ${surface.className} ${
-          isGantt ? 'p-2 flex flex-col justify-center' : 'p-3 rounded hover:bg-background-card/80'
+          isGantt ? 'p-2 flex flex-col justify-center' : 'p-2 md:p-3 rounded hover:bg-background-card/80'
         }`}
         style={{ ...surface.style, ...(height && !isGantt ? { minHeight: height } : undefined) }}
       >
@@ -142,7 +142,7 @@ export default function CalendarItemCard({
   return (
     <div
       className={`h-full overflow-hidden ${surface.className} ${
-        isGantt ? '' : 'p-3 rounded'
+        isGantt ? '' : 'p-2 md:p-3 rounded'
       } ${content.status === 'published' ? 'opacity-60' : ''}`}
       style={{ ...surface.style, ...(height && !isGantt ? { minHeight: height } : undefined) }}
     >

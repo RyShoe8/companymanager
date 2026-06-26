@@ -5,7 +5,7 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import OrganizationSetupCheck from "@/components/OrganizationSetupCheck";
-import MobileBottomNav from "@/components/ui/MobileBottomNav";
+import AppMobileShell from "@/components/AppMobileShell";
 import { StructuredData } from "@/components/StructuredData";
 import PostHogProvider from "@/components/analytics/PostHogProvider";
 import AnalyticsScripts from "@/components/analytics/AnalyticsScripts";
@@ -132,11 +132,12 @@ export default async function RootLayout({
             ) : (
               <>
                 <Navigation />
-                <main className="flex-1 pb-16 md:pb-0">
-                  {children}
-                </main>
-                <Footer />
-                <MobileBottomNav />
+                <AppMobileShell>
+                  <main className="flex-1 pb-16 md:pb-0">
+                    {children}
+                  </main>
+                  <Footer />
+                </AppMobileShell>
               </>
             )}
           </OrganizationSetupCheck>

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
 
 const navItems = [
   { href: '/admin', label: 'Users' },
@@ -19,7 +20,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border bg-background-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-[100px]">
+        <div className={`max-w-7xl mx-auto ${PAGE_GUTTER_WIDE_CLASS}`}>
           <div className="flex gap-6">
             {navItems.map(({ href, label }) => {
               const isActive = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);

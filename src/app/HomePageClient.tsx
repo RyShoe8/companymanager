@@ -7,6 +7,7 @@ import HomeFAQ from '@/components/home/HomeFAQ';
 import MarketingScreenshotFrame from '@/components/marketing/screenshots/MarketingScreenshotFrame';
 import HeroWorkspaceScreenshot from '@/components/marketing/screenshots/HeroWorkspaceScreenshot';
 import RoiCalculator from '@/components/marketing/RoiCalculator';
+import { PAGE_GUTTER_CLASS } from '@/lib/ui/mobileLayout';
 
 /* ─── Feature category cards for the overview section ─── */
 const CATEGORIES = [
@@ -141,9 +142,9 @@ export default function HomePageClient({
   trialCtaLabel?: string;
 }) {
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <section className="relative min-h-[80vh] sm:min-h-[95vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <section className={`relative min-h-[70vh] sm:min-h-[95vh] flex items-center justify-center pt-20 md:pt-0 ${PAGE_GUTTER_CLASS} overflow-hidden`}>
         {/* Background effects */}
         <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
         <div className="absolute top-1/4 -left-32 w-96 h-96 bg-primary/15 rounded-full blur-3xl animate-float pointer-events-none" />
@@ -203,24 +204,11 @@ export default function HomePageClient({
               </a>
             </div>
           </AnimateIn>
-
-          {/* Hero image */}
-          <AnimateIn>
-            <div className="mt-16">
-              <MarketingScreenshotFrame
-                glow="primary"
-                className="shadow-black/40"
-                alt="Nucleas workspace dashboard showing project management, team assignments, and planning tools"
-              >
-                <HeroWorkspaceScreenshot />
-              </MarketingScreenshotFrame>
-            </div>
-          </AnimateIn>
         </div>
       </section>
 
       {/* ═══════════════════════ PROBLEM STATEMENT ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS}`}>
         <div className="max-w-6xl mx-auto">
           <AnimateIn>
             <div className="text-center mb-16">
@@ -249,7 +237,7 @@ export default function HomePageClient({
       </section>
 
       {/* ═══════════════════════ POSITIONING ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS} bg-background-card/50`}>
         <div className="max-w-5xl mx-auto text-center">
           <AnimateIn>
             <p className="text-sm font-semibold uppercase tracking-wider text-accent mb-3">The Solution</p>
@@ -296,8 +284,27 @@ export default function HomePageClient({
         </div>
       </section>
 
+      {/* ═══════════════════════ SCREENSHOT ═══════════════════════ */}
+      <section className={`py-12 md:py-20 ${PAGE_GUTTER_CLASS} pointer-events-none select-none`}>
+        <div className="max-w-5xl mx-auto text-center">
+          <AnimateIn>
+            <h2 className="text-2xl sm:text-3xl font-bold text-text-primary mb-8">
+              See Nucleas in action
+            </h2>
+            <MarketingScreenshotFrame
+              glow="primary"
+              className="shadow-black/40"
+              nonInteractive
+              alt="Nucleas workspace dashboard showing project management, team assignments, and planning tools"
+            >
+              <HeroWorkspaceScreenshot />
+            </MarketingScreenshotFrame>
+          </AnimateIn>
+        </div>
+      </section>
+
       {/* ═══════════════════════ FEATURE CATEGORIES ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS}`}>
         <div className="max-w-7xl mx-auto">
           <AnimateIn>
             <div className="text-center mb-16">
@@ -336,7 +343,7 @@ export default function HomePageClient({
       </section>
 
       {/* ═══════════════════════ HOW IT WORKS ═══════════════════════ */}
-      <section id="how-it-works" className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+      <section id="how-it-works" className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS} bg-background-card/50`}>
         <div className="max-w-5xl mx-auto">
           <AnimateIn>
             <div className="text-center mb-16">
@@ -369,7 +376,7 @@ export default function HomePageClient({
       </section>
 
       {/* ═══════════════════════ DIFFERENTIATORS ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS}`}>
         <div className="max-w-6xl mx-auto">
           <AnimateIn>
             <div className="text-center mb-16">
@@ -399,7 +406,7 @@ export default function HomePageClient({
       </section>
 
       {/* ═══════════════════════ FEATURE HIGHLIGHTS ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS} bg-background-card/50`}>
         <div className="max-w-6xl mx-auto">
           <AnimateIn>
             <div className="text-center mb-16">
@@ -425,7 +432,7 @@ export default function HomePageClient({
       </section>
 
       {/* ═══════════════════════ WHO IT'S FOR ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-background-card/50">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS} bg-background-card/50`}>
         <div className="max-w-5xl mx-auto">
           <AnimateIn>
             <div className="text-center mb-16">
@@ -453,7 +460,7 @@ export default function HomePageClient({
       </section>
 
       {/* ═══════════════════════ ROI CALCULATOR ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS}`}>
         <div className="max-w-5xl mx-auto">
           <AnimateIn>
             <div className="text-center mb-16">
@@ -468,7 +475,7 @@ export default function HomePageClient({
       </section>
 
       {/* ═══════════════════════ PRICING PREVIEW ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS}`}>
         <div className="max-w-3xl mx-auto text-center">
           <AnimateIn>
             <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">Pricing</p>
@@ -498,7 +505,7 @@ export default function HomePageClient({
       <HomeFAQ />
 
       {/* ═══════════════════════ FINAL CTA ═══════════════════════ */}
-      <section className="py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+      <section className={`py-20 md:py-32 ${PAGE_GUTTER_CLASS}`}>
         <div className="max-w-4xl mx-auto">
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-accent/10 to-nucleas-fourth/10 border border-primary/20 p-10 md:p-16 text-center">
             <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" />

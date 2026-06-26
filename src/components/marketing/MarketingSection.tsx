@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { PAGE_GUTTER_CLASS } from '@/lib/ui/mobileLayout';
 
 type MarketingSectionProps = {
   children: React.ReactNode;
@@ -18,7 +19,7 @@ export default function MarketingSection({
     <section
       id={id}
       className={cn(
-        'py-20 md:py-32 px-4 sm:px-6 lg:px-8',
+        PAGE_GUTTER_CLASS,
         dark && 'bg-gradient-to-b from-background-card/50 to-transparent',
         className
       )}

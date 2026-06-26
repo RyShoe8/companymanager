@@ -9,9 +9,14 @@ import Select from '@/components/ui/Select';
 import AutoGrowTextarea from '@/components/ui/AutoGrowTextarea';
 import { formInputClass } from '@/components/ui/formClasses';
 import { useVoice } from '@/components/voice/VoiceProvider';
+import { useFeedbackVisibility } from '@/hooks/useFeedbackVisibility';
+import useIsMobile from '@/lib/hooks/useIsMobile';
+import { MOBILE_NAV_CLEARANCE_CLASS } from '@/lib/ui/mobileLayout';
 
 export default function FeedbackLauncher() {
   const pathname = usePathname();
+  const isMobile = useIsMobile();
+  const visible = useFeedbackVisibility();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState('Bug');
   const [subject, setSubject] = useState('');
@@ -68,6 +73,14 @@ export default function FeedbackLauncher() {
   const voice = useVoice();
   const isVoiceEnabled = voice.enabled;
 
+  if (!visible) return null;
+
+  const positionClass = isMobile
+    ? MOBILE_NAV_CLEARANCE_CLASS
+    : isVoiceEnabled
+      ? 'bottom-40'
+      : 'bottom-6';
+
   return (
     <>
       <button
@@ -76,9 +89,7 @@ export default function FeedbackLauncher() {
           reset();
           setOpen(true);
         }}
-        className={`fixed right-6 z-40 rounded-full bg-primary text-white shadow-lg px-4 py-3 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900 ${
-          isVoiceEnabled ? 'bottom-52 md:bottom-40' : 'bottom-20 md:bottom-6'
-        }`}
+        className={`fixed right-6 z-40 rounded-full bg-primary text-white shadow-lg px-4 py-3 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900 ${positionClass}`}
         data-tour="feedback-button"
         aria-label="Report a bug or request a feature"
       >
