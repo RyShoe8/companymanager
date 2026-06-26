@@ -2,6 +2,7 @@
 
 import Modal from '@/components/ui/Modal';
 import ScreenshotToolPanel from '@/components/shared/ScreenshotToolPanel';
+import { getScreenshotCaptureMode } from '@/lib/capture/mobileCapture';
 import type { IProject } from '@/lib/models/Project';
 import type { ScreenshotUploadTarget } from '@/lib/uploadScreenshotAsset';
 
@@ -13,6 +14,13 @@ interface ScreenshotToolModalProps {
   uploadOnly?: boolean;
 }
 
+function screenshotModalTitle(uploadOnly: boolean): string {
+  if (uploadOnly) return 'Upload image';
+  const mode = getScreenshotCaptureMode();
+  if (mode === 'camera') return 'Photo';
+  return 'Screenshot';
+}
+
 export default function ScreenshotToolModal({
   isOpen,
   onClose,
@@ -21,9 +29,15 @@ export default function ScreenshotToolModal({
   uploadOnly = false,
 }: ScreenshotToolModalProps) {
   const allowAssignment = !target;
+  const effectiveUploadOnly = uploadOnly || getScreenshotCaptureMode() === 'upload-only';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={uploadOnly ? 'Upload image' : 'Screenshot'} maxWidth="md">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={screenshotModalTitle(effectiveUploadOnly)}
+      maxWidth="md"
+    >
       <ScreenshotToolPanel
         target={target}
         projects={projects}

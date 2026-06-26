@@ -40,6 +40,7 @@ export function CalendarActiveStats({
   activeContentCount,
   headerTextClass,
   size = 'xs',
+  layout = 'inline',
 }: {
   showTasks: boolean;
   showContent: boolean;
@@ -47,19 +48,21 @@ export function CalendarActiveStats({
   activeContentCount: number;
   headerTextClass: string;
   size?: 'xs' | 'sm';
+  layout?: 'inline' | 'stacked';
 }) {
   if (!showTasks && !showContent) return null;
   const textSize = size === 'sm' ? 'text-sm' : 'text-xs';
+  const isStacked = layout === 'stacked';
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 ${textSize} font-medium ${headerTextClass}`}
+      className={`${isStacked ? 'flex flex-col gap-0.5' : 'flex flex-wrap items-center gap-x-2 gap-y-0.5'} ${textSize} font-medium ${headerTextClass}`}
     >
       {showTasks ? (
         <span className="whitespace-nowrap">
           {activeTaskCount} task{activeTaskCount === 1 ? '' : 's'}
         </span>
       ) : null}
-      {showTasks && showContent ? (
+      {!isStacked && showTasks && showContent ? (
         <span className="opacity-70" aria-hidden>
           ·
         </span>
@@ -197,6 +200,7 @@ export default function CalendarCardHeader({
               activeTaskCount={activeTaskCount}
               activeContentCount={activeContentCount}
               headerTextClass={headerTextClass}
+              layout="stacked"
               size={compact ? 'xs' : 'sm'}
             />
           </div>

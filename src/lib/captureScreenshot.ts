@@ -1,3 +1,5 @@
+import { isTouchMobileDevice } from '@/lib/capture/mobileCapture';
+
 export type ScreenshotCaptureMode = 'full' | 'region';
 
 export class ScreenshotCaptureError extends Error {
@@ -147,7 +149,7 @@ export async function captureDisplayFrame(): Promise<File> {
     const displayMediaOptions: DisplayMediaOptionsWithController = {
       video: true,
       audio: false,
-      preferCurrentTab: false,
+      preferCurrentTab: isTouchMobileDevice(),
     };
     if (controller) {
       displayMediaOptions.controller = controller;

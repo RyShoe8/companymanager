@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   prepareRecordingSession,
+  prepareCameraRecordingSession,
   RecordingCaptureError,
   recordingAudioWarning,
   requestMicrophoneForRecording,
@@ -526,6 +527,58 @@ export function useRecordingUpload(
     [closePopout, reset, onPrepared, startStabilizationCountdown]
   );
 
+  const prepareCameraRecording = useCallback(async () => {
+    setStatus('preparing');
+    setStatusMessage('Allow camera access…');
+    setErrorMessage(null);
+    setElapsedSeconds(0);
+    setControlsInPopout(false);
+
+    try {
+      const session = await prepareCameraRecordingSession({
+        onEnded: () => {
+          sessionRef.current = null;
+          resetRef.current();
+        },
+      });
+      sessionRef.current = session;
+      preloadFfmpeg();
+
+      session.begin();
+      setStatus('recording');
+      setStatusMessage('Recording');
+      setElapsedSeconds(0);
+
+      clearTimer();
+      timerRef.current = window.setInterval(() => {
+        setElapsedSeconds((prev) => {
+          const next = prev + 1;
+          if (next >= MAX_RECORDING_SECONDS) {
+            clearTimer();
+          }
+          return next;
+        });
+      }, 1000);
+
+      onPrepared?.();
+    } catch (error) {
+      if (error instanceof RecordingCaptureError && error.code === 'canceled') {
+        reset();
+        return;
+      }
+      setStatus('error');
+      setErrorMessage(
+        error instanceof RecordingCaptureError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to start camera recording.'
+      );
+      setStatusMessage(null);
+      setStatus('idle');
+    }
+  }, [clearTimer, reset, onPrepared]);
+
   const stageForNaming = useCallback(
     (videoFile: File, audioFile: File | null) => {
       revokePreviewUrl();
@@ -665,6 +718,7 @@ export function useRecordingUpload(
     requestMicPermission,
     clearMicPreflight,
     prepareRecording,
+    prepareCameraRecording,
     skipStabilization,
     beginRecording,
     stopRecording,

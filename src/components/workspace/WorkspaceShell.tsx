@@ -29,8 +29,7 @@ import RecordingToolModal from '@/components/shared/RecordingToolModal';
 import RecordingSaveDialog from '@/components/shared/RecordingSaveDialog';
 import RecordingOverlay from '@/components/shared/RecordingOverlay';
 import RecordingStatusBanner from '@/components/shared/RecordingStatusBanner';
-import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
-import { isRecordingCaptureSupported } from '@/lib/captureRecording';
+import { getScreenshotCaptureMode, getRecordingCaptureMode } from '@/lib/capture/mobileCapture';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
 import { useRecordingUpload } from '@/hooks/useRecordingUpload';
 import { useGoogleWorkspaceResume } from '@/hooks/google/useGoogleWorkspaceResume';
@@ -1636,24 +1635,30 @@ _id.toString(), { tasks });
                         {isMobile ? (
                         <div className="flex flex-col gap-2 mb-3">
                             <div className="overflow-x-auto min-w-0 -mx-0.5 px-0.5">
-                                <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
+                                <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} compact />
                             </div>
-                            <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            <div className="flex items-stretch gap-2 min-w-0">
                                 {!isSchedulingPhase ? (
                                     <>
-                                        <WorkspaceLensSelect
-                                            value={ws.lens}
-                                            onChange={handleLensSelect}
-                                        />
-                                        <TimeHorizonSelector
-                                            selected={ws.timeframe}
-                                            onSelect={(newTimeframe) => {
-                                                ws.setTimeframe(newTimeframe);
-                                                if (newTimeframe === 'today') {
-                                                    ws.setCurrentDate(new Date());
-                                                }
-                                            }}
-                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <WorkspaceLensSelect
+                                                value={ws.lens}
+                                                onChange={handleLensSelect}
+                                                className="w-full"
+                                            />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <TimeHorizonSelector
+                                                selected={ws.timeframe}
+                                                onSelect={(newTimeframe) => {
+                                                    ws.setTimeframe(newTimeframe);
+                                                    if (newTimeframe === 'today') {
+                                                        ws.setCurrentDate(new Date());
+                                                    }
+                                                }}
+                                                mobileSelectClassName="w-full"
+                                            />
+                                        </div>
                                         <button
                                             type="button"
                                             data-tour="lens-toggles"
@@ -1712,13 +1717,7 @@ _id.toString(), { tasks });
                                 onCreateContent={() => setProjectPickerMode('content')}
                                 onCreateMeeting={() => setShowMeetingModal(true)}
                                 onCreateScreenshot={() => setShowScreenshotModal(true)}
-                                onCreateRecord={() => {
-                                    if (!isRecordingCaptureSupported()) {
-                                        setShowRecordingModal(true);
-                                        return;
-                                    }
-                                    setShowRecordingModal(true);
-                                }}
+                                onCreateRecord={() => setShowRecordingModal(true)}
                                 triggerClassName="w-full justify-center"
                             />
                         </div>
@@ -1789,13 +1788,7 @@ _id.toString(), { tasks });
                                     onCreateContent={() => setProjectPickerMode('content')}
                                     onCreateMeeting={() => setShowMeetingModal(true)}
                                     onCreateScreenshot={() => setShowScreenshotModal(true)}
-                                    onCreateRecord={() => {
-                                        if (!isRecordingCaptureSupported()) {
-                                            setShowRecordingModal(true);
-                                            return;
-                                        }
-                                        setShowRecordingModal(true);
-                                    }}
+                                    onCreateRecord={() => setShowRecordingModal(true)}
                                 />
                             </div>
                         </div>
@@ -2111,7 +2104,7 @@ _id.toString(), { tasks });
                         onClose={() => setShowScreenshotModal(false)}
                         target={null}
                         projects={ws.allProjects}
-                        uploadOnly={!isScreenshotCaptureSupported()}
+                        uploadOnly={getScreenshotCaptureMode() === 'upload-only'}
                     />
 
                     <RecordingToolModal
@@ -2119,7 +2112,7 @@ _id.toString(), { tasks });
                         onClose={() => setShowRecordingModal(false)}
                         target={null}
                         projects={ws.allProjects}
-                        uploadOnly={!isRecordingCaptureSupported()}
+                        uploadOnly={getRecordingCaptureMode() === 'upload-only'}
                         recordingControl={createRecording}
                     />
 

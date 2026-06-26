@@ -41,15 +41,54 @@ export default function WorkspaceViewOptions({
   const showLensToggles =
     lens === 'schedule' || lens === 'agenda' || lens === 'clients';
 
+  const assignmentsToggle = isManagerOrAdmin ? (
+    <Toggle
+      label="Show only my assignments"
+      checked={showOnlyMyAssignments}
+      onChange={onShowOnlyMyAssignmentsChange}
+    />
+  ) : null;
+
+  const lensToggleBlock = showLensToggles ? (
+    <>
+      {lens !== 'agenda' ? (
+        <>
+          <Toggle label="Show Tasks" checked={showTasks} onChange={onShowTasksChange} />
+          <Toggle label="Show Content" checked={showContent} onChange={onShowContentChange} />
+        </>
+      ) : null}
+      {lens === 'agenda' ? (
+        <Toggle label="Show Meetings" checked={showMeetings} onChange={onShowMeetingsChange} />
+      ) : null}
+      {lens !== 'clients' ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-text-secondary">Team filter</span>
+          <WorkspaceTeamFilter value={teamFilter} onChange={onTeamFilterChange} />
+        </div>
+      ) : null}
+    </>
+  ) : null;
+
+  if (emailDigestLayout === 'stacked') {
+    return (
+      <div className="space-y-4" data-tour="lens-toggles">
+        <div className="space-y-3">
+          {assignmentsToggle}
+          {lensToggleBlock}
+        </div>
+        <div className="pt-3 border-t border-border">
+          <WorkspaceEmailDigestSelect
+            layout={emailDigestLayout}
+            onIntervalChange={onEmailDigestIntervalChange}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4" data-tour="lens-toggles">
-      {isManagerOrAdmin ? (
-        <Toggle
-          label="Show only my assignments"
-          checked={showOnlyMyAssignments}
-          onChange={onShowOnlyMyAssignmentsChange}
-        />
-      ) : null}
+      {assignmentsToggle}
 
       <WorkspaceEmailDigestSelect
         layout={emailDigestLayout}
@@ -57,23 +96,7 @@ export default function WorkspaceViewOptions({
       />
 
       {showLensToggles ? (
-        <div className="space-y-3 pt-1 border-t border-border">
-          {lens !== 'agenda' ? (
-            <>
-              <Toggle label="Show Tasks" checked={showTasks} onChange={onShowTasksChange} />
-              <Toggle label="Show Content" checked={showContent} onChange={onShowContentChange} />
-            </>
-          ) : null}
-          {lens === 'agenda' ? (
-            <Toggle label="Show Meetings" checked={showMeetings} onChange={onShowMeetingsChange} />
-          ) : null}
-          {lens !== 'clients' ? (
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-text-secondary">Team filter</span>
-              <WorkspaceTeamFilter value={teamFilter} onChange={onTeamFilterChange} />
-            </div>
-          ) : null}
-        </div>
+        <div className="space-y-3 pt-1 border-t border-border">{lensToggleBlock}</div>
       ) : null}
     </div>
   );

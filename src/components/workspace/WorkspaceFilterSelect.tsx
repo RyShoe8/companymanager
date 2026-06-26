@@ -2,6 +2,9 @@
 
 import { SelectHTMLAttributes } from 'react';
 
+export const WORKSPACE_HEADER_SELECT_CLASS =
+  'w-full min-h-[2.25rem] rounded border border-border bg-background-card text-text-primary px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50';
+
 interface WorkspaceFilterSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   children: React.ReactNode;
 }
@@ -13,7 +16,7 @@ export default function WorkspaceFilterSelect({
 }: WorkspaceFilterSelectProps) {
   return (
     <select
-      className={`rounded border border-border bg-background-card text-text-primary px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 ${className}`}
+      className={`${WORKSPACE_HEADER_SELECT_CLASS} ${className}`}
       {...props}
     >
       {children}

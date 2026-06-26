@@ -1,3 +1,5 @@
+import { isTouchMobileDevice } from '@/lib/capture/mobileCapture';
+
 export class RecordingCaptureError extends Error {
   constructor(
     message: string,
@@ -301,14 +303,21 @@ export async function prepareRecordingSession(
       }
     }
 
+    const isMobile = isTouchMobileDevice();
     const displayMediaOptions: DisplayMediaOptionsWithController = {
-      video: {
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30, max: 30 },
-      },
+      video: isMobile
+        ? {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 24, max: 24 },
+          }
+        : {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30, max: 30 },
+          },
       audio: audioSource === 'system',
-      preferCurrentTab: false,
+      preferCurrentTab: isMobile,
     };
     if (controller) {
       displayMediaOptions.controller = controller;
@@ -509,6 +518,161 @@ export async function prepareRecordingSession(
         if (audioRecorder?.state === 'recording') {
           try {
             audioRecorder.stop();
+          } catch {
+            // ignore
+          }
+        }
+        cleanup();
+      },
+    };
+  } catch (error) {
+    cleanup();
+    if (error instanceof RecordingCaptureError) throw error;
+    throw mapCaptureError(error);
+  }
+}
+
+/** Acquire camera stream and prepare a single-file recorder. Call begin() to start capture. */
+export async function prepareCameraRecordingSession(options?: {
+  onEnded?: () => void;
+}): Promise<RecordingSession> {
+  if (
+    typeof navigator === 'undefined' ||
+    !navigator.mediaDevices?.getUserMedia ||
+    typeof MediaRecorder === 'undefined'
+  ) {
+    throw new RecordingCaptureError(
+      'Camera recording is unavailable in this browser. Please upload a video instead.',
+      'unsupported'
+    );
+  }
+
+  let cameraStream: MediaStream | null = null;
+  let videoRecorder: MediaRecorder | null = null;
+  let canceled = false;
+  let hasBegun = false;
+  let autoStopTimer: number | null = null;
+  let startedAt = 0;
+
+  const videoChunks: Blob[] = [];
+  let audioIncluded = false;
+
+  const cleanup = () => {
+    if (autoStopTimer != null) {
+      window.clearTimeout(autoStopTimer);
+      autoStopTimer = null;
+    }
+    stopStream(cameraStream);
+    cameraStream = null;
+  };
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+    });
+
+    const videoTracks = cameraStream.getVideoTracks();
+    if (videoTracks.length === 0) {
+      throw new RecordingCaptureError('No camera video track available.', 'capture_failed');
+    }
+
+    audioIncluded = cameraStream.getAudioTracks().some((track) => track.readyState === 'live');
+
+    const videoSettings = videoTracks[0]?.getSettings();
+    const videoWidth = videoSettings?.width ?? 1280;
+    const videoHeight = videoSettings?.height ?? 720;
+    const videoBitsPerSecond = computeVideoBitrate(videoWidth, videoHeight);
+    const videoMimeType = pickVideoMimeType();
+
+    videoRecorder = new MediaRecorder(cameraStream, {
+      mimeType: videoMimeType,
+      videoBitsPerSecond,
+      audioBitsPerSecond: audioIncluded ? AUDIO_BITRATE : undefined,
+    });
+
+    videoRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) videoChunks.push(event.data);
+    };
+
+    const videoTrack = videoTracks[0];
+    videoTrack?.addEventListener(
+      'ended',
+      () => {
+        if (canceled) return;
+        if (videoRecorder?.state === 'recording') {
+          void videoRecorder.stop();
+        } else {
+          canceled = true;
+          cleanup();
+          options?.onEnded?.();
+        }
+      },
+      { once: true }
+    );
+
+    const finalize = (): Promise<RecordingCaptureResult> =>
+      new Promise((resolve, reject) => {
+        if (!videoRecorder) {
+          reject(new RecordingCaptureError('Recorder not initialized.', 'capture_failed'));
+          return;
+        }
+
+        videoRecorder.onstop = () => {
+          cleanup();
+          const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const extension = recordingFileExtension(videoMimeType);
+          const videoFile = chunksToFile(
+            videoChunks,
+            videoMimeType,
+            `recording-${timestamp}.${extension}`
+          );
+          resolve({
+            videoFile,
+            audioFile: null,
+            durationSeconds,
+            audioIncluded,
+            audioSource: 'mic',
+          });
+        };
+        videoRecorder.onerror = () => {
+          reject(new RecordingCaptureError('Recording failed.', 'capture_failed'));
+        };
+      });
+
+    return {
+      begin: () => {
+        if (canceled || hasBegun || !videoRecorder) return;
+        hasBegun = true;
+        startedAt = Date.now();
+        videoRecorder.start(RECORDER_TIMESLICE_MS);
+        autoStopTimer = window.setTimeout(() => {
+          if (videoRecorder?.state === 'recording') {
+            videoRecorder.stop();
+          }
+        }, MAX_RECORDING_SECONDS * 1000);
+      },
+      stop: async () => {
+        if (canceled) {
+          throw new RecordingCaptureError('Recording was canceled.', 'canceled');
+        }
+        if (!hasBegun) {
+          throw new RecordingCaptureError('Recording was not started.', 'canceled');
+        }
+        if (videoRecorder?.state === 'recording') {
+          videoRecorder.stop();
+        }
+        return finalize();
+      },
+      cancel: () => {
+        canceled = true;
+        if (videoRecorder?.state === 'recording') {
+          try {
+            videoRecorder.stop();
           } catch {
             // ignore
           }

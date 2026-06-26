@@ -7,6 +7,7 @@ import ScreenshotSaveDialog from '@/components/shared/ScreenshotSaveDialog';
 import ScreenshotRegionSelector from '@/components/shared/ScreenshotRegionSelector';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import { isScreenshotCaptureSupported } from '@/lib/captureScreenshot';
+import { getScreenshotCaptureMode } from '@/lib/capture/mobileCapture';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
 import type { IProject } from '@/lib/models/Project';
 import type { ScreenshotUploadTarget } from '@/lib/uploadScreenshotAsset';
@@ -27,7 +28,7 @@ export default function ScreenshotToolPanel({
   target = null,
   projects = [],
   allowAssignment = false,
-  uploadOnly = false,
+  uploadOnly: uploadOnlyProp = false,
   downloadOnly = false,
   description = downloadOnly
     ? 'Choose how to capture, then pick a tab or window in your browser’s share dialog.'
@@ -37,7 +38,11 @@ export default function ScreenshotToolPanel({
   showBack = false,
 }: ScreenshotToolPanelProps) {
   const screenshotFileInputRef = useRef<HTMLInputElement>(null);
-  const screenshotCaptureSupported = isScreenshotCaptureSupported();
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const captureMode = getScreenshotCaptureMode();
+  const uploadOnly = uploadOnlyProp || captureMode === 'upload-only';
+  const screenCaptureSupported = isScreenshotCaptureSupported();
+  const cameraCaptureSupported = captureMode === 'camera';
   const useSaveDialog = allowAssignment && !target && !downloadOnly;
   const showFileUpload = !downloadOnly;
 
@@ -66,34 +71,55 @@ export default function ScreenshotToolPanel({
 
   const controlsDisabled = screenshotBusy || isSelectingRegion;
 
+  const helperText =
+    captureMode === 'screen'
+      ? description
+      : captureMode === 'camera'
+        ? 'Take a photo with your camera or upload an image from your gallery.'
+        : 'Screenshot capture is unavailable on this device. Upload an image instead.';
+
   return (
     <>
       <div className="space-y-3">
-        {!uploadOnly && <p className="text-sm text-text-secondary">{description}</p>}
-        {uploadOnly && (
-          <p className="text-sm text-text-secondary">
-            Screenshot capture is unavailable on this device. Upload an image instead.
-          </p>
-        )}
+        <p className="text-sm text-text-secondary">{helperText}</p>
         {showFileUpload && (
-          <input
-            ref={screenshotFileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            disabled={controlsDisabled}
-            onChange={(e) => {
-              const files = e.target.files ? Array.from(e.target.files) : [];
-              e.target.value = '';
-              if (files.length > 0) {
-                screenshotUploadFromFiles(files);
-              }
-            }}
-          />
+          <>
+            <input
+              ref={screenshotFileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              disabled={controlsDisabled}
+              onChange={(e) => {
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                e.target.value = '';
+                if (files.length > 0) {
+                  screenshotUploadFromFiles(files);
+                }
+              }}
+            />
+            {cameraCaptureSupported && (
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                disabled={controlsDisabled}
+                onChange={(e) => {
+                  const files = e.target.files ? Array.from(e.target.files) : [];
+                  e.target.value = '';
+                  if (files.length > 0) {
+                    screenshotUploadFromFiles(files);
+                  }
+                }}
+              />
+            )}
+          </>
         )}
         <div className="flex flex-col gap-2">
-          {screenshotCaptureSupported && !uploadOnly && (
+          {screenCaptureSupported && captureMode === 'screen' && (
             <>
               <Button
                 type="button"
@@ -130,6 +156,19 @@ export default function ScreenshotToolPanel({
                 Capture full page from URL
               </Button>
             </>
+          )}
+
+          {cameraCaptureSupported && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (!controlsDisabled) cameraInputRef.current?.click();
+              }}
+              disabled={controlsDisabled}
+            >
+              Take photo
+            </Button>
           )}
 
           {showUrlInput && (
@@ -188,13 +227,6 @@ export default function ScreenshotToolPanel({
         )}
         {screenshotErrorMessage && (
           <p className="text-xs text-error">{screenshotErrorMessage}</p>
-        )}
-        {!uploadOnly && !screenshotCaptureSupported && !screenshotErrorMessage && (
-          <p className="text-xs text-text-muted">
-            {downloadOnly
-              ? 'Screenshot capture is unavailable in this browser. Try Chrome or Edge on desktop.'
-              : 'Screenshot capture is unavailable on this device. Please upload an image instead.'}
-          </p>
         )}
         {showBack && onBack && (
           <Button type="button" variant="secondary" size="sm" onClick={onBack} disabled={controlsDisabled}>

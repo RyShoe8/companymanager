@@ -9,6 +9,7 @@ import {
   isRecordingCaptureSupported,
   type RecordingAudioSource,
 } from '@/lib/captureRecording';
+import { getRecordingCaptureMode } from '@/lib/capture/mobileCapture';
 import {
   useRecordingUpload,
   type RecordingUploadControl,
@@ -34,7 +35,7 @@ function RecordingToolPanelInner({
   target = null,
   projects = [],
   allowAssignment = false,
-  uploadOnly = false,
+  uploadOnly: uploadOnlyProp = false,
   description = 'Record your screen with system or microphone audio, or upload a video.',
   onUploaded,
   onBack,
@@ -43,7 +44,10 @@ function RecordingToolPanelInner({
   hideSaveDialog = false,
 }: RecordingToolPanelProps & { control: RecordingUploadControl }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const captureSupported = isRecordingCaptureSupported();
+  const captureMode = getRecordingCaptureMode();
+  const uploadOnly = uploadOnlyProp || captureMode === 'upload-only';
+  const screenCaptureSupported = isRecordingCaptureSupported();
+  const cameraCaptureSupported = captureMode === 'camera';
   const useSaveDialog = allowAssignment && !target;
   const [audioSource, setAudioSource] = useState<RecordingAudioSource | null>(null);
 
@@ -69,6 +73,7 @@ function RecordingToolPanelInner({
     elapsedLabel,
     stabilizeSecondsRemaining,
     prepareRecording,
+    prepareCameraRecording,
     skipStabilization,
     beginRecording,
     stopRecording,
@@ -79,12 +84,20 @@ function RecordingToolPanelInner({
     transcodeDebug,
   } = control;
 
-  const showSetup =
-    captureSupported &&
+  const showScreenSetup =
+    captureMode === 'screen' &&
+    screenCaptureSupported &&
     !uploadOnly &&
     !isPreparing &&
     !isStabilizing &&
     !isArmed &&
+    !isRecording &&
+    !isConverting;
+
+  const showCameraSetup =
+    cameraCaptureSupported &&
+    !uploadOnly &&
+    !isPreparing &&
     !isRecording &&
     !isConverting;
 
@@ -118,14 +131,20 @@ function RecordingToolPanelInner({
       )}
 
       <div className="space-y-3">
-        {!uploadOnly && <p className="text-sm text-text-secondary">{description}</p>}
+        {!uploadOnly && (
+          <p className="text-sm text-text-secondary">
+            {captureMode === 'camera'
+              ? 'Record a video with your camera or upload an existing file.'
+              : description}
+          </p>
+        )}
         {uploadOnly && (
           <p className="text-sm text-text-secondary">
             Recording capture is unavailable on this device. Upload a video instead.
           </p>
         )}
 
-        {showSetup && (
+        {showScreenSetup && (
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-text-primary">Audio source</legend>
             <label className="flex items-start gap-2 text-sm text-text-secondary cursor-pointer">
@@ -213,7 +232,7 @@ function RecordingToolPanelInner({
           }}
         />
         <div className="flex flex-col gap-2">
-          {showSetup && (
+          {showScreenSetup && (
             <Button
               type="button"
               size="sm"
@@ -221,6 +240,18 @@ function RecordingToolPanelInner({
               disabled={shareScreenDisabled}
             >
               Share screen
+            </Button>
+          )}
+          {showCameraSetup && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (!isBusy) void prepareCameraRecording();
+              }}
+              disabled={isBusy}
+            >
+              Record video
             </Button>
           )}
           <Button

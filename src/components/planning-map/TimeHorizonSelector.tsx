@@ -2,17 +2,22 @@
 
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import Button from '@/components/ui/Button';
-import Select from '@/components/ui/Select';
+import WorkspaceFilterSelect from '@/components/workspace/WorkspaceFilterSelect';
 
 interface TimeHorizonSelectorProps {
   selected: TimeframeType;
   onSelect: (timeframe: TimeframeType) => void;
+  mobileSelectClassName?: string;
 }
 
 const unselectedTimeframeClass =
   'bg-background-elevated border border-border text-text-secondary hover:text-text-primary hover:bg-background-card';
 
-export default function TimeHorizonSelector({ selected, onSelect }: TimeHorizonSelectorProps) {
+export default function TimeHorizonSelector({
+  selected,
+  onSelect,
+  mobileSelectClassName = '',
+}: TimeHorizonSelectorProps) {
   const timeframes: { value: TimeframeType; label: string }[] = [
     { value: 'today', label: 'Today' },
     { value: 'weekly', label: 'Weekly' },
@@ -40,13 +45,19 @@ export default function TimeHorizonSelector({ selected, onSelect }: TimeHorizonS
         })}
       </div>
 
-      <div className="md:hidden min-w-[120px]" data-tour="time-horizon">
-        <Select
+      <div className="md:hidden flex-1 min-w-0" data-tour="time-horizon">
+        <WorkspaceFilterSelect
           value={selected}
           onChange={(e) => onSelect(e.target.value as TimeframeType)}
-          options={timeframes}
-          className="bg-background-elevated text-text-primary border-border"
-        />
+          className={mobileSelectClassName}
+          aria-label="Time horizon"
+        >
+          {timeframes.map((timeframe) => (
+            <option key={timeframe.value} value={timeframe.value}>
+              {timeframe.label}
+            </option>
+          ))}
+        </WorkspaceFilterSelect>
       </div>
     </>
   );
