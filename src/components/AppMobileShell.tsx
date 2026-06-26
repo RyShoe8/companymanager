@@ -7,7 +7,9 @@ import MobileBottomNav from '@/components/ui/MobileBottomNav';
 export default function AppMobileShell({ children }: { children: ReactNode }) {
   return (
     <MobileShellProvider>
-      {children}
+      <div className="flex flex-1 flex-col min-h-0 w-full">
+        {children}
+      </div>
       <MobileBottomNav />
     </MobileShellProvider>
   );

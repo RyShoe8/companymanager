@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
+import { lockPageScroll, unlockPageScroll } from '@/lib/ui/scrollLock';
 
 interface ModalProps {
   isOpen: boolean;
@@ -74,6 +75,7 @@ export default function Modal({
   bodyPadding = true,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
+  const scrollLocked = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -81,15 +83,19 @@ export default function Modal({
 
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
+      if (!scrollLocked.current) {
+        lockPageScroll();
+        scrollLocked.current = true;
+      }
+    } else if (scrollLocked.current) {
+      unlockPageScroll();
+      scrollLocked.current = false;
     }
     return () => {
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
+      if (scrollLocked.current) {
+        unlockPageScroll();
+        scrollLocked.current = false;
+      }
     };
   }, [isOpen]);
 

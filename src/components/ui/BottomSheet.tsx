@@ -3,18 +3,7 @@
 import { useState, useEffect, ReactNode, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
-// Track how many BottomSheets are open to manage page overflow correctly
-let openBottomSheetCount = 0;
-
-function lockPageScroll() {
-  document.documentElement.style.overflow = 'hidden';
-  document.body.style.overflow = 'hidden';
-}
-
-function unlockPageScroll() {
-  document.documentElement.style.overflow = '';
-  document.body.style.overflow = '';
-}
+import { lockPageScroll, unlockPageScroll } from '@/lib/ui/scrollLock';
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -58,45 +47,41 @@ export default function BottomSheet({
   const [startY, setStartY] = useState(0);
   const [mounted, setMounted] = useState(false);
   const wasOpen = useRef(false);
+  const scrollLocked = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const releaseScrollIfHeld = () => {
+    if (scrollLocked.current) {
+      unlockPageScroll();
+      scrollLocked.current = false;
+    }
+  };
 
   useEffect(() => { setMounted(true); }, []);
   
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
-      // Opening
-      openBottomSheetCount++;
       wasOpen.current = true;
       setShouldRender(true);
-      lockPageScroll();
-    } else if (!isOpen && wasOpen.current) {
-      // Closing - use timeout to allow animation to complete, then unmount
-      openBottomSheetCount--;
-      wasOpen.current = false;
-      if (openBottomSheetCount <= 0) {
-        openBottomSheetCount = 0;
+      if (!scrollLocked.current) {
+        lockPageScroll();
+        scrollLocked.current = true;
       }
-      // Wait for close animation then unmount
+    } else if (!isOpen && wasOpen.current) {
+      // Closing - unlock scroll immediately; keep mounted for exit animation
+      wasOpen.current = false;
+      releaseScrollIfHeld();
       const timer = setTimeout(() => {
         setShouldRender(false);
-        if (openBottomSheetCount <= 0) {
-          unlockPageScroll();
-        }
       }, 350); // Slightly longer than 300ms transition
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (wasOpen.current) {
-        openBottomSheetCount = Math.max(0, openBottomSheetCount - 1);
-        wasOpen.current = false;
-        if (openBottomSheetCount <= 0) {
-          unlockPageScroll();
-        }
-      }
+      wasOpen.current = false;
+      releaseScrollIfHeld();
     };
   }, []);
 
