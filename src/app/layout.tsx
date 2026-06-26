@@ -9,6 +9,7 @@ import AppMobileShell from "@/components/AppMobileShell";
 import { StructuredData } from "@/components/StructuredData";
 import PostHogProvider from "@/components/analytics/PostHogProvider";
 import AnalyticsScripts from "@/components/analytics/AnalyticsScripts";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import PlatformGuideLayoutWrapper from "@/components/platformGuide/PlatformGuideLayoutWrapper";
 import RecaptchaScript from "@/components/recaptcha/RecaptchaScript";
 
@@ -121,6 +122,7 @@ export default async function RootLayout({
         {!isMinimalShell && (
           <>
             <AnalyticsScripts />
+            <GoogleAnalytics />
             {!isBareShell ? <RecaptchaScript /> : null}
           </>
         )}
