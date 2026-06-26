@@ -50,18 +50,18 @@ export function CalendarActiveStats({
 }) {
   if (!showTasks && !showContent) return null;
   const textSize = size === 'sm' ? 'text-sm' : 'text-xs';
+  const parts: string[] = [];
+  if (showTasks) {
+    parts.push(`${activeTaskCount} active task${activeTaskCount === 1 ? '' : 's'}`);
+  }
+  if (showContent) {
+    parts.push(`${activeContentCount} active content`);
+  }
   return (
-    <div className={`flex flex-wrap gap-2 ${textSize} font-medium ${headerTextClass}`}>
-      {showTasks && (
-        <span>
-          {activeTaskCount} active task{activeTaskCount === 1 ? '' : 's'}
-        </span>
-      )}
-      {showContent && (
-        <span>
-          {activeContentCount} active content
-        </span>
-      )}
+    <div
+      className={`flex flex-nowrap items-center gap-x-2 overflow-hidden ${textSize} font-medium ${headerTextClass}`}
+    >
+      <span className="truncate whitespace-nowrap">{parts.join(' · ')}</span>
     </div>
   );
 }

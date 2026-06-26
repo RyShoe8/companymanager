@@ -358,9 +358,10 @@ export default function InlineClientView({
                     </div>
                     <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}>{progressPercent}%</span>
                   </div>
-                  <div className={`flex flex-wrap gap-2 text-xs font-medium mt-2 ${headerTextClass}`}>
-                    <span>{activeTaskCount} active task{activeTaskCount === 1 ? '' : 's'}</span>
-                    <span>{activeContentCount} active content</span>
+                  <div className={`flex flex-nowrap items-center gap-x-2 overflow-hidden text-xs font-medium mt-2 ${headerTextClass}`}>
+                    <span className="truncate whitespace-nowrap">
+                      {activeTaskCount} active task{activeTaskCount === 1 ? '' : 's'} · {activeContentCount} active content
+                    </span>
                   </div>
                 </button>
               );

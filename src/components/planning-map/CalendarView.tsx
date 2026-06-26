@@ -57,6 +57,8 @@ import { passesTeamFilter } from '@/lib/workspace/teamFilter';
 import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 import CalendarCardHeader from '@/components/planning-map/CalendarCardHeader';
 import WeeklyDayGridShell from '@/components/planning-map/WeeklyDayGridShell';
+import WeeklyMobileDayPager from '@/components/planning-map/WeeklyMobileDayPager';
+import useIsMobile from '@/lib/hooks/useIsMobile';
 import {
   CalendarItemCardList,
   getProjectItemColor,
@@ -159,6 +161,7 @@ export default function CalendarView({
   projectLocalTouchMs = {},
   teamFilter = 'All Teams',
 }: CalendarViewProps) {
+  const isMobile = useIsMobile();
   const [viewDate, setViewDate] = useState(currentDate);
   const [employees, setEmployees] = useState<any[]>([]);
   const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
@@ -880,19 +883,23 @@ export default function CalendarView({
     />
   );
 
-  // Today View - One huge box showing everything for today
-  const renderTodayView = () => {
-    const today = new Date(startDate);
-    today.setHours(0, 0, 0, 0);
+  const renderDayView = (
+    day: Date,
+    opts?: { paddingClass?: string; minHeightClass?: string; emptyTitle?: string; emptyDescription?: string }
+  ) => {
+    const viewDay = new Date(day);
+    viewDay.setHours(0, 0, 0, 0);
+    const paddingClass = opts?.paddingClass ?? 'p-8';
+    const minHeightClass = opts?.minHeightClass ?? 'min-h-[600px]';
 
     if (itemMode) {
-      const items = collectCalendarItemsForDay(today, projects, contentItems, itemModeOptions);
+      const items = collectCalendarItemsForDay(viewDay, projects, contentItems, itemModeOptions);
       return (
-        <div className="p-8 min-h-[600px]">
+        <div className={`${paddingClass} ${minHeightClass}`}>
           {items.length === 0 ? (
             <EmptyStateIllustration
-              title="No tasks or content for today"
-              description="You don't have any tasks or content scheduled for today."
+              title={opts?.emptyTitle ?? 'No tasks or content for today'}
+              description={opts?.emptyDescription ?? "You don't have any tasks or content scheduled for today."}
             />
           ) : (
             renderItemCardList(items)
@@ -901,132 +908,134 @@ export default function CalendarView({
       );
     }
 
-    const todayProjects = sortProjectsByLatestUpdate(getProjectsForDay(today));
+    const dayProjects = sortProjectsByLatestUpdate(getProjectsForDay(viewDay));
 
     return (
-      <div className="p-8 min-h-[600px]">
-
-        {todayProjects.length === 0 ? (
+      <div className={`${paddingClass} ${minHeightClass}`}>
+        {dayProjects.length === 0 ? (
           <EmptyStateIllustration
-            title="No projects scheduled for today"
-            description="You don't have any projects or content planned for today. Enjoy your free time or start something new!"
+            title={opts?.emptyTitle ?? 'No projects scheduled for today'}
+            description={
+              opts?.emptyDescription ??
+              "You don't have any projects or content planned for today. Enjoy your free time or start something new!"
+            }
             actionLabel="Create Project"
             onAction={() => window.dispatchEvent(new CustomEvent('open-project-modal'))}
           />
         ) : (
           <div className="space-y-4">
-            {todayProjects.length > 0 && (
-              <>
-                <h3 className="text-xl font-semibold text-text-primary mb-4">
-                  Projects ({todayProjects.length})
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {todayProjects.map((project) => {
-                    // Projects don't have dates - they just exist in their stage
-                    const displayColor = project.status === 'in-review' ? '#ef4444' : project.color; // Red for in-review
-                    const projectId = project._id.toString();
-                    const isExpanded = expandedProjects.has(projectId);
+            <h3 className="text-xl font-semibold text-text-primary mb-4">
+              Projects ({dayProjects.length})
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dayProjects.map((project) => {
+                const displayColor = project.status === 'in-review' ? '#ef4444' : project.color;
+                const projectId = project._id.toString();
+                const isExpanded = expandedProjects.has(projectId);
 
-                    const progressPercent = computeProjectTimeframeProgress(
-                      project,
-                      contentItems,
-                      startDate,
-                      endDate,
-                      currentDate
-                    );
-                    const todaySummary = getWeeklyCollapsedSummary(project, today, today);
-                    const activeTaskCount = todaySummary.openTasks;
-                    const activeContentCount = todaySummary.openContent;
+                const progressPercent = computeProjectTimeframeProgress(
+                  project,
+                  contentItems,
+                  startDate,
+                  endDate,
+                  currentDate
+                );
+                const daySummary = getWeeklyCollapsedSummary(project, viewDay, viewDay);
+                const activeTaskCount = daySummary.openTasks;
+                const activeContentCount = daySummary.openContent;
 
-                    return (
-                      <div
-                        key={projectId}
-                        className="p-3 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
-                        style={{
-                          backgroundColor: displayColor + 'F0',
-                          borderColor: displayColor,
-                        }}
-                      >
-                        <CalendarCardHeader
-                          name={project.name}
-                          logo={project.logo}
-                          color={displayColor}
-                          progressPercent={progressPercent}
-                          activeTaskCount={activeTaskCount}
-                          activeContentCount={activeContentCount}
-                          showTasks={true}
-                          showContent={true}
-                          isExpanded={isExpanded}
-                          onToggleExpand={() => toggleProjectExpanded(projectId)}
-                          onTitleClick={() => onProjectClick(project)}
-                          statusLabel={getProjectStatusDisplayLabel(project.status)}
-                          completed={project.status === 'completed'}
-                          headerActions={
-                            onAddContent && canAddContentToProject(project) ? (
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <ActionMenu
-                                  align="right"
-                                  width="w-36"
-                                  useBackdrop
-                                  items={[
-                                    {
-                                      label: 'Add Task',
-                                      onClick: () => {
-                                        if (onAddTask) onAddTask(project);
-                                        else onProjectClick(project);
-                                      },
-                                    },
-                                    {
-                                      label: 'Add Content',
-                                      onClick: () => onAddContent(project, today),
-                                    },
-                                  ]}
-                                  trigger={({ toggle }) => (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggle();
-                                      }}
-                                      className="text-white hover:opacity-100 opacity-90 px-2 py-1 rounded border border-white/50 text-sm"
-                                    >
-                                      + Add
-                                    </button>
-                                  )}
-                                />
-                              </div>
-                            ) : undefined
-                          }
-                        />
+                return (
+                  <div
+                    key={projectId}
+                    className="p-2 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
+                    style={{
+                      backgroundColor: displayColor + 'F0',
+                      borderColor: displayColor,
+                    }}
+                  >
+                    <CalendarCardHeader
+                      name={project.name}
+                      logo={project.logo}
+                      color={displayColor}
+                      progressPercent={progressPercent}
+                      activeTaskCount={activeTaskCount}
+                      activeContentCount={activeContentCount}
+                      showTasks={true}
+                      showContent={true}
+                      isExpanded={isExpanded}
+                      onToggleExpand={() => toggleProjectExpanded(projectId)}
+                      onTitleClick={() => onProjectClick(project)}
+                      statusLabel={getProjectStatusDisplayLabel(project.status)}
+                      completed={project.status === 'completed'}
+                      headerActions={
+                        onAddContent && canAddContentToProject(project) ? (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <ActionMenu
+                              align="right"
+                              width="w-36"
+                              useBackdrop
+                              items={[
+                                {
+                                  label: 'Add Task',
+                                  onClick: () => {
+                                    if (onAddTask) onAddTask(project);
+                                    else onProjectClick(project);
+                                  },
+                                },
+                                {
+                                  label: 'Add Content',
+                                  onClick: () => onAddContent(project, viewDay),
+                                },
+                              ]}
+                              trigger={({ toggle }) => (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggle();
+                                  }}
+                                  className="text-white hover:opacity-100 opacity-90 px-2 py-1 rounded border border-white/50 text-sm"
+                                >
+                                  + Add
+                                </button>
+                              )}
+                            />
+                          </div>
+                        ) : undefined
+                      }
+                    />
 
-                        {isExpanded && (() => {
-                          const { merged } = getMergedItemsForProject(project, today, today, {});
-                          const displayList = merged.filter(
-                            (item): item is MergedCalendarItem =>
-                              isActiveMergedCalendarItem(item) &&
-                              (item.type === 'content'
-                                ? localContentPassesAssignmentFilter(item.content)
-                                : localTaskPassesAssignmentFilter(item.task))
-                          );
-                          if (displayList.length === 0) return null;
-                          return (
-                            <div className="mt-4">
-                              {expandedRangeItems(project, displayList, `${projectId}-today`)}
-                            </div>
-                          );
-                        })()}
-
-
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+                    {isExpanded &&
+                      (() => {
+                        const { merged } = getMergedItemsForProject(project, viewDay, viewDay, {});
+                        const displayList = merged.filter(
+                          (item): item is MergedCalendarItem =>
+                            isActiveMergedCalendarItem(item) &&
+                            (item.type === 'content'
+                              ? localContentPassesAssignmentFilter(item.content)
+                              : localTaskPassesAssignmentFilter(item.task))
+                        );
+                        if (displayList.length === 0) return null;
+                        return (
+                          <div className="mt-4">
+                            {expandedRangeItems(project, displayList, `${projectId}-day`)}
+                          </div>
+                        );
+                      })()}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
     );
+  };
+
+  const renderTodayView = () => {
+    const today = new Date(startDate);
+    today.setHours(0, 0, 0, 0);
+    return renderDayView(today);
   };
 
   // Weekly View - Large daily boxes spanning 3 rows
@@ -1037,6 +1046,23 @@ export default function CalendarView({
     for (let i = 0; i < 7; i++) {
       days.push(new Date(current));
       current.setDate(current.getDate() + 1);
+    }
+
+    if (isMobile) {
+      return (
+        <WeeklyMobileDayPager startDate={startDate} weekKey={startDate.toISOString()}>
+          {(day) =>
+            renderDayView(day, {
+              paddingClass: 'p-2',
+              minHeightClass: 'min-h-[300px]',
+              emptyTitle: itemMode ? 'Nothing scheduled' : 'No projects this day',
+              emptyDescription: itemMode
+                ? 'No tasks or content on this day.'
+                : 'No projects scheduled for this day.',
+            })
+          }
+        </WeeklyMobileDayPager>
+      );
     }
 
     if (itemMode) {
@@ -1115,7 +1141,7 @@ export default function CalendarView({
             return (
               <div
                 key={dayIdx}
-                className={`p-2 md:p-4 min-h-[1200px] relative z-0 ${isCurrentDay ? 'bg-primary-light' : ''}`}
+                className={`p-1 md:p-4 min-h-[1200px] relative z-0 ${isCurrentDay ? 'bg-primary-light' : ''}`}
               >
                 <div
                   className={`text-lg font-semibold mb-3 ${isCurrentDay ? 'text-primary' : 'text-text-primary'
@@ -1323,7 +1349,7 @@ export default function CalendarView({
 
                         return (
                           <>
-                            <div className="px-6 py-4 shrink-0">
+                            <div className="px-2 py-3 md:px-6 md:py-4 shrink-0">
                               <CalendarCardHeader
                                 name={name}
                                 logo={project.logo}

@@ -70,7 +70,7 @@ export function MobileNavVoiceButton() {
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
       onPointerCancel={handlePointerLeave}
-      className={`flex flex-col items-center justify-center flex-1 h-full touch-manipulation transition-colors ${
+      className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full touch-manipulation transition-colors ${
         voice.state === 'listening'
           ? 'text-red-500'
           : wakeActive
@@ -135,12 +135,12 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 bg-background-card border-t border-border md:hidden z-50 pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 left-0 right-0 max-w-[100vw] overflow-hidden bg-background-card border-t border-border md:hidden z-50 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-stretch h-16">
           <button
             type="button"
             onClick={() => setNavOpen(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full text-text-secondary hover:text-text-primary touch-manipulation"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-text-secondary hover:text-text-primary touch-manipulation"
             aria-label="Open menu"
             data-tour="mobile-start-menu"
           >
@@ -151,13 +151,13 @@ export default function MobileBottomNav() {
           <button
             type="button"
             onClick={() => setActionOpen(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full text-text-secondary hover:text-text-primary touch-manipulation relative"
+            className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-text-secondary hover:text-text-primary touch-manipulation relative"
             aria-label="Open action inbox"
           >
-            <span className="text-xl mb-0.5 relative">
+            <span className="text-xl mb-0.5 relative inline-flex">
               ⚡
               {inboxCount > 0 ? (
-                <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
+                <span className="absolute -top-1 right-0 translate-x-1/2 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
                   {inboxCount > 99 ? '99+' : inboxCount}
                 </span>
               ) : null}

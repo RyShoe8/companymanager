@@ -24,7 +24,7 @@ export default function LensBar({ selected, onSelect, trailing }: LensBarProps) 
 
     return (
         <div className="flex flex-wrap items-center gap-2 min-w-0" data-tour="lens-bar">
-            <div className="flex items-center gap-1" role="tablist" aria-label="View lens">
+            <div className="flex items-center gap-1 overflow-x-auto flex-nowrap max-w-full" role="tablist" aria-label="View lens">
                 {lenses.map((l) => (
                     <button
                         key={l.value}

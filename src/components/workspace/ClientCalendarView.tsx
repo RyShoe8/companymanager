@@ -13,6 +13,8 @@ import CalendarCardHeader, {
   CalendarProgressBar,
 } from '@/components/planning-map/CalendarCardHeader';
 import WeeklyDayGridShell from '@/components/planning-map/WeeklyDayGridShell';
+import WeeklyMobileDayPager from '@/components/planning-map/WeeklyMobileDayPager';
+import useIsMobile from '@/lib/hooks/useIsMobile';
 import {
   CalendarItemCardList,
   GANTT_ITEM_ROW_HEIGHT,
@@ -300,6 +302,7 @@ export default function ClientCalendarView({
   currentUserId = null,
   itemSeenRefreshTrigger,
 }: ClientCalendarViewProps) {
+  const isMobile = useIsMobile();
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
   const itemMode = showTasks || showContent;
@@ -541,27 +544,87 @@ export default function ClientCalendarView({
     />
   );
 
-  const renderTodayView = () => {
+  const renderClientDayView = (day: Date, paddingClass = 'p-2 md:p-6') => {
+    const viewDay = new Date(day);
+    viewDay.setHours(0, 0, 0, 0);
+    const viewDayEnd = new Date(viewDay);
+    viewDayEnd.setHours(23, 59, 59, 999);
+
     if (itemMode) {
-      const today = new Date(startDate);
-      today.setHours(0, 0, 0, 0);
       const items = collectCalendarItemsForDay(
-        today,
+        viewDay,
         clientScopedProjects,
         contentItems,
         itemModeOptions
       );
       if (items.length === 0) {
         return (
-          <div className="p-6">
+          <div className={paddingClass}>
             <EmptyStateIllustration
-              title="No tasks or content today"
-              description="No client tasks or content are scheduled for today."
+              title="No tasks or content"
+              description="No client tasks or content are scheduled for this day."
             />
           </div>
         );
       }
-      return <div className="p-6">{renderItemCardList(items)}</div>;
+      return <div className={paddingClass}>{renderItemCardList(items)}</div>;
+    }
+
+    const dayRows = clientsForRange(rows, viewDay, viewDayEnd, allProjects, contentItems);
+    if (dayRows.length === 0) {
+      return (
+        <div className={paddingClass}>
+          <EmptyStateIllustration
+            title="No clients this day"
+            description="No client activity falls on this day."
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className={`${paddingClass} space-y-3`}>
+        {dayRows.map((row) => {
+          const clientId = String(row.client._id);
+          const isExpanded = expandedClients.has(clientId);
+          const displayColor = row.client.color || '#3b82f6';
+          return (
+            <div
+              key={clientId}
+              className="p-2 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
+              style={{
+                backgroundColor: `${displayColor}F0`,
+                borderColor: displayColor,
+              }}
+            >
+              <ClientCardBody
+                row={row}
+                isExpanded={isExpanded}
+                onToggleExpand={() => toggleClientExpanded(clientId)}
+                onClientClick={onClientClick}
+                onProjectClick={onProjectClick}
+                scheduledHoursOverride={row.scheduledHours}
+                contentItems={contentItems}
+                rangeStart={viewDay}
+                rangeEnd={viewDayEnd}
+                currentDate={currentDate}
+                onTaskClick={onTaskClick}
+                onContentItemClick={onContentItemClick}
+                taskSeenStatus={taskSeenStatus}
+                contentSeenStatus={contentSeenStatus}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderTodayView = () => {
+    if (itemMode) {
+      const today = new Date(startDate);
+      today.setHours(0, 0, 0, 0);
+      return renderClientDayView(today);
     }
 
     const today = new Date(startDate);
@@ -591,7 +654,7 @@ export default function ClientCalendarView({
             return (
               <div
                 key={clientId}
-                className="p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
+                className="p-2 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
                 style={{
                   backgroundColor: `${displayColor}F0`,
                   borderColor: displayColor,
@@ -651,6 +714,14 @@ export default function ClientCalendarView({
   };
 
   const renderWeeklyView = () => {
+    if (isMobile) {
+      return (
+        <WeeklyMobileDayPager startDate={startDate} weekKey={startDate.toISOString()}>
+          {(day) => renderClientDayView(day, 'p-2')}
+        </WeeklyMobileDayPager>
+      );
+    }
+
     if (itemMode) {
       const days: Date[] = [];
       const current = new Date(startDate);
@@ -761,7 +832,7 @@ export default function ClientCalendarView({
                     borderColor: displayColor,
                   }}
                 >
-                  <div className="p-4 h-full overflow-hidden flex flex-col">
+                  <div className="p-2 md:p-4 h-full overflow-hidden flex flex-col">
                     <ClientCardBody
                       row={row}
                       isExpanded={isExpanded}
@@ -827,7 +898,7 @@ export default function ClientCalendarView({
     };
 
     return (
-      <div className="p-4">
+      <div className="p-2 md:p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {weeks.map((week) => {
             const weekStart = new Date(week[0]);
@@ -923,7 +994,7 @@ export default function ClientCalendarView({
     }
 
     return (
-      <div className="p-4">
+      <div className="p-2 md:p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);
@@ -978,7 +1049,7 @@ export default function ClientCalendarView({
     }
 
     return (
-      <div className="p-4">
+      <div className="p-2 md:p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);

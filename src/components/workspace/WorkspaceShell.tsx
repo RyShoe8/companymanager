@@ -45,7 +45,11 @@ import Modal from '@/components/ui/Modal';
 import BottomSheet from '@/components/ui/BottomSheet';
 import Button from '@/components/ui/Button';
 import Toggle from '@/components/ui/Toggle';
+import WorkspaceEmailDigestSelect from '@/components/workspace/WorkspaceEmailDigestSelect';
+import WorkspaceTeamFilter from '@/components/workspace/WorkspaceTeamFilter';
 import WorkspaceLensToolbar from '@/components/workspace/WorkspaceLensToolbar';
+import WorkspaceViewOptions, { countActiveViewOptions } from '@/components/workspace/WorkspaceViewOptions';
+import WorkspaceViewOptionsSheet from '@/components/workspace/WorkspaceViewOptionsSheet';
 import ContentChannelFilter from '@/components/workspace/ContentChannelFilter';
 import CommandRegistry from '@/lib/commands/CommandRegistry';
 import CommandPalette from '@/components/workspace/CommandPalette';
@@ -67,8 +71,6 @@ import {
   markProjectItemsSeen,
   readProjectUnseenSections,
 } from '@/lib/workspace/itemSeenState';
-import WorkspaceEmailDigestSelect from '@/components/workspace/WorkspaceEmailDigestSelect';
-import WorkspaceTeamFilter from '@/components/workspace/WorkspaceTeamFilter';
 import PlatformGuideWorkspaceBridge from '@/lib/platformGuide/PlatformGuideWorkspaceBridge';
 import { usePlatformGuideOptional } from '@/lib/platformGuide/PlatformGuideProvider';
 
@@ -141,7 +143,45 @@ export default function WorkspaceShell({
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
     const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
+    const [showViewOptionsOpen, setShowViewOptionsOpen] = useState(false);
+    const [emailDigestInterval, setEmailDigestInterval] = useState('off');
+
+    const viewOptionsProps = useMemo(
+        () => ({
+            lens: ws.lens,
+            isManagerOrAdmin: ws.isManagerOrAdmin,
+            showOnlyMyAssignments: ws.showOnlyMyAssignments,
+            onShowOnlyMyAssignmentsChange: ws.setShowOnlyMyAssignments,
+            showTasks: ws.showTasks,
+            onShowTasksChange: ws.setShowTasks,
+            showContent: ws.showContent,
+            onShowContentChange: ws.setShowContent,
+            showMeetings: ws.showMeetings,
+            onShowMeetingsChange: ws.setShowMeetings,
+            teamFilter: ws.teamFilter,
+            onTeamFilterChange: ws.setTeamFilter,
+            onEmailDigestIntervalChange: setEmailDigestInterval,
+        }),
+        [ws]
+    );
+
+    const activeViewOptionsCount = useMemo(
+        () =>
+            countActiveViewOptions({
+                lens: ws.lens,
+                isManagerOrAdmin: ws.isManagerOrAdmin,
+                showOnlyMyAssignments: ws.showOnlyMyAssignments,
+                showTasks: ws.showTasks,
+                showContent: ws.showContent,
+                showMeetings: ws.showMeetings,
+                teamFilter: ws.teamFilter,
+                emailDigestInterval,
+            }),
+        [ws.lens, ws.isManagerOrAdmin, ws.showOnlyMyAssignments, ws.showTasks, ws.showContent, ws.showMeetings, ws.teamFilter, emailDigestInterval]
+    );
+
     const platformGuide = usePlatformGuideOptional();
+
 
     useEffect(() => {
         const load = async () => {
@@ -1533,7 +1573,7 @@ _id.toString(), { tasks });
                 getWorkspaceContext={() => workspaceIntentContext}
             >
                 <PlatformCatalogProvider>
-                <div className={`min-h-screen bg-background ${PAGE_GUTTER_WIDE_CLASS}`}>
+                <div className={`min-h-screen bg-background overflow-x-hidden md:overflow-x-visible ${PAGE_GUTTER_WIDE_CLASS}`}>
                     <MobileShellBridge
                         isManagerOrAdmin={ws.isManagerOrAdmin}
                         currentUserId={ws.currentUserId}
@@ -1645,11 +1685,12 @@ _id.toString(), { tasks });
 
                         {/* Row 2: Lens bar + view toggles (hidden in Scheduling phase) */}
                         {!isSchedulingPhase && (
-                        <div className="flex flex-wrap items-center gap-4 justify-between">
+                        <div className="flex flex-wrap items-center gap-2 md:gap-4 justify-between min-w-0">
                             <LensBar
                                 selected={ws.lens}
                                 onSelect={handleLensSelect}
                                 trailing={
+                                    isMobile ? null : (
                                     <div className="flex flex-wrap items-center gap-3">
                                         {ws.isManagerOrAdmin ? (
                                             <Toggle
@@ -1658,11 +1699,29 @@ _id.toString(), { tasks });
                                                 onChange={ws.setShowOnlyMyAssignments}
                                             />
                                         ) : null}
-                                        <WorkspaceEmailDigestSelect />
+                                        <WorkspaceEmailDigestSelect onIntervalChange={setEmailDigestInterval} />
                                     </div>
+                                    )
                                 }
                             />
-                            {(ws.lens === 'schedule' || ws.lens === 'agenda' || ws.lens === 'clients') && (
+                            {isMobile ? (
+                                <button
+                                    type="button"
+                                    data-tour="lens-toggles"
+                                    onClick={() => setShowViewOptionsOpen(true)}
+                                    className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                                    aria-label="View options"
+                                >
+                                    <span aria-hidden>⚙</span>
+                                    Options
+                                    {activeViewOptionsCount > 0 ? (
+                                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
+                                            {activeViewOptionsCount}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            ) : null}
+                            {!isMobile && (ws.lens === 'schedule' || ws.lens === 'agenda' || ws.lens === 'clients') ? (
                                 <WorkspaceLensToolbar className="ml-auto">
                                     {platformGuide?.showRestartGuide ? (
                                         <button
@@ -1700,17 +1759,17 @@ _id.toString(), { tasks });
                                     ) : null}
                                     </div>
                                 </WorkspaceLensToolbar>
-                            )}
+                            ) : null}
                         </div>
                         )}
 
                     </div>
 
                     {/* ===== Main Content ===== */}
-                    <div className="flex w-full gap-6">
+                    <div className="flex w-full gap-3 md:gap-6">
                         <div className="flex-1 min-w-0">
                             {isClientsLens ? (
-                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 md:gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0" data-tour="clients-main">
                                         <ClientScheduleLens
                                                 clients={ws.filteredClients}
@@ -1729,7 +1788,7 @@ _id.toString(), { tasks });
                                                 itemSeenRefreshTrigger={itemSeenRefreshTrigger}
                                             />
                                     </div>
-                                    <div className="xl:col-span-1">
+                                    <div className="hidden md:block xl:col-span-1">
                                         <EmployeeSidebar
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
@@ -1744,7 +1803,7 @@ _id.toString(), { tasks });
                                     </div>
                                 </div>
                             ) : isSchedulingPhase ? (
-                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 md:gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <SchedulingPanel
                                             projects={ws.projectsForLens}
@@ -1770,7 +1829,7 @@ _id.toString(), { tasks });
                                             onSetMessage={setSchedulePanelMessage}
                                         />
                                     </div>
-                                    <div className="xl:col-span-1">
+                                    <div className="hidden md:block xl:col-span-1">
                                         <EmployeeSidebar
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
@@ -1785,7 +1844,7 @@ _id.toString(), { tasks });
                                     </div>
                                 </div>
                             ) : ws.lens === 'schedule' || ws.lens === 'agenda' ? (
-                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 md:gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0" data-tour="schedule-main">
                                         {ws.lens === 'schedule' ? (
                                             <ScheduleLens
@@ -1854,7 +1913,7 @@ _id.toString(), { tasks });
                                             />
                                         )}
                                     </div>
-                                    <div className="xl:col-span-1">
+                                    <div className="hidden md:block xl:col-span-1">
                                         <EmployeeSidebar
                                             employees={ws.employees}
                                             projects={ws.filteredProjects}
@@ -1889,6 +1948,11 @@ _id.toString(), { tasks });
                     </div>
 
                     {/* ===== Modals & Sheets ===== */}
+                    <WorkspaceViewOptionsSheet
+                        isOpen={showViewOptionsOpen}
+                        onClose={() => setShowViewOptionsOpen(false)}
+                        {...viewOptionsProps}
+                    />
                     <ClientCreateModal
                         isOpen={showClientCreateModal}
                         onClose={() => setShowClientCreateModal(false)}

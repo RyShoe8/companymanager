@@ -11,7 +11,10 @@ import { formInputClass } from '@/components/ui/formClasses';
 import { useVoice } from '@/components/voice/VoiceProvider';
 import { useFeedbackVisibility } from '@/hooks/useFeedbackVisibility';
 import useIsMobile from '@/lib/hooks/useIsMobile';
-import { MOBILE_NAV_CLEARANCE_CLASS } from '@/lib/ui/mobileLayout';
+import {
+  MOBILE_FIXED_RIGHT_CLASS,
+  MOBILE_NAV_CLEARANCE_CLASS,
+} from '@/lib/ui/mobileLayout';
 
 export default function FeedbackLauncher() {
   const pathname = usePathname();
@@ -76,10 +79,10 @@ export default function FeedbackLauncher() {
   if (!visible) return null;
 
   const positionClass = isMobile
-    ? MOBILE_NAV_CLEARANCE_CLASS
+    ? `${MOBILE_NAV_CLEARANCE_CLASS} ${MOBILE_FIXED_RIGHT_CLASS}`
     : isVoiceEnabled
-      ? 'bottom-40'
-      : 'bottom-6';
+      ? 'bottom-40 right-6'
+      : 'bottom-6 right-6';
 
   return (
     <>
@@ -89,11 +92,13 @@ export default function FeedbackLauncher() {
           reset();
           setOpen(true);
         }}
-        className={`fixed right-6 z-40 rounded-full bg-primary text-white shadow-lg px-4 py-3 text-sm font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900 ${positionClass}`}
+        className={`fixed z-40 rounded-full bg-primary text-white shadow-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 md:focus:ring-offset-2 focus:ring-offset-gray-900 ${positionClass} ${
+          isMobile ? 'p-3 text-lg' : 'px-4 py-3 text-sm font-medium'
+        }`}
         data-tour="feedback-button"
         aria-label="Report a bug or request a feature"
       >
-        Feedback
+        {isMobile ? '💬' : 'Feedback'}
       </button>
 
       <Modal
