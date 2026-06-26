@@ -20,6 +20,7 @@ interface ClientScheduleLensProps {
   onContentItemClick?: (item: IContentItem) => void;
   onDateChange: (date: Date) => void;
   currentUserId?: string | null;
+  inspectorProjectId?: string | null;
   itemSeenRefreshTrigger?: number;
 }
 

@@ -8,6 +8,10 @@ import type { PhaseType, LensType } from '@/lib/hooks/useWorkspaceData';
 import { useMobileShell } from '@/contexts/MobileShellContext';
 import { useVoice } from '@/components/voice/VoiceProvider';
 import { buildMobileActionInbox } from '@/hooks/useMobileActionInbox';
+import {
+  collectWorkspaceItemObservations,
+  observeItemsForUser,
+} from '@/lib/workspace/itemSeenState';
 
 type MobileShellBridgeProps = {
   isManagerOrAdmin: boolean;
@@ -16,7 +20,6 @@ type MobileShellBridgeProps = {
   projects: IProject[];
   contentItems: IContentItem[];
   clients: IClient[];
-  inspectorProjectId: string | null;
   itemSeenRefreshTrigger: number;
   onLensSelect: (lens: LensType) => void;
   onPhaseSelect: (phase: PhaseType) => void;
@@ -40,7 +43,6 @@ export default function MobileShellBridge({
   projects,
   contentItems,
   clients,
-  inspectorProjectId,
   itemSeenRefreshTrigger,
   onLensSelect,
   onPhaseSelect,
@@ -77,6 +79,16 @@ export default function MobileShellBridge({
     [clients]
   );
 
+  const observations = useMemo(
+    () => collectWorkspaceItemObservations(projects, contentItems),
+    [projects, contentItems]
+  );
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    observeItemsForUser(currentUserId, observations);
+  }, [currentUserId, observations, itemSeenRefreshTrigger]);
+
   const inboxItems = useMemo(
     () =>
       buildMobileActionInbox({
@@ -85,7 +97,6 @@ export default function MobileShellBridge({
         projects,
         contentItems,
         clients,
-        openProjectId: inspectorProjectId,
         onOpenTask,
         onOpenContent,
         onOpenProject: onViewProject,
@@ -97,7 +108,6 @@ export default function MobileShellBridge({
       projects,
       contentItems,
       clients,
-      inspectorProjectId,
       itemSeenRefreshTrigger,
       onOpenTask,
       onOpenContent,
@@ -149,11 +159,8 @@ export default function MobileShellBridge({
         onCreateRecord,
       },
     });
-
-    return () => clearShell();
   }, [
     registerShell,
-    clearShell,
     isManagerOrAdmin,
     navProjects,
     navClients,
@@ -171,6 +178,8 @@ export default function MobileShellBridge({
     onCreateScreenshot,
     onCreateRecord,
   ]);
+
+  useEffect(() => () => clearShell(), [clearShell]);
 
   return null;
 }

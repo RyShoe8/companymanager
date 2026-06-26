@@ -56,7 +56,7 @@ export default function MobileActionSheet({ isOpen, onClose }: MobileActionSheet
                     <button
                       type="button"
                       onClick={() => {
-                        markOpenedFromActionInbox();
+                        markOpenedFromActionInbox(item.id);
                         item.onOpen();
                         onClose();
                       }}

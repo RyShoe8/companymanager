@@ -3,10 +3,12 @@ import type { IContentItem } from '@/lib/models/ContentItem';
 import type { IProject } from '@/lib/models/Project';
 import {
   collectWorkspaceItemObservations,
-  observeItemsForUser,
   readObservedItemsForUser,
   buildTaskItemKey,
   buildContentItemKey,
+  buildClientInboxKey,
+  buildProjectInboxKey,
+  isInboxEntitySeen,
 } from '@/lib/workspace/itemSeenState';
 import {
   getTaskAssigneeEmployeeIds,
@@ -26,7 +28,6 @@ type BuildInboxParams = {
   projects: IProject[];
   contentItems: IContentItem[];
   clients: IClient[];
-  openProjectId?: string | null;
   onOpenTask: (projectId: string, taskId: string) => void;
   onOpenContent: (projectId: string, contentId: string) => void;
   onOpenProject: (projectId: string) => void;
@@ -40,7 +41,6 @@ export function buildMobileActionInbox(params: BuildInboxParams): MobileInboxIte
     projects,
     contentItems,
     clients,
-    openProjectId,
     onOpenTask,
     onOpenContent,
     onOpenProject,
@@ -50,7 +50,6 @@ export function buildMobileActionInbox(params: BuildInboxParams): MobileInboxIte
   if (!userId || !employeeId) return [];
 
   const observations = collectWorkspaceItemObservations(projects, contentItems);
-  observeItemsForUser(userId, observations, { openProjectId: openProjectId ?? undefined });
   const { statusByKey } = readObservedItemsForUser(
     userId,
     observations.map((o) => o.key)
@@ -63,9 +62,15 @@ export function buildMobileActionInbox(params: BuildInboxParams): MobileInboxIte
     const projectId = project._id.toString();
     const onTeam = isEmployeeOnProjectTeam(project, employeeId);
     const createdMs = new Date(project.createdAt ?? 0).getTime();
-    if (onTeam && Number.isFinite(createdMs) && now - createdMs < NEW_PROJECT_GRACE_MS) {
+    const projectInboxKey = buildProjectInboxKey(projectId);
+    if (
+      onTeam &&
+      Number.isFinite(createdMs) &&
+      now - createdMs < NEW_PROJECT_GRACE_MS &&
+      !isInboxEntitySeen(userId, projectInboxKey, createdMs)
+    ) {
       items.push({
-        id: `project:${projectId}`,
+        id: projectInboxKey,
         label: project.name,
         type: 'project',
         status: 'new',
@@ -119,14 +124,22 @@ export function buildMobileActionInbox(params: BuildInboxParams): MobileInboxIte
     const isAssigned =
       assigned.includes(employeeId) || (legacy != null && legacy === employeeId);
     if (!isAssigned) continue;
+    const clientId = client._id.toString();
     const createdMs = new Date(client.createdAt ?? 0).getTime();
-    if (!Number.isFinite(createdMs) || now - createdMs >= NEW_PROJECT_GRACE_MS) continue;
+    const clientInboxKey = buildClientInboxKey(clientId);
+    if (
+      !Number.isFinite(createdMs) ||
+      now - createdMs >= NEW_PROJECT_GRACE_MS ||
+      isInboxEntitySeen(userId, clientInboxKey, createdMs)
+    ) {
+      continue;
+    }
     items.push({
-      id: `client:${client._id}`,
+      id: clientInboxKey,
       label: client.name,
       type: 'client',
       status: 'new',
-      onOpen: () => onOpenClient(client._id.toString()),
+      onOpen: () => onOpenClient(clientId),
     });
   }
 

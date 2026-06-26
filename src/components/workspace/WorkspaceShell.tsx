@@ -21,6 +21,7 @@ import ClientCreateModal from '@/components/workspace/ClientCreateModal';
 import OrganizationBrand from '@/components/organization/OrganizationBrand';
 import SchedulingPanel from '@/components/scheduling/SchedulingPanel';
 import SchedulingCalendarBar from '@/components/scheduling/SchedulingCalendarBar';
+import SchedulingHeaderToolbar from '@/components/scheduling/SchedulingHeaderToolbar';
 import AvailabilityModal from '@/components/scheduling/AvailabilityModal';
 import CreateMeetingModal from '@/components/scheduling/CreateMeetingModal';
 import ScreenshotToolModal from '@/components/shared/ScreenshotToolModal';
@@ -70,8 +71,15 @@ import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 import {
   collectWorkspaceItemObservations,
   markProjectItemsSeen,
+  markItemsSeenByKeys,
   readProjectUnseenSections,
+  buildTaskItemKey,
+  buildContentItemKey,
 } from '@/lib/workspace/itemSeenState';
+import {
+  clearReturnToActionInbox,
+  getPendingActionInboxItemKey,
+} from '@/lib/mobile/actionInboxReturn';
 import PlatformGuideWorkspaceBridge from '@/lib/platformGuide/PlatformGuideWorkspaceBridge';
 import { usePlatformGuideOptional } from '@/lib/platformGuide/PlatformGuideProvider';
 
@@ -331,6 +339,11 @@ export default function WorkspaceShell({
     const handlePhaseSelect = useCallback(
         (p: PhaseType) => {
             ws.setPhase(p);
+            if (p === 'Schedule' && ws.lens === 'clients') {
+                ws.setLens('schedule');
+                syncWorkspaceUrl({ phase: p, lens: 'schedule' });
+                return;
+            }
             syncWorkspaceUrl({ phase: p });
         },
         [ws, syncWorkspaceUrl]
@@ -363,6 +376,15 @@ export default function WorkspaceShell({
         setProjectFormDefaultClientId(clientId);
         setShowProjectForm(true);
     }, []);
+
+    const markWorkspaceItemSeen = useCallback(
+        (keys: string[]) => {
+            if (!ws.currentUserId || keys.length === 0) return;
+            markItemsSeenByKeys(ws.currentUserId, keys);
+            setItemSeenRefreshTrigger((t) => t + 1);
+        },
+        [ws.currentUserId]
+    );
 
     const markOpenedProjectSeen = useCallback(
         (projectId: string) => {
@@ -410,15 +432,25 @@ export default function WorkspaceShell({
         [getProjectUnseenExpandFlags]
     );
 
-    const closeInspector = useCallback(() => {
-        const projectIdToMark = inspectorFocus?.startsWith('project:')
-            ? inspectorFocus.split(':')[1]
-            : null;
-
-        if (inspectorFocus?.startsWith('project:') && inspectorParentFocus) {
+    const markInspectorSeenOnExit = useCallback(() => {
+        if (!ws.currentUserId) return;
+        const inboxKey = getPendingActionInboxItemKey();
+        if (inboxKey) {
+            markItemsSeenByKeys(ws.currentUserId, [inboxKey]);
+            setItemSeenRefreshTrigger((t) => t + 1);
+        } else {
+            const projectIdToMark = inspectorFocus?.startsWith('project:')
+                ? inspectorFocus.split(':')[1]
+                : null;
             if (projectIdToMark) {
                 markOpenedProjectSeen(projectIdToMark);
             }
+        }
+        clearReturnToActionInbox();
+    }, [ws.currentUserId, inspectorFocus, markOpenedProjectSeen]);
+
+    const closeInspector = useCallback(() => {
+        if (inspectorFocus?.startsWith('project:') && inspectorParentFocus) {
             setInspectorFocus(inspectorParentFocus);
             setInspectorParentFocus(null);
             setInspectorOpenTaskIndex(null);
@@ -430,9 +462,7 @@ export default function WorkspaceShell({
             return;
         }
 
-        if (projectIdToMark) {
-            markOpenedProjectSeen(projectIdToMark);
-        }
+        markInspectorSeenOnExit();
         setInspectorFocus(null);
         setInspectorParentFocus(null);
         setInspectorOpenTaskIndex(null);
@@ -441,15 +471,10 @@ export default function WorkspaceShell({
         setInspectorInitialAddContentOpen(false);
         setInspectorAddContentDate(undefined);
         setInspectorAddContentPrefill(null);
-    }, [inspectorFocus, inspectorParentFocus, markOpenedProjectSeen]);
+    }, [inspectorFocus, inspectorParentFocus, markInspectorSeenOnExit]);
 
     const closeInspectorFully = useCallback(() => {
-        const projectIdToMark = inspectorFocus?.startsWith('project:')
-            ? inspectorFocus.split(':')[1]
-            : null;
-        if (projectIdToMark) {
-            markOpenedProjectSeen(projectIdToMark);
-        }
+        markInspectorSeenOnExit();
         setInspectorFocus(null);
         setInspectorParentFocus(null);
         setInspectorOpenTaskIndex(null);
@@ -458,7 +483,7 @@ export default function WorkspaceShell({
         setInspectorInitialAddContentOpen(false);
         setInspectorAddContentDate(undefined);
         setInspectorAddContentPrefill(null);
-    }, [inspectorFocus, markOpenedProjectSeen]);
+    }, [markInspectorSeenOnExit]);
 
     const { completeInspectorClose } = useMobileInspectorHistory({
         inspectorFocus,
@@ -521,24 +546,32 @@ export default function WorkspaceShell({
 
     const handleViewProjectTask = useCallback(
         (project: IProject, taskIndex: number) => {
+            const task = project.tasks?.[taskIndex];
+            const taskId = task?._id?.toString() ?? null;
+            if (taskId) {
+                markWorkspaceItemSeen([
+                    buildTaskItemKey(project._id.toString(), taskId, taskIndex),
+                ]);
+            }
             setInspectorAutoAddTask(false);
             setInspectorOpenContentId(null);
             setInspectorFocus(`project:${project._id}`);
             setInspectorOpenTaskIndex(taskIndex);
             applyProjectInspectorExpandFlags(project._id.toString(), { tasksExpanded: true });
         },
-        [applyProjectInspectorExpandFlags]
+        [applyProjectInspectorExpandFlags, markWorkspaceItemSeen]
     );
 
     const handleViewProjectContent = useCallback(
         (project: IProject, contentItemId: string) => {
+            markWorkspaceItemSeen([buildContentItemKey(project._id.toString(), contentItemId)]);
             setInspectorAutoAddTask(false);
             setInspectorOpenTaskIndex(null);
             setInspectorOpenContentId(contentItemId);
             setInspectorFocus(`project:${project._id}`);
             applyProjectInspectorExpandFlags(project._id.toString(), { contentExpanded: true });
         },
-        [applyProjectInspectorExpandFlags]
+        [applyProjectInspectorExpandFlags, markWorkspaceItemSeen]
     );
 
     const handleContentItemClickFromSchedule = useCallback(
@@ -1610,7 +1643,6 @@ _id.toString(), { tasks });
                         projects={ws.allProjects}
                         contentItems={ws.contentItems}
                         clients={ws.filteredClients}
-                        inspectorProjectId={inspectorProjectId}
                         itemSeenRefreshTrigger={itemSeenRefreshTrigger}
                         onLensSelect={handleLensSelect}
                         onPhaseSelect={handlePhaseSelect}
@@ -1638,73 +1670,55 @@ _id.toString(), { tasks });
                                 <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} compact />
                             </div>
                             <div className="flex items-stretch gap-2 min-w-0">
-                                {!isSchedulingPhase ? (
-                                    <>
-                                        <div className="flex-1 min-w-0">
-                                            <WorkspaceLensSelect
-                                                value={ws.lens}
-                                                onChange={handleLensSelect}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <TimeHorizonSelector
-                                                selected={ws.timeframe}
-                                                onSelect={(newTimeframe) => {
-                                                    ws.setTimeframe(newTimeframe);
-                                                    if (newTimeframe === 'today') {
-                                                        ws.setCurrentDate(new Date());
-                                                    }
-                                                }}
-                                                mobileSelectClassName="w-full"
-                                            />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            data-tour="lens-toggles"
-                                            onClick={() => setShowViewOptionsOpen(true)}
-                                            className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-                                            aria-label="View options"
-                                        >
-                                            <span aria-hidden>⚙</span>
-                                            Options
-                                            {activeViewOptionsCount > 0 ? (
-                                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
-                                                    {activeViewOptionsCount}
-                                                </span>
-                                            ) : null}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        {needsCalendarData ? (
-                                            <SchedulingCalendarBar
-                                                calendar={scheduleCalendar}
-                                                syncing={scheduleSyncing}
-                                                onSync={() => void handleScheduleSync()}
-                                            />
-                                        ) : null}
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            size="sm"
-                                            onClick={() => setShowAvailabilityModal(true)}
-                                        >
-                                            Set Availability
-                                        </Button>
-                                        {scheduleCalendar?.connected ? (
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => void handleScheduleCalendarDisconnect()}
-                                            >
-                                                Disconnect
-                                            </Button>
-                                        ) : null}
-                                    </>
-                                )}
+                                <div className="flex-1 min-w-0">
+                                    <WorkspaceLensSelect
+                                        value={ws.lens}
+                                        onChange={handleLensSelect}
+                                        className="w-full"
+                                    />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <TimeHorizonSelector
+                                        selected={ws.timeframe}
+                                        onSelect={(newTimeframe) => {
+                                            ws.setTimeframe(newTimeframe);
+                                            if (newTimeframe === 'today') {
+                                                ws.setCurrentDate(new Date());
+                                            }
+                                        }}
+                                        mobileSelectClassName="w-full"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    data-tour="lens-toggles"
+                                    onClick={() => setShowViewOptionsOpen(true)}
+                                    className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                                    aria-label="View options"
+                                >
+                                    <span aria-hidden>⚙</span>
+                                    Options
+                                    {activeViewOptionsCount > 0 ? (
+                                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
+                                            {activeViewOptionsCount}
+                                        </span>
+                                    ) : null}
+                                </button>
                             </div>
+                            {isSchedulingPhase ? (
+                                <SchedulingHeaderToolbar
+                                    calendar={scheduleCalendar}
+                                    syncing={scheduleSyncing}
+                                    onSync={() => void handleScheduleSync()}
+                                    onSetAvailability={() => setShowAvailabilityModal(true)}
+                                    onDisconnect={
+                                        scheduleCalendar?.connected
+                                            ? () => void handleScheduleCalendarDisconnect()
+                                            : undefined
+                                    }
+                                    className="w-full"
+                                />
+                            ) : null}
                             <CreateMenu
                                 isManagerOrAdmin={ws.isManagerOrAdmin}
                                 currentUserRole={ws.currentUserRole}
@@ -1736,35 +1750,25 @@ _id.toString(), { tasks });
                                 }}
                             />
                             <div className="flex gap-2 shrink-0 ml-auto items-center">
-                                {needsCalendarData ? (
+                                {isSchedulingPhase ? (
+                                    <SchedulingHeaderToolbar
+                                        calendar={scheduleCalendar}
+                                        syncing={scheduleSyncing}
+                                        onSync={() => void handleScheduleSync()}
+                                        onSetAvailability={() => setShowAvailabilityModal(true)}
+                                        onDisconnect={
+                                            scheduleCalendar?.connected
+                                                ? () => void handleScheduleCalendarDisconnect()
+                                                : undefined
+                                        }
+                                    />
+                                ) : needsCalendarData ? (
                                     <SchedulingCalendarBar
                                         calendar={scheduleCalendar}
                                         syncing={scheduleSyncing}
                                         onSync={() => void handleScheduleSync()}
                                     />
                                 ) : null}
-                                {isSchedulingPhase && (
-                                    <>
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            size="sm"
-                                            onClick={() => setShowAvailabilityModal(true)}
-                                        >
-                                            Set Availability
-                                        </Button>
-                                        {scheduleCalendar?.connected ? (
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => void handleScheduleCalendarDisconnect()}
-                                            >
-                                                Disconnect
-                                            </Button>
-                                        ) : null}
-                                    </>
-                                )}
                                 {isPlatformAdmin ? (
                                 <button
                                     type="button"
@@ -1794,8 +1798,8 @@ _id.toString(), { tasks });
                         </div>
                         )}
 
-                        {/* Row 2: Lens bar + view toggles (desktop only; hidden in Scheduling phase) */}
-                        {!isSchedulingPhase && !isMobile && (
+                        {/* Row 2: Lens bar + view toggles (desktop only) */}
+                        {!isMobile && (
                         <div className="flex flex-wrap items-center gap-2 md:gap-4 justify-between min-w-0">
                             <LensBar
                                 selected={ws.lens}
@@ -1860,41 +1864,7 @@ _id.toString(), { tasks });
                     {/* ===== Main Content ===== */}
                     <div className="flex w-full gap-3 md:gap-6">
                         <div className="flex-1 min-w-0">
-                            {isClientsLens ? (
-                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 md:gap-6">
-                                    <div className="xl:col-span-2 min-h-0 min-w-0" data-tour="clients-main">
-                                        <ClientScheduleLens
-                                                clients={ws.filteredClients}
-                                                allProjects={ws.allProjects}
-                                                contentItems={ws.contentItems}
-                                                showTasks={ws.showTasks}
-                                                showContent={ws.showContent}
-                                                timeframe={ws.timeframe}
-                                                currentDate={ws.currentDate}
-                                                onClientClick={handleViewClient}
-                                                onProjectClick={handleViewProjectFromClientCalendar}
-                                                onTaskClick={handleViewProjectTask}
-                                                onContentItemClick={handleContentItemClickFromSchedule}
-                                                onDateChange={ws.setCurrentDate}
-                                                currentUserId={ws.currentUserId}
-                                                itemSeenRefreshTrigger={itemSeenRefreshTrigger}
-                                            />
-                                    </div>
-                                    <div className="hidden md:block xl:col-span-1">
-                                        <EmployeeSidebar
-                                            employees={ws.employees}
-                                            projects={ws.filteredProjects}
-                                            allProjects={ws.projectsForLens}
-                                            contentItems={ws.filteredContentItems}
-                                            meetings={workspaceMeetings}
-                                            timeframe={ws.timeframe}
-                                            currentDate={ws.currentDate}
-                                            currentUserRole={ws.currentUserRole}
-                                            currentUserEmployeeId={ws.currentUserEmployeeId}
-                                        />
-                                    </div>
-                                </div>
-                            ) : isSchedulingPhase ? (
+                            {isSchedulingPhase ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 md:gap-6">
                                     <div className="xl:col-span-2 min-h-0 min-w-0">
                                         <SchedulingPanel
@@ -1920,6 +1890,41 @@ _id.toString(), { tasks });
                                             }}
                                             onSetMessage={setSchedulePanelMessage}
                                         />
+                                    </div>
+                                    <div className="hidden md:block xl:col-span-1">
+                                        <EmployeeSidebar
+                                            employees={ws.employees}
+                                            projects={ws.filteredProjects}
+                                            allProjects={ws.projectsForLens}
+                                            contentItems={ws.filteredContentItems}
+                                            meetings={workspaceMeetings}
+                                            timeframe={ws.timeframe}
+                                            currentDate={ws.currentDate}
+                                            currentUserRole={ws.currentUserRole}
+                                            currentUserEmployeeId={ws.currentUserEmployeeId}
+                                        />
+                                    </div>
+                                </div>
+                            ) : isClientsLens ? (
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 md:gap-6">
+                                    <div className="xl:col-span-2 min-h-0 min-w-0" data-tour="clients-main">
+                                        <ClientScheduleLens
+                                                clients={ws.filteredClients}
+                                                allProjects={ws.allProjects}
+                                                contentItems={ws.contentItems}
+                                                showTasks={ws.showTasks}
+                                                showContent={ws.showContent}
+                                                timeframe={ws.timeframe}
+                                                currentDate={ws.currentDate}
+                                                onClientClick={handleViewClient}
+                                                onProjectClick={handleViewProjectFromClientCalendar}
+                                                onTaskClick={handleViewProjectTask}
+                                                onContentItemClick={handleContentItemClickFromSchedule}
+                                                onDateChange={ws.setCurrentDate}
+                                                currentUserId={ws.currentUserId}
+                                                inspectorProjectId={inspectorProjectId}
+                                                itemSeenRefreshTrigger={itemSeenRefreshTrigger}
+                                            />
                                     </div>
                                     <div className="hidden md:block xl:col-span-1">
                                         <EmployeeSidebar

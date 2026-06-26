@@ -200,7 +200,6 @@ export default function CalendarCardHeader({
               activeTaskCount={activeTaskCount}
               activeContentCount={activeContentCount}
               headerTextClass={headerTextClass}
-              layout="stacked"
               size={compact ? 'xs' : 'sm'}
             />
           </div>

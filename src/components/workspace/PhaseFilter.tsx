@@ -33,7 +33,7 @@ export default function PhaseFilter({ selected, onSelect, compact = false }: Pha
                     aria-selected={selected === p.value}
                     onClick={() => onSelect(p.value)}
                     className={`font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
-                        compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'
+                        compact ? 'px-2.5 py-1.5 text-sm' : 'px-3 py-1.5 text-sm'
                     } ${selected === p.value
                             ? 'bg-primary text-white shadow-sm'
                             : 'text-text-secondary hover:text-text-primary hover:bg-background-elevated'

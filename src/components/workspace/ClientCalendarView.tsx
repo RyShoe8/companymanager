@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
@@ -78,6 +78,7 @@ interface ClientCalendarViewProps {
   onContentItemClick?: (item: IContentItem) => void;
   onDateChange: (date: Date) => void;
   currentUserId?: string | null;
+  inspectorProjectId?: string | null;
   itemSeenRefreshTrigger?: number;
 }
 
@@ -300,12 +301,34 @@ export default function ClientCalendarView({
   onContentItemClick,
   onDateChange,
   currentUserId = null,
+  inspectorProjectId = null,
   itemSeenRefreshTrigger,
 }: ClientCalendarViewProps) {
   const isMobile = useIsMobile();
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    const saved = localStorage.getItem('calendar-expanded-clients');
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved) as string[]);
+      } catch {
+        return new Set();
+      }
+    }
+    return new Set();
+  });
   const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
+  const prevUnseenCountByClientRef = useRef<Map<string, number>>(new Map());
+  const hasInitializedClientUnseenRef = useRef(false);
   const itemMode = showTasks || showContent;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(
+      'calendar-expanded-clients',
+      JSON.stringify(Array.from(expandedClients))
+    );
+  }, [expandedClients]);
 
   const clientIds = useMemo(() => new Set(clients.map((c) => String(c._id))), [clients]);
 
@@ -333,9 +356,11 @@ export default function ClientCalendarView({
 
   useEffect(() => {
     if (!currentUserId) return;
-    const observed = observeItemsForUser(currentUserId, workspaceItemEntries);
+    const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
+      openProjectId: inspectorProjectId ?? undefined,
+    });
     setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, workspaceItemEntries]);
+  }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
 
   useEffect(() => {
     if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
@@ -386,21 +411,47 @@ export default function ClientCalendarView({
 
   useEffect(() => {
     if (!currentUserId) return;
-    const toExpand: string[] = [];
-    for (const row of rows) {
-      const clientId = String(row.client._id);
-      if ((unseenCountByClientId.get(clientId) ?? 0) > 0) {
-        toExpand.push(clientId);
+
+    const manuallyCollapsed = new Set<string>();
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('calendar-manually-collapsed-clients');
+      if (saved) {
+        try {
+          (JSON.parse(saved) as string[]).forEach((id) => manuallyCollapsed.add(id));
+        } catch {
+          // Ignore parse errors
+        }
       }
     }
-    if (toExpand.length === 0) return;
-    setExpandedClients((prev) => {
-      const next = new Set(prev);
-      for (const id of toExpand) {
-        next.add(id);
+
+    const prev = prevUnseenCountByClientRef.current;
+    const toExpand: string[] = [];
+
+    for (const row of rows) {
+      const clientId = String(row.client._id);
+      const count = unseenCountByClientId.get(clientId) ?? 0;
+      const prevCount = prev.get(clientId) ?? 0;
+      if (
+        hasInitializedClientUnseenRef.current &&
+        count > prevCount &&
+        !manuallyCollapsed.has(clientId)
+      ) {
+        toExpand.push(clientId);
       }
-      return next;
-    });
+      prev.set(clientId, count);
+    }
+
+    hasInitializedClientUnseenRef.current = true;
+
+    if (toExpand.length > 0) {
+      setExpandedClients((prevSet) => {
+        const updated = new Set(prevSet);
+        for (const id of toExpand) {
+          updated.add(id);
+        }
+        return updated;
+      });
+    }
   }, [rows, unseenCountByClientId, currentUserId]);
 
   const clientRowForBucket = (
@@ -461,8 +512,31 @@ export default function ClientCalendarView({
   const toggleClientExpanded = (clientId: string) => {
     setExpandedClients((prev) => {
       const next = new Set(prev);
-      if (next.has(clientId)) next.delete(clientId);
-      else next.add(clientId);
+      if (next.has(clientId)) {
+        next.delete(clientId);
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('calendar-manually-collapsed-clients');
+          const manuallyCollapsed = saved ? new Set(JSON.parse(saved) as string[]) : new Set<string>();
+          manuallyCollapsed.add(clientId);
+          localStorage.setItem(
+            'calendar-manually-collapsed-clients',
+            JSON.stringify(Array.from(manuallyCollapsed))
+          );
+        }
+      } else {
+        next.add(clientId);
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('calendar-manually-collapsed-clients');
+          if (saved) {
+            const manuallyCollapsed = new Set(JSON.parse(saved) as string[]);
+            manuallyCollapsed.delete(clientId);
+            localStorage.setItem(
+              'calendar-manually-collapsed-clients',
+              JSON.stringify(Array.from(manuallyCollapsed))
+            );
+          }
+        }
+      }
       return next;
     });
   };
@@ -489,7 +563,7 @@ export default function ClientCalendarView({
       );
     }
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-4">
         {bucketRows.map((row) => {
           const clientId = String(row.client._id);
           const isExpanded = expandedClients.has(clientId);
@@ -632,7 +706,7 @@ export default function ClientCalendarView({
 
     if (visibleRows.length === 0) {
       return (
-        <div className="p-8 min-h-[600px]">
+        <div className="p-2 md:p-8 min-h-[600px]">
           <EmptyStateIllustration
             title="No clients in this period"
             description="Add a client or adjust your timeframe to see client activity."
@@ -642,11 +716,11 @@ export default function ClientCalendarView({
     }
 
     return (
-      <div className="p-8 min-h-[600px]">
+      <div className="p-2 md:p-8 min-h-[600px]">
         <h2 className="text-lg font-semibold text-text-primary mb-4">
           Clients ({visibleRows.length})
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
           {visibleRows.map((row) => {
             const clientId = String(row.client._id);
             const isExpanded = expandedClients.has(clientId);
@@ -749,7 +823,7 @@ export default function ClientCalendarView({
           minColumnHeight={gridMinHeight}
           overlay={
             spanItems.length === 0 ? (
-              <div className="p-8">
+              <div className="p-2 md:p-8">
                 <EmptyStateIllustration
                   title="No tasks or content this week"
                   description="No client tasks or content are scheduled for this week."
@@ -899,7 +973,7 @@ export default function ClientCalendarView({
 
     return (
       <div className="p-2 md:p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
           {weeks.map((week) => {
             const weekStart = new Date(week[0]);
             weekStart.setHours(0, 0, 0, 0);
@@ -995,7 +1069,7 @@ export default function ClientCalendarView({
 
     return (
       <div className="p-2 md:p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);
             const monthItems = itemMode
@@ -1050,7 +1124,7 @@ export default function ClientCalendarView({
 
     return (
       <div className="p-2 md:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthClients = clientsForRange(rows, monthStart, monthEnd, allProjects, contentItems);
             const monthItems = itemMode

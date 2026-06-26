@@ -61,7 +61,7 @@ export default function WeeklyMobileDayPager({
 
   return (
     <div className="md:hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-      <div className="flex items-center justify-between gap-2 px-1 py-2 border-b border-border bg-background">
+      <div className="flex items-center justify-between gap-2 px-0 py-2 border-b border-border bg-background">
         <button
           type="button"
           onClick={goPrev}

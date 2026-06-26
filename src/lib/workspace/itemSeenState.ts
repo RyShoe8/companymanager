@@ -76,6 +76,14 @@ export function buildContentItemKey(projectId: string, contentItemId: string): s
   return `content:${projectId}:${contentItemId}`;
 }
 
+export function buildClientInboxKey(clientId: string): string {
+  return `inbox:client:${clientId}`;
+}
+
+export function buildProjectInboxKey(projectId: string): string {
+  return `inbox:project:${projectId}`;
+}
+
 export function buildTaskItemSignature(
   task: IProjectTask,
   options?: { commentActivityMs?: number }
@@ -280,6 +288,49 @@ export function observeItemsForUser(
     statusByKey[item.key] = unseen ? (state.kindByKey[item.key] ?? 'updated') : 'none';
   }
   return { activityByKey, isNewByKey, statusByKey, changed };
+}
+
+export function isInboxEntitySeen(
+  userId: string,
+  key: string,
+  fallbackActivityMs: number
+): boolean {
+  const state = loadState(userId);
+  const activity = state.activityMs[key] ?? fallbackActivityMs;
+  const seen = state.seenMs[key] ?? 0;
+  return seen >= activity;
+}
+
+export function markItemsSeenByKeys(userId: string, keys: string[]): boolean {
+  const state = loadState(userId);
+  let changed = false;
+  const now = Date.now();
+
+  for (const key of keys) {
+    if (!(key in state.activityMs)) {
+      state.activityMs[key] = now;
+      changed = true;
+    }
+    const activityMs = state.activityMs[key] ?? now;
+    const nextSeen = Math.max(state.seenMs[key] ?? 0, activityMs, now);
+    if (nextSeen !== (state.seenMs[key] ?? 0)) {
+      state.seenMs[key] = nextSeen;
+      changed = true;
+    }
+    if (key in state.kindByKey) {
+      delete state.kindByKey[key];
+      changed = true;
+    }
+    if (key in state.newGraceUntilMs) {
+      delete state.newGraceUntilMs[key];
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    saveState(userId, state);
+  }
+  return changed;
 }
 
 export function markProjectItemsSeen(userId: string, projectId: string): boolean {

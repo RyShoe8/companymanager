@@ -597,7 +597,7 @@ export default function CalendarView({
   ) {
     if (unseenItems.length === 0) return null;
     return (
-      <div className={`space-y-1 px-6 pb-4 ${textClass}`}>
+      <div className={`space-y-1 px-2 md:px-6 pb-4 ${textClass}`}>
         {unseenItems.map((item, idx) => {
           if (item.type === 'task') {
             const tIdx = resolveTaskIndexInProject(project, item.task);
@@ -889,7 +889,7 @@ export default function CalendarView({
   ) => {
     const viewDay = new Date(day);
     viewDay.setHours(0, 0, 0, 0);
-    const paddingClass = opts?.paddingClass ?? 'p-8';
+    const paddingClass = opts?.paddingClass ?? 'p-2 md:p-8';
     const minHeightClass = opts?.minHeightClass ?? 'min-h-[600px]';
 
     if (itemMode) {
@@ -927,7 +927,7 @@ export default function CalendarView({
             <h3 className="text-xl font-semibold text-text-primary mb-4">
               Projects ({dayProjects.length})
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
               {dayProjects.map((project) => {
                 const displayColor = project.status === 'in-review' ? '#ef4444' : project.color;
                 const projectId = project._id.toString();
@@ -1086,7 +1086,7 @@ export default function CalendarView({
           minColumnHeight={gridMinHeight}
           overlay={
             spanItems.length === 0 ? (
-              <div className="p-8">
+              <div className="p-2 md:p-8">
                 <EmptyStateIllustration
                   title="No tasks or content this week"
                   description="No tasks or content are scheduled for this week."
@@ -1470,7 +1470,7 @@ export default function CalendarView({
 
     return (
       <div className="p-2 md:p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
           {weeks.map((week, weekIdx) => {
             const weekStart = new Date(week[0]);
             weekStart.setHours(0, 0, 0, 0);
@@ -1633,7 +1633,7 @@ export default function CalendarView({
 
     return (
       <div className="p-2 md:p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthProjects = sortProjectsByLatestUpdate(
               projects.filter((p) =>
@@ -1709,7 +1709,7 @@ export default function CalendarView({
 
     return (
       <div className="p-2 md:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
           {months.map(([monthStart, monthEnd], idx) => {
             const monthProjects = projects;
             const monthItems = itemMode

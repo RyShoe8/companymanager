@@ -43,8 +43,8 @@ export function useMobileInspectorHistory({
       }
       if (!historyPushedRef.current) return;
       historyPushedRef.current = false;
-      clearReturnToActionInbox();
       onCloseInspectorFully();
+      clearReturnToActionInbox();
       requestReopenActionInbox();
     };
 
@@ -64,7 +64,6 @@ export function useMobileInspectorHistory({
     onCloseInspector();
     if (!returnToAction) return;
 
-    clearReturnToActionInbox();
     requestReopenActionInbox();
     if (historyPushedRef.current) {
       suppressPopRef.current = true;
