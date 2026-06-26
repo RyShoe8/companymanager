@@ -2,18 +2,16 @@
 
 import { Suspense, useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { trackGoogleAnalyticsPageView, updateGoogleAnalyticsConsent } from '@/lib/analytics/googleAnalytics';
 import {
-  configureGoogleAnalytics,
-  loadGoogleAnalyticsScript,
-  trackGoogleAnalyticsPageView,
-  updateGoogleAnalyticsConsent,
-} from '@/lib/analytics/googleAnalytics';
-import { onAnalyticsConsentChange } from '@/lib/analytics/cookieScriptConsent';
+  hasAnalyticsConsent,
+  onAnalyticsConsentChange,
+} from '@/lib/analytics/cookieScriptConsent';
 
 function GoogleAnalyticsPageViews() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const ready = useRef(false);
+  const consentGranted = useRef(false);
   const pathnameRef = useRef(pathname ?? '/');
   const searchRef = useRef('');
 
@@ -21,30 +19,23 @@ function GoogleAnalyticsPageViews() {
   searchRef.current = searchParams?.toString() ?? '';
 
   useEffect(() => {
-    return onAnalyticsConsentChange((granted) => {
+    const applyConsent = (granted: boolean) => {
+      consentGranted.current = granted;
       updateGoogleAnalyticsConsent(granted);
-      if (!granted) {
-        ready.current = false;
-        return;
+      if (granted) {
+        trackGoogleAnalyticsPageView(pathnameRef.current, searchRef.current);
       }
+    };
 
-      void (async () => {
-        try {
-          if (!ready.current) {
-            await loadGoogleAnalyticsScript();
-            configureGoogleAnalytics();
-            ready.current = true;
-          }
-          trackGoogleAnalyticsPageView(pathnameRef.current, searchRef.current);
-        } catch {
-          // Ignore analytics load failures
-        }
-      })();
-    });
+    if (hasAnalyticsConsent()) {
+      applyConsent(true);
+    }
+
+    return onAnalyticsConsentChange(applyConsent);
   }, []);
 
   useEffect(() => {
-    if (!ready.current) return;
+    if (!consentGranted.current) return;
     trackGoogleAnalyticsPageView(pathname ?? '/', searchParams?.toString() ?? '');
   }, [pathname, searchParams]);
 

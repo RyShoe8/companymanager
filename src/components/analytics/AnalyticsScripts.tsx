@@ -1,10 +1,14 @@
 import Script from 'next/script';
-import { AHREFS_ANALYTICS_KEY, COOKIE_SCRIPT_SRC } from '@/lib/analytics/analyticsConfig';
+import {
+  AHREFS_ANALYTICS_KEY,
+  COOKIE_SCRIPT_SRC,
+  GA_MEASUREMENT_ID,
+} from '@/lib/analytics/analyticsConfig';
 import { ANALYTICS_CONSENT_CATEGORY } from '@/lib/analytics/cookieScriptConsent';
 
 /**
- * Cookie-Script CMP + consent defaults for Google tags.
- * GA loads client-side after performance consent (see GoogleAnalytics.tsx).
+ * Cookie-Script CMP + Advanced Consent Mode defaults + always-on gtag loader.
+ * Pageviews after performance consent are handled in GoogleAnalytics.tsx.
  */
 export default function AnalyticsScripts() {
   return (
@@ -31,6 +35,17 @@ export default function AnalyticsScripts() {
         src={COOKIE_SCRIPT_SRC}
         strategy="beforeInteractive"
       />
+
+      <Script
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        strategy="afterInteractive"
+      />
+      <Script id="google-tag-config" strategy="afterInteractive">
+        {`
+          gtag('js', new Date());
+          gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
+        `}
+      </Script>
 
       <script
         type="text/plain"

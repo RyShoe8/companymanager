@@ -27,43 +27,6 @@ export function updateGoogleAnalyticsConsent(granted: boolean): void {
   });
 }
 
-export function loadGoogleAnalyticsScript(measurementId = GA_MEASUREMENT_ID): Promise<void> {
-  if (typeof document === 'undefined') return Promise.resolve();
-
-  const existing = document.querySelector<HTMLScriptElement>(
-    `script[src*="googletagmanager.com/gtag/js?id=${measurementId}"]`
-  );
-  if (existing) {
-    if (existing.getAttribute('data-loaded') === 'true') {
-      return Promise.resolve();
-    }
-    return new Promise((resolve, reject) => {
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error('gtag load failed')), {
-        once: true,
-      });
-    });
-  }
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
-    script.onload = () => {
-      script.setAttribute('data-loaded', 'true');
-      resolve();
-    };
-    script.onerror = () => reject(new Error('gtag load failed'));
-    document.head.appendChild(script);
-  });
-}
-
-export function configureGoogleAnalytics(measurementId = GA_MEASUREMENT_ID): void {
-  ensureGtag();
-  window.gtag!('js', new Date());
-  window.gtag!('config', measurementId, { send_page_view: false });
-}
-
 export function trackGoogleAnalyticsPageView(
   path: string,
   search = '',

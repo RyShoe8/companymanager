@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  configureGoogleAnalytics,
   ensureGtag,
   trackGoogleAnalyticsPageView,
   updateGoogleAnalyticsConsent,
@@ -25,16 +24,6 @@ describe('googleAnalytics', () => {
       ad_user_data: 'denied',
       ad_personalization: 'denied',
     });
-  });
-
-  it('configures GA without automatic page views', () => {
-    const gtag = vi.fn();
-    vi.stubGlobal('window', { gtag, dataLayer: [] });
-
-    configureGoogleAnalytics('G-TEST');
-
-    expect(gtag).toHaveBeenCalledWith('js', expect.any(Date));
-    expect(gtag).toHaveBeenCalledWith('config', 'G-TEST', { send_page_view: false });
   });
 
   it('sends manual page_view events', () => {
