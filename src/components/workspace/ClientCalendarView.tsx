@@ -142,6 +142,14 @@ function ClientCardBody({
   onProjectClick,
   compact = false,
   scheduledHoursOverride,
+  contentItems,
+  rangeStart,
+  rangeEnd,
+  currentDate,
+  onTaskClick,
+  onContentItemClick,
+  taskSeenStatus,
+  contentSeenStatus,
 }: {
   row: ClientCalendarRow;
   isExpanded: boolean;
@@ -150,6 +158,14 @@ function ClientCardBody({
   onProjectClick?: (client: IClient, project: IProject) => void;
   compact?: boolean;
   scheduledHoursOverride?: number;
+  contentItems?: IContentItem[];
+  rangeStart?: Date;
+  rangeEnd?: Date;
+  currentDate?: Date;
+  onTaskClick?: (project: IProject, taskIndex: number) => void;
+  onContentItemClick?: (item: IContentItem) => void;
+  taskSeenStatus?: (project: IProject, task: IProjectTask) => ItemSeenStatus;
+  contentSeenStatus?: (project: IProject, item: IContentItem) => ItemSeenStatus;
 }) {
   const {
     client,
@@ -182,24 +198,52 @@ function ClientCardBody({
         hoursInline={compact}
       />
       {isExpanded && hasExpandedContent ? (
-        <div className="mt-3 pt-3 border-t border-white/20 space-y-2">
-          {hubProject ? (
-            <ProjectSubCard
-              key={`hub-${String(hubProject.project._id)}`}
-              row={hubProject}
-              client={client}
-              onProjectClick={onProjectClick}
-              titleOverride="Client tasks"
-            />
-          ) : null}
-          {projects.map((projectRow) => (
-            <ProjectSubCard
-              key={String(projectRow.project._id)}
-              row={projectRow}
-              client={client}
-              onProjectClick={onProjectClick}
-            />
-          ))}
+        <div className="mt-3 pt-3 border-t border-white/20 space-y-3">
+          {clientExpandSections(row).map((section) => {
+            const projectId = String(section.project._id);
+            const isHub = section.label === 'Client tasks';
+            const projectRow = isHub
+              ? hubProject!
+              : projects.find((p) => String(p.project._id) === projectId);
+            
+            if (!projectRow) return null;
+
+            let displayList: any[] = [];
+            if (contentItems && rangeStart && rangeEnd && currentDate) {
+              const { merged } = buildProjectEntityRangeItems(
+                section.project,
+                contentItems,
+                rangeStart,
+                rangeEnd,
+                currentDate
+              );
+              displayList = merged.filter(isActiveMergedCalendarItem);
+            }
+
+            return (
+              <div key={projectId} className="space-y-2">
+                <ProjectSubCard
+                  row={projectRow}
+                  client={client}
+                  onProjectClick={onProjectClick}
+                  titleOverride={isHub ? 'Client tasks' : undefined}
+                />
+                {displayList.length > 0 && taskSeenStatus && contentSeenStatus ? (
+                  <div className="pl-3 border-l-2 border-border/50 ml-3 py-1 mt-2">
+                    <CalendarExpandedRangeItems
+                      project={section.project}
+                      items={displayList}
+                      keyPrefix={`clientcard-${String(client._id)}-${projectId}-${rangeStart?.getTime()}`}
+                      onTaskClick={onTaskClick}
+                      onContentItemClick={onContentItemClick}
+                      getTaskSeenStatus={taskSeenStatus}
+                      getContentSeenStatus={contentSeenStatus}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </>
@@ -388,6 +432,22 @@ export default function ClientCalendarView({
 
   const { start: startDate, end: endDate } = getTimeframeRange(timeframe, currentDate);
 
+  const taskSeenStatus = (project: IProject, task: IProjectTask): ItemSeenStatus => {
+    const idx = resolveTaskIndexInProject(project, task);
+    if (idx < 0) return 'none';
+    const key = buildTaskItemKey(
+      project._id.toString(),
+      (task as { _id?: { toString(): string } })._id?.toString() ?? null,
+      idx
+    );
+    return itemStatusByKey[key] ?? 'none';
+  };
+
+  const contentSeenStatus = (project: IProject, item: IContentItem): ItemSeenStatus =>
+    itemStatusByKey[
+      buildContentItemKey(item.projectId?.toString() ?? project._id.toString(), item._id.toString())
+    ] ?? 'none';
+
   const visibleRows =
     timeframe === 'today'
       ? rows.filter((r) => r.hasActivityInRange || r.activeTaskCount > 0 || r.activeContentCount > 0)
@@ -446,6 +506,14 @@ export default function ClientCalendarView({
                 onToggleExpand={() => toggleClientExpanded(clientId)}
                 onClientClick={onClientClick}
                 onProjectClick={onProjectClick}
+                contentItems={contentItems}
+                rangeStart={startDate}
+                rangeEnd={endDate}
+                currentDate={currentDate}
+                onTaskClick={onTaskClick}
+                onContentItemClick={onContentItemClick}
+                taskSeenStatus={taskSeenStatus}
+                contentSeenStatus={contentSeenStatus}
               />
             </div>
           );
@@ -498,22 +566,6 @@ export default function ClientCalendarView({
 
     const today = new Date(startDate);
     today.setHours(0, 0, 0, 0);
-
-    const taskSeenStatus = (project: IProject, task: IProjectTask): ItemSeenStatus => {
-      const idx = resolveTaskIndexInProject(project, task);
-      if (idx < 0) return 'none';
-      const key = buildTaskItemKey(
-        project._id.toString(),
-        (task as { _id?: { toString(): string } })._id?.toString() ?? null,
-        idx
-      );
-      return itemStatusByKey[key] ?? 'none';
-    };
-
-    const contentSeenStatus = (project: IProject, item: IContentItem): ItemSeenStatus =>
-      itemStatusByKey[
-        buildContentItemKey(item.projectId?.toString() ?? project._id.toString(), item._id.toString())
-      ] ?? 'none';
 
     if (visibleRows.length === 0) {
       return (
@@ -718,6 +770,14 @@ export default function ClientCalendarView({
                       onProjectClick={onProjectClick}
                       compact
                       scheduledHoursOverride={row.scheduledHours}
+                      contentItems={contentItems}
+                      rangeStart={startDate}
+                      rangeEnd={endDate}
+                      currentDate={currentDate}
+                      onTaskClick={onTaskClick}
+                      onContentItemClick={onContentItemClick}
+                      taskSeenStatus={taskSeenStatus}
+                      contentSeenStatus={contentSeenStatus}
                     />
                   </div>
                 </div>
@@ -829,6 +889,14 @@ export default function ClientCalendarView({
                             onProjectClick={onProjectClick}
                             compact
                             scheduledHoursOverride={bucketRow.scheduledHours}
+                            contentItems={contentItems}
+                            rangeStart={weekStart}
+                            rangeEnd={weekEnd}
+                            currentDate={currentDate}
+                            onTaskClick={onTaskClick}
+                            onContentItemClick={onContentItemClick}
+                            taskSeenStatus={taskSeenStatus}
+                            contentSeenStatus={contentSeenStatus}
                           />
                         </div>
                       );
