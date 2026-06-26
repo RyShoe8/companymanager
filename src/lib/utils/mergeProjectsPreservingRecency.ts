@@ -36,6 +36,36 @@ function projectRecencyMs(project: IProject, contentItems?: IContentItem[]): num
   );
 }
 
+function taskIdKey(task: IProjectTask, index: number): string {
+  return (task as { _id?: { toString(): string } })._id?.toString() ?? `index:${index}`;
+}
+
+/** Merge per-task fields from prev into fetched; fetched list is source of truth for existence. */
+function mergeTaskLists(
+  fetchedTasks: IProjectTask[] | undefined,
+  prevTasks: IProjectTask[] | undefined
+): IProjectTask[] {
+  const fetched = fetchedTasks ?? [];
+  if (!prevTasks?.length) return fetched;
+
+  const prevById = new Map<string, IProjectTask>();
+  prevTasks.forEach((task, index) => {
+    prevById.set(taskIdKey(task, index), task);
+  });
+
+  return fetched.map((fetchedTask, index) => {
+    const prevTask = prevById.get(taskIdKey(fetchedTask, index));
+    if (!prevTask) return fetchedTask;
+
+    const prevCompletedMs = toMs(prevTask.completedAt);
+    const fetchedCompletedMs = toMs(fetchedTask.completedAt);
+    if (prevCompletedMs > fetchedCompletedMs) {
+      return { ...fetchedTask, ...prevTask } as IProjectTask;
+    }
+    return fetchedTask;
+  });
+}
+
 export type MergeProjectsPreservingRecencyOptions = {
   contentByProjectId?: Map<string, IContentItem[]>;
 };
@@ -70,17 +100,12 @@ export function mergeProjectsPreservingRecency(
         ? (prevProject as { updatedAt?: Date }).updatedAt ?? new Date(prevUpdatedAt)
         : (fetchedProject as { updatedAt?: Date }).updatedAt;
 
-    const prevTaskCompletedMs = maxTaskCompletedAtMs(prevProject.tasks);
-    const fetchedTaskCompletedMs = maxTaskCompletedAtMs(fetchedProject.tasks);
-    const mergedTasks =
-      prevTaskCompletedMs > fetchedTaskCompletedMs
-        ? prevProject.tasks
-        : fetchedProject.tasks;
+    const mergedTasks = mergeTaskLists(fetchedProject.tasks, prevProject.tasks);
 
     return {
       ...fetchedProject,
       updatedAt: mergedUpdatedAt,
-      tasks: mergedTasks ?? fetchedProject.tasks,
+      tasks: mergedTasks,
     } as IProject;
   });
 }

@@ -12,6 +12,10 @@ import {
   getTaskAssigneeEmployeeIds,
   isEmployeeOnProjectTeam,
 } from '@/lib/utils/projectTeam';
+import {
+  isActiveWorkspaceContent,
+  isActiveWorkspaceTask,
+} from '@/lib/workspace/activeWorkspaceItems';
 import type { MobileInboxItem } from '@/contexts/MobileShellContext';
 
 const NEW_PROJECT_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -23,7 +27,7 @@ type BuildInboxParams = {
   contentItems: IContentItem[];
   clients: IClient[];
   openProjectId?: string | null;
-  onOpenTask: (projectId: string, taskIndex: number) => void;
+  onOpenTask: (projectId: string, taskId: string) => void;
   onOpenContent: (projectId: string, contentId: string) => void;
   onOpenProject: (projectId: string) => void;
   onOpenClient: (clientId: string) => void;
@@ -70,9 +74,11 @@ export function buildMobileActionInbox(params: BuildInboxParams): MobileInboxIte
     }
 
     (project.tasks ?? []).forEach((task, taskIndex) => {
+      if (!isActiveWorkspaceTask(task)) return;
       const assignees = getTaskAssigneeEmployeeIds(task);
       if (!assignees.includes(employeeId)) return;
       const taskId = task._id?.toString() ?? null;
+      if (!taskId) return;
       const key = buildTaskItemKey(projectId, taskId, taskIndex);
       const status = statusByKey[key];
       if (status !== 'new' && status !== 'updated') return;
@@ -82,14 +88,16 @@ export function buildMobileActionInbox(params: BuildInboxParams): MobileInboxIte
         subtitle: project.name,
         type: 'task',
         status,
-        onOpen: () => onOpenTask(projectId, taskIndex),
+        onOpen: () => onOpenTask(projectId, taskId),
       });
     });
   }
 
   for (const content of contentItems) {
+    if (!isActiveWorkspaceContent(content)) continue;
     const projectId = content.projectId?.toString();
     if (!projectId) continue;
+    if (!projects.some((p) => p._id.toString() === projectId)) continue;
     if (content.assignedToEmployeeId?.toString() !== employeeId) continue;
     const key = buildContentItemKey(projectId, content._id.toString());
     const status = statusByKey[key];

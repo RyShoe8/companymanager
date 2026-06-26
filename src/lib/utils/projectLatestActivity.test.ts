@@ -52,12 +52,17 @@ describe('getEffectiveProjectActivityMs', () => {
 });
 
 describe('compareProjectsForWorkspaceSort', () => {
-  it('sorts by activity before unseen count', () => {
-    expect(compareProjectsForWorkspaceSort(100, 5, 200, 0)).toBeGreaterThan(0);
-    expect(compareProjectsForWorkspaceSort(300, 0, 200, 10)).toBeLessThan(0);
+  it('sorts projects with unseen items before those without', () => {
+    expect(compareProjectsForWorkspaceSort(300, 1, 200, 0)).toBeLessThan(0);
+    expect(compareProjectsForWorkspaceSort(100, 0, 200, 5)).toBeGreaterThan(0);
   });
 
-  it('uses unseen count as a tiebreaker', () => {
+  it('sorts by activity when both have the same unseen presence', () => {
+    expect(compareProjectsForWorkspaceSort(100, 5, 200, 3)).toBeGreaterThan(0);
+    expect(compareProjectsForWorkspaceSort(300, 2, 200, 8)).toBeLessThan(0);
+  });
+
+  it('uses unseen count as a tiebreaker when activity matches', () => {
     expect(compareProjectsForWorkspaceSort(200, 1, 200, 3)).toBeGreaterThan(0);
     expect(compareProjectsForWorkspaceSort(200, 3, 200, 1)).toBeLessThan(0);
   });

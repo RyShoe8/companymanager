@@ -11,6 +11,7 @@ import useWorkspaceMeetings from '@/lib/hooks/useWorkspaceMeetings';
 import useIsMobile from '@/lib/hooks/useIsMobile';
 import PhaseFilter from '@/components/workspace/PhaseFilter';
 import LensBar from '@/components/workspace/LensBar';
+import WorkspaceLensSelect from '@/components/workspace/WorkspaceLensSelect';
 import TimeHorizonSelector from '@/components/planning-map/TimeHorizonSelector';
 import ScheduleLens from '@/components/workspace/ScheduleLens';
 import AgendaView from '@/components/workspace/AgendaView';
@@ -576,9 +577,13 @@ export default function WorkspaceShell({
     );
 
     const handleMobileOpenTask = useCallback(
-        (projectId: string, taskIndex: number) => {
+        (projectId: string, taskId: string) => {
             const project = ws.allProjects.find((p) => p._id.toString() === projectId);
-            if (project) handleViewProjectTask(project, taskIndex);
+            if (!project) return;
+            const taskIndex = (project.tasks ?? []).findIndex(
+                (t) => t._id?.toString() === taskId
+            );
+            if (taskIndex >= 0) handleViewProjectTask(project, taskIndex);
         },
         [ws.allProjects, handleViewProjectTask]
     );
@@ -1600,25 +1605,37 @@ _id.toString(), { tasks });
                     <div className="w-full mx-auto pt-[30px] pb-8">
                     {/* ===== Workspace Header ===== */}
                     <div className="mb-4">
-                        {/* Row 1: Org brand + controls */}
-                        <div className="flex flex-col gap-3 lg:gap-4 mb-3">
-                            <div className="w-full min-w-0 lg:max-w-none">
-                                <OrganizationBrand />
-                            </div>
-                            <div className="flex flex-row flex-wrap items-center gap-3 lg:gap-4">
-                                <div className="flex-shrink-0">
-                                    <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
+                        <div className="w-full min-w-0 lg:max-w-none mb-3">
+                            <OrganizationBrand />
+                        </div>
+                        <div
+                            className={
+                                isMobile
+                                    ? 'flex flex-nowrap items-center gap-2 min-w-0 overflow-x-auto'
+                                    : 'flex flex-row flex-wrap items-center gap-3 lg:gap-4 mb-3'
+                            }
+                        >
+                            {isMobile && !isSchedulingPhase ? (
+                                <div className="shrink-0">
+                                    <WorkspaceLensSelect
+                                        value={ws.lens}
+                                        onChange={handleLensSelect}
+                                    />
                                 </div>
-                                <TimeHorizonSelector
-                                    selected={ws.timeframe}
-                                    onSelect={(newTimeframe) => {
-                                        ws.setTimeframe(newTimeframe);
-                                        if (newTimeframe === 'today') {
-                                            ws.setCurrentDate(new Date());
-                                        }
-                                    }}
-                                />
-                                <div className="flex gap-2 flex-shrink-0 ml-auto items-center flex-wrap justify-end">
+                            ) : null}
+                            <div className="shrink-0">
+                                <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
+                            </div>
+                            <TimeHorizonSelector
+                                selected={ws.timeframe}
+                                onSelect={(newTimeframe) => {
+                                    ws.setTimeframe(newTimeframe);
+                                    if (newTimeframe === 'today') {
+                                        ws.setCurrentDate(new Date());
+                                    }
+                                }}
+                            />
+                            <div className="flex gap-2 shrink-0 ml-auto items-center">
                                 {needsCalendarData ? (
                                     <SchedulingCalendarBar
                                         calendar={scheduleCalendar}
@@ -1659,6 +1676,23 @@ _id.toString(), { tasks });
                                     <span>⌘K</span>
                                 </button>
                                 ) : null}
+                                {isMobile && !isSchedulingPhase ? (
+                                    <button
+                                        type="button"
+                                        data-tour="lens-toggles"
+                                        onClick={() => setShowViewOptionsOpen(true)}
+                                        className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                                        aria-label="View options"
+                                    >
+                                        <span aria-hidden>⚙</span>
+                                        Options
+                                        {activeViewOptionsCount > 0 ? (
+                                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
+                                                {activeViewOptionsCount}
+                                            </span>
+                                        ) : null}
+                                    </button>
+                                ) : null}
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}
@@ -1680,17 +1714,15 @@ _id.toString(), { tasks });
                                     }}
                                 />
                             </div>
-                            </div>
                         </div>
 
-                        {/* Row 2: Lens bar + view toggles (hidden in Scheduling phase) */}
-                        {!isSchedulingPhase && (
+                        {/* Row 2: Lens bar + view toggles (desktop only; hidden in Scheduling phase) */}
+                        {!isSchedulingPhase && !isMobile && (
                         <div className="flex flex-wrap items-center gap-2 md:gap-4 justify-between min-w-0">
                             <LensBar
                                 selected={ws.lens}
                                 onSelect={handleLensSelect}
                                 trailing={
-                                    isMobile ? null : (
                                     <div className="flex flex-wrap items-center gap-3">
                                         {ws.isManagerOrAdmin ? (
                                             <Toggle
@@ -1701,27 +1733,9 @@ _id.toString(), { tasks });
                                         ) : null}
                                         <WorkspaceEmailDigestSelect onIntervalChange={setEmailDigestInterval} />
                                     </div>
-                                    )
                                 }
                             />
-                            {isMobile ? (
-                                <button
-                                    type="button"
-                                    data-tour="lens-toggles"
-                                    onClick={() => setShowViewOptionsOpen(true)}
-                                    className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-                                    aria-label="View options"
-                                >
-                                    <span aria-hidden>⚙</span>
-                                    Options
-                                    {activeViewOptionsCount > 0 ? (
-                                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
-                                            {activeViewOptionsCount}
-                                        </span>
-                                    ) : null}
-                                </button>
-                            ) : null}
-                            {!isMobile && (ws.lens === 'schedule' || ws.lens === 'agenda' || ws.lens === 'clients') ? (
+                            {(ws.lens === 'schedule' || ws.lens === 'agenda' || ws.lens === 'clients') ? (
                                 <WorkspaceLensToolbar className="ml-auto">
                                     {platformGuide?.showRestartGuide ? (
                                         <button
@@ -2137,7 +2151,10 @@ _id.toString(), { tasks });
                             }}
                             onContentItemClick={handleContentItemClickFromSchedule}
                             contentRefreshTrigger={contentRefreshTrigger}
-                            onContentListChanged={() => {
+                            onContentListChanged={(contentItemId) => {
+                                if (contentItemId) {
+                                    ws.removeContentItem(contentItemId);
+                                }
                                 if (inspectorProjectId) {
                                     ws.touchProjectLocalActivity(inspectorProjectId);
                                 }

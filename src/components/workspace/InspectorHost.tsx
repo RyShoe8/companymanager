@@ -40,7 +40,7 @@ interface InspectorHostProps {
     onAddContentOpenConsumed?: () => void;
     onContentItemClick?: (item: IContentItem) => void;
     contentRefreshTrigger?: number;
-    onContentListChanged?: () => void;
+    onContentListChanged?: (contentItemId?: string) => void;
     contentItems?: IContentItem[];
     timeframe?: TimeframeType;
     referenceDate?: Date;

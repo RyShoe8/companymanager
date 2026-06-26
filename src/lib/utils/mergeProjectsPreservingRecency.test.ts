@@ -118,4 +118,37 @@ describe('mergeProjectsPreservingRecency', () => {
     const merged = mergeProjectsPreservingRecency(previous, fetched, { contentByProjectId });
     expect(new Date(merged[0].updatedAt!).getTime()).toBe(localUpdatedAt.getTime());
   });
+
+  it('does not resurrect tasks removed on the server', () => {
+    const taskId = new Types.ObjectId();
+    const completedAt = new Date('2026-06-15T12:00:00Z');
+    const localTasks = [
+      { _id: taskId, name: 'Kept', status: 'completed', completedAt } as IProjectTask,
+      { _id: new Types.ObjectId(), name: 'Deleted locally', status: 'active' } as IProjectTask,
+    ];
+    const fetchedTasks = [
+      { _id: taskId, name: 'Kept', status: 'active' } as IProjectTask,
+    ];
+    const previous = [
+      {
+        _id: projectId,
+        name: 'P',
+        updatedAt: new Date('2026-06-15T12:00:00Z'),
+        tasks: localTasks,
+      } as IProject,
+    ];
+    const fetched = [
+      {
+        _id: projectId,
+        name: 'P',
+        updatedAt: new Date('2026-06-01'),
+        tasks: fetchedTasks,
+      } as IProject,
+    ];
+
+    const merged = mergeProjectsPreservingRecency(previous, fetched);
+    expect(merged[0].tasks).toHaveLength(1);
+    expect(merged[0].tasks?.[0]?.completedAt).toEqual(completedAt);
+    expect(merged[0].tasks?.[0]?.status).toBe('completed');
+  });
 });

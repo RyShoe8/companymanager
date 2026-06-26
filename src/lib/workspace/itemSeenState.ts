@@ -253,6 +253,17 @@ export function observeItemsForUser(
     }
   }
 
+  const validKeys = new Set(items.map((item) => item.key));
+  for (const key of Object.keys(state.signatures)) {
+    if (validKeys.has(key)) continue;
+    delete state.signatures[key];
+    delete state.activityMs[key];
+    delete state.seenMs[key];
+    delete state.kindByKey[key];
+    delete state.newGraceUntilMs[key];
+    changed = true;
+  }
+
   if (changed) {
     saveState(userId, state);
   }

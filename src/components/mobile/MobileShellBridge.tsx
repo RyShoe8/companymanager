@@ -29,7 +29,7 @@ type MobileShellBridgeProps = {
   onCreateMeeting: () => void;
   onCreateScreenshot: () => void;
   onCreateRecord: () => void;
-  onOpenTask: (projectId: string, taskIndex: number) => void;
+  onOpenTask: (projectId: string, taskId: string) => void;
   onOpenContent: (projectId: string, contentId: string) => void;
 };
 

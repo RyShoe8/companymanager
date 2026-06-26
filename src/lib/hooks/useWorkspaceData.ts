@@ -74,6 +74,8 @@ export interface WorkspaceState {
     // Actions
     loadData: (options?: { silent?: boolean }) => Promise<void>;
     fetchContentItems: () => Promise<void>;
+    /** Remove a content item from local state immediately (e.g. after delete). */
+    removeContentItem: (contentItemId: string) => void;
     /** Merge one project from API (e.g. PUT response) without full reload — avoids inspector jitter */
     patchProjectInState: (updated: IProject) => void;
     /** Bump local recency for content-only saves that do not patch the project document */
@@ -126,6 +128,10 @@ export default function useWorkspaceData(
         } catch {
             // ignore
         }
+    }, []);
+
+    const removeContentItem = useCallback((contentItemId: string) => {
+        setContentItems((prev) => prev.filter((item) => item._id.toString() !== contentItemId));
     }, []);
 
     const loadData = useCallback(async (options?: { silent?: boolean }) => {
@@ -452,6 +458,7 @@ export default function useWorkspaceData(
         filteredContentItems,
         loadData,
         fetchContentItems,
+        removeContentItem,
         patchProjectInState,
         touchProjectLocalActivity,
         projectLocalTouchMs,

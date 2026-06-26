@@ -128,7 +128,7 @@ interface InlineProjectViewProps {
   /** When this changes, project content list is refetched (e.g. after content save/delete). */
   contentRefreshTrigger?: number;
   /** Notify workspace to refresh global content list after inspector content mutations. */
-  onContentListChanged?: () => void;
+  onContentListChanged?: (contentItemId?: string) => void;
   /** Register a flush callback for pending debounced task saves (inspector close). */
   registerFlushPendingSaves?: (flush: (() => Promise<void>) | null) => void;
   /** Open Tasks tab and focus this row (e.g. deep-link from workspace schedule). Cleared by parent via onInitialOpenTaskConsumed. */
@@ -1085,6 +1085,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       setProjectContentItems((prev) => prev.filter((c) => c._id.toString() !== item._id.toString()));
       bumpWorkspaceRecency();
       notifyContentListChanged();
+      onContentListChanged?.(item._id.toString());
       onRefresh();
     } catch (error) {
       console.error('Error deleting content item:', error);

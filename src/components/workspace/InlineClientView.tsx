@@ -45,7 +45,7 @@ interface InlineClientViewProps {
   onProjectPatched?: (project: IProject) => void;
   onContentItemClick?: (item: IContentItem) => void;
   contentRefreshTrigger?: number;
-  onContentListChanged?: () => void;
+  onContentListChanged?: (contentItemId?: string) => void;
   timeframe?: TimeframeType;
   referenceDate?: Date;
   autoAddTaskOnOpen?: boolean;
@@ -358,9 +358,15 @@ export default function InlineClientView({
                     </div>
                     <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}>{progressPercent}%</span>
                   </div>
-                  <div className={`flex flex-nowrap items-center gap-x-2 overflow-hidden text-xs font-medium mt-2 ${headerTextClass}`}>
-                    <span className="truncate whitespace-nowrap">
-                      {activeTaskCount} active task{activeTaskCount === 1 ? '' : 's'} · {activeContentCount} active content
+                  <div className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium mt-2 ${headerTextClass}`}>
+                    <span className="whitespace-nowrap">
+                      {activeTaskCount} task{activeTaskCount === 1 ? '' : 's'}
+                    </span>
+                    <span className="opacity-70" aria-hidden>
+                      ·
+                    </span>
+                    <span className="whitespace-nowrap">
+                      {activeContentCount} content
                     </span>
                   </div>
                 </button>

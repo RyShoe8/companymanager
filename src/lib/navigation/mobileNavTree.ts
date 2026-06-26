@@ -87,19 +87,7 @@ export const MOBILE_NAV_ROOT: MobileNavNode[] = [
     children: [
       { id: 'tools-index', label: 'All free tools', href: '/tools' },
       { id: 'tools-screenshot', label: 'Screenshot tool', href: '/tools/screenshot' },
-    ],
-  },
-  {
-    id: 'marketing',
-    label: 'Site',
-    icon: '🌐',
-    children: [
-      { id: 'site-home', label: 'Home', href: '/' },
-      { id: 'site-features', label: 'Features', href: '/features' },
-      { id: 'site-pricing', label: 'Pricing', href: '/pricing' },
-      { id: 'site-about', label: 'About', href: '/about' },
-      { id: 'site-contact', label: 'Contact', href: '/contact' },
-      { id: 'site-blog', label: 'Blog', href: '/blog' },
+      { id: 'tools-recording', label: 'Screen recorder', action: 'onCreateRecord' },
     ],
   },
 ];
