@@ -9,6 +9,7 @@ import useWorkspaceData, { PhaseType, LensType } from '@/lib/hooks/useWorkspaceD
 import { PlatformCatalogProvider } from '@/contexts/PlatformCatalogContext';
 import useWorkspaceMeetings from '@/lib/hooks/useWorkspaceMeetings';
 import useIsMobile from '@/lib/hooks/useIsMobile';
+import { useMobileInspectorHistory } from '@/hooks/useMobileInspectorHistory';
 import PhaseFilter from '@/components/workspace/PhaseFilter';
 import LensBar from '@/components/workspace/LensBar';
 import WorkspaceLensSelect from '@/components/workspace/WorkspaceLensSelect';
@@ -442,6 +443,30 @@ export default function WorkspaceShell({
         setInspectorAddContentDate(undefined);
         setInspectorAddContentPrefill(null);
     }, [inspectorFocus, inspectorParentFocus, markOpenedProjectSeen]);
+
+    const closeInspectorFully = useCallback(() => {
+        const projectIdToMark = inspectorFocus?.startsWith('project:')
+            ? inspectorFocus.split(':')[1]
+            : null;
+        if (projectIdToMark) {
+            markOpenedProjectSeen(projectIdToMark);
+        }
+        setInspectorFocus(null);
+        setInspectorParentFocus(null);
+        setInspectorOpenTaskIndex(null);
+        setInspectorOpenContentId(null);
+        setInspectorAutoAddTask(false);
+        setInspectorInitialAddContentOpen(false);
+        setInspectorAddContentDate(undefined);
+        setInspectorAddContentPrefill(null);
+    }, [inspectorFocus, markOpenedProjectSeen]);
+
+    const { completeInspectorClose } = useMobileInspectorHistory({
+        inspectorFocus,
+        onCloseInspector: closeInspector,
+        onCloseInspectorFully: closeInspectorFully,
+        enabled: isMobile,
+    });
 
     const handleViewClient = useCallback((client: IClient) => {
         setInspectorParentFocus(null);
@@ -1486,11 +1511,11 @@ _id.toString(), { tasks });
             category: 'view' as const,
             keywords: ['close', 'cancel', 'dismiss'],
             voicePatterns: ['close', 'close modal', 'cancel', 'dismiss', 'close inspector'],
-            execute: closeInspector,
+            execute: completeInspectorClose,
         };
         CommandRegistry.register(closeCmd);
         return () => CommandRegistry.unregister('close-inspector');
-    }, [inspectorFocus, closeInspector]);
+    }, [inspectorFocus, completeInspectorClose]);
 
     // Global keyboard shortcuts (command palette — platform admins only)
     useEffect(() => {
@@ -1608,21 +1633,97 @@ _id.toString(), { tasks });
                         <div className="w-full min-w-0 lg:max-w-none mb-3">
                             <OrganizationBrand />
                         </div>
-                        <div
-                            className={
-                                isMobile
-                                    ? 'flex flex-nowrap items-center gap-2 min-w-0 overflow-x-auto'
-                                    : 'flex flex-row flex-wrap items-center gap-3 lg:gap-4 mb-3'
-                            }
-                        >
-                            {isMobile && !isSchedulingPhase ? (
-                                <div className="shrink-0">
-                                    <WorkspaceLensSelect
-                                        value={ws.lens}
-                                        onChange={handleLensSelect}
-                                    />
-                                </div>
-                            ) : null}
+                        {isMobile ? (
+                        <div className="flex flex-col gap-2 mb-3">
+                            <div className="overflow-x-auto min-w-0 -mx-0.5 px-0.5">
+                                <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                {!isSchedulingPhase ? (
+                                    <>
+                                        <WorkspaceLensSelect
+                                            value={ws.lens}
+                                            onChange={handleLensSelect}
+                                        />
+                                        <TimeHorizonSelector
+                                            selected={ws.timeframe}
+                                            onSelect={(newTimeframe) => {
+                                                ws.setTimeframe(newTimeframe);
+                                                if (newTimeframe === 'today') {
+                                                    ws.setCurrentDate(new Date());
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            data-tour="lens-toggles"
+                                            onClick={() => setShowViewOptionsOpen(true)}
+                                            className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                                            aria-label="View options"
+                                        >
+                                            <span aria-hidden>⚙</span>
+                                            Options
+                                            {activeViewOptionsCount > 0 ? (
+                                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
+                                                    {activeViewOptionsCount}
+                                                </span>
+                                            ) : null}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        {needsCalendarData ? (
+                                            <SchedulingCalendarBar
+                                                calendar={scheduleCalendar}
+                                                syncing={scheduleSyncing}
+                                                onSync={() => void handleScheduleSync()}
+                                            />
+                                        ) : null}
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => setShowAvailabilityModal(true)}
+                                        >
+                                            Set Availability
+                                        </Button>
+                                        {scheduleCalendar?.connected ? (
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => void handleScheduleCalendarDisconnect()}
+                                            >
+                                                Disconnect
+                                            </Button>
+                                        ) : null}
+                                    </>
+                                )}
+                            </div>
+                            <CreateMenu
+                                isManagerOrAdmin={ws.isManagerOrAdmin}
+                                currentUserRole={ws.currentUserRole}
+                                canCreateTaskOrContent={canCreateTaskOrContent}
+                                menuOpen={createMenuOpen}
+                                onMenuOpenChange={setCreateMenuOpen}
+                                onCreateProject={handleCreateProject}
+                                onCreateClient={() => setShowClientCreateModal(true)}
+                                onCreateTask={() => setProjectPickerMode('task')}
+                                onCreateContent={() => setProjectPickerMode('content')}
+                                onCreateMeeting={() => setShowMeetingModal(true)}
+                                onCreateScreenshot={() => setShowScreenshotModal(true)}
+                                onCreateRecord={() => {
+                                    if (!isRecordingCaptureSupported()) {
+                                        setShowRecordingModal(true);
+                                        return;
+                                    }
+                                    setShowRecordingModal(true);
+                                }}
+                                triggerClassName="w-full justify-center"
+                            />
+                        </div>
+                        ) : (
+                        <div className="flex flex-row flex-wrap items-center gap-3 lg:gap-4 mb-3">
                             <div className="shrink-0">
                                 <PhaseFilter selected={ws.phase} onSelect={handlePhaseSelect} />
                             </div>
@@ -1676,23 +1777,6 @@ _id.toString(), { tasks });
                                     <span>⌘K</span>
                                 </button>
                                 ) : null}
-                                {isMobile && !isSchedulingPhase ? (
-                                    <button
-                                        type="button"
-                                        data-tour="lens-toggles"
-                                        onClick={() => setShowViewOptionsOpen(true)}
-                                        className="relative shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-                                        aria-label="View options"
-                                    >
-                                        <span aria-hidden>⚙</span>
-                                        Options
-                                        {activeViewOptionsCount > 0 ? (
-                                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center">
-                                                {activeViewOptionsCount}
-                                            </span>
-                                        ) : null}
-                                    </button>
-                                ) : null}
                                 <CreateMenu
                                     isManagerOrAdmin={ws.isManagerOrAdmin}
                                     currentUserRole={ws.currentUserRole}
@@ -1715,6 +1799,7 @@ _id.toString(), { tasks });
                                 />
                             </div>
                         </div>
+                        )}
 
                         {/* Row 2: Lens bar + view toggles (desktop only; hidden in Scheduling phase) */}
                         {!isSchedulingPhase && !isMobile && (
@@ -2124,7 +2209,7 @@ _id.toString(), { tasks });
                     {inspectorFocus && (
                         <InspectorHost
                             focusId={inspectorFocus}
-                            onClose={closeInspector}
+                            onClose={completeInspectorClose}
                             projects={ws.allProjects}
                             clients={ws.filteredClients}
                             employees={ws.employees}

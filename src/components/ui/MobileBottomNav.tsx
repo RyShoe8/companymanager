@@ -105,10 +105,15 @@ export function MobileNavVoiceButton() {
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
-  const { inboxItems } = useMobileShell();
+  const { inboxItems, registerReopenActionInbox } = useMobileShell();
   const [navOpen, setNavOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+
+  useEffect(() => {
+    registerReopenActionInbox(() => setActionOpen(true));
+    return () => registerReopenActionInbox(null);
+  }, [registerReopenActionInbox]);
 
   useEffect(() => {
     let cancelled = false;

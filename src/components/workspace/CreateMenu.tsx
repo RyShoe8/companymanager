@@ -17,6 +17,7 @@ interface CreateMenuProps {
     onCreateRecord: () => void;
     menuOpen?: boolean;
     onMenuOpenChange?: (open: boolean) => void;
+    triggerClassName?: string;
 }
 
 export default function CreateMenu({
@@ -32,6 +33,7 @@ export default function CreateMenu({
     onCreateRecord,
     menuOpen,
     onMenuOpenChange,
+    triggerClassName = '',
 }: CreateMenuProps) {
     const [internalOpen, setInternalOpen] = useState(false);
     const isControlled = menuOpen !== undefined;
@@ -81,7 +83,7 @@ export default function CreateMenu({
             items={items}
             align="right"
             trigger={({ toggle }) => (
-                <Button onClick={toggle} className="flex items-center gap-2">
+                <Button onClick={toggle} className={`flex items-center gap-2 ${triggerClassName}`}>
                     <span>+ Create</span>
                     <svg
                         className={`w-4 h-4 transition-transform duration-200 ease-out ${isOpen ? 'rotate-180' : ''}`}

@@ -947,7 +947,7 @@ export default function CalendarView({
                 return (
                   <div
                     key={projectId}
-                    className="p-2 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
+                    className="p-1.5 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
                     style={{
                       backgroundColor: displayColor + 'F0',
                       borderColor: displayColor,
@@ -1053,7 +1053,7 @@ export default function CalendarView({
         <WeeklyMobileDayPager startDate={startDate} weekKey={startDate.toISOString()}>
           {(day) =>
             renderDayView(day, {
-              paddingClass: 'p-2',
+              paddingClass: 'px-0.5 py-2',
               minHeightClass: 'min-h-[300px]',
               emptyTitle: itemMode ? 'Nothing scheduled' : 'No projects this day',
               emptyDescription: itemMode
@@ -1349,7 +1349,7 @@ export default function CalendarView({
 
                         return (
                           <>
-                            <div className="px-2 py-3 md:px-6 md:py-4 shrink-0">
+                            <div className="px-1.5 py-2.5 md:px-6 md:py-4 shrink-0">
                               <CalendarCardHeader
                                 name={name}
                                 logo={project.logo}

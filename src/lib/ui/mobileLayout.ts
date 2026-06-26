@@ -1,6 +1,6 @@
 /** Shared horizontal page gutters — tighter on mobile for more content width. */
 export const PAGE_GUTTER_CLASS = 'px-2 sm:px-4 md:px-6 lg:px-8';
-export const PAGE_GUTTER_WIDE_CLASS = 'px-1 sm:px-4 md:px-6 lg:px-[100px]';
+export const PAGE_GUTTER_WIDE_CLASS = 'px-0 sm:px-4 md:px-6 lg:px-[100px]';
 
 /** Bottom offset above the mobile nav bar (4.5rem nav + safe area). */
 export const MOBILE_NAV_CLEARANCE_CLASS =

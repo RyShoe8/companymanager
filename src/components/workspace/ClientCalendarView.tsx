@@ -544,7 +544,7 @@ export default function ClientCalendarView({
     />
   );
 
-  const renderClientDayView = (day: Date, paddingClass = 'p-2 md:p-6') => {
+  const renderClientDayView = (day: Date, paddingClass = 'px-0.5 py-2 md:p-6') => {
     const viewDay = new Date(day);
     viewDay.setHours(0, 0, 0, 0);
     const viewDayEnd = new Date(viewDay);
@@ -591,7 +591,7 @@ export default function ClientCalendarView({
           return (
             <div
               key={clientId}
-              className="p-2 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
+              className="p-1.5 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
               style={{
                 backgroundColor: `${displayColor}F0`,
                 borderColor: displayColor,
@@ -654,7 +654,7 @@ export default function ClientCalendarView({
             return (
               <div
                 key={clientId}
-                className="p-2 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
+                className="p-1.5 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden"
                 style={{
                   backgroundColor: `${displayColor}F0`,
                   borderColor: displayColor,
@@ -717,7 +717,7 @@ export default function ClientCalendarView({
     if (isMobile) {
       return (
         <WeeklyMobileDayPager startDate={startDate} weekKey={startDate.toISOString()}>
-          {(day) => renderClientDayView(day, 'p-2')}
+          {(day) => renderClientDayView(day, 'px-0.5 py-2')}
         </WeeklyMobileDayPager>
       );
     }

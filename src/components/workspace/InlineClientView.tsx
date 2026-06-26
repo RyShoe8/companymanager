@@ -327,7 +327,7 @@ export default function InlineClientView({
                   key={String(project._id)}
                   type="button"
                   onClick={() => onViewProject(project)}
-                  className="text-left p-2 md:p-4 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative w-full"
+                  className="text-left p-1.5 md:p-4 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg relative w-full"
                   style={{
                     backgroundColor: `${displayColor}F0`,
                     borderColor: displayColor,

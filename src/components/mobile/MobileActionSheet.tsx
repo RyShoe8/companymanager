@@ -2,6 +2,7 @@
 
 import BottomSheet from '@/components/ui/BottomSheet';
 import { useMobileShell, type MobileInboxItem } from '@/contexts/MobileShellContext';
+import { markOpenedFromActionInbox } from '@/lib/mobile/actionInboxReturn';
 
 type MobileActionSheetProps = {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export default function MobileActionSheet({ isOpen, onClose }: MobileActionSheet
                     <button
                       type="button"
                       onClick={() => {
+                        markOpenedFromActionInbox();
                         item.onOpen();
                         onClose();
                       }}

@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -70,12 +71,23 @@ type MobileShellContextValue = MobileShellState & {
   registerShell: (patch: Partial<MobileShellState>) => void;
   clearShell: () => void;
   runAction: (key: MobileShellZeroArgAction) => void;
+  registerReopenActionInbox: (fn: (() => void) | null) => void;
+  requestReopenActionInbox: () => void;
 };
 
 const MobileShellContext = createContext<MobileShellContextValue | null>(null);
 
 export function MobileShellProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<MobileShellState>(defaultState);
+  const reopenActionInboxRef = useRef<(() => void) | null>(null);
+
+  const registerReopenActionInbox = useCallback((fn: (() => void) | null) => {
+    reopenActionInboxRef.current = fn;
+  }, []);
+
+  const requestReopenActionInbox = useCallback(() => {
+    reopenActionInboxRef.current?.();
+  }, []);
 
   const registerShell = useCallback((patch: Partial<MobileShellState>) => {
     setState((prev) => ({
@@ -106,8 +118,10 @@ export function MobileShellProvider({ children }: { children: ReactNode }) {
       registerShell,
       clearShell,
       runAction,
+      registerReopenActionInbox,
+      requestReopenActionInbox,
     }),
-    [state, registerShell, clearShell, runAction]
+    [state, registerShell, clearShell, runAction, registerReopenActionInbox, requestReopenActionInbox]
   );
 
   return <MobileShellContext.Provider value={value}>{children}</MobileShellContext.Provider>;
@@ -121,6 +135,8 @@ export function useMobileShell(): MobileShellContextValue {
       registerShell: () => {},
       clearShell: () => {},
       runAction: () => {},
+      registerReopenActionInbox: () => {},
+      requestReopenActionInbox: () => {},
     };
   }
   return ctx;
