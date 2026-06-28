@@ -106,8 +106,8 @@ export default function Modal({
     : stackAboveOverlays
       ? 'z-[110]'
       : elevated
-        ? 'z-[70]'
-        : 'z-50';
+        ? 'z-[80]'
+        : 'z-[70]';
 
   const panelClass =
     'inspector-light bg-background-card border border-border shadow-xl overflow-hidden flex flex-col animate-fade-in animate-in slide-in-from-bottom-2 duration-200 ease-out';

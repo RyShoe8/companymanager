@@ -104,7 +104,7 @@ export default function BottomSheet({
 
   if (!mounted || !shouldRender) return null;
 
-  const zClass = stackAboveLightbox ? 'z-[120]' : elevated ? 'z-[60]' : 'z-50';
+  const zClass = stackAboveLightbox ? 'z-[120]' : elevated ? 'z-[80]' : 'z-[70]';
   const surfaceClass =
     surface === 'chrome'
       ? 'bg-transparent shadow-none'
