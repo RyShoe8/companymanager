@@ -4,6 +4,7 @@ import {
   localCalendarDayIndex,
   parseDateSafe,
   taskCalendarDayIndex,
+  taskInDisplayRange,
   taskOverlapsViewRange,
 } from '@/lib/utils/dateUtils';
 
@@ -46,10 +47,7 @@ export function projectOverlapsDateRange(
 
   if (project.tasks && project.tasks.length > 0) {
     for (const task of project.tasks) {
-      const taskStart = parseDateSafe(task.startDate);
-      const taskEnd = parseDateSafe(task.endDate);
-      if (!taskStart || !taskEnd) continue;
-      if (taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd)) {
+      if (taskInDisplayRange(task, rangeStart, rangeEnd)) {
         return true;
       }
     }

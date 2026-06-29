@@ -53,6 +53,22 @@ export function scrollElementIntoContainer(
   });
 }
 
+/** True when the element is fully visible inside the container's scrollport. */
+export function isElementInContainerView(
+  element: HTMLElement,
+  container: HTMLElement
+): boolean {
+  const elementRect = element.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  const elementTop = elementRect.top - containerRect.top + container.scrollTop;
+  const elementHeight = element.offsetHeight;
+  const containerHeight = container.clientHeight;
+  const visibleTop = container.scrollTop;
+  const visibleBottom = visibleTop + containerHeight;
+  const elementBottom = elementTop + elementHeight;
+  return elementTop >= visibleTop && elementBottom <= visibleBottom;
+}
+
 /** Run scroll after layout (e.g. tab switch); double rAF helps after React paint. */
 export function scrollElementIntoContainerAfterLayout(
   getElement: () => HTMLElement | null,

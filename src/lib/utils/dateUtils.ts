@@ -237,6 +237,50 @@ export function taskOverlapsViewDay(viewDay: Date, taskStart: Date, taskEnd: Dat
   return taskOverlapsViewRange(viewDay, viewDay, taskStart, taskEnd);
 }
 
+/**
+ * Whether a task belongs in a calendar range.
+ * Undated tasks (no start/end) always match; open-ended tasks (start, no end) match when
+ * the range ends on or after the start day.
+ */
+export function taskInDisplayRange(
+  task: { startDate?: Date | string | null; endDate?: Date | string | null },
+  rangeStart: Date,
+  rangeEnd: Date
+): boolean {
+  const taskStart = parseDateSafe(task.startDate);
+  const taskEnd = parseDateSafe(task.endDate);
+
+  if (!taskStart && !taskEnd) return true;
+  if (taskStart && !taskEnd) {
+    return taskCalendarDayIndex(taskStart) <= localCalendarDayIndex(rangeEnd);
+  }
+  if (!taskStart && taskEnd) {
+    return taskCalendarDayIndex(taskEnd) >= localCalendarDayIndex(rangeStart);
+  }
+  return taskOverlapsViewRange(rangeStart, rangeEnd, taskStart!, taskEnd!);
+}
+
+/** Resolve task dates for list/sort display when end (or start) may be unset. */
+export function resolveTaskDisplayDates(
+  task: { startDate?: Date | string | null; endDate?: Date | string | null },
+  rangeEnd?: Date
+): { startDate: Date; endDate: Date } | null {
+  const taskStart = parseDateSafe(task.startDate);
+  const taskEnd = parseDateSafe(task.endDate);
+
+  if (!taskStart && !taskEnd) {
+    const anchor = rangeEnd ?? new Date();
+    return { startDate: anchor, endDate: anchor };
+  }
+  if (taskStart && !taskEnd) {
+    return { startDate: taskStart, endDate: rangeEnd ?? taskStart };
+  }
+  if (!taskStart && taskEnd) {
+    return { startDate: taskEnd, endDate: taskEnd };
+  }
+  return { startDate: taskStart!, endDate: taskEnd! };
+}
+
 /** True when two inclusive date ranges share at least one UTC calendar day. */
 export function datesOverlapUtcCalendarDays(
   rangeStart: Date,

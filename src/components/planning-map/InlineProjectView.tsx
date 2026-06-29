@@ -68,7 +68,10 @@ import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStac
 import ProjectCustomPlatformStacks from '@/components/projects/ProjectCustomPlatformStacks';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectMarketingStackItem, IProjectSocialLink, IProjectTechStackItem } from '@/lib/models/Project';
-import { scrollElementIntoContainerAfterLayout } from '@/lib/utils/scrollIntoContainer';
+import {
+  isElementInContainerView,
+  scrollElementIntoContainerAfterLayout,
+} from '@/lib/utils/scrollIntoContainer';
 import type { RefObject } from 'react';
 import { expandTaskInstances, expandTaskExtensionInstances } from '@/lib/recurrence/expandTaskInstances';
 import TaskRecurrenceInline, { type TaskRecurrenceValue } from '@/components/planning-map/TaskRecurrenceInline';
@@ -103,6 +106,37 @@ import {
   readObservedItemsForUser,
   type ItemSeenStatus,
 } from '@/lib/workspace/itemSeenState';
+
+function tasksSemanticallyEqual(a: IProjectTask, b: IProjectTask): boolean {
+  return (
+    a.name === b.name &&
+    a.description === b.description &&
+    a.status === b.status &&
+    String(a.estimatedHours ?? '') === String(b.estimatedHours ?? '') &&
+    String(a.startDate ?? '') === String(b.startDate ?? '') &&
+    String(a.endDate ?? '') === String(b.endDate ?? '')
+  );
+}
+
+function mergeTasksPreservingReferences(
+  prev: IProjectTask[] | undefined,
+  server: IProjectTask[]
+): IProjectTask[] {
+  const prevTasks = prev ?? [];
+  if (prevTasks.length !== server.length) return server;
+  return server.map((serverTask, i) => {
+    const prevTask = prevTasks[i];
+    if (!prevTask) return serverTask;
+    const prevId = taskIdString(prevTask);
+    const serverId = taskIdString(serverTask);
+    const sameSlot =
+      (prevId && serverId && prevId === serverId) || (!prevId && !serverId);
+    if (sameSlot && tasksSemanticallyEqual(prevTask, serverTask)) {
+      return prevTask;
+    }
+    return serverTask;
+  });
+}
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -321,6 +355,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [draftTaskOpen, setDraftTaskOpen] = useState(false);
   const [addTaskNameDraft, setAddTaskNameDraft] = useState('');
   const addTaskInputRef = useRef<HTMLTextAreaElement>(null);
+  const draftFocusPendingRef = useRef(false);
   const pendingNamedTaskEstimateRef = useRef<{ index: number; name: string } | null>(null);
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
@@ -1039,8 +1074,23 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setAddTaskNameDraft('');
     setTasksExpanded(true);
     setTaskTab('active');
-    requestAnimationFrame(() => addTaskInputRef.current?.focus());
+    draftFocusPendingRef.current = true;
   }, []);
+
+  useEffect(() => {
+    if (!draftTaskOpen || !draftFocusPendingRef.current) return;
+    draftFocusPendingRef.current = false;
+    scrollElementIntoContainerAfterLayout(
+      () => document.getElementById('inspector-task-draft-row'),
+      scrollContainerRef?.current ?? null,
+      { block: 'center', behavior: 'auto' }
+    );
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        addTaskInputRef.current?.focus();
+      });
+    });
+  }, [draftTaskOpen, scrollContainerRef]);
 
   // Fetch project action buttons (smart buttons)
   useEffect(() => {
@@ -1183,6 +1233,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           : c
       )
     );
+    bumpWorkspaceRecency();
     try {
       const res = await fetch(`/api/content-items/${id}`, {
         method: 'PATCH',
@@ -1246,7 +1297,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const handleFieldUpdate = async (field: string, value: any) => {
-    setLocalProject(prev => ({ ...prev, [field]: value } as IProject));
+    const optimistic = { ...localProjectRef.current, [field]: value } as IProject;
+    setLocalProject(optimistic);
+    bumpWorkspaceRecency(optimistic);
     try {
       const updates = { [field]: value };
       await onUpdate(updates);
@@ -1420,14 +1473,26 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         if (options?.allowBulkTaskExpand) payload.allowBulkTaskExpand = true;
         const saved = await onUpdate(payload);
         if (saved?.tasks) {
-          setLocalProject((prev) => ({
-            ...prev,
-            tasks: saved.tasks,
-            updatedAt: saved.updatedAt ?? prev.updatedAt,
-          } as IProject));
+          let tasksUnchanged = false;
+          setLocalProject((prev) => {
+            const mergedTasks = mergeTasksPreservingReferences(prev.tasks, saved.tasks!);
+            tasksUnchanged =
+              mergedTasks.length === (prev.tasks?.length ?? 0) &&
+              mergedTasks.every((t, i) => t === prev.tasks?.[i]);
+            const next = {
+              ...prev,
+              tasks: mergedTasks,
+              updatedAt: saved.updatedAt ?? prev.updatedAt,
+            } as IProject;
+            onProjectPatched?.(next);
+            return next;
+          });
+          if (!tasksUnchanged) {
+            setTaskAssetsRefreshToken((n) => n + 1);
+          }
+        } else if (saved) {
           onProjectPatched?.(saved);
         }
-        setTaskAssetsRefreshToken((n) => n + 1);
         await options?.onSuccess?.();
       } catch (error) {
         console.error('Error saving tasks:', error);
@@ -1701,7 +1766,9 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         name: mergedName,
       };
       const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(getProjectTeamForTasks(proj), updatedTasks);
-      setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
+      const optimistic = { ...proj, tasks: tasksToSave } as IProject;
+      setLocalProject(optimistic);
+      bumpWorkspaceRecency(optimistic);
       try {
         if (!isManagerOrAdmin) {
           await patchContributorTask(taskIndex, {
@@ -1722,7 +1789,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         throw error;
       }
     },
-    [persistProjectTasks, patchContributorTask, isManagerOrAdmin]
+    [persistProjectTasks, patchContributorTask, isManagerOrAdmin, bumpWorkspaceRecency]
   );
 
   const scheduleTaskHourEstimate = useCallback((taskIndex: number, title: string) => {
@@ -1776,13 +1843,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const idx = pendingScrollToTaskIndex;
     const tasks = localProject.tasks || [];
     if (idx < 0 || idx >= tasks.length) return;
-    const taskId = taskIdString(tasks[idx]) ?? `task-${idx}`;
     setPendingScrollToTaskIndex(null);
-    scrollElementIntoContainerAfterLayout(
-      () => document.getElementById(`inspector-task-row-${idx}`),
-      scrollContainerRef?.current ?? null,
-      { block: 'center', behavior: 'smooth' }
-    );
+    const container = scrollContainerRef?.current ?? null;
+    const rowEl = document.getElementById(`inspector-task-row-${idx}`);
+    if (!container || !rowEl || !isElementInContainerView(rowEl, container)) {
+      scrollElementIntoContainerAfterLayout(
+        () => document.getElementById(`inspector-task-row-${idx}`),
+        container,
+        { block: 'nearest', behavior: 'auto' }
+      );
+    }
     requestAnimationFrame(() => {
       const pendingEstimate = pendingNamedTaskEstimateRef.current;
       if (pendingEstimate && pendingEstimate.index === idx) {
@@ -2587,7 +2657,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         ) : (
           <div className="divide-y divide-gray-100">
             {draftTaskOpen && canContributeToProject && taskTab === 'active' && (
-              <div id="inspector-task-draft-row" className="p-4 scroll-mt-4">
+              <div
+                id="inspector-task-draft-row"
+                className="p-4 scroll-mt-4 ring-2 ring-primary/40 bg-primary/5 rounded-lg"
+              >
+                <p className="text-xs font-medium text-primary mb-2">New task — name it below</p>
                 <AutoGrowTextarea
                   id="inspector-task-draft-name"
                   ref={addTaskInputRef}
@@ -2599,10 +2673,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     if (e.key === 'Escape') {
                       setDraftTaskOpen(false);
                       setAddTaskNameDraft('');
+                      return;
+                    }
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      submitDraftTask(addTaskNameDraft);
                     }
                   }}
                   placeholder="What needs to be done?"
-                  className={`${formInputClassInspector} text-sm font-medium`}
+                  aria-label="New task name"
+                  className={`${formInputClassInspector} text-sm font-medium focus:ring-2 focus:ring-primary`}
                 />
               </div>
             )}
@@ -2644,7 +2724,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                             onSave={(v) => handleTaskUpdate(idx, 'description', v)}
                             className="text-sm text-gray-500 mt-1"
                             placeholder="Add description..."
-                            autoMultilineAfter={100}
+                            multiline
                             disabled={!canContributeToProject}
                           />
                         )}
@@ -2685,11 +2765,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                           onRecurrenceChange={(value) => void applyTaskRecurrence(idx, value)}
                         />
                       ) : null}
-                      {estimatingTaskIndices.has(idx) ? (
-                        <span className="text-gray-400 italic leading-none">Estimating…</span>
-                      ) : (
-                        <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} className="leading-none py-0" suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
-                      )}
+                      <span className="inline-flex items-center min-w-[4.5rem]">
+                        {estimatingTaskIndices.has(idx) ? (
+                          <span className="text-gray-400 italic leading-none">Estimating…</span>
+                        ) : (
+                          <EditableNumber value={task.estimatedHours} onSave={(v) => handleTaskUpdate(idx, 'estimatedHours', v)} className="leading-none py-0" suffix="h" min={0} placeholder="Hours" disabled={!isManagerOrAdmin} />
+                        )}
+                      </span>
                       {employees.length > 0 && (
                         <div className="flex flex-col gap-0.5 min-w-[8rem]">
                           <div className="flex items-center gap-1">

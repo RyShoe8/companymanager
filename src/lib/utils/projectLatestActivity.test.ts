@@ -66,4 +66,12 @@ describe('compareProjectsForWorkspaceSort', () => {
     expect(compareProjectsForWorkspaceSort(200, 1, 200, 3)).toBeGreaterThan(0);
     expect(compareProjectsForWorkspaceSort(200, 3, 200, 1)).toBeLessThan(0);
   });
+
+  it('keeps unseen projects above a recently edited seen project', () => {
+    const unseenEdited = compareProjectsForWorkspaceSort(500, 2, 900, 0);
+    expect(unseenEdited).toBeLessThan(0);
+
+    const seenRecentlyEdited = compareProjectsForWorkspaceSort(900, 0, 100, 0);
+    expect(seenRecentlyEdited).toBeLessThan(0);
+  });
 });

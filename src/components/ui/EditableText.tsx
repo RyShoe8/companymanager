@@ -189,7 +189,7 @@ export default function EditableText({
   }
 
   if (isEditing) {
-    const editClassName = `${className} font-[inherit] text-inherit border border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500`;
+    const editClassName = `${className} font-[inherit] text-inherit border border-transparent rounded px-2 py-1 focus:outline-none ring-2 ring-primary/60`;
     if (useMultiline) {
       return (
         <textarea

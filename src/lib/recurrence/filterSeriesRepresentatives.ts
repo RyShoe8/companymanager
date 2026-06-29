@@ -6,7 +6,7 @@ import {
   localCalendarDayIndex,
   parseDateSafe,
   taskCalendarDayIndex,
-  taskOverlapsViewRange,
+  taskInDisplayRange,
 } from '@/lib/utils/dateUtils';
 
 function taskSortDate(task: IProjectTask): Date {
@@ -143,10 +143,7 @@ export function filterContentToSeriesRepresentatives(
 }
 
 function taskOverlapsRange(task: IProjectTask, rangeStart: Date, rangeEnd: Date): boolean {
-  const taskStart = parseDateSafe(task.startDate);
-  const taskEnd = parseDateSafe(task.endDate);
-  if (!taskStart || !taskEnd) return false;
-  return taskOverlapsViewRange(rangeStart, rangeEnd, taskStart, taskEnd);
+  return taskInDisplayRange(task, rangeStart, rangeEnd);
 }
 
 /** Content belongs to a calendar range if undated or publish day falls within the range. */

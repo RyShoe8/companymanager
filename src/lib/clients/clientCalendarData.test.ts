@@ -116,6 +116,32 @@ describe('buildClientCalendarRows', () => {
     expect(rows[0].hubProject?.activeContentCount).toBe(1);
     expect(rows[0].hasActivityInRange).toBe(true);
   });
+
+  it('counts open-ended hub tasks on the client card', () => {
+    const clients = [client('c1', 'Acme')];
+    const allProjects = [
+      project({
+        _id: 'hub1',
+        clientId: 'c1',
+        projectType: 'client-admin',
+        name: 'Acme',
+        status: 'planning',
+        tasks: [
+          {
+            name: 'Ongoing retainer work',
+            startDate: '2026-06-01',
+            endDate: null,
+            status: 'active',
+          },
+        ],
+      }),
+    ];
+    const rows = buildClientCalendarRows(clients, allProjects, [], 'weekly', referenceDate);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].activeTaskCount).toBe(1);
+    expect(rows[0].hasActivityInRange).toBe(true);
+    expect(rows[0].hubProject?.activeTaskCount).toBe(1);
+  });
 });
 
 describe('clientExpandSections', () => {

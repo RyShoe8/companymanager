@@ -2199,6 +2199,9 @@ _id.toString(), { tasks });
                         employees={ws.employees}
                         isManagerOrAdmin={ws.isManagerOrAdmin}
                         onSuccess={async () => {
+                            if (addContentProject?._id) {
+                                ws.touchProjectLocalActivity(addContentProject._id.toString());
+                            }
                             await ws.fetchContentItems();
                             setContentRefreshTrigger((t) => t + 1);
                         }}

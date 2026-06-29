@@ -947,7 +947,7 @@ export default function CalendarView({
                 return (
                   <div
                     key={projectId}
-                    className="p-1 md:p-6 rounded-lg border-2 border-border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
+                    className="p-1 md:p-6 rounded-lg border-2 border-border transition-[box-shadow,transform] duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative"
                     style={{
                       backgroundColor: displayColor + 'F0',
                       borderColor: displayColor,
@@ -1315,7 +1315,7 @@ export default function CalendarView({
                   return (
                     <div
                       key={`${pos.project!._id.toString()}-weekly`}
-                      className={`absolute rounded-lg border-2 border-border flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
+                      className={`absolute rounded-lg border-2 border-border flex flex-col overflow-hidden transition-[box-shadow,transform] duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 ${status === 'completed' ? 'line-through opacity-60' : ''}`}
                       style={{
                         backgroundColor: displayColor + 'F0',
                         borderColor: displayColor,
@@ -1549,7 +1549,7 @@ export default function CalendarView({
                       return (
                         <div
                           key={projectId}
-                          className={`flex flex-col rounded-lg border-2 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative ${isExpanded ? 'h-full bg-opacity-100' : 'bg-opacity-90'} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
+                          className={`flex flex-col rounded-lg border-2 overflow-hidden transition-[box-shadow,transform] duration-300 hover:-translate-y-1 hover:shadow-xl hover:z-10 relative ${isExpanded ? 'h-full bg-opacity-100' : 'bg-opacity-90'} ${project.status === 'completed' ? 'line-through opacity-60' : ''}`}
                           style={{
                             backgroundColor: isExpanded ? projectColor : projectColor + 'E6',
                             borderColor: projectColor

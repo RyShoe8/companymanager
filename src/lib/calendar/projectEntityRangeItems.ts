@@ -8,7 +8,7 @@ import {
   contentPassesAssignmentFilter,
   taskPassesAssignmentFilter,
 } from '@/lib/utils/assigneeDisplay';
-import { parseDateSafe } from '@/lib/utils/dateUtils';
+import { resolveTaskDisplayDates } from '@/lib/utils/dateUtils';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import {
   isActiveWorkspaceContent,
@@ -136,10 +136,9 @@ export function buildProjectEntityRangeItems(
   const taskItems: EntityRangeTaskItem[] = [];
   for (const task of displayTasks) {
     if (!taskPassesEntityFilters(task, filterOptions)) continue;
-    const taskStart = parseDateSafe(task.startDate);
-    const taskEnd = parseDateSafe(task.endDate);
-    if (!taskStart || !taskEnd) continue;
-    taskItems.push({ task, startDate: taskStart, endDate: taskEnd });
+    const resolved = resolveTaskDisplayDates(task, rangeEnd);
+    if (!resolved) continue;
+    taskItems.push({ task, startDate: resolved.startDate, endDate: resolved.endDate });
   }
 
   const contentInRange = displayContent.filter((item) =>

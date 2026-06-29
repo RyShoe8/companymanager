@@ -42,6 +42,7 @@ import {
   type ClientCalendarProjectRow,
   type ClientCalendarRow,
 } from '@/lib/clients/clientCalendarData';
+import { isClientHubProject } from '@/lib/clients/clientProjectHelpers';
 import { buildProjectEntityRangeItems } from '@/lib/calendar/projectEntityRangeItems';
 import { isActiveMergedCalendarItem } from '@/lib/calendar/mergedCalendarItems';
 import CalendarExpandedRangeItems from '@/components/planning-map/CalendarExpandedRangeItems';
@@ -86,15 +87,13 @@ function ProjectSubCard({
   row,
   client,
   onProjectClick,
-  titleOverride,
 }: {
   row: ClientCalendarProjectRow;
   client: IClient;
   onProjectClick?: (client: IClient, project: IProject) => void;
-  titleOverride?: string;
 }) {
   const { project, activeTaskCount, activeContentCount, progressPercent } = row;
-  const displayName = titleOverride ?? project.name;
+  const displayName = project.name;
   const displayColor = project.status === 'in-review' ? '#ef4444' : project.color || '#3b82f6';
   const headerTextClass = getProjectCardHeaderTextClass(displayColor);
 
@@ -204,7 +203,7 @@ function ClientCardBody({
         <div className="mt-3 pt-3 border-t border-white/20 space-y-3">
           {clientExpandSections(row).map((section) => {
             const projectId = String(section.project._id);
-            const isHub = section.label === 'Client tasks';
+            const isHub = isClientHubProject(section.project);
             const projectRow = isHub
               ? hubProject!
               : projects.find((p) => String(p.project._id) === projectId);
@@ -223,24 +222,29 @@ function ClientCardBody({
               displayList = merged.filter(isActiveMergedCalendarItem);
             }
 
+            const showTaskList =
+              displayList.length > 0 && !!taskSeenStatus && !!contentSeenStatus;
+            const showSubCard = !isHub || !showTaskList;
+
             return (
               <div key={projectId} className="space-y-2">
-                <ProjectSubCard
-                  row={projectRow}
-                  client={client}
-                  onProjectClick={onProjectClick}
-                  titleOverride={isHub ? 'Client tasks' : undefined}
-                />
-                {displayList.length > 0 && taskSeenStatus && contentSeenStatus ? (
-                  <div className="pl-3 border-l-2 border-border/50 ml-3 py-1 mt-2">
+                {showSubCard ? (
+                  <ProjectSubCard
+                    row={projectRow}
+                    client={client}
+                    onProjectClick={onProjectClick}
+                  />
+                ) : null}
+                {showTaskList ? (
+                  <div className={isHub ? undefined : 'pl-3 border-l-2 border-border/50 ml-3 py-1 mt-2'}>
                     <CalendarExpandedRangeItems
                       project={section.project}
                       items={displayList}
                       keyPrefix={`clientcard-${String(client._id)}-${projectId}-${rangeStart?.getTime()}`}
                       onTaskClick={onTaskClick}
                       onContentItemClick={onContentItemClick}
-                      getTaskSeenStatus={taskSeenStatus}
-                      getContentSeenStatus={contentSeenStatus}
+                      getTaskSeenStatus={taskSeenStatus!}
+                      getContentSeenStatus={contentSeenStatus!}
                     />
                   </div>
                 ) : null}
@@ -751,6 +755,7 @@ export default function ClientCalendarView({
                   <div className="mt-4 space-y-4">
                     {clientExpandSections(row).map((section) => {
                       const projectId = String(section.project._id);
+                      const isHub = isClientHubProject(section.project);
                       const { merged } = buildProjectEntityRangeItems(
                         section.project,
                         contentItems,
@@ -762,9 +767,11 @@ export default function ClientCalendarView({
                       if (displayList.length === 0) return null;
                       return (
                         <div key={projectId}>
-                          <h4 className="text-sm font-semibold text-text-primary mb-2 opacity-90">
-                            {section.label}
-                          </h4>
+                          {!isHub ? (
+                            <h4 className="text-sm font-semibold text-text-primary mb-2 opacity-90">
+                              {section.label}
+                            </h4>
+                          ) : null}
                           <CalendarExpandedRangeItems
                             project={section.project}
                             items={displayList}

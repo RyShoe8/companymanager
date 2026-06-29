@@ -126,6 +126,34 @@ describe('buildProjectEntityRangeItems', () => {
     expect(result.displayList).toHaveLength(1);
   });
 
+  it('includes open-ended active tasks in the viewed range', () => {
+    const project = {
+      _id: projectId,
+      name: 'P',
+      tasks: [
+        {
+          _id: 'open1' as unknown as IProjectTask['_id'],
+          name: 'Ongoing client work',
+          startDate: new Date('2026-06-01'),
+          endDate: null,
+          status: 'active',
+        },
+      ],
+    } as IProject;
+
+    const result = buildProjectEntityRangeItems(
+      project,
+      [],
+      weekStart,
+      weekEnd,
+      new Date('2026-06-10')
+    );
+
+    expect(result.openTaskCount).toBe(1);
+    expect(result.displayList).toHaveLength(1);
+    expect(result.displayList[0].type).toBe('task');
+  });
+
   it('applies channel filter to counts and display list', () => {
     const items = [
       {
