@@ -8,7 +8,7 @@ import {
   contentPassesAssignmentFilter,
   taskPassesAssignmentFilter,
 } from '@/lib/utils/assigneeDisplay';
-import { resolveTaskDisplayDates } from '@/lib/utils/dateUtils';
+import { resolveTaskDisplayDates, taskInDisplayRange } from '@/lib/utils/dateUtils';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import {
   isActiveWorkspaceContent,
@@ -16,6 +16,7 @@ import {
 } from '@/lib/workspace/activeWorkspaceItems';
 import { passesTeamFilter } from '@/lib/workspace/teamFilter';
 import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
+import type { MergedCalendarItem } from '@/lib/calendar/mergedCalendarItems';
 
 export type EntityRangeMergedItem =
   | { type: 'task'; task: IProjectTask; date: Date }
@@ -188,4 +189,39 @@ export function buildProjectEntityRangeItems(
     contentInRange,
     merged,
   };
+}
+
+/** Active tasks/content for client card expansion (uses displayList from range builder). */
+export function buildClientProjectDisplayList(
+  project: IProject,
+  contentItems: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  referenceDate: Date
+): MergedCalendarItem[] {
+  const { displayList } = buildProjectEntityRangeItems(
+    project,
+    contentItems,
+    rangeStart,
+    rangeEnd,
+    referenceDate
+  );
+  return displayList as MergedCalendarItem[];
+}
+
+/** Fallback when series filtering omits an active task that still belongs in range. */
+export function fallbackActiveTasksForClientExpand(
+  project: IProject,
+  rangeStart: Date,
+  rangeEnd: Date
+): MergedCalendarItem[] {
+  const items: MergedCalendarItem[] = [];
+  for (const task of project.tasks ?? []) {
+    if (!isActiveWorkspaceTask(task)) continue;
+    if (!taskInDisplayRange(task, rangeStart, rangeEnd)) continue;
+    const resolved = resolveTaskDisplayDates(task, rangeEnd);
+    if (!resolved) continue;
+    items.push({ type: 'task', task, date: resolved.startDate });
+  }
+  return items;
 }

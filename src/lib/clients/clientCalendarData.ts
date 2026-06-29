@@ -242,6 +242,64 @@ export function clientExpandSections(row: ClientCalendarRow): ClientExpandProjec
   return sections;
 }
 
+/** Recompute client row counts and project rows for a sub-range (e.g. a week bucket in monthly view). */
+export function recomputeClientRowForRange(
+  row: ClientCalendarRow,
+  clientProjects: IProject[],
+  contentItems: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  referenceDate: Date
+): ClientCalendarRow {
+  const activeProjectsList = activeClientProjects(clientProjects);
+
+  let activeTaskCount = 0;
+  let activeContentCount = 0;
+  const projects: ClientCalendarProjectRow[] = activeProjectsList.map((project) => {
+    const projectRow = buildProjectRow(
+      project,
+      contentItems,
+      rangeStart,
+      rangeEnd,
+      referenceDate
+    );
+    activeTaskCount += projectRow.activeTaskCount;
+    activeContentCount += projectRow.activeContentCount;
+    return projectRow;
+  });
+
+  const hub = clientHubProject(clientProjects);
+  const hubProject =
+    hub && hub.status !== 'completed'
+      ? buildProjectRow(hub, contentItems, rangeStart, rangeEnd, referenceDate)
+      : null;
+  if (hubProject) {
+    activeTaskCount += hubProject.activeTaskCount;
+    activeContentCount += hubProject.activeContentCount;
+  }
+
+  const tasksInRange = activeTaskCount;
+  const contentInRange = activeContentCount;
+
+  return {
+    ...row,
+    projects: sortClientProjectRowsByRecency(projects, contentItems),
+    hubProject,
+    activeTaskCount,
+    activeContentCount,
+    tasksInRange,
+    contentInRange,
+    hasActivityInRange: tasksInRange > 0 || contentInRange > 0,
+    progressPercent: computeClientTimeframeProgress(
+      clientProjects,
+      contentItems,
+      rangeStart,
+      rangeEnd,
+      referenceDate
+    ),
+  };
+}
+
 /** Clients with activity in [rangeStart, rangeEnd], sorted by activity then name. */
 export function clientsForRange(
   rows: ClientCalendarRow[],

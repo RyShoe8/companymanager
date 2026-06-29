@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
 import type { IProject, IProjectTask } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
-import { buildProjectEntityRangeItems } from '@/lib/calendar/projectEntityRangeItems';
+import { buildProjectEntityRangeItems, buildClientProjectDisplayList } from '@/lib/calendar/projectEntityRangeItems';
 
 function task(
   id: string,
@@ -152,6 +152,33 @@ describe('buildProjectEntityRangeItems', () => {
     expect(result.openTaskCount).toBe(1);
     expect(result.displayList).toHaveLength(1);
     expect(result.displayList[0].type).toBe('task');
+  });
+
+  it('buildClientProjectDisplayList returns active open-ended tasks for expansion', () => {
+    const project = {
+      _id: projectId,
+      name: 'P',
+      tasks: [
+        {
+          _id: 'open1' as unknown as IProjectTask['_id'],
+          name: 'Ongoing client work',
+          startDate: new Date('2026-06-01'),
+          endDate: null,
+          status: 'active',
+        },
+      ],
+    } as IProject;
+
+    const displayList = buildClientProjectDisplayList(
+      project,
+      [],
+      weekStart,
+      weekEnd,
+      new Date('2026-06-10')
+    );
+
+    expect(displayList).toHaveLength(1);
+    expect(displayList[0].type).toBe('task');
   });
 
   it('applies channel filter to counts and display list', () => {

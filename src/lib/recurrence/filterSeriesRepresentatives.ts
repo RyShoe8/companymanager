@@ -28,6 +28,8 @@ function pickUpcomingTaskInSeries(seriesTasks: IProjectTask[], referenceDate: Da
   const inProgress = sorted.find((t) => {
     const start = parseDateSafe(t.startDate)?.getTime();
     const end = parseDateSafe(t.endDate)?.getTime();
+    if (start == null && end == null) return true;
+    if (start != null && end == null) return start <= ref;
     if (start == null || end == null) return false;
     return start <= ref && end >= ref;
   });

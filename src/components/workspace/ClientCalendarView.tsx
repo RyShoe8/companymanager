@@ -36,15 +36,17 @@ import {
   buildClientCalendarRows,
   sortClientRowsByActivity,
   clientsForRange,
-  computeClientTimeframeProgress,
-  computeProjectTimeframeProgress,
   clientExpandSections,
+  recomputeClientRowForRange,
   type ClientCalendarProjectRow,
   type ClientCalendarRow,
 } from '@/lib/clients/clientCalendarData';
 import { isClientHubProject } from '@/lib/clients/clientProjectHelpers';
-import { buildProjectEntityRangeItems } from '@/lib/calendar/projectEntityRangeItems';
-import { isActiveMergedCalendarItem } from '@/lib/calendar/mergedCalendarItems';
+import {
+  buildClientProjectDisplayList,
+  fallbackActiveTasksForClientExpand,
+} from '@/lib/calendar/projectEntityRangeItems';
+import type { MergedCalendarItem } from '@/lib/calendar/mergedCalendarItems';
 import CalendarExpandedRangeItems from '@/components/planning-map/CalendarExpandedRangeItems';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import type { IProjectTask } from '@/lib/models/Project';
@@ -210,20 +212,25 @@ function ClientCardBody({
             
             if (!projectRow) return null;
 
-            let displayList: any[] = [];
+            let displayList: MergedCalendarItem[] = [];
             if (contentItems && rangeStart && rangeEnd && currentDate) {
-              const { merged } = buildProjectEntityRangeItems(
+              displayList = buildClientProjectDisplayList(
                 section.project,
                 contentItems,
                 rangeStart,
                 rangeEnd,
                 currentDate
               );
-              displayList = merged.filter(isActiveMergedCalendarItem);
+              if (displayList.length === 0 && projectRow.activeTaskCount > 0) {
+                displayList = fallbackActiveTasksForClientExpand(
+                  section.project,
+                  rangeStart,
+                  rangeEnd
+                );
+              }
             }
 
-            const showTaskList =
-              displayList.length > 0 && !!taskSeenStatus && !!contentSeenStatus;
+            const showTaskList = displayList.length > 0;
             const showSubCard = !isHub || !showTaskList;
 
             return (
@@ -466,26 +473,14 @@ export default function ClientCalendarView({
     const clientProjects = allProjects.filter(
       (p) => String(p.clientId) === String(row.client._id)
     );
-    return {
-      ...row,
-      progressPercent: computeClientTimeframeProgress(
-        clientProjects,
-        contentItems,
-        rangeStart,
-        rangeEnd,
-        currentDate
-      ),
-      projects: row.projects.map((projectRow) => ({
-        ...projectRow,
-        progressPercent: computeProjectTimeframeProgress(
-          projectRow.project,
-          contentItems,
-          rangeStart,
-          rangeEnd,
-          currentDate
-        ),
-      })),
-    };
+    return recomputeClientRowForRange(
+      row,
+      clientProjects,
+      contentItems,
+      rangeStart,
+      rangeEnd,
+      currentDate
+    );
   };
 
   const { start: startDate, end: endDate } = getTimeframeRange(timeframe, currentDate);
@@ -756,14 +751,26 @@ export default function ClientCalendarView({
                     {clientExpandSections(row).map((section) => {
                       const projectId = String(section.project._id);
                       const isHub = isClientHubProject(section.project);
-                      const { merged } = buildProjectEntityRangeItems(
+                      const projectRow = isHub
+                        ? row.hubProject
+                        : row.projects.find((p) => String(p.project._id) === projectId);
+                      let displayList = buildClientProjectDisplayList(
                         section.project,
                         contentItems,
                         today,
                         today,
                         currentDate
                       );
-                      const displayList = merged.filter(isActiveMergedCalendarItem);
+                      if (
+                        displayList.length === 0 &&
+                        (projectRow?.activeTaskCount ?? 0) > 0
+                      ) {
+                        displayList = fallbackActiveTasksForClientExpand(
+                          section.project,
+                          today,
+                          today
+                        );
+                      }
                       if (displayList.length === 0) return null;
                       return (
                         <div key={projectId}>

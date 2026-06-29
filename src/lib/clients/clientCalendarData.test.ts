@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildClientCalendarRows, clientExpandSections } from '@/lib/clients/clientCalendarData';
+import { buildClientCalendarRows, clientExpandSections, recomputeClientRowForRange } from '@/lib/clients/clientCalendarData';
 import type { IClient } from '@/lib/models/Client';
 import type { IProject } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
@@ -141,6 +141,53 @@ describe('buildClientCalendarRows', () => {
     expect(rows[0].activeTaskCount).toBe(1);
     expect(rows[0].hasActivityInRange).toBe(true);
     expect(rows[0].hubProject?.activeTaskCount).toBe(1);
+  });
+});
+
+describe('recomputeClientRowForRange', () => {
+  it('recomputes counts for a sub-range instead of keeping the parent timeframe totals', () => {
+    const clients = [client('c1', 'Acme')];
+    const allProjects = [
+      project({
+        _id: 'hub1',
+        clientId: 'c1',
+        projectType: 'client-admin',
+        name: 'Acme',
+        status: 'planning',
+        tasks: [
+          {
+            name: 'Future kickoff',
+            startDate: '2026-06-20',
+            endDate: null,
+            status: 'active',
+          },
+        ],
+      }),
+    ];
+    const monthRow = buildClientCalendarRows(
+      clients,
+      allProjects,
+      [],
+      'monthly',
+      referenceDate
+    )[0];
+    expect(monthRow.activeTaskCount).toBe(1);
+
+    const weekStart = new Date('2026-06-08');
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date('2026-06-14');
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weekRow = recomputeClientRowForRange(
+      monthRow,
+      allProjects,
+      [],
+      weekStart,
+      weekEnd,
+      referenceDate
+    );
+    expect(weekRow.activeTaskCount).toBe(0);
+    expect(weekRow.hubProject?.activeTaskCount).toBe(0);
   });
 });
 
