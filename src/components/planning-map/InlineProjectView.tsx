@@ -69,7 +69,6 @@ import ProjectCustomPlatformStacks from '@/components/projects/ProjectCustomPlat
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';
 import type { IProjectMarketingStackItem, IProjectSocialLink, IProjectTechStackItem } from '@/lib/models/Project';
 import {
-  isElementInContainerView,
   scrollElementIntoContainerAfterLayout,
 } from '@/lib/utils/scrollIntoContainer';
 import type { RefObject } from 'react';
@@ -349,6 +348,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [addContentDefaultDate, setAddContentDefaultDate] = useState<Date | undefined>(undefined);
   /** After adding a task, scroll its row into view once state settles. */
   const [pendingScrollToTaskIndex, setPendingScrollToTaskIndex] = useState<number | null>(null);
+  const [highlightedTaskIndex, setHighlightedTaskIndex] = useState<number | null>(null);
   const [actionButtons, setActionButtons] = useState<ProjectPanelActionButton[]>([]);
   const [tasksExpanded, setTasksExpanded] = useState(initialTasksExpanded);
   const [contentExpanded, setContentExpanded] = useState(initialContentExpanded);
@@ -357,6 +357,18 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const addTaskInputRef = useRef<HTMLTextAreaElement>(null);
   const draftFocusPendingRef = useRef(false);
   const pendingNamedTaskEstimateRef = useRef<{ index: number; name: string } | null>(null);
+  const TASK_LIST_SCROLL_PADDING = 24;
+
+  const scrollTaskRowIntoView = useCallback(
+    (taskIndex: number, behavior: ScrollBehavior = 'smooth') => {
+      scrollElementIntoContainerAfterLayout(
+        () => document.getElementById(`inspector-task-row-${taskIndex}`),
+        scrollContainerRef?.current ?? null,
+        { block: 'center', behavior, padding: TASK_LIST_SCROLL_PADDING }
+      );
+    },
+    [scrollContainerRef]
+  );
   const [taskTab, setTaskTab] = useState<'active' | 'completed'>('active');
   const [contentTab, setContentTab] = useState<'active' | 'completed'>('active');
   const [editingEndDate, setEditingEndDate] = useState(false);
@@ -1083,7 +1095,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     scrollElementIntoContainerAfterLayout(
       () => document.getElementById('inspector-task-draft-row'),
       scrollContainerRef?.current ?? null,
-      { block: 'center', behavior: 'auto' }
+      { block: 'center', behavior: 'smooth', padding: TASK_LIST_SCROLL_PADDING }
     );
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1828,10 +1840,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           next.delete(taskIndex);
           return next;
         });
+        requestAnimationFrame(() => scrollTaskRowIntoView(taskIndex, 'smooth'));
       }
     }, 600);
     timers.set(taskIndex, timer);
-  }, [applyTaskEstimatedHours]);
+  }, [applyTaskEstimatedHours, scrollTaskRowIntoView]);
 
   const handleTaskNameSave = async (taskIndex: number, name: string) => {
     await handleTaskUpdate(taskIndex, 'name', name);
@@ -1844,15 +1857,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     const tasks = localProject.tasks || [];
     if (idx < 0 || idx >= tasks.length) return;
     setPendingScrollToTaskIndex(null);
-    const container = scrollContainerRef?.current ?? null;
-    const rowEl = document.getElementById(`inspector-task-row-${idx}`);
-    if (!container || !rowEl || !isElementInContainerView(rowEl, container)) {
-      scrollElementIntoContainerAfterLayout(
-        () => document.getElementById(`inspector-task-row-${idx}`),
-        container,
-        { block: 'nearest', behavior: 'auto' }
-      );
-    }
+    setHighlightedTaskIndex(idx);
+    scrollTaskRowIntoView(idx, 'smooth');
+    const retryTimer = window.setTimeout(() => scrollTaskRowIntoView(idx, 'smooth'), 400);
+    const clearHighlightTimer = window.setTimeout(() => setHighlightedTaskIndex(null), 2400);
     requestAnimationFrame(() => {
       const pendingEstimate = pendingNamedTaskEstimateRef.current;
       if (pendingEstimate && pendingEstimate.index === idx) {
@@ -1860,7 +1868,11 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         scheduleTaskHourEstimate(idx, pendingEstimate.name);
       }
     });
-  }, [localProject.tasks, pendingScrollToTaskIndex, scrollContainerRef, scheduleTaskHourEstimate]);
+    return () => {
+      window.clearTimeout(retryTimer);
+      window.clearTimeout(clearHighlightTimer);
+    };
+  }, [localProject.tasks, pendingScrollToTaskIndex, scrollTaskRowIntoView, scheduleTaskHourEstimate]);
 
   const computedProjectHours = useMemo(
     () => computeProjectAssignedHours(localProject, projectContentItems),
@@ -2655,37 +2667,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
             description={`There are no ${taskTab} tasks. Add a task to start tracking work.`}
           />
         ) : (
-          <div className="divide-y divide-gray-100">
-            {draftTaskOpen && canContributeToProject && taskTab === 'active' && (
-              <div
-                id="inspector-task-draft-row"
-                className="p-4 scroll-mt-4 ring-2 ring-primary/40 bg-primary/5 rounded-lg"
-              >
-                <p className="text-xs font-medium text-primary mb-2">New task — name it below</p>
-                <AutoGrowTextarea
-                  id="inspector-task-draft-name"
-                  ref={addTaskInputRef}
-                  minRows={1}
-                  value={addTaskNameDraft}
-                  onChange={(e) => setAddTaskNameDraft(e.target.value)}
-                  onBlur={handleDraftTaskBlur}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setDraftTaskOpen(false);
-                      setAddTaskNameDraft('');
-                      return;
-                    }
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      submitDraftTask(addTaskNameDraft);
-                    }
-                  }}
-                  placeholder="What needs to be done?"
-                  aria-label="New task name"
-                  className={`${formInputClassInspector} text-sm font-medium focus:ring-2 focus:ring-primary`}
-                />
-              </div>
-            )}
+          <div className="space-y-3">
             {visibleTaskEntries.map(({ task, idx }) => {
               const taskKey = taskItemKeyFor(task, idx);
               const taskSeenStatus: ItemSeenStatus = canShowTaskNewIndicator(task)
@@ -2695,8 +2677,15 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
               const taskRowId = taskIdString(task) ?? rowKey;
 
               return (
-                <SwipeableCard
+                <div
                   key={rowKey}
+                  className={
+                    highlightedTaskIndex === idx
+                      ? 'rounded-lg ring-2 ring-primary/40 bg-primary/5'
+                      : undefined
+                  }
+                >
+                <SwipeableCard
                   rightActions={
                     userCanDeleteTask(task)
                       ? [{ label: 'Delete', color: '#ef4444', onClick: () => handleDeleteTask(idx) }]
@@ -2704,7 +2693,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   }
                   leftActions={[{ label: task.status === 'in-review' ? 'Approve' : 'Complete', color: '#22c55e', onClick: () => handleCompleteTask(idx) }]}
                 >
-                  <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-4">
+                  <div id={`inspector-task-row-${idx}`} className="p-4 scroll-mt-6 scroll-mb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-wrap items-center gap-1">
@@ -2851,8 +2840,39 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                     />
                   </div>
                 </SwipeableCard>
+                </div>
               );
             })}
+            {draftTaskOpen && canContributeToProject && taskTab === 'active' && (
+              <div
+                id="inspector-task-draft-row"
+                className="p-4 scroll-mt-6 scroll-mb-4 ring-2 ring-primary/40 bg-primary/5 rounded-lg"
+              >
+                <p className="text-xs font-medium text-primary mb-2">New task — name it below</p>
+                <AutoGrowTextarea
+                  id="inspector-task-draft-name"
+                  ref={addTaskInputRef}
+                  minRows={1}
+                  value={addTaskNameDraft}
+                  onChange={(e) => setAddTaskNameDraft(e.target.value)}
+                  onBlur={handleDraftTaskBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setDraftTaskOpen(false);
+                      setAddTaskNameDraft('');
+                      return;
+                    }
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      submitDraftTask(addTaskNameDraft);
+                    }
+                  }}
+                  placeholder="What needs to be done?"
+                  aria-label="New task name"
+                  className={`${formInputClassInspector} text-sm font-medium focus:ring-2 focus:ring-primary`}
+                />
+              </div>
+            )}
           </div>
         )}
       </CollapsibleInspectorSection>
