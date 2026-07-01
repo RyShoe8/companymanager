@@ -83,7 +83,7 @@ export default function MultiLinkTargetPicker({
         clients.length === 0 ? (
           <p className="text-sm text-text-secondary">No clients available.</p>
         ) : (
-          <ul className={`divide-y divide-border ${listMaxH} overflow-y-auto -mx-1`}>
+          <ul className={`divide-y divide-border ${listMaxH} overflow-y-auto px-1`}>
             {clients.map((client) => {
               const id = client._id?.toString() ?? '';
               const selected = selectedClientIds.includes(id);
@@ -94,7 +94,7 @@ export default function MultiLinkTargetPicker({
                     onClick={() => onToggleClient(id)}
                     className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors ${
                       selected
-                        ? 'bg-primary/10 ring-1 ring-primary/30'
+                        ? 'bg-primary/15 ring-1 ring-inset ring-primary/40'
                         : 'hover:bg-background-elevated'
                     }`}
                   >
@@ -119,7 +119,7 @@ export default function MultiLinkTargetPicker({
           No projects available. You need to be assigned to a project to link one.
         </p>
       ) : (
-        <ul className={`divide-y divide-border ${listMaxH} overflow-y-auto -mx-1`}>
+        <ul className={`divide-y divide-border ${listMaxH} overflow-y-auto px-1`}>
           {eligible.map((project) => {
             const id = project._id.toString();
             const selected = selectedProjectIds.includes(id);
@@ -131,7 +131,7 @@ export default function MultiLinkTargetPicker({
                   onClick={() => onToggleProject(id)}
                   className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors ${
                     selected
-                      ? 'bg-primary/10 ring-1 ring-primary/30'
+                      ? 'bg-primary/15 ring-1 ring-inset ring-primary/40'
                       : 'hover:bg-background-elevated'
                   }`}
                 >

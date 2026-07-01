@@ -86,6 +86,7 @@ export default function SchedulingPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editProjectIds, setEditProjectIds] = useState<string[]>([]);
   const [editClientIds, setEditClientIds] = useState<string[]>([]);
+  const [savingLinks, setSavingLinks] = useState(false);
 
   const displayMessage = externalMessage ?? message;
 
@@ -102,35 +103,42 @@ export default function SchedulingPanel({
 
   const handleSaveMeetingLinks = async (meetingId: string) => {
     const editingMeetingRow = meetings.find((m) => m._id.toString() === meetingId);
-    const res = await fetch(`/api/scheduling/meetings/${meetingId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        linkedProjectIds: editProjectIds,
-        linkedClientIds: editClientIds,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setEditingId(null);
-      onRefreshMeetings();
-      const participants =
-        typeof data.participantsUpdatedCount === 'number' ? data.participantsUpdatedCount : 1;
-      const calendars =
-        typeof data.calendarsPatchedCount === 'number' ? data.calendarsPatchedCount : 0;
-      let msg = 'Meeting links updated.';
-      if (editingMeetingRow?.googleRecurringEventId && participants > 1) {
-        msg = `Links updated across ${participants} meeting records${calendars > 0 ? `; ${calendars} Google Calendar${calendars === 1 ? '' : 's'} updated with agenda` : ''}.`;
-      } else if (participants > 1) {
-        msg = `Links updated for ${participants} team members${calendars > 0 ? `; ${calendars} calendar${calendars === 1 ? '' : 's'} updated` : ' in Nucleas'}.`;
-      } else if (calendars > 0) {
-        msg = 'Meeting links updated; agenda refreshed in your Google Calendar.';
+    setSavingLinks(true);
+    try {
+      const res = await fetch(`/api/scheduling/meetings/${meetingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          linkedProjectIds: editProjectIds,
+          linkedClientIds: editClientIds,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setEditingId(null);
+        onRefreshMeetings();
+        const participants =
+          typeof data.participantsUpdatedCount === 'number' ? data.participantsUpdatedCount : 1;
+        const calendars =
+          typeof data.calendarsPatchedCount === 'number' ? data.calendarsPatchedCount : 0;
+        let msg = 'Meeting links updated.';
+        if (editingMeetingRow?.googleRecurringEventId && participants > 1) {
+          msg = `Links updated across ${participants} meeting records${calendars > 0 ? `; ${calendars} Google Calendar${calendars === 1 ? '' : 's'} updated with agenda` : ''}.`;
+        } else if (participants > 1) {
+          msg = `Links updated for ${participants} team members${calendars > 0 ? `; ${calendars} calendar${calendars === 1 ? '' : 's'} updated` : ' in Nucleas'}.`;
+        } else if (calendars > 0) {
+          msg = 'Meeting links updated; agenda refreshed in your Google Calendar.';
+        }
+        setPanelMessage(
+          appendMeetingNotesMessage(msg, parseMeetingNotesFeedback(data))
+        );
+      } else {
+        setPanelMessage(data.error || 'Failed to update meeting.');
       }
-      setPanelMessage(
-        appendMeetingNotesMessage(msg, parseMeetingNotesFeedback(data))
-      );
-    } else {
-      setPanelMessage(data.error || 'Failed to update meeting.');
+    } catch {
+      setPanelMessage('Failed to update meeting. Please check your connection and try again.');
+    } finally {
+      setSavingLinks(false);
     }
   };
 
@@ -292,7 +300,9 @@ export default function SchedulingPanel({
 
       <Modal
         isOpen={editingId !== null}
-        onClose={() => setEditingId(null)}
+        onClose={() => {
+          if (!savingLinks) setEditingId(null);
+        }}
         title="Link clients & projects"
         maxWidth="md"
       >
@@ -313,14 +323,20 @@ export default function SchedulingPanel({
             isManagerOrAdmin={isManagerOrAdmin}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setEditingId(null)}
+              disabled={savingLinks}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={() => editingId && void handleSaveMeetingLinks(editingId)}
+              disabled={savingLinks}
             >
-              Save links
+              {savingLinks ? 'Saving…' : 'Save links'}
             </Button>
           </div>
         </div>

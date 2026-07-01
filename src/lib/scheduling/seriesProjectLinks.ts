@@ -103,19 +103,27 @@ export async function upsertMeetingSeriesSettings(params: {
     return;
   }
 
-  await MeetingSeriesSettings.findOneAndUpdate(
-    filter,
-    {
-      $set: {
-        linkedProjectIds,
-        linkedClientIds,
-        agendaToken,
-        attendeeEmployeeIds: params.attendeeEmployeeIds || [],
-        externalAttendeeEmails: params.externalAttendeeEmails || [],
-      },
+  const update = {
+    $set: {
+      linkedProjectIds,
+      linkedClientIds,
+      agendaToken,
+      attendeeEmployeeIds: params.attendeeEmployeeIds || [],
+      externalAttendeeEmails: params.externalAttendeeEmails || [],
     },
-    { upsert: true, new: true }
-  );
+  };
+
+  try {
+    await MeetingSeriesSettings.findOneAndUpdate(filter, update, { upsert: true, new: true });
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code: number }).code === 11000) {
+      // Lost the upsert race to a concurrent request for the same series - the document
+      // now exists, so retry as a plain update instead of surfacing a false conflict.
+      await MeetingSeriesSettings.findOneAndUpdate(filter, update, { new: true });
+      return;
+    }
+    throw error;
+  }
 }
 
 export function applySeriesDefaultsToNewMeeting(
