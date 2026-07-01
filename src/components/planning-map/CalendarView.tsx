@@ -453,14 +453,21 @@ export default function CalendarView({
     return undefined;
   };
 
-  // Sort projects: unseen first, then latest activity
+  const getLocalTouchMs = useCallback(
+    (project: IProject): number => projectLocalTouchMs[project._id.toString()] ?? 0,
+    [projectLocalTouchMs]
+  );
+
+  // Sort projects: locally-touched-by-you first, then unseen, then latest activity
   const sortProjectsByLatestUpdate = (projectList: IProject[]): IProject[] => {
     return [...projectList].sort((a, b) =>
       compareProjectsForWorkspaceSort(
         getLatestActivityMs(a),
         countProjectUnseen(a),
         getLatestActivityMs(b),
-        countProjectUnseen(b)
+        countProjectUnseen(b),
+        getLocalTouchMs(a),
+        getLocalTouchMs(b)
       )
     );
   };

@@ -2153,7 +2153,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   };
 
   const handleDraftTaskBlur = () => {
-    submitDraftTask(addTaskNameDraft);
+    // Only auto-discard when nothing was typed. If the user switches browser tabs (or
+    // clicks elsewhere) mid-name, keep the draft open with their text intact instead of
+    // finalizing it as a task — they can resume typing when they come back.
+    if (!addTaskNameDraft.trim()) {
+      setDraftTaskOpen(false);
+      setAddTaskNameDraft('');
+    }
   };
 
   const userCanDeleteTask = useCallback(
@@ -2871,6 +2877,25 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   aria-label="New task name"
                   className={`${formInputClassInspector} text-sm font-medium focus:ring-2 focus:ring-primary`}
                 />
+                <div className="flex items-center gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    onClick={() => submitDraftTask(addTaskNameDraft)}
+                    disabled={!addTaskNameDraft.trim()}
+                  >
+                    Add task
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setDraftTaskOpen(false);
+                      setAddTaskNameDraft('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             )}
           </div>

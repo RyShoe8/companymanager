@@ -137,7 +137,7 @@ export default function ScreenshotRegionSelector({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex flex-col bg-black/90">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-black/90" data-portal-overlay>
       <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-white/10 bg-background-card/95">
         <div>
           <p className="text-sm font-medium text-text-primary">Select an area</p>

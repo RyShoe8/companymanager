@@ -133,6 +133,7 @@ export default function Modal({
         onClick={onClose}
         onWheel={(e) => e.stopPropagation()}
         style={{ top: '4rem', height: 'calc(100dvh - 4rem)' }}
+        data-portal-overlay
       >
         <div
           className={`${panelClass} w-full h-full rounded-t-lg max-w-full`}
@@ -147,6 +148,7 @@ export default function Modal({
         className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black/50 p-2 sm:p-4 animate-fade-in`}
         onClick={onClose}
         onWheel={(e) => e.stopPropagation()}
+        data-portal-overlay
       >
         <div
           className={`${panelClass} w-full mx-auto max-h-[90vh] rounded-lg ${maxWidthClass(maxWidth)}`}

@@ -60,13 +60,28 @@ export function buildContentItemsByProjectId(contentItems: IContentItem[]): Map<
   return map;
 }
 
-/** Sort workspace project cards: unseen first, then latest activity, then unseen count. */
+/**
+ * Sort workspace project cards.
+ *
+ * Priority order:
+ * 1. Projects you just touched locally this session (`localTouchMs` set) always come first,
+ *    ahead of projects that merely have an unseen badge from someone else's stale edit.
+ *    Among locally-touched projects, the most recently touched wins.
+ * 2. Otherwise, unseen first, then latest activity, then unseen count.
+ */
 export function compareProjectsForWorkspaceSort(
   aActivityMs: number,
   aUnseenCount: number,
   bActivityMs: number,
-  bUnseenCount: number
+  bUnseenCount: number,
+  aLocalTouchMs = 0,
+  bLocalTouchMs = 0
 ): number {
+  const aTouched = aLocalTouchMs > 0 ? 1 : 0;
+  const bTouched = bLocalTouchMs > 0 ? 1 : 0;
+  if (aTouched !== bTouched) return bTouched - aTouched;
+  if (aTouched && bTouched) return bLocalTouchMs - aLocalTouchMs;
+
   const aHasUnseen = aUnseenCount > 0 ? 1 : 0;
   const bHasUnseen = bUnseenCount > 0 ? 1 : 0;
   if (aHasUnseen !== bHasUnseen) return bHasUnseen - aHasUnseen;

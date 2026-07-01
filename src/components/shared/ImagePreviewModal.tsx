@@ -59,6 +59,7 @@ export default function ImagePreviewModal({
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      data-portal-overlay
     >
       {!isNaming && <div className="absolute inset-0" onClick={onClose} aria-hidden />}
 

@@ -56,9 +56,14 @@ export default function AddButton({
     if (!showModal) return;
     const onPointerDown = (e: PointerEvent) => {
       const panel = panelRef.current;
-      if (panel && !panel.contains(e.target as Node)) {
-        setShowModal(false);
-      }
+      const target = e.target as Node;
+      if (panel && panel.contains(target)) return;
+      // Nested dialogs (screenshot/recording naming, save, region-select, preview) render
+      // through their own document.body portal, so they're siblings of `panel`, not
+      // descendants. Ignore clicks inside those too, or interacting with them would
+      // incorrectly look like an "outside click" and close this modal from under them.
+      if (target instanceof Element && target.closest('[data-portal-overlay]')) return;
+      setShowModal(false);
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => document.removeEventListener('pointerdown', onPointerDown, true);

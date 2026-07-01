@@ -74,4 +74,24 @@ describe('compareProjectsForWorkspaceSort', () => {
     const seenRecentlyEdited = compareProjectsForWorkspaceSort(900, 0, 100, 0);
     expect(seenRecentlyEdited).toBeLessThan(0);
   });
+
+  it('puts a project you just locally touched above one that only has an unseen badge', () => {
+    // a: low activity, no unseen, but touched locally just now.
+    // b: high activity and an unseen item, but not touched locally this session.
+    const result = compareProjectsForWorkspaceSort(100, 0, 900, 3, 5000, 0);
+    expect(result).toBeLessThan(0);
+  });
+
+  it('sorts by most-recent local touch when both projects were touched this session', () => {
+    const aMoreRecentlyTouched = compareProjectsForWorkspaceSort(100, 0, 100, 0, 9000, 3000);
+    expect(aMoreRecentlyTouched).toBeLessThan(0);
+
+    const bMoreRecentlyTouched = compareProjectsForWorkspaceSort(100, 0, 100, 0, 3000, 9000);
+    expect(bMoreRecentlyTouched).toBeGreaterThan(0);
+  });
+
+  it('falls back to the existing unseen-first behavior when neither project was locally touched', () => {
+    const result = compareProjectsForWorkspaceSort(500, 2, 900, 0, 0, 0);
+    expect(result).toBeLessThan(0);
+  });
 });
