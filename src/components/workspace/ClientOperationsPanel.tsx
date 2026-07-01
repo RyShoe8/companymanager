@@ -33,8 +33,6 @@ import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import { TECH_STACK_CATALOG } from '@/lib/techStack/catalog';
 import { MARKETING_STACK_CATALOG } from '@/lib/marketingStack/catalog';
 import { SOCIAL_NETWORK_LABELS } from '@/lib/utils/socialUrls';
-import CollapsibleInspectorSection from '@/components/ui/CollapsibleInspectorSection';
-import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 
 type LinkedAssetRow = {
   _id: string;
@@ -86,9 +84,6 @@ export default function ClientOperationsPanel({
   const [assetsLoading, setAssetsLoading] = useState(true);
   const [assetPendingDelete, setAssetPendingDelete] = useState<LinkedAssetRow | null>(null);
   const [urlList, setUrlList] = useState<string[]>(() => getClientUrlList(client));
-  const [operationsExpanded, setOperationsExpanded] = useState(true);
-  const light = useInspectorLight();
-
   useEffect(() => {
     setLocalClient(client);
     setActionButtons(client.actionButtons ?? []);
@@ -193,24 +188,18 @@ export default function ClientOperationsPanel({
   const marketingName = (id: string) => MARKETING_STACK_CATALOG.find((t) => t.id === id)?.name ?? id;
 
   return (
-    <CollapsibleInspectorSection
-      title="Client operations"
-      expanded={operationsExpanded}
-      onToggle={() => setOperationsExpanded((v) => !v)}
-      collapsedSummary="Platforms, assets, stacks"
-    >
-      <div className="space-y-4">
-      <PlatformUrlsSection
-        urlList={urlList}
-        isManagerOrAdmin={isManagerOrAdmin}
-        onUrlSave={handleUrlSave}
-        onUrlRemove={handleUrlRemove}
-        onAddUrl={handleAddUrl}
-      />
-
-      <div className={`rounded-lg border p-3 space-y-3 ${lightSurface('border-gray-200 bg-gray-50', 'dark:border-gray-700 dark:bg-gray-900/40', light)}`}>
-        <p className={`text-xs font-semibold uppercase tracking-wide ${lightSurface('text-gray-600', 'dark:text-gray-400', light)}`}>Platforms</p>
-        <div className="flex flex-wrap items-center gap-2">
+    <>
+      <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100">
+        <div className="w-full basis-full">
+          <PlatformUrlsSection
+            urlList={urlList}
+            isManagerOrAdmin={isManagerOrAdmin}
+            onUrlSave={handleUrlSave}
+            onUrlRemove={handleUrlRemove}
+            onAddUrl={handleAddUrl}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm min-w-0 w-full basis-full">
           <ProjectSocialsBar
             socialLinks={(localClient.socialLinks ?? []) as IProjectSocialLink[]}
             socialsToolbarVisible={localClient.socialsToolbarVisible !== false}
@@ -251,7 +240,7 @@ export default function ClientOperationsPanel({
         </div>
       </div>
 
-      <div className="pt-2 border-t border-border">
+      <div className="mt-4 pt-4 border-t border-gray-100">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Client assets</h4>
         {assetsLoading ? (
           <p className="text-xs text-text-tertiary">Loading…</p>
@@ -283,7 +272,7 @@ export default function ClientOperationsPanel({
       </div>
 
       {(actionButtons.length > 0 || isManagerOrAdmin) && (
-        <div className="pt-2 border-t border-border">
+        <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="flex flex-wrap items-center gap-2">
             {actionButtons.map((btn, idx) => {
               const isEmail = btn.kind === 'email';
@@ -366,7 +355,7 @@ export default function ClientOperationsPanel({
         projectOnlyPlatforms.marketingStack.length > 0 ||
         projectOnlyPlatforms.socialLinks.length > 0 ||
         aggregateAssets.some((a) => a.source?.type === 'project')) && (
-        <div className="pt-2 border-t border-border">
+        <div className="mt-4 pt-4 border-t border-gray-100">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Across projects</h4>
           <div className="space-y-2 text-xs text-text-secondary">
             {projectOnlyPlatforms.techStack.map((item, i) => (
@@ -450,7 +439,6 @@ export default function ClientOperationsPanel({
           void loadAssets();
         }}
       />
-      </div>
-    </CollapsibleInspectorSection>
+    </>
   );
 }

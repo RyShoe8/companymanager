@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import Meeting from '@/lib/models/Meeting';
 import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
 import Project from '@/lib/models/Project';
+import Client from '@/lib/models/Client';
 import Asset from '@/lib/models/Asset';
 import ContentItem from '@/lib/models/ContentItem';
 import Employee from '@/lib/models/Employee';
@@ -80,6 +81,16 @@ export async function GET(
             clientId: { $in: linkedClientIds },
             userId: { $in: orgUserIds },
           }).lean()
+        : [];
+
+    const linkedClients =
+      linkedClientIds.length > 0
+        ? await Client.find({
+            _id: { $in: linkedClientIds },
+            organizationId: ctx.organizationId,
+          })
+            .select('url urls devUrl liveUrl socialLinks techStack marketingStack platformStacks actionButtons')
+            .lean()
         : [];
 
     const mergedProjectIdStrings = resolveMeetingLinkedProjectIds(
@@ -184,7 +195,8 @@ export async function GET(
       migrated as any,
       assetsByProjectId,
       contentItems as any,
-      invitees
+      invitees,
+      linkedClients as any
     );
 
     return NextResponse.json({

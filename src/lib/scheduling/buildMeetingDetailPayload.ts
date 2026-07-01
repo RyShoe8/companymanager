@@ -5,6 +5,7 @@ import type {
   IProjectSocialLink,
   IProjectTechStackItem,
 } from '@/lib/models/Project';
+import type { IClient } from '@/lib/models/Client';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import {
@@ -14,6 +15,7 @@ import {
   type AgendaTaskItem,
   type MeetingAgendaPayload,
 } from '@/lib/scheduling/buildMeetingAgenda';
+import { isClientHubProject } from '@/lib/clients/clientProjectHelpers';
 import { getProjectWorkspaceHref } from '@/lib/scheduling/getProjectWorkspaceHref';
 import type { BackendProjectStatus } from '@/lib/utils/statusMapping';
 
@@ -125,22 +127,35 @@ function mapActionButtons(buttons: IProjectActionButton[] | undefined): MeetingD
   }));
 }
 
-function mapProjectResources(project: IProject, pid: string): MeetingDetailProjectResources {
+function mapProjectResources(
+  project: IProject,
+  pid: string,
+  client?: IClient
+): MeetingDetailProjectResources {
   const status = (project.status || 'planning') as BackendProjectStatus;
+  const urls = project.urls?.length
+    ? project.urls
+    : project.url
+      ? [project.url]
+      : client?.urls?.length
+        ? client.urls
+        : client?.url
+          ? [client.url]
+          : [];
   return {
-    devUrl: project.devUrl,
-    liveUrl: project.liveUrl,
-    urls: project.urls?.length ? project.urls : project.url ? [project.url] : [],
+    devUrl: project.devUrl || client?.devUrl,
+    liveUrl: project.liveUrl || client?.liveUrl,
+    urls,
     status,
     workspaceHref: getProjectWorkspaceHref(pid, status),
     assetsHref: `/assets?projectId=${pid}`,
-    actionButtons: mapActionButtons(project.actionButtons),
-    socialLinks: project.socialLinks ?? [],
+    actionButtons: mapActionButtons(project.actionButtons?.length ? project.actionButtons : client?.actionButtons),
+    socialLinks: project.socialLinks?.length ? project.socialLinks : client?.socialLinks ?? [],
     colorPalette: project.colorPalette ?? [],
     fontPalette: project.fontPalette ?? [],
     projectColor: project.color,
-    techStack: project.techStack ?? [],
-    marketingStack: project.marketingStack ?? [],
+    techStack: project.techStack?.length ? project.techStack : client?.techStack ?? [],
+    marketingStack: project.marketingStack?.length ? project.marketingStack : client?.marketingStack ?? [],
     projectType: project.projectType,
     category: project.category,
     description: project.description,
@@ -163,10 +178,18 @@ export function buildMeetingDetailPayload(
   projects: IProject[],
   assetsByProjectId: Map<string, ProjectAssetRow[]>,
   contentItems: IContentItem[] = [],
-  invitees: MeetingDetailInvitees = { employees: [], externalEmails: [] }
+  invitees: MeetingDetailInvitees = { employees: [], externalEmails: [] },
+  clients: IClient[] = []
 ): MeetingDetailPayload {
   const agenda = buildMeetingAgenda(meeting, projects, contentItems);
   const projectById = new Map(projects.map((p) => [p._id.toString(), p]));
+  const clientById = new Map(clients.map((c) => [c._id.toString(), c]));
+  const clientByHubProjectId = new Map<string, IClient>();
+  for (const project of projects) {
+    if (!isClientHubProject(project) || !project.clientId) continue;
+    const client = clientById.get(project.clientId.toString());
+    if (client) clientByHubProjectId.set(project._id.toString(), client);
+  }
 
   const projectsWithResources: MeetingDetailProjectBlock[] = agenda.projects.map((block) => {
     const project = projectById.get(block.projectId);
@@ -211,7 +234,7 @@ export function buildMeetingDetailPayload(
       tasks,
       contentItems: contentItemsWithAssets,
       resources: project
-        ? mapProjectResources(project, pid)
+        ? mapProjectResources(project, pid, clientByHubProjectId.get(pid))
         : {
             urls: [],
             status: 'planning',
@@ -238,7 +261,7 @@ export function buildMeetingDetailPayload(
       color: project.color,
       tasks: [],
       contentItems: [],
-      resources: mapProjectResources(project, pid),
+      resources: mapProjectResources(project, pid, clientByHubProjectId.get(pid)),
       assets: projectAssets.map(mapAsset),
     });
   }

@@ -210,46 +210,47 @@ export default function InlineClientView({
                 Generate Impact Report
               </button>
             </div>
-            {isManagerOrAdmin && employees.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <MultiSelect
-                  label="Assigned to (client)"
-                  value={(() => {
-                    const ids = localClient.assignedToEmployeeIds ?? [];
-                    if (ids.length > 0) {
-                      return ids.map((id) =>
-                        typeof id === 'string' ? id : (id as { toString(): string }).toString()
-                      );
-                    }
-                    const single = localClient.assignedToEmployeeId;
-                    return single
-                      ? [typeof single === 'string' ? single : (single as { toString(): string }).toString()]
-                      : [];
-                  })()}
-                  onChange={(selectedIds) =>
-                    handleClientFieldUpdate({ assignedToEmployeeIds: selectedIds })
-                  }
-                  options={employees.map((emp) => ({ value: emp._id.toString(), label: emp.name }))}
-                />
-              </div>
-            )}
           </div>
         </div>
+
+        <ClientOperationsPanel
+          client={localClient}
+          projects={projects}
+          isManagerOrAdmin={isManagerOrAdmin}
+          currentUserId={currentUserId}
+          onUpdateClient={async (id, updates) => {
+            await onUpdateClient(id, updates);
+            setLocalClient((prev) => ({ ...prev, ...updates } as IClient));
+          }}
+          onViewProject={onViewProject}
+        />
+
+        {isManagerOrAdmin && employees.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <MultiSelect
+              label="Assigned to (client)"
+              value={(() => {
+                const ids = localClient.assignedToEmployeeIds ?? [];
+                if (ids.length > 0) {
+                  return ids.map((id) =>
+                    typeof id === 'string' ? id : (id as { toString(): string }).toString()
+                  );
+                }
+                const single = localClient.assignedToEmployeeId;
+                return single
+                  ? [typeof single === 'string' ? single : (single as { toString(): string }).toString()]
+                  : [];
+              })()}
+              onChange={(selectedIds) =>
+                handleClientFieldUpdate({ assignedToEmployeeIds: selectedIds })
+              }
+              options={employees.map((emp) => ({ value: emp._id.toString(), label: emp.name }))}
+            />
+          </div>
+        )}
       </div>
 
       {isManagerOrAdmin && <InsightsPanel ownerType="client" ownerId={clientId} />}
-
-      <ClientOperationsPanel
-        client={localClient}
-        projects={projects}
-        isManagerOrAdmin={isManagerOrAdmin}
-        currentUserId={currentUserId}
-        onUpdateClient={async (id, updates) => {
-          await onUpdateClient(id, updates);
-          setLocalClient((prev) => ({ ...prev, ...updates } as IClient));
-        }}
-        onViewProject={onViewProject}
-      />
 
       {adminProject && (
         <InlineProjectView
