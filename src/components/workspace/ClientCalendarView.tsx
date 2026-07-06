@@ -40,6 +40,7 @@ import {
   recomputeClientRowForRange,
   type ClientCalendarProjectRow,
   type ClientCalendarRow,
+  type ClientExpandProjectSection,
 } from '@/lib/clients/clientCalendarData';
 import { isClientHubProject } from '@/lib/clients/clientProjectHelpers';
 import {
@@ -47,7 +48,9 @@ import {
   fallbackActiveTasksForClientExpand,
 } from '@/lib/calendar/projectEntityRangeItems';
 import type { MergedCalendarItem } from '@/lib/calendar/mergedCalendarItems';
-import CalendarExpandedRangeItems from '@/components/planning-map/CalendarExpandedRangeItems';
+import CalendarExpandedRangeItems, {
+  RANGE_ITEM_ROW_HEIGHT,
+} from '@/components/planning-map/CalendarExpandedRangeItems';
 import { resolveTaskIndexInProject } from '@/lib/utils/resolveTaskIndex';
 import type { IProjectTask } from '@/lib/models/Project';
 import {
@@ -66,6 +69,111 @@ import {
 const WEEKLY_HEADER_HEIGHT = 100;
 const WEEKLY_EXPANDED_PROJECT_HEIGHT = 88;
 const WEEKLY_BOTTOM_PADDING = 16;
+const WEEKLY_SECTION_GAP = 12;
+const EXPANDED_SECTION_BORDER = 12;
+
+function resolveClientSectionDisplayList(
+  row: ClientCalendarRow,
+  section: ClientExpandProjectSection,
+  contentItems: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  currentDate: Date
+): {
+  displayList: MergedCalendarItem[];
+  isHub: boolean;
+  projectRow: ClientCalendarProjectRow | null;
+} {
+  const projectId = String(section.project._id);
+  const isHub = isClientHubProject(section.project);
+  const projectRow = isHub
+    ? (row.hubProject ?? null)
+    : (row.projects.find((p) => String(p.project._id) === projectId) ?? null);
+
+  let displayList = buildClientProjectDisplayList(
+    section.project,
+    contentItems,
+    rangeStart,
+    rangeEnd,
+    currentDate
+  );
+  if (displayList.length === 0 && (projectRow?.activeTaskCount ?? 0) > 0) {
+    displayList = fallbackActiveTasksForClientExpand(section.project, rangeStart, rangeEnd);
+  }
+
+  return { displayList, isHub, projectRow };
+}
+
+function clientRowHasExpandableContent(
+  row: ClientCalendarRow,
+  contentItems: IContentItem[] | undefined,
+  rangeStart: Date | undefined,
+  rangeEnd: Date | undefined,
+  currentDate: Date | undefined
+): boolean {
+  if (!contentItems || !rangeStart || !rangeEnd || !currentDate) {
+    return row.projects.length > 0;
+  }
+  for (const section of clientExpandSections(row)) {
+    const { displayList, isHub, projectRow } = resolveClientSectionDisplayList(
+      row,
+      section,
+      contentItems,
+      rangeStart,
+      rangeEnd,
+      currentDate
+    );
+    if (displayList.length > 0) return true;
+    if (!isHub && projectRow) return true;
+  }
+  return false;
+}
+
+function estimateClientWeeklyCardHeight(
+  row: ClientCalendarRow,
+  isExpanded: boolean,
+  contentItems: IContentItem[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  currentDate: Date
+): number {
+  if (!isExpanded) return WEEKLY_HEADER_HEIGHT + 16;
+
+  let bodyHeight = EXPANDED_SECTION_BORDER;
+  let sectionCount = 0;
+
+  for (const section of clientExpandSections(row)) {
+    const { displayList, isHub, projectRow } = resolveClientSectionDisplayList(
+      row,
+      section,
+      contentItems,
+      rangeStart,
+      rangeEnd,
+      currentDate
+    );
+    if (isHub && displayList.length === 0) continue;
+    if (!projectRow) continue;
+
+    let sectionHeight = 0;
+    if (!isHub) {
+      sectionHeight += WEEKLY_EXPANDED_PROJECT_HEIGHT;
+    }
+    if (displayList.length > 0) {
+      const gapHeight = displayList.length > 1 ? (displayList.length - 1) * 8 : 0;
+      sectionHeight += displayList.length * RANGE_ITEM_ROW_HEIGHT + gapHeight;
+      if (!isHub) sectionHeight += 8;
+    }
+    if (sectionHeight === 0) continue;
+
+    if (sectionCount > 0) sectionHeight += WEEKLY_SECTION_GAP;
+    bodyHeight += sectionHeight;
+    sectionCount += 1;
+  }
+
+  if (sectionCount === 0) return WEEKLY_HEADER_HEIGHT + 16;
+
+  return WEEKLY_HEADER_HEIGHT + bodyHeight + WEEKLY_BOTTOM_PADDING;
+}
 
 interface ClientCalendarViewProps {
   clients: IClient[];
@@ -174,13 +282,18 @@ function ClientCardBody({
   const {
     client,
     projects,
-    hubProject,
     activeTaskCount,
     activeContentCount,
     scheduledHours,
     progressPercent,
   } = row;
-  const hasExpandedContent = projects.length > 0 || !!hubProject;
+  const hasExpandableContent = clientRowHasExpandableContent(
+    row,
+    contentItems,
+    rangeStart,
+    rangeEnd,
+    currentDate
+  );
   const displayColor = client.color || '#3b82f6';
 
   return (
@@ -200,61 +313,56 @@ function ClientCardBody({
         onTitleClick={() => onClientClick(client)}
         compact={compact}
         hoursInline={compact}
+        showExpandToggle={hasExpandableContent}
       />
-      {isExpanded && hasExpandedContent ? (
+      {isExpanded && hasExpandableContent && contentItems && rangeStart && rangeEnd && currentDate ? (
         <div className="mt-3 pt-3 border-t border-white/20 space-y-3">
           {clientExpandSections(row).map((section) => {
-            const projectId = String(section.project._id);
-            const isHub = isClientHubProject(section.project);
-            const projectRow = isHub
-              ? hubProject!
-              : projects.find((p) => String(p.project._id) === projectId);
-            
+            const { displayList, isHub, projectRow } = resolveClientSectionDisplayList(
+              row,
+              section,
+              contentItems,
+              rangeStart,
+              rangeEnd,
+              currentDate
+            );
             if (!projectRow) return null;
+            if (isHub && displayList.length === 0) return null;
 
-            let displayList: MergedCalendarItem[] = [];
-            if (contentItems && rangeStart && rangeEnd && currentDate) {
-              displayList = buildClientProjectDisplayList(
-                section.project,
-                contentItems,
-                rangeStart,
-                rangeEnd,
-                currentDate
+            const projectId = String(section.project._id);
+
+            if (displayList.length === 0) {
+              return (
+                <div key={projectId}>
+                  <ProjectSubCard
+                    row={projectRow}
+                    client={client}
+                    onProjectClick={onProjectClick}
+                  />
+                </div>
               );
-              if (displayList.length === 0 && projectRow.activeTaskCount > 0) {
-                displayList = fallbackActiveTasksForClientExpand(
-                  section.project,
-                  rangeStart,
-                  rangeEnd
-                );
-              }
             }
-
-            const showTaskList = displayList.length > 0;
-            const showSubCard = !isHub || !showTaskList;
 
             return (
               <div key={projectId} className="space-y-2">
-                {showSubCard ? (
+                {!isHub ? (
                   <ProjectSubCard
                     row={projectRow}
                     client={client}
                     onProjectClick={onProjectClick}
                   />
                 ) : null}
-                {showTaskList ? (
-                  <div className={isHub ? undefined : 'pl-3 border-l-2 border-border/50 ml-3 py-1 mt-2'}>
-                    <CalendarExpandedRangeItems
-                      project={section.project}
-                      items={displayList}
-                      keyPrefix={`clientcard-${String(client._id)}-${projectId}-${rangeStart?.getTime()}`}
-                      onTaskClick={onTaskClick}
-                      onContentItemClick={onContentItemClick}
-                      getTaskSeenStatus={taskSeenStatus!}
-                      getContentSeenStatus={contentSeenStatus!}
-                    />
-                  </div>
-                ) : null}
+                <div className={isHub ? undefined : 'pl-3 border-l-2 border-border/50 ml-3 py-1 mt-2'}>
+                  <CalendarExpandedRangeItems
+                    project={section.project}
+                    items={displayList}
+                    keyPrefix={`clientcard-${String(client._id)}-${projectId}-${rangeStart.getTime()}`}
+                    onTaskClick={onTaskClick}
+                    onContentItemClick={onContentItemClick}
+                    getTaskSeenStatus={taskSeenStatus!}
+                    getContentSeenStatus={contentSeenStatus!}
+                  />
+                </div>
               </div>
             );
           })}
@@ -877,12 +985,13 @@ export default function ClientCalendarView({
     const cardHeights = weekRows.map((row) => {
       const clientId = String(row.client._id);
       const isExpanded = expandedClients.has(clientId);
-      if (!isExpanded) return WEEKLY_HEADER_HEIGHT + 16;
-      const projectCount = row.projects.length + (row.hubProject ? 1 : 0);
-      return (
-        WEEKLY_HEADER_HEIGHT +
-        (projectCount > 0 ? 12 + projectCount * WEEKLY_EXPANDED_PROJECT_HEIGHT : 0) +
-        WEEKLY_BOTTOM_PADDING
+      return estimateClientWeeklyCardHeight(
+        row,
+        isExpanded,
+        contentItems,
+        startDate,
+        endDate,
+        currentDate
       );
     });
 
@@ -896,6 +1005,7 @@ export default function ClientCalendarView({
     return (
       <WeeklyDayGridShell
         startDate={startDate}
+        minColumnHeight={Math.max(1200, cursor + 40)}
         overlay={
           weekRows.length === 0 ? (
             <div className="p-8">

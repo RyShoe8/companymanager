@@ -121,6 +121,7 @@ interface CalendarCardHeaderProps {
   headerActions?: ReactNode;
   compact?: boolean;
   hoursInline?: boolean;
+  showExpandToggle?: boolean;
 }
 
 export default function CalendarCardHeader({
@@ -141,6 +142,7 @@ export default function CalendarCardHeader({
   headerActions,
   compact = false,
   hoursInline = false,
+  showExpandToggle = true,
 }: CalendarCardHeaderProps) {
   const headerTextClass = getProjectCardHeaderTextClass(color);
   const logoSize = compact ? 28 : 32;
@@ -215,17 +217,19 @@ export default function CalendarCardHeader({
             {statusLabel}
           </span>
         ) : null}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand();
-          }}
-          className={`${headerTextClass} opacity-80 hover:opacity-100 transition-opacity ${compact ? 'px-1' : ''}`}
-          aria-label={isExpanded ? 'Collapse' : 'Expand'}
-        >
-          {isExpanded ? '▼' : '▶'}
-        </button>
+        {showExpandToggle ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand();
+            }}
+            className={`${headerTextClass} opacity-80 hover:opacity-100 transition-opacity ${compact ? 'px-1' : ''}`}
+            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+          >
+            {isExpanded ? '▼' : '▶'}
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -974,6 +974,7 @@ export default function CalendarView({
                       onTitleClick={() => onProjectClick(project)}
                       statusLabel={getProjectStatusDisplayLabel(project.status)}
                       completed={project.status === 'completed'}
+                      showExpandToggle={daySummary.displayList.length > 0}
                       headerActions={
                         onAddContent && canAddContentToProject(project) ? (
                           <div onClick={(e) => e.stopPropagation()}>
@@ -1373,6 +1374,7 @@ export default function CalendarView({
                                 statusLabel={getProjectStatusDisplayLabel(status)}
                                 completed={status === 'completed'}
                                 hoursInline
+                                showExpandToggle={summary.displayList.length > 0}
                               />
                             </div>
                             {renderCollapsedUnseenRows(
@@ -1580,6 +1582,7 @@ export default function CalendarView({
                               completed={project.status === 'completed'}
                               compact
                               hoursInline
+                              showExpandToggle={summary.displayList.length > 0}
                             />
                           </div>
 
