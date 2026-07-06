@@ -30,7 +30,7 @@ import RecordingToolModal from '@/components/shared/RecordingToolModal';
 import RecordingSaveDialog from '@/components/shared/RecordingSaveDialog';
 import RecordingOverlay from '@/components/shared/RecordingOverlay';
 import RecordingStatusBanner from '@/components/shared/RecordingStatusBanner';
-import { getScreenshotCaptureMode, getRecordingCaptureMode } from '@/lib/capture/mobileCapture';
+import { getScreenshotCaptureMode, getRecordingCaptureMode, isTouchMobileDevice } from '@/lib/capture/mobileCapture';
 import { useScreenshotUpload } from '@/hooks/useScreenshotUpload';
 import { useRecordingUpload } from '@/hooks/useRecordingUpload';
 import { useGoogleWorkspaceResume } from '@/hooks/google/useGoogleWorkspaceResume';
@@ -59,6 +59,7 @@ import VoiceProvider from '@/components/voice/VoiceProvider';
 import FeedbackLauncher from '@/components/feedback/FeedbackLauncher';
 import VoiceOverlay from '@/components/voice/VoiceOverlay';
 import MobileShellBridge from '@/components/mobile/MobileShellBridge';
+import { useMobileShell } from '@/contexts/MobileShellContext';
 import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
 import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmationContext';
 import { fetchEstimatedHoursBatch } from '@/lib/ai/clientEstimateHours';
@@ -101,6 +102,7 @@ export default function WorkspaceShell({
     initialDeepLinkClientId = null,
 }: WorkspaceShellProps) {
     const isMobile = useIsMobile();
+    const { consumeCreateAction } = useMobileShell();
     const router = useRouter();
     const pathname = usePathname();
     const ws = useWorkspaceData(initialPhase, initialLens);
@@ -191,6 +193,12 @@ export default function WorkspaceShell({
 
     const platformGuide = usePlatformGuideOptional();
 
+
+    useEffect(() => {
+        const pending = consumeCreateAction();
+        if (pending === 'screenshot') setShowScreenshotModal(true);
+        else if (pending === 'record') setShowRecordingModal(true);
+    }, [consumeCreateAction]);
 
     useEffect(() => {
         const load = async () => {
@@ -2110,6 +2118,7 @@ _id.toString(), { tasks });
                         target={null}
                         projects={ws.allProjects}
                         uploadOnly={getScreenshotCaptureMode() === 'upload-only'}
+                        elevated={isTouchMobileDevice()}
                     />
 
                     <RecordingToolModal

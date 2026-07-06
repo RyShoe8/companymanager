@@ -35,9 +35,7 @@ export function MobileNavVoiceButton() {
     clearHoldTimer();
     holdTimerRef.current = setTimeout(() => {
       holdTriggeredRef.current = true;
-      if (!voice.wakeWordEnabled) {
-        voice.toggleWakeWord();
-      }
+      voice.toggleWakeWord();
     }, 450);
   }, [voice, clearHoldTimer]);
 
@@ -81,8 +79,8 @@ export function MobileNavVoiceButton() {
         voice.state === 'listening'
           ? 'Stop listening'
           : wakeActive
-            ? 'Wake word armed — tap to listen'
-            : 'Voice — tap to listen, hold for wake word'
+            ? 'Wake word on — tap to listen, hold to toggle off'
+            : 'Voice — tap to listen, hold to toggle wake word'
       }
     >
       <span

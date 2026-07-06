@@ -28,7 +28,7 @@ function VerifyEmailContent() {
           : ''
   );
   const [sending, setSending] = useState(false);
-  const { executeRecaptcha } = useRecaptcha();
+  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady } = useRecaptcha();
 
   if (verifiedParam === '1') {
     return (
@@ -57,14 +57,20 @@ function VerifyEmailContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), recaptchaToken }),
       });
-      const data = await res.json();
+      let data: { error?: string; message?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        setError('Could not resend verification email.');
+        return;
+      }
       if (!res.ok) {
         setError(data.error || 'Could not resend verification email.');
         return;
       }
       setMessage(data.message || 'Verification email sent.');
-    } catch {
-      setError('Could not resend verification email.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not resend verification email.');
     } finally {
       setSending(false);
     }
@@ -100,8 +106,17 @@ function VerifyEmailContent() {
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
           />
-          <Button type="button" onClick={() => void handleResend()} disabled={sending} className="w-full">
-            {sending ? 'Sending…' : 'Resend verification email'}
+          <Button
+            type="button"
+            onClick={() => void handleResend()}
+            disabled={sending || (recaptchaEnabled && !recaptchaReady)}
+            className="w-full"
+          >
+            {sending
+              ? 'Sending…'
+              : recaptchaEnabled && !recaptchaReady
+                ? 'Loading security check…'
+                : 'Resend verification email'}
           </Button>
           <RecaptchaNotice className="text-xs text-text-muted text-center" />
         </div>

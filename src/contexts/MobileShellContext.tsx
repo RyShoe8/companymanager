@@ -40,6 +40,25 @@ export type MobileShellZeroArgAction = Exclude<
   'onLensSelect' | 'onPhaseSelect' | 'onViewProject' | 'onViewClient'
 >;
 
+export type PendingCreateAction = 'screenshot' | 'record';
+
+const PENDING_CREATE_ACTION_KEY = 'nucleas-mobile-pending-create-action';
+
+const WORKSPACE_SHELL_ROUTES = ['/workspace', '/plan', '/build', '/run', '/projects'] as const;
+
+export function isWorkspaceShellRoute(pathname: string): boolean {
+  return WORKSPACE_SHELL_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+}
+
+function readPendingCreateAction(): PendingCreateAction | null {
+  if (typeof window === 'undefined') return null;
+  const value = sessionStorage.getItem(PENDING_CREATE_ACTION_KEY);
+  if (value === 'screenshot' || value === 'record') return value;
+  return null;
+}
+
 export type MobileVoiceControl = {
   enabled: boolean;
   state: 'idle' | 'listening' | 'processing' | 'confirming';
@@ -71,6 +90,8 @@ type MobileShellContextValue = MobileShellState & {
   registerShell: (patch: Partial<MobileShellState>) => void;
   clearShell: () => void;
   runAction: (key: MobileShellZeroArgAction) => void;
+  queueCreateAction: (action: PendingCreateAction) => void;
+  consumeCreateAction: () => PendingCreateAction | null;
   registerReopenActionInbox: (fn: (() => void) | null) => void;
   requestReopenActionInbox: () => void;
 };
@@ -112,16 +133,40 @@ export function MobileShellProvider({ children }: { children: ReactNode }) {
     [state.actions]
   );
 
+  const queueCreateAction = useCallback((action: PendingCreateAction) => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem(PENDING_CREATE_ACTION_KEY, action);
+  }, []);
+
+  const consumeCreateAction = useCallback((): PendingCreateAction | null => {
+    const action = readPendingCreateAction();
+    if (action && typeof window !== 'undefined') {
+      sessionStorage.removeItem(PENDING_CREATE_ACTION_KEY);
+    }
+    return action;
+  }, []);
+
   const value = useMemo(
     () => ({
       ...state,
       registerShell,
       clearShell,
       runAction,
+      queueCreateAction,
+      consumeCreateAction,
       registerReopenActionInbox,
       requestReopenActionInbox,
     }),
-    [state, registerShell, clearShell, runAction, registerReopenActionInbox, requestReopenActionInbox]
+    [
+      state,
+      registerShell,
+      clearShell,
+      runAction,
+      queueCreateAction,
+      consumeCreateAction,
+      registerReopenActionInbox,
+      requestReopenActionInbox,
+    ]
   );
 
   return <MobileShellContext.Provider value={value}>{children}</MobileShellContext.Provider>;
@@ -135,6 +180,8 @@ export function useMobileShell(): MobileShellContextValue {
       registerShell: () => {},
       clearShell: () => {},
       runAction: () => {},
+      queueCreateAction: () => {},
+      consumeCreateAction: () => null,
       registerReopenActionInbox: () => {},
       requestReopenActionInbox: () => {},
     };

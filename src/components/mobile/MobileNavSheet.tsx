@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomSheet from '@/components/ui/BottomSheet';
-import { useMobileShell } from '@/contexts/MobileShellContext';
+import { useMobileShell, isWorkspaceShellRoute } from '@/contexts/MobileShellContext';
 import {
   MOBILE_NAV_ROOT,
   resolveNavNodes,
@@ -105,18 +105,23 @@ export default function MobileNavSheet({ isOpen, onClose, isPlatformAdmin }: Mob
         'onCreateRecord',
       ] as const;
       if (zeroArgActions.includes(key as (typeof zeroArgActions)[number])) {
+        if (key === 'onCreateScreenshot') {
+          shell.queueCreateAction('screenshot');
+        } else if (key === 'onCreateRecord') {
+          shell.queueCreateAction('record');
+        }
         shell.runAction(key as (typeof zeroArgActions)[number]);
         handleClose();
         if (
           key.startsWith('onCreate') &&
           typeof window !== 'undefined' &&
-          !window.location.pathname.startsWith('/workspace')
+          !isWorkspaceShellRoute(window.location.pathname)
         ) {
           router.push('/workspace');
         }
       }
     },
-    [shell.actions, shell.runAction, handleClose, router]
+    [shell.actions, shell.runAction, shell.queueCreateAction, handleClose, router]
   );
 
   const handleNodeClick = (node: MobileNavNode) => {

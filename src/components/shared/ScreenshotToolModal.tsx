@@ -12,6 +12,7 @@ interface ScreenshotToolModalProps {
   target?: ScreenshotUploadTarget | null;
   projects?: IProject[];
   uploadOnly?: boolean;
+  elevated?: boolean;
 }
 
 function screenshotModalTitle(uploadOnly: boolean): string {
@@ -27,6 +28,7 @@ export default function ScreenshotToolModal({
   target = null,
   projects = [],
   uploadOnly = false,
+  elevated = false,
 }: ScreenshotToolModalProps) {
   const allowAssignment = !target;
   const effectiveUploadOnly = uploadOnly || getScreenshotCaptureMode() === 'upload-only';
@@ -37,6 +39,7 @@ export default function ScreenshotToolModal({
       onClose={onClose}
       title={screenshotModalTitle(effectiveUploadOnly)}
       maxWidth="md"
+      elevated={elevated}
     >
       <ScreenshotToolPanel
         target={target}

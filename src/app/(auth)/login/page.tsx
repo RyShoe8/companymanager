@@ -27,7 +27,7 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { executeRecaptcha } = useRecaptcha();
+  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady } = useRecaptcha();
 
   // Check for error in URL params
   useEffect(() => {
@@ -52,7 +52,13 @@ function LoginForm() {
         body: JSON.stringify({ email, password, recaptchaToken }),
       });
 
-      const data = await response.json();
+      let data: { error?: string; needsEmailVerification?: boolean; user?: { organizationSetupComplete?: boolean } } = {};
+      try {
+        data = await response.json();
+      } catch {
+        setError('Login failed. Please try again.');
+        return;
+      }
 
       if (!response.ok) {
         if (data.needsEmailVerification) {
@@ -71,7 +77,7 @@ function LoginForm() {
       }
       router.refresh();
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError(err instanceof Error ? err.message : 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -110,8 +116,16 @@ function LoginForm() {
             />
           </div>
           <div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign in'}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || (recaptchaEnabled && !recaptchaReady)}
+            >
+              {loading
+                ? 'Signing in...'
+                : recaptchaEnabled && !recaptchaReady
+                  ? 'Loading security check…'
+                  : 'Sign in'}
             </Button>
             <RecaptchaNotice className="text-xs text-text-muted text-center" />
           </div>

@@ -21,7 +21,7 @@ export function hasScreenCaptureApi(): boolean {
 }
 
 export function getScreenshotCaptureMode(): CaptureMode {
-  if (hasScreenCaptureApi()) return 'screen';
+  if (!isTouchMobileDevice() && hasScreenCaptureApi()) return 'screen';
   if (isCameraCaptureSupported()) return 'camera';
   return 'upload-only';
 }

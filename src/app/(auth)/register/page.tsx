@@ -40,7 +40,7 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [loadingInvitation, setLoadingInvitation] = useState(false);
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
-  const { executeRecaptcha } = useRecaptcha();
+  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady } = useRecaptcha();
 
   // Load invitation details if token is present
   useEffect(() => {
@@ -107,7 +107,17 @@ function RegisterForm() {
         }),
       });
 
-      const data = await response.json();
+      let data: {
+        error?: string;
+        needsEmailVerification?: boolean;
+        user?: { organizationSetupComplete?: boolean };
+      } = {};
+      try {
+        data = await response.json();
+      } catch {
+        setError('Registration failed. Please try again.');
+        return;
+      }
 
       if (!response.ok) {
         setError(data.error || 'Registration failed');
@@ -121,14 +131,14 @@ function RegisterForm() {
 
       // Check if user needs to set up organization
       const userData = data.user;
-      if (!userData.organizationSetupComplete) {
+      if (!userData?.organizationSetupComplete) {
         router.push('/setup-organization');
       } else {
         router.push('/planning-map');
       }
       router.refresh();
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError(err instanceof Error ? err.message : 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -212,8 +222,16 @@ function RegisterForm() {
             />
           </div>
           <div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Register'}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || (recaptchaEnabled && !recaptchaReady)}
+            >
+              {loading
+                ? 'Creating account...'
+                : recaptchaEnabled && !recaptchaReady
+                  ? 'Loading security check…'
+                  : 'Create account'}
             </Button>
             <RecaptchaNotice className="text-xs text-text-muted text-center" />
           </div>
