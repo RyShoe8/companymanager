@@ -1,28 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import { requireAuth } from '@/lib/auth/middleware';
+import UserCalendarConnection from '@/lib/models/UserCalendarConnection';
+import {
+  canStartMeetingSync,
+  datesToSyncTimestamps,
+  getMeetingSyncRetryMessage,
+  recordMeetingSync,
+  syncTimestampsToDates,
+} from '@/lib/scheduling/meetingSyncRateLimit';
 import {
   ensureMeetingSyncHorizon,
   listMeetingsForUserInRange,
   syncMeetingsForUser,
 } from '@/lib/scheduling/syncUserMeetings';
 
-const SYNC_COOLDOWN_MS = 15_000;
-const lastSyncByUser = new Map<string, number>();
-
 export async function GET(request: NextRequest) {
   try {
     const session = await requireAuth(request);
     if (session instanceof NextResponse) return session;
 
-    const now = Date.now();
-    const last = lastSyncByUser.get(session.userId) || 0;
-    if (now - last < SYNC_COOLDOWN_MS) {
-      return NextResponse.json({ error: 'Sync rate limited; try again shortly' }, { status: 429 });
-    }
-    lastSyncByUser.set(session.userId, now);
-
     await connectDB();
+
+    const connection = await UserCalendarConnection.findOne({ userId: session.userId });
+    const syncTimestamps = datesToSyncTimestamps(connection?.recentMeetingSyncAts);
+    if (!canStartMeetingSync(syncTimestamps)) {
+      return NextResponse.json(
+        { error: getMeetingSyncRetryMessage(syncTimestamps) },
+        { status: 429 }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode') || 'ensureHorizon';
@@ -37,6 +44,16 @@ export async function GET(request: NextRequest) {
         const status = result.error === 'Calendar not connected' ? 400 : 404;
         return NextResponse.json({ error: result.error }, { status });
       }
+      const updatedTimestamps = recordMeetingSync(syncTimestamps);
+      await UserCalendarConnection.updateOne(
+        { userId: session.userId },
+        {
+          $set: {
+            recentMeetingSyncAts: syncTimestampsToDates(updatedTimestamps),
+            syncedAt: new Date(),
+          },
+        }
+      );
       const meetings = await listMeetingsForUserInRange(session.userId, start, end);
       return NextResponse.json({
         imported: result.imported,
@@ -52,6 +69,17 @@ export async function GET(request: NextRequest) {
       const status = result.error === 'Calendar not connected' ? 400 : 404;
       return NextResponse.json({ error: result.error }, { status });
     }
+
+    const updatedTimestamps = recordMeetingSync(syncTimestamps);
+    await UserCalendarConnection.updateOne(
+      { userId: session.userId },
+      {
+        $set: {
+          recentMeetingSyncAts: syncTimestampsToDates(updatedTimestamps),
+          syncedAt: new Date(),
+        },
+      }
+    );
 
     const listStart = startParam ? new Date(startParam) : new Date();
     const listEnd = endParam ? new Date(endParam) : viewEnd ?? listStart;

@@ -6,6 +6,7 @@ export interface IUserCalendarConnection extends Document {
   refreshTokenEncrypted: string;
   calendarId: string;
   syncedAt?: Date;
+  recentMeetingSyncAts?: Date[];
   syncHorizonStart?: Date;
   syncHorizonEnd?: Date;
   createdAt: Date;
@@ -19,6 +20,7 @@ const UserCalendarConnectionSchema = new Schema(
     refreshTokenEncrypted: { type: String, required: true },
     calendarId: { type: String, default: 'primary' },
     syncedAt: { type: Date },
+    recentMeetingSyncAts: { type: [Date], default: undefined },
     syncHorizonStart: { type: Date },
     syncHorizonEnd: { type: Date },
   },

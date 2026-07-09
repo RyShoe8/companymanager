@@ -3,12 +3,40 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
+import {
+  canStartMeetingSync,
+  getMeetingSyncRetryMessage,
+  recordMeetingSync,
+} from '@/lib/scheduling/meetingSyncRateLimit';
 
 export type CalendarStatus = {
   connected: boolean;
   calendarId: string;
   syncedAt: string | null;
 };
+
+const MEETING_SYNC_STORAGE_KEY = 'nucleas-meeting-sync-times';
+
+function readStoredSyncTimestamps(): number[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = sessionStorage.getItem(MEETING_SYNC_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((t) => typeof t === 'number') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredSyncTimestamps(timestamps: number[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(MEETING_SYNC_STORAGE_KEY, JSON.stringify(timestamps));
+  } catch {
+    // Ignore quota / private-mode storage errors.
+  }
+}
 
 export function buildMeetingsRangeQuery(timeframe: TimeframeType, currentDate: Date): string {
   const { start, end } = getTimeframeRange(timeframe, currentDate);
@@ -42,6 +70,12 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
     updated?: number;
     removed?: number;
   } | null> => {
+    const storedTimestamps = readStoredSyncTimestamps();
+    if (!canStartMeetingSync(storedTimestamps)) {
+      setMessage(getMeetingSyncRetryMessage(storedTimestamps));
+      return null;
+    }
+
     setSyncing(true);
     setMessage(null);
     try {
@@ -51,6 +85,8 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
         setMessage(data.error || 'Sync failed');
         return null;
       }
+      const updatedTimestamps = recordMeetingSync(storedTimestamps);
+      writeStoredSyncTimestamps(updatedTimestamps);
       setMessage(
         `Synced: ${data.imported || 0} new, ${data.updated || 0} updated, ${data.removed || 0} removed.`
       );

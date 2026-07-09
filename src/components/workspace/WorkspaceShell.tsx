@@ -153,6 +153,7 @@ export default function WorkspaceShell({
     const [showRecordingModal, setShowRecordingModal] = useState(false);
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
     const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+    const onEnterScheduleSyncRef = useRef<() => void>(() => {});
 
     const [showViewOptionsOpen, setShowViewOptionsOpen] = useState(false);
     const [emailDigestInterval, setEmailDigestInterval] = useState('off');
@@ -346,15 +347,22 @@ export default function WorkspaceShell({
 
     const handlePhaseSelect = useCallback(
         (p: PhaseType) => {
+            const enteringSchedule = p === 'Schedule' && ws.phase !== 'Schedule';
             ws.setPhase(p);
             if (p === 'Schedule' && ws.lens === 'clients') {
                 ws.setLens('schedule');
                 syncWorkspaceUrl({ phase: p, lens: 'schedule' });
+                if (enteringSchedule && scheduleCalendar?.connected) {
+                    onEnterScheduleSyncRef.current();
+                }
                 return;
             }
             syncWorkspaceUrl({ phase: p });
+            if (enteringSchedule && scheduleCalendar?.connected) {
+                onEnterScheduleSyncRef.current();
+            }
         },
-        [ws, syncWorkspaceUrl]
+        [ws, syncWorkspaceUrl, scheduleCalendar?.connected]
     );
 
     const handleLensSelect = useCallback(
@@ -1593,59 +1601,9 @@ _id.toString(), { tasks });
         }
     }, [handleScheduleCalendarSync]);
 
-    const prevPhaseRef = useRef<PhaseType | null>(null);
-    const prevCalendarConnectedRef = useRef(false);
-
-    useEffect(() => {
-        const prevPhase = prevPhaseRef.current;
-        const prevConnected = prevCalendarConnectedRef.current;
-        prevPhaseRef.current = ws.phase;
-        prevCalendarConnectedRef.current = !!scheduleCalendar?.connected;
-
-        const enteredSchedule = ws.phase === 'Schedule' && prevPhase !== 'Schedule';
-        const calendarJustConnected =
-            ws.phase === 'Schedule' && !!scheduleCalendar?.connected && !prevConnected;
-
-        if (!scheduleCalendar?.connected) return;
-        if (!enteredSchedule && !calendarJustConnected) return;
-
-        const id = setTimeout(() => {
-            void handleScheduleSync();
-        }, 2000);
-
-        return () => clearTimeout(id);
-    }, [ws.phase, scheduleCalendar?.connected, handleScheduleSync]);
-
-    const scheduleHorizonSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    useEffect(() => {
-        if (!needsCalendarData || !scheduleCalendar?.connected) return;
-
-        if (scheduleHorizonSyncRef.current) {
-            clearTimeout(scheduleHorizonSyncRef.current);
-        }
-
-        scheduleHorizonSyncRef.current = setTimeout(() => {
-            void (async () => {
-                const data = await handleScheduleCalendarSync();
-                if (data) {
-                    setScheduleSyncRefreshKey((k) => k + 1);
-                }
-            })();
-        }, 400);
-
-        return () => {
-            if (scheduleHorizonSyncRef.current) {
-                clearTimeout(scheduleHorizonSyncRef.current);
-            }
-        };
-    }, [
-        needsCalendarData,
-        scheduleCalendar?.connected,
-        ws.timeframe,
-        ws.currentDate,
-        handleScheduleCalendarSync,
-    ]);
+    onEnterScheduleSyncRef.current = () => {
+        void handleScheduleSync();
+    };
 
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
