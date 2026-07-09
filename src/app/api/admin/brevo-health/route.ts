@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
-import connectDB from '@/lib/db/mongodb';
-import User from '@/lib/models/User';
+import { requirePlatformAdmin } from '@/lib/auth/requirePlatformAdmin';
 import { getBrevoHealthStatus } from '@/lib/services/email';
 
 /**
@@ -10,16 +8,8 @@ import { getBrevoHealthStatus } from '@/lib/services/email';
  */
 export async function GET() {
   try {
-    const session = await getSession();
-    if (!session?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    await connectDB();
-    const adminUser = await User.findById(session.userId);
-    if (!adminUser?.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
-    }
+    const auth = await requirePlatformAdmin();
+    if (auth.error) return auth.error;
 
     const health = await getBrevoHealthStatus();
     return NextResponse.json(health);

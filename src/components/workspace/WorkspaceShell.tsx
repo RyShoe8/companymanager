@@ -1616,6 +1616,37 @@ _id.toString(), { tasks });
         return () => clearTimeout(id);
     }, [ws.phase, scheduleCalendar?.connected, handleScheduleSync]);
 
+    const scheduleHorizonSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (!needsCalendarData || !scheduleCalendar?.connected) return;
+
+        if (scheduleHorizonSyncRef.current) {
+            clearTimeout(scheduleHorizonSyncRef.current);
+        }
+
+        scheduleHorizonSyncRef.current = setTimeout(() => {
+            void (async () => {
+                const data = await handleScheduleCalendarSync();
+                if (data) {
+                    setScheduleSyncRefreshKey((k) => k + 1);
+                }
+            })();
+        }, 400);
+
+        return () => {
+            if (scheduleHorizonSyncRef.current) {
+                clearTimeout(scheduleHorizonSyncRef.current);
+            }
+        };
+    }, [
+        needsCalendarData,
+        scheduleCalendar?.connected,
+        ws.timeframe,
+        ws.currentDate,
+        handleScheduleCalendarSync,
+    ]);
+
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
     // Default status for new projects depends on phase

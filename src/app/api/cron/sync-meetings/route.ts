@@ -16,15 +16,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const rangeStart = new Date();
-  const rangeEnd = new Date(rangeStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-
   try {
-    const summary = await syncAllConnectedCalendars(rangeStart, rangeEnd);
+    const summary = await syncAllConnectedCalendars();
     return NextResponse.json({
       ok: true,
-      rangeStart: rangeStart.toISOString(),
-      rangeEnd: rangeEnd.toISOString(),
+      mode: 'ensureHorizon',
       ...summary,
     });
   } catch (error) {

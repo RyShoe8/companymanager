@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import { requireAuth } from '@/lib/auth/middleware';
 import {
+  ensureMeetingSyncHorizon,
   listMeetingsForUserInRange,
   syncMeetingsForUser,
 } from '@/lib/scheduling/syncUserMeetings';
@@ -24,25 +25,47 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const { searchParams } = new URL(request.url);
+    const mode = searchParams.get('mode') || 'ensureHorizon';
     const startParam = searchParams.get('start');
     const endParam = searchParams.get('end');
-    const start = startParam ? new Date(startParam) : new Date();
-    const end = endParam
-      ? new Date(endParam)
-      : new Date(start.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-    const result = await syncMeetingsForUser(session.userId, start, end);
+    if (mode === 'range' && startParam && endParam) {
+      const start = new Date(startParam);
+      const end = new Date(endParam);
+      const result = await syncMeetingsForUser(session.userId, start, end);
+      if (result.error) {
+        const status = result.error === 'Calendar not connected' ? 400 : 404;
+        return NextResponse.json({ error: result.error }, { status });
+      }
+      const meetings = await listMeetingsForUserInRange(session.userId, start, end);
+      return NextResponse.json({
+        imported: result.imported,
+        updated: result.updated,
+        removed: result.removed,
+        meetings,
+      });
+    }
+
+    const viewEnd = endParam ? new Date(endParam) : undefined;
+    const result = await ensureMeetingSyncHorizon(session.userId, { viewEnd });
     if (result.error) {
       const status = result.error === 'Calendar not connected' ? 400 : 404;
       return NextResponse.json({ error: result.error }, { status });
     }
 
-    const meetings = await listMeetingsForUserInRange(session.userId, start, end);
+    const listStart = startParam ? new Date(startParam) : new Date();
+    const listEnd = endParam ? new Date(endParam) : viewEnd ?? listStart;
+    const meetings =
+      startParam && endParam
+        ? await listMeetingsForUserInRange(session.userId, listStart, listEnd)
+        : undefined;
 
     return NextResponse.json({
       imported: result.imported,
       updated: result.updated,
       removed: result.removed,
+      chunksSynced: result.chunksSynced,
+      syncHorizonEnd: result.syncHorizonEnd,
       meetings,
     });
   } catch (error) {

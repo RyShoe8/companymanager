@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
 import '@/lib/billing-engine';
 import User from '@/lib/models/User';
 import Organization from '@/lib/models/Organization';
+import { requirePlatformAdmin } from '@/lib/auth/requirePlatformAdmin';
 import {
   connectBillingDb,
   OrganizationSubscriptionModel,
@@ -16,18 +16,10 @@ import mongoose from 'mongoose';
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePlatformAdmin();
+    if (auth.error) return auth.error;
 
     await connectDB();
-
-    const user = await User.findById(session.userId);
-    if (!user || !user.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
-    }
-
     await connectBillingDb();
 
     const users = await User.find({}).sort({ createdAt: -1 }).lean();

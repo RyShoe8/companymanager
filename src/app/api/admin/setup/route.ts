@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
+import { isPlatformAdmin } from '@/lib/auth/platformAdmin';
 import { requireAuth } from '@/lib/auth/middleware';
 
 /**
@@ -27,8 +28,8 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const caller = await User.findById(session.userId).select('isAdmin').lean();
-    if (!caller?.isAdmin) {
+    const caller = await User.findById(session.userId).select('isAdmin email').lean();
+    if (!caller || !isPlatformAdmin(caller)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

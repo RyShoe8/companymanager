@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Invitation from '@/lib/models/Invitation';
+import { requirePlatformAdmin } from '@/lib/auth/requirePlatformAdmin';
 import { isValidObjectId } from '@/lib/utils/security';
 import { teardownOrganization } from '@/lib/account/deleteUserAccount';
 
@@ -12,10 +12,8 @@ import { teardownOrganization } from '@/lib/account/deleteUserAccount';
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePlatformAdmin();
+    if (auth.error) return auth.error;
 
     await connectDB();
     const { id } = await params;
@@ -23,11 +21,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Validate ObjectId format
     if (!isValidObjectId(id)) {
       return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
-    }
-
-    const user = await User.findById(session.userId);
-    if (!user || !user.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
     const targetUser = await User.findById(id);
@@ -62,10 +55,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
  */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePlatformAdmin();
+    if (auth.error) return auth.error;
 
     await connectDB();
     const { id } = await params;
@@ -75,17 +66,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
     }
 
-    const user = await User.findById(session.userId);
-    if (!user || !user.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
-    }
-
     const targetUser = await User.findById(id);
     if (!targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (targetUser._id.toString() === session.userId) {
+    if (targetUser._id.toString() === auth.user._id.toString()) {
       return NextResponse.json(
         { error: 'You cannot delete your own account from the admin panel.' },
         { status: 400 }

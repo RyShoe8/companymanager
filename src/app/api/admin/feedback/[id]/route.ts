@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
-import User from '@/lib/models/User';
+import { requirePlatformAdmin } from '@/lib/auth/requirePlatformAdmin';
 import FeedbackSubmission from '@/lib/models/FeedbackSubmission';
 import { isValidObjectId } from '@/lib/utils/security';
 
@@ -13,10 +12,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePlatformAdmin();
+    if (auth.error) return auth.error;
 
     const { id } = await params;
     if (!isValidObjectId(id)) {
@@ -24,11 +21,6 @@ export async function PATCH(
     }
 
     await connectDB();
-    const adminUser = await User.findById(session.userId);
-    if (!adminUser?.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
-    }
-
     const body = await request.json();
     const status = body?.status;
     if (status !== 'new' && status !== 'done') {

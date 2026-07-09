@@ -17,6 +17,7 @@ import {
   findMeetingsForProjectPropagation,
   propagateMeetingProjectsAndCalendars,
 } from '@/lib/scheduling/meetingPropagation';
+import { propagateMeetingInstanceAfterLocalEdit } from '@/lib/scheduling/propagateMeetingInstance';
 import { resolveMeetingInvitees } from '@/lib/scheduling/meetingAttendees';
 import type { MeetingVideoMode } from '@/lib/scheduling/meetingVideoConference';
 import {
@@ -135,6 +136,9 @@ async function syncGoogleEventForMeeting(params: {
   );
 
   const join = extractMeetingJoinUrl(updated);
+  if (updated.id && updated.id !== meeting.googleEventId) {
+    meeting.googleEventId = updated.id;
+  }
   if (join) {
     meeting.joinUrl = join.joinUrl;
     meeting.joinPlatform = join.joinPlatform;
@@ -183,6 +187,8 @@ export async function updateMeetingRecord(params: {
 }> {
   const { meeting, userId, organizationId, body, baseUrl } = params;
   const previousLinkedProjectIds = (meeting.linkedProjectIds || []).map((id) => id.toString());
+  const previousStart = new Date(meeting.start);
+  const previousEnd = new Date(meeting.end);
   const scope: MeetingUpdateScope =
     body.scope === 'series' && meeting.googleRecurringEventId ? 'series' : 'instance';
 
@@ -405,6 +411,26 @@ export async function updateMeetingRecord(params: {
       calendarsPatchedCount = meeting.googleEventId ? 1 : 0;
     }
     await meeting.save();
+
+    const timeChanged = body.start !== undefined || body.end !== undefined;
+    if (scope === 'instance' && timeChanged && meeting.iCalUID) {
+      await propagateMeetingInstanceAfterLocalEdit({
+        organizationId,
+        iCalUID: meeting.iCalUID,
+        googleRecurringEventId: meeting.googleRecurringEventId,
+        previousStart,
+        previousEnd,
+        fields: {
+          title: meeting.title,
+          start: meeting.start,
+          end: meeting.end,
+          googleRecurringEventId: meeting.googleRecurringEventId,
+          googleEventId: meeting.googleEventId,
+          joinUrl: meeting.joinUrl ?? null,
+          joinPlatform: meeting.joinPlatform ?? null,
+        },
+      });
+    }
   }
 
   const meetingNotes = await applyMeetingNotesOnLinkChange(userId, meeting, previousLinkedProjectIds);

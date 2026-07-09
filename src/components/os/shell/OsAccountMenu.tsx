@@ -32,8 +32,12 @@ export default function OsAccountMenu() {
     const handleAdmin = useCallback(() => {
         const { protocol, host } = window.location;
         const classicHost = host.startsWith('os.') ? host.replace(/^os\./, '') : host;
-        window.open(`${protocol}//${classicHost}/admin`, '_blank', 'noopener,noreferrer');
-    }, []);
+        if (host.startsWith('os.')) {
+            window.location.assign(`${protocol}//${classicHost}/admin`);
+            return;
+        }
+        router.push('/admin');
+    }, [router]);
 
     const initials = auth.name
         ? auth.name

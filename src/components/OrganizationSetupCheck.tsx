@@ -19,7 +19,7 @@ export default function OrganizationSetupCheck({ children }: { children: React.R
         pathname?.startsWith('/login') || 
         pathname?.startsWith('/register') || 
         pathname === '/setup-organization' ||
-        pathname === '/admin' ||
+        pathname?.startsWith('/admin') ||
         pathname === '/about' ||
         pathname === '/contact' ||
         pathname === '/terms' ||

@@ -45,7 +45,7 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
     setSyncing(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/scheduling/meetings/sync?${rangeQuery}`);
+      const res = await fetch(`/api/scheduling/meetings/sync?${rangeQuery}&mode=ensureHorizon`);
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error || 'Sync failed');

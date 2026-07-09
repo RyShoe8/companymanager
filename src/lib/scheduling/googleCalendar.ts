@@ -150,23 +150,34 @@ export async function listCalendarEvents(
   timeMin: string,
   timeMax: string
 ): Promise<GoogleCalendarEvent[]> {
-  const url = new URL(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
-  );
-  url.searchParams.set('timeMin', timeMin);
-  url.searchParams.set('timeMax', timeMax);
-  url.searchParams.set('singleEvents', 'true');
-  url.searchParams.set('orderBy', 'startTime');
-  url.searchParams.set('maxResults', '250');
+  const events: GoogleCalendarEvent[] = [];
+  let pageToken: string | undefined;
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    throw new Error('Failed to list calendar events');
-  }
-  const data = await res.json();
-  return (data.items || []) as GoogleCalendarEvent[];
+  do {
+    const url = new URL(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
+    );
+    url.searchParams.set('timeMin', timeMin);
+    url.searchParams.set('timeMax', timeMax);
+    url.searchParams.set('singleEvents', 'true');
+    url.searchParams.set('orderBy', 'startTime');
+    url.searchParams.set('maxResults', '250');
+    if (pageToken) {
+      url.searchParams.set('pageToken', pageToken);
+    }
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      throw new Error('Failed to list calendar events');
+    }
+    const data = await res.json();
+    events.push(...((data.items || []) as GoogleCalendarEvent[]));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return events;
 }
 
 export async function insertCalendarEvent(

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import { getSession } from '@/lib/auth/session';
-import User from '@/lib/models/User';
+import { requirePlatformAdmin } from '@/lib/auth/requirePlatformAdmin';
 import Organization from '@/lib/models/Organization';
 import { assignOrganizationPlan } from 'billing-engine';
 import mongoose from 'mongoose';
@@ -19,16 +18,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requirePlatformAdmin();
+    if (auth.error) return auth.error;
 
     await connectDB();
-    const admin = await User.findById(session.userId);
-    if (!admin?.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
-    }
 
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
