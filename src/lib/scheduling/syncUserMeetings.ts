@@ -30,6 +30,44 @@ export type EnsureMeetingSyncHorizonResult = SyncMeetingsForUserResult & {
   syncHorizonEnd?: string;
 };
 
+export function mergeSyncCounts(
+  a: Pick<SyncMeetingsForUserResult, 'imported' | 'updated' | 'removed'>,
+  b: Pick<SyncMeetingsForUserResult, 'imported' | 'updated' | 'removed'>
+): Pick<SyncMeetingsForUserResult, 'imported' | 'updated' | 'removed'> {
+  return {
+    imported: a.imported + b.imported,
+    updated: a.updated + b.updated,
+    removed: a.removed + b.removed,
+  };
+}
+
+export async function syncUserMeetingsWithHorizon(
+  userId: string,
+  viewRange: DateRange
+): Promise<EnsureMeetingSyncHorizonResult> {
+  const horizonResult = await ensureMeetingSyncHorizon(userId, { viewEnd: viewRange.end });
+  if (horizonResult.error) {
+    return horizonResult;
+  }
+
+  const viewResult = await syncMeetingsForUser(userId, viewRange.start, viewRange.end);
+  if (viewResult.error) {
+    return {
+      ...viewResult,
+      chunksSynced: horizonResult.chunksSynced,
+      syncHorizonEnd: horizonResult.syncHorizonEnd,
+    };
+  }
+
+  const merged = mergeSyncCounts(horizonResult, viewResult);
+  return {
+    userId,
+    ...merged,
+    chunksSynced: horizonResult.chunksSynced,
+    syncHorizonEnd: horizonResult.syncHorizonEnd,
+  };
+}
+
 export async function syncMeetingsForUser(
   userId: string,
   rangeStart: Date,

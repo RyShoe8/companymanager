@@ -8,13 +8,18 @@ export type TeamFilterType = 'All Teams' | EmployeeTeam;
 interface WorkspaceTeamFilterProps {
   value: TeamFilterType;
   onChange: (value: TeamFilterType) => void;
+  className?: string;
 }
 
 const TEAMS: TeamFilterType[] = ['All Teams', 'Development', 'Marketing', 'Testing'];
 
-export default function WorkspaceTeamFilter({ value, onChange }: WorkspaceTeamFilterProps) {
+export default function WorkspaceTeamFilter({ value, onChange, className = '' }: WorkspaceTeamFilterProps) {
   return (
-    <WorkspaceFilterSelect value={value} onChange={(e) => onChange(e.target.value as TeamFilterType)}>
+    <WorkspaceFilterSelect
+      value={value}
+      onChange={(e) => onChange(e.target.value as TeamFilterType)}
+      className={className}
+    >
       {TEAMS.map((team) => (
         <option key={team} value={team}>
           {team}

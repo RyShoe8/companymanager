@@ -43,13 +43,19 @@ export function buildMeetingsRangeQuery(timeframe: TimeframeType, currentDate: D
   return `start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
 }
 
-export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Date) {
+export function useSchedulingCalendar(
+  timeframe: TimeframeType,
+  currentDate: Date,
+  options?: { onSyncBlocked?: () => void; onCalendarConnectedRedirect?: () => void }
+) {
   const searchParams = useSearchParams();
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const rangeQuery = buildMeetingsRangeQuery(timeframe, currentDate);
+  const onSyncBlocked = options?.onSyncBlocked;
+  const onCalendarConnectedRedirect = options?.onCalendarConnectedRedirect;
 
   const loadCalendar = useCallback(async () => {
     const res = await fetch('/api/scheduling/calendar');
@@ -59,10 +65,11 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
   useEffect(() => {
     if (searchParams.get('calendar_connected')) {
       setMessage('Google Calendar connected.');
+      onCalendarConnectedRedirect?.();
     }
     const err = searchParams.get('calendar_error');
     if (err) setMessage(`Calendar error: ${err}`);
-  }, [searchParams]);
+  }, [searchParams, onCalendarConnectedRedirect]);
 
   const handleSync = useCallback(async (): Promise<{
     meetings?: unknown[];
@@ -73,6 +80,7 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
     const storedTimestamps = readStoredSyncTimestamps();
     if (!canStartMeetingSync(storedTimestamps)) {
       setMessage(getMeetingSyncRetryMessage(storedTimestamps));
+      onSyncBlocked?.();
       return null;
     }
 
@@ -83,6 +91,9 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error || 'Sync failed');
+        if (res.status === 429) {
+          onSyncBlocked?.();
+        }
         return null;
       }
       const updatedTimestamps = recordMeetingSync(storedTimestamps);
@@ -98,7 +109,7 @@ export function useSchedulingCalendar(timeframe: TimeframeType, currentDate: Dat
     } finally {
       setSyncing(false);
     }
-  }, [rangeQuery, loadCalendar]);
+  }, [rangeQuery, loadCalendar, onSyncBlocked]);
 
   const handleDisconnect = useCallback(async () => {
     await fetch('/api/scheduling/google/disconnect', { method: 'POST' });

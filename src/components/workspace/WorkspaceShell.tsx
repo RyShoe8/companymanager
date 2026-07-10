@@ -154,6 +154,8 @@ export default function WorkspaceShell({
     const [schedulePanelMessage, setSchedulePanelMessage] = useState<string | null>(null);
     const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
     const onEnterScheduleSyncRef = useRef<() => void>(() => {});
+    const pendingScheduleSyncRef = useRef(false);
+    const onSyncBlockedRef = useRef<() => void>(() => {});
 
     const [showViewOptionsOpen, setShowViewOptionsOpen] = useState(false);
     const [emailDigestInterval, setEmailDigestInterval] = useState('off');
@@ -245,7 +247,12 @@ export default function WorkspaceShell({
         loadCalendar: loadScheduleCalendar,
         handleSync: handleScheduleCalendarSync,
         handleDisconnect: handleScheduleCalendarDisconnect,
-    } = useSchedulingCalendar(ws.timeframe, ws.currentDate);
+    } = useSchedulingCalendar(ws.timeframe, ws.currentDate, {
+        onSyncBlocked: () => onSyncBlockedRef.current(),
+        onCalendarConnectedRedirect: () => {
+            pendingScheduleSyncRef.current = true;
+        },
+    });
     const schedulingAvailability = useSchedulingAvailability();
 
     // Fetch meetings whenever the utilization sidebar is shown (all timeframes including Today).
@@ -260,6 +267,10 @@ export default function WorkspaceShell({
         meetingsFetchEnabled,
         meetingRefreshKey + scheduleSyncRefreshKey
     );
+
+    onSyncBlockedRef.current = () => {
+        void refetchMeetings();
+    };
 
     const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
 
@@ -348,17 +359,22 @@ export default function WorkspaceShell({
     const handlePhaseSelect = useCallback(
         (p: PhaseType) => {
             const enteringSchedule = p === 'Schedule' && ws.phase !== 'Schedule';
+            if (enteringSchedule) {
+                pendingScheduleSyncRef.current = true;
+            }
             ws.setPhase(p);
             if (p === 'Schedule' && ws.lens === 'clients') {
                 ws.setLens('schedule');
                 syncWorkspaceUrl({ phase: p, lens: 'schedule' });
                 if (enteringSchedule && scheduleCalendar?.connected) {
+                    pendingScheduleSyncRef.current = false;
                     onEnterScheduleSyncRef.current();
                 }
                 return;
             }
             syncWorkspaceUrl({ phase: p });
             if (enteringSchedule && scheduleCalendar?.connected) {
+                pendingScheduleSyncRef.current = false;
                 onEnterScheduleSyncRef.current();
             }
         },
@@ -1605,6 +1621,13 @@ _id.toString(), { tasks });
         void handleScheduleSync();
     };
 
+    useEffect(() => {
+        if (!pendingScheduleSyncRef.current) return;
+        if (ws.phase !== 'Schedule' || !scheduleCalendar?.connected) return;
+        pendingScheduleSyncRef.current = false;
+        void handleScheduleSync();
+    }, [ws.phase, scheduleCalendar?.connected, handleScheduleSync]);
+
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
 
     // Default status for new projects depends on phase
@@ -1705,8 +1728,6 @@ _id.toString(), { tasks });
                             {isSchedulingPhase ? (
                                 <SchedulingHeaderToolbar
                                     calendar={scheduleCalendar}
-                                    syncing={scheduleSyncing}
-                                    onSync={() => void handleScheduleSync()}
                                     onSetAvailability={() => setShowAvailabilityModal(true)}
                                     onDisconnect={
                                         scheduleCalendar?.connected
@@ -1750,8 +1771,6 @@ _id.toString(), { tasks });
                                 {isSchedulingPhase ? (
                                     <SchedulingHeaderToolbar
                                         calendar={scheduleCalendar}
-                                        syncing={scheduleSyncing}
-                                        onSync={() => void handleScheduleSync()}
                                         onSetAvailability={() => setShowAvailabilityModal(true)}
                                         onDisconnect={
                                             scheduleCalendar?.connected
@@ -1764,6 +1783,8 @@ _id.toString(), { tasks });
                                         calendar={scheduleCalendar}
                                         syncing={scheduleSyncing}
                                         onSync={() => void handleScheduleSync()}
+                                        flashMessage={scheduleCalendarMessage}
+                                        onDismissFlash={() => setScheduleCalendarMessage(null)}
                                     />
                                 ) : null}
                                 {isPlatformAdmin ? (
@@ -1826,14 +1847,20 @@ _id.toString(), { tasks });
                                             Platform guide
                                         </button>
                                     ) : null}
-                                    <div data-tour="lens-toggles" className="flex flex-wrap items-center gap-4">
+                                    <div data-tour="lens-toggles" className="flex flex-nowrap items-center gap-4 shrink-0">
                                     {ws.lens !== 'agenda' ? (
                                         <>
-                                            <Toggle label="Show Tasks" checked={ws.showTasks} onChange={ws.setShowTasks} />
+                                            <Toggle
+                                                label="Show Tasks"
+                                                checked={ws.showTasks}
+                                                onChange={ws.setShowTasks}
+                                                className="shrink-0 whitespace-nowrap"
+                                            />
                                             <Toggle
                                                 label="Show Content"
                                                 checked={ws.showContent}
                                                 onChange={ws.setShowContent}
+                                                className="shrink-0 whitespace-nowrap"
                                             />
                                         </>
                                     ) : null}
@@ -1842,12 +1869,14 @@ _id.toString(), { tasks });
                                             label="Show Meetings"
                                             checked={ws.showMeetings}
                                             onChange={ws.setShowMeetings}
+                                            className="shrink-0 whitespace-nowrap"
                                         />
                                     ) : null}
                                     {ws.lens !== 'clients' ? (
                                         <WorkspaceTeamFilter
                                             value={ws.teamFilter}
                                             onChange={ws.setTeamFilter}
+                                            className="w-auto shrink-0 min-w-[9rem]"
                                         />
                                     ) : null}
                                     </div>
@@ -1880,6 +1909,9 @@ _id.toString(), { tasks });
                                             onRefreshMeetings={() => void refetchMeetings()}
                                             schedulingTimeZone={schedulingAvailability.timezone}
                                             teamFilter={ws.teamFilter}
+                                            calendar={scheduleCalendar}
+                                            syncing={scheduleSyncing}
+                                            onSync={() => void handleScheduleSync()}
                                             externalMessage={scheduleHeaderMessage}
                                             onClearExternalMessage={() => {
                                                 setSchedulePanelMessage(null);

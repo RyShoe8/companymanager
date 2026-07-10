@@ -13,6 +13,7 @@ import {
   ensureMeetingSyncHorizon,
   listMeetingsForUserInRange,
   syncMeetingsForUser,
+  syncUserMeetingsWithHorizon,
 } from '@/lib/scheduling/syncUserMeetings';
 
 export async function GET(request: NextRequest) {
@@ -36,14 +37,7 @@ export async function GET(request: NextRequest) {
     const startParam = searchParams.get('start');
     const endParam = searchParams.get('end');
 
-    if (mode === 'range' && startParam && endParam) {
-      const start = new Date(startParam);
-      const end = new Date(endParam);
-      const result = await syncMeetingsForUser(session.userId, start, end);
-      if (result.error) {
-        const status = result.error === 'Calendar not connected' ? 400 : 404;
-        return NextResponse.json({ error: result.error }, { status });
-      }
+    const recordSuccessfulSync = async () => {
       const updatedTimestamps = recordMeetingSync(syncTimestamps);
       await UserCalendarConnection.updateOne(
         { userId: session.userId },
@@ -54,11 +48,45 @@ export async function GET(request: NextRequest) {
           },
         }
       );
+    };
+
+    if (mode === 'range' && startParam && endParam) {
+      const start = new Date(startParam);
+      const end = new Date(endParam);
+      const result = await syncMeetingsForUser(session.userId, start, end);
+      if (result.error) {
+        const status = result.error === 'Calendar not connected' ? 400 : 404;
+        return NextResponse.json({ error: result.error }, { status });
+      }
+      await recordSuccessfulSync();
       const meetings = await listMeetingsForUserInRange(session.userId, start, end);
       return NextResponse.json({
         imported: result.imported,
         updated: result.updated,
         removed: result.removed,
+        meetings,
+      });
+    }
+
+    if (mode === 'ensureHorizon' && startParam && endParam) {
+      const viewStart = new Date(startParam);
+      const viewEnd = new Date(endParam);
+      const result = await syncUserMeetingsWithHorizon(session.userId, {
+        start: viewStart,
+        end: viewEnd,
+      });
+      if (result.error) {
+        const status = result.error === 'Calendar not connected' ? 400 : 404;
+        return NextResponse.json({ error: result.error }, { status });
+      }
+      await recordSuccessfulSync();
+      const meetings = await listMeetingsForUserInRange(session.userId, viewStart, viewEnd);
+      return NextResponse.json({
+        imported: result.imported,
+        updated: result.updated,
+        removed: result.removed,
+        chunksSynced: result.chunksSynced,
+        syncHorizonEnd: result.syncHorizonEnd,
         meetings,
       });
     }
@@ -70,16 +98,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status });
     }
 
-    const updatedTimestamps = recordMeetingSync(syncTimestamps);
-    await UserCalendarConnection.updateOne(
-      { userId: session.userId },
-      {
-        $set: {
-          recentMeetingSyncAts: syncTimestampsToDates(updatedTimestamps),
-          syncedAt: new Date(),
-        },
-      }
-    );
+    await recordSuccessfulSync();
 
     const listStart = startParam ? new Date(startParam) : new Date();
     const listEnd = endParam ? new Date(endParam) : viewEnd ?? listStart;

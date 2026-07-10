@@ -8,6 +8,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import CreateMeetingModal, { type MeetingCreateSuccessInfo } from '@/components/scheduling/CreateMeetingModal';
 import MeetingFormModal, { type MeetingFormMeeting } from '@/components/scheduling/MeetingFormModal';
 import MeetingsCalendarView from '@/components/scheduling/MeetingsCalendarView';
+import SchedulingStatusBar from '@/components/scheduling/SchedulingStatusBar';
 import type { MeetingRow } from '@/components/scheduling/MeetingAgendaRow';
 import { MEETING_POPUP_BLOCKED_MESSAGE } from '@/lib/scheduling/openMeetingPopout';
 import Modal from '@/components/ui/Modal';
@@ -19,6 +20,8 @@ import {
   appendMeetingNotesMessage,
   parseMeetingNotesFeedback,
 } from '@/lib/scheduling/meetingNotesFeedback';
+import type { CalendarStatus } from '@/hooks/scheduling/useSchedulingCalendar';
+
 interface SchedulingPanelProps {
   projects: IProject[];
   clients: IClient[];
@@ -35,6 +38,9 @@ interface SchedulingPanelProps {
   onRefreshMeetings: () => void;
   schedulingTimeZone: string;
   teamFilter?: string;
+  calendar?: CalendarStatus | null;
+  syncing?: boolean;
+  onSync?: () => void;
   externalMessage?: string | null;
   onClearExternalMessage?: () => void;
   onSetMessage?: (message: string) => void;
@@ -73,6 +79,9 @@ export default function SchedulingPanel({
   onRefreshMeetings,
   schedulingTimeZone,
   teamFilter = 'All Teams',
+  calendar = null,
+  syncing = false,
+  onSync,
   externalMessage,
   onClearExternalMessage,
   onSetMessage,
@@ -207,22 +216,16 @@ export default function SchedulingPanel({
 
   return (
     <div className="space-y-4">
-      {displayMessage && (
-        <div className="rounded-lg border border-border bg-background-card px-4 py-2 text-sm text-text-primary flex items-center justify-between gap-2">
-          <span>{displayMessage}</span>
-          <button
-            type="button"
-            className="text-text-muted hover:text-text-primary text-xs shrink-0"
-            onClick={() => {
-              setMessage(null);
-              onClearExternalMessage?.();
-            }}
-            aria-label="Dismiss message"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+      <SchedulingStatusBar
+        calendar={calendar}
+        syncing={syncing}
+        onSync={() => onSync?.()}
+        flashMessage={displayMessage}
+        onDismissFlash={() => {
+          setMessage(null);
+          onClearExternalMessage?.();
+        }}
+      />
 
       <CreateMeetingModal
         isOpen={showMeetingModal}
