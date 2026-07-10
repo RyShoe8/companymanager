@@ -63,7 +63,7 @@ export default function WorkspaceViewOptions({
       {lens !== 'clients' ? (
         <div className="flex flex-col gap-1">
           <span className="text-sm text-text-secondary">Team filter</span>
-          <WorkspaceTeamFilter value={teamFilter} onChange={onTeamFilterChange} />
+          <WorkspaceTeamFilter value={teamFilter} onChange={onTeamFilterChange} className="w-full" />
         </div>
       ) : null}
     </>

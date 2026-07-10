@@ -1836,7 +1836,7 @@ _id.toString(), { tasks });
                                 }
                             />
                             {(ws.lens === 'schedule' || ws.lens === 'agenda' || ws.lens === 'clients') ? (
-                                <WorkspaceLensToolbar className="ml-auto">
+                                <WorkspaceLensToolbar className="ml-auto min-w-0 max-w-full">
                                     {platformGuide?.showRestartGuide ? (
                                         <button
                                             type="button"
@@ -1847,7 +1847,7 @@ _id.toString(), { tasks });
                                             Platform guide
                                         </button>
                                     ) : null}
-                                    <div data-tour="lens-toggles" className="flex flex-nowrap items-center gap-4 shrink-0">
+                                    <div data-tour="lens-toggles" className="flex flex-nowrap items-center gap-3 sm:gap-4 min-w-0 max-w-full">
                                     {ws.lens !== 'agenda' ? (
                                         <>
                                             <Toggle
@@ -1876,7 +1876,7 @@ _id.toString(), { tasks });
                                         <WorkspaceTeamFilter
                                             value={ws.teamFilter}
                                             onChange={ws.setTeamFilter}
-                                            className="w-auto shrink-0 min-w-[9rem]"
+                                            className="w-auto max-w-[9.5rem] min-w-0 shrink"
                                         />
                                     ) : null}
                                     </div>
