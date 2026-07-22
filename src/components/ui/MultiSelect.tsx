@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+import { toggleMultiSelectValue } from '@/lib/utils/multiSelectValue';
 
 interface MultiSelectProps {
   label?: string;
@@ -38,6 +39,8 @@ export default function MultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
     setMounted(true);
@@ -97,11 +100,9 @@ export default function MultiSelect({
   const toggleOption = (optionValue: string) => {
     if (disabled) return;
 
-    if (value.includes(optionValue)) {
-      onChange(value.filter((v) => v !== optionValue));
-    } else {
-      onChange([...value, optionValue]);
-    }
+    const next = toggleMultiSelectValue(valueRef.current, optionValue);
+    valueRef.current = next;
+    onChange(next);
   };
 
   const selectedLabels = options

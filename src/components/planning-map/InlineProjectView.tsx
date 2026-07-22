@@ -7,6 +7,7 @@ import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, type ContentStatus } from '@/lib/models/ContentItem';
 import EditableText from '@/components/ui/EditableText';
 import { taskIdString } from '@/lib/projects/taskArrayGuards';
+import { mergeTasksPreservingReferences } from '@/lib/projects/taskMerge';
 import { canDeleteTask } from '@/lib/projects/taskDeleteAuth';
 import { canDeleteContentItem } from '@/lib/content/contentDeleteAuth';
 import EditableDate from '@/components/ui/EditableDate';
@@ -105,37 +106,6 @@ import {
   readObservedItemsForUser,
   type ItemSeenStatus,
 } from '@/lib/workspace/itemSeenState';
-
-function tasksSemanticallyEqual(a: IProjectTask, b: IProjectTask): boolean {
-  return (
-    a.name === b.name &&
-    a.description === b.description &&
-    a.status === b.status &&
-    String(a.estimatedHours ?? '') === String(b.estimatedHours ?? '') &&
-    String(a.startDate ?? '') === String(b.startDate ?? '') &&
-    String(a.endDate ?? '') === String(b.endDate ?? '')
-  );
-}
-
-function mergeTasksPreservingReferences(
-  prev: IProjectTask[] | undefined,
-  server: IProjectTask[]
-): IProjectTask[] {
-  const prevTasks = prev ?? [];
-  if (prevTasks.length !== server.length) return server;
-  return server.map((serverTask, i) => {
-    const prevTask = prevTasks[i];
-    if (!prevTask) return serverTask;
-    const prevId = taskIdString(prevTask);
-    const serverId = taskIdString(serverTask);
-    const sameSlot =
-      (prevId && serverId && prevId === serverId) || (!prevId && !serverId);
-    if (sameSlot && tasksSemanticallyEqual(prevTask, serverTask)) {
-      return prevTask;
-    }
-    return serverTask;
-  });
-}
 
 interface InlineProjectViewProps {
   project: IProject;
@@ -1729,7 +1699,8 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       return;
     }
 
-    const updatedTasks = [...(localProject.tasks || [])];
+    const proj = localProjectRef.current;
+    const updatedTasks = [...(proj.tasks || [])];
     const previousStatus = updatedTasks[taskIndex]?.status;
     const updatedTask = {
       ...updatedTasks[taskIndex],
@@ -1752,9 +1723,12 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
 
     updatedTasks[taskIndex] = updatedTask;
-    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(getProjectTeamForTasks(localProject), updatedTasks);
+    const { tasks: tasksToSave } = sanitizeTaskAssigneesForProjectTeam(
+      getProjectTeamForTasks(proj),
+      updatedTasks
+    );
     setLocalProject((prev) => ({ ...prev, tasks: tasksToSave } as IProject));
-    bumpWorkspaceRecency({ ...localProjectRef.current, tasks: tasksToSave } as IProject);
+    bumpWorkspaceRecency({ ...proj, tasks: tasksToSave } as IProject);
     const onSuccess =
       field === 'status' && previousStatus !== 'completed' && value === 'completed'
         ? async () => {
