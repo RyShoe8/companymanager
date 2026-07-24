@@ -1,4 +1,4 @@
-import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
+import type { PendingAssetPayload } from '@/components/checklist/categoryModalTypes';
 
 async function createLinkedAsset(payload: PendingAssetPayload): Promise<boolean> {
   const res = await fetch('/api/assets', {

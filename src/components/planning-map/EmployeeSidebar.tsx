@@ -102,16 +102,8 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     });
   }, []);
 
-  if (employees.length === 0) {
-    return (
-      <div className="text-center py-8 text-text-muted">
-        <p className="mb-2">No employees added yet</p>
-        <p className="text-sm">Add employees to track their workload</p>
-      </div>
-    );
-  }
-
   // Filter employees based on role - memoized to recalculate when role or employee list changes
+  // Hooks must run unconditionally (no early return above this).
   const visibleEmployees = useMemo(() => {
     // Filter to only employees with userId (registered users)
     const employeesWithUserId = employees.filter(employee => employee.userId != null);
@@ -182,6 +174,15 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
     : 0;
 
   const utilizationCardSurface = 'p-4 bg-background-elevated border-border';
+
+  if (employees.length === 0) {
+    return (
+      <div className="text-center py-8 text-text-muted">
+        <p className="mb-2">No employees added yet</p>
+        <p className="text-sm">Add employees to track their workload</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4" data-tour="employee-sidebar">

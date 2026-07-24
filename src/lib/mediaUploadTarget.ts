@@ -1,6 +1,6 @@
 /** Shared target for screenshot and recording uploads linked to workspace entities. */
 export type MediaUploadTarget = {
-  entityType: 'project' | 'projectTask' | 'contentItem';
+  entityType: 'project' | 'projectTask' | 'contentItem' | 'client';
   entityId: string;
   taskId?: string;
   taskIndex?: number;
@@ -24,5 +24,6 @@ export function mediaTargetToRecordingFields(target: MediaUploadTarget | null): 
   if (target.entityType === 'contentItem') {
     return { contentItemId: target.entityId };
   }
+  // Recordings have no clientId field — leave unlinked rather than mis-label as a project.
   return {};
 }

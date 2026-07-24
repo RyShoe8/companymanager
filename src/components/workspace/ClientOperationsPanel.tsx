@@ -16,7 +16,7 @@ import ProjectTechStackBar from '@/components/projects/ProjectTechStackBar';
 import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStackBar';
 import ProjectCustomPlatformStacks from '@/components/projects/ProjectCustomPlatformStacks';
 import AddButton from '@/components/checklist/AddButton';
-import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
+import type { AddSmartButtonPayload } from '@/components/checklist/categoryModalTypes';
 import { useOnGoogleAssetCreated } from '@/hooks/google/useGoogleWorkspaceResume';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 import { parseSocialLinkInput } from '@/lib/utils/socialUrls';

@@ -1,7 +1,7 @@
 import type { IAsset } from '@/lib/models/Asset';
 
 export type ScreenshotUploadTarget = {
-  entityType: 'project' | 'projectTask' | 'contentItem';
+  entityType: 'project' | 'projectTask' | 'contentItem' | 'client';
   entityId: string;
   taskId?: string;
   taskIndex?: number;
@@ -20,6 +20,8 @@ function appendTargetToFormData(formData: FormData, target: ScreenshotUploadTarg
     }
   } else if (target.entityType === 'contentItem') {
     formData.append('linkedContentItemId', target.entityId);
+  } else if (target.entityType === 'client') {
+    formData.append('linkedClientId', target.entityId);
   }
 }
 

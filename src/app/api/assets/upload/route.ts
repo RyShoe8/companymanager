@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     let category = formData.get('category') as string | null;
     const tags = formData.get('tags') as string | null;
     const linkedProjectId = formData.get('linkedProjectId') as string | null;
+    const linkedClientId = formData.get('linkedClientId') as string | null;
     const linkedProjectTaskIndex = formData.get('linkedProjectTaskIndex') as string | null;
     const linkedProjectTaskId = formData.get('linkedProjectTaskId') as string | null;
     const linkedContentItemId = formData.get('linkedContentItemId') as string | null;
@@ -80,6 +81,9 @@ export async function POST(request: NextRequest) {
     if (linkedProjectId && !isValidObjectId(linkedProjectId)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
     }
+    if (linkedClientId && !isValidObjectId(linkedClientId)) {
+      return NextResponse.json({ error: 'Invalid client ID' }, { status: 400 });
+    }
     if (linkedContentItemId && !isValidObjectId(linkedContentItemId)) {
       return NextResponse.json({ error: 'Invalid content item ID' }, { status: 400 });
     }
@@ -113,6 +117,7 @@ export async function POST(request: NextRequest) {
       ctx,
       {
         linkedProjectId: linkedProjectId || undefined,
+        linkedClientId: linkedClientId || undefined,
         linkedProjectTaskId: linkedTaskId,
         linkedProjectTaskIndex: taskIndex,
         linkedContentItemId: linkedContentItemId || undefined,
@@ -179,6 +184,9 @@ export async function POST(request: NextRequest) {
 
     if (linkedProjectId) {
       assetData.linkedProjectId = linkedProjectId;
+    }
+    if (linkedClientId) {
+      assetData.linkedClientId = linkedClientId;
     }
     if (linkedTaskId) {
       assetData.linkedProjectTaskId = linkedTaskId;

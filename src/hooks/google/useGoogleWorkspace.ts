@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { AssetLinkContext } from '@/components/checklist/CategoryModal';
+import type { AssetLinkContext } from '@/components/checklist/categoryModalTypes';
 import {
   buildGoogleConnectUrl,
   clearGoogleWorkspacePendingAction,

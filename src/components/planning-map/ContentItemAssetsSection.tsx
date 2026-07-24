@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { IProject } from '@/lib/models/Project';
 import AddButton from '@/components/checklist/AddButton';
-import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
+import type { PendingAssetPayload } from '@/components/checklist/categoryModalTypes';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';

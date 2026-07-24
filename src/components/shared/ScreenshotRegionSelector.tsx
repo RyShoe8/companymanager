@@ -79,13 +79,17 @@ export default function ScreenshotRegionSelector({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onCancel();
+        return;
+      }
       if (e.key === 'Enter' && sourceRect && isValidCropRect(sourceRect)) {
         onConfirm(sourceRect);
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [onCancel, onConfirm, sourceRect]);
 
   const updateSelectionFromPointer = useCallback((clientX: number, clientY: number) => {

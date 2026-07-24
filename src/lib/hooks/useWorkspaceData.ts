@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { IProject } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
@@ -118,6 +118,7 @@ export default function useWorkspaceData(
     const [currentUserEmployeeName, setCurrentUserEmployeeName] = useState<string | null>(null);
     const [currentUserEmployeeId, setCurrentUserEmployeeId] = useState<string | null>(null);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const loadGenerationRef = useRef(0);
 
     const fetchContentItems = useCallback(async () => {
         try {
@@ -136,6 +137,7 @@ export default function useWorkspaceData(
     }, []);
 
     const loadData = useCallback(async (options?: { silent?: boolean }) => {
+        const generation = ++loadGenerationRef.current;
         if (!options?.silent) {
             setLoading(true);
         }
@@ -148,6 +150,8 @@ export default function useWorkspaceData(
                 fetch('/api/content-items'),
             ]);
 
+            if (generation !== loadGenerationRef.current) return;
+
             if (projectsRes.status === 401 || employeesRes.status === 401) {
                 router.push('/login');
                 return;
@@ -157,6 +161,8 @@ export default function useWorkspaceData(
             const clientsData = clientsRes.ok ? await clientsRes.json() : [];
             const employeesData = await employeesRes.json();
             const contentData = contentRes.ok ? await contentRes.json() : [];
+
+            if (generation !== loadGenerationRef.current) return;
 
             // Get current user's role and employee info
             try {
@@ -192,6 +198,8 @@ export default function useWorkspaceData(
                 // Error loading current user
             }
 
+            if (generation !== loadGenerationRef.current) return;
+
             setAllProjects((prev) =>
                 mergeProjectsPreservingRecency(prev, projectsData, {
                     contentByProjectId: buildContentItemsByProjectId(
@@ -208,7 +216,7 @@ export default function useWorkspaceData(
         } catch {
             // Error loading data
         } finally {
-            if (!options?.silent) {
+            if (generation === loadGenerationRef.current && !options?.silent) {
                 setLoading(false);
             }
         }

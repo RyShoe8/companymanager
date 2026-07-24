@@ -276,10 +276,14 @@ export function useCalendarActivityTracking({
     if (toExpand.length > 0) {
       setExpandedProjects((prevSet) => {
         const updated = new Set(prevSet);
+        let changed = false;
         for (const id of toExpand) {
-          updated.add(id);
+          if (!updated.has(id)) {
+            updated.add(id);
+            changed = true;
+          }
         }
-        return updated;
+        return changed ? updated : prevSet;
       });
     }
   }, [projects, contentItems, projectLatestComments, getLatestActivityMs]);
@@ -313,10 +317,14 @@ export function useCalendarActivityTracking({
     if (toExpand.length > 0) {
       setExpandedProjects((prevSet) => {
         const updated = new Set(prevSet);
+        let changed = false;
         for (const id of toExpand) {
-          updated.add(id);
+          if (!updated.has(id)) {
+            updated.add(id);
+            changed = true;
+          }
         }
-        return updated;
+        return changed ? updated : prevSet;
       });
     }
   }, [projects, currentUserId, itemStatusByKey, countProjectUnseen]);

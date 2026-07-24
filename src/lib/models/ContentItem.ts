@@ -1,9 +1,10 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
+import type { DistributionMethod } from '@/lib/constants/contentDistribution';
 
 export type ContentChannel = 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Email' | 'Article' | 'Video' | 'Reddit' | 'Bluesky' | 'Other';
 export type ContentStatus = 'idea' | 'planned' | 'in_progress' | 'ready' | 'published';
-export type DistributionMethod = 'X' | 'LinkedIn' | 'Instagram' | 'TikTok' | 'Reddit' | 'Bluesky' | 'Email' | 'Facebook' | 'YouTube';
+export type { DistributionMethod };
 
 export interface IContentItem extends Document {
   projectId: Types.ObjectId;

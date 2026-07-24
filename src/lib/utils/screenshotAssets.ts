@@ -1,5 +1,5 @@
 export function screenshotAssetsUrl(params: {
-  entityType: 'project' | 'projectTask' | 'contentItem';
+  entityType: 'project' | 'projectTask' | 'contentItem' | 'client';
   entityId: string;
   taskId?: string;
   taskIndex?: number;
@@ -16,6 +16,8 @@ export function screenshotAssetsUrl(params: {
     url += `&linkedProjectId=${params.entityId}`;
   } else if (params.entityType === 'contentItem') {
     url += `&linkedContentItemId=${params.entityId}`;
+  } else if (params.entityType === 'client') {
+    url += `&linkedClientId=${encodeURIComponent(params.entityId)}`;
   }
   return url;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   MeetingDetailAsset,
   MeetingDetailPayload,
@@ -47,13 +47,16 @@ export function useMeetingDetailData(token: string, popout: boolean) {
   const [contentDrafts, setContentDrafts] = useState<Record<string, string>>({});
   const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
   const [assetPopupMessage, setAssetPopupMessage] = useState<string | null>(null);
+  const loadGenerationRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!token) return;
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
     try {
       const res = await fetch(`/api/scheduling/agenda/${token}`);
       const json = await res.json();
+      if (generation !== loadGenerationRef.current) return;
       if (!res.ok) {
         setError(json.error || 'Failed to load meeting');
         setData(null);
@@ -65,9 +68,12 @@ export function useMeetingDetailData(token: string, popout: boolean) {
         }
       }
     } catch {
+      if (generation !== loadGenerationRef.current) return;
       setError('Failed to load meeting');
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [token, popout]);
 

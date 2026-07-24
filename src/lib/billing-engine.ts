@@ -9,13 +9,9 @@ import { NUCLEAS_PLAN_CARD_BULLETS } from '@/lib/marketing/planCardBullets';
 import { sendEmail } from '@/lib/services/email';
 import { buildBillingNotificationEmail } from '@/lib/billing/billingEmailTemplates';
 import { getBillingSession, requirePlatformAdminApi } from '@/lib/billing/sessionAdapter';
+import { getAppBaseUrl } from '@/lib/utils/appBaseUrl';
 
 const NUCLEAS_PLAN_FEATURE_BULLETS = NUCLEAS_PLAN_CARD_BULLETS;
-
-function getAppBaseUrl(): string {
-  const fromEnv = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? '').trim();
-  return fromEnv.replace(/\/$/, '') || 'http://localhost:3000';
-}
 
 export const billing = createBillingEngine({
   connect: async () => {

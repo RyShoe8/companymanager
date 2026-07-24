@@ -51,11 +51,14 @@ export default function ScreenshotSaveDialog({
     if (!isOpen) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !saving) onCancel();
+      if (e.key === 'Escape' && !saving) {
+        e.stopImmediatePropagation();
+        onCancel();
+      }
     };
 
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isOpen, onCancel, saving]);
 
   const selectedProject = useMemo(

@@ -7,7 +7,7 @@ import type {
   AddSmartButtonPayload,
   AssetLinkContext,
   PendingAssetPayload,
-} from '@/components/checklist/CategoryModal';
+} from '@/components/checklist/categoryModalTypes';
 
 export type AddStep =
   | 'type'
@@ -83,7 +83,7 @@ export function useCategoryModalState({
   const defaultMediaTarget: MediaUploadTarget | null = effectiveProjectId
     ? { entityType: 'project', entityId: effectiveProjectId }
     : effectiveClientId
-      ? { entityType: 'project', entityId: effectiveClientId }
+      ? { entityType: 'client', entityId: effectiveClientId }
       : null;
 
   const screenshotTarget = useMemo<MediaUploadTarget | null>(() => {
@@ -112,7 +112,7 @@ export function useCategoryModalState({
     }
     const cid = linkContext?.linkedClientId ?? clientId;
     if (cid) {
-      return { entityType: 'project', entityId: cid };
+      return { entityType: 'client', entityId: cid };
     }
     return null;
   }, [linkContext, projectId, clientId]);
@@ -181,7 +181,10 @@ export function useCategoryModalState({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onClose();
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

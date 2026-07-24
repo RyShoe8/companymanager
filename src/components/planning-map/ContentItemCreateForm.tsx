@@ -9,7 +9,7 @@ import Button from '@/components/ui/Button';
 import ContentTargetingSection, { parseKeywordsInput } from '@/components/planning-map/ContentTargetingSection';
 import ContentItemFormFields, { ContentFormErrorMessage } from '@/components/planning-map/ContentItemFormFields';
 import ContentItemAssetsSection from '@/components/planning-map/ContentItemAssetsSection';
-import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
+import type { PendingAssetPayload } from '@/components/checklist/categoryModalTypes';
 import { filterEmployeesForTaskAssignment } from '@/lib/utils/projectTeam';
 import { createPendingAssets } from '@/lib/utils/linkedAssets';
 import { fetchEstimatedHours } from '@/lib/ai/clientEstimateHours';

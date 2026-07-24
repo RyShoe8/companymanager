@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import Button from '@/components/ui/Button';
 import type { ControlSurface } from '@/lib/ui/surfaceStyles';
 import { WORKSPACE_TOOLBAR_BUTTON_CLASS } from '@/lib/ui/surfaceStyles';
-import CategoryModal, {
-  type AddSmartButtonPayload,
-  type AssetLinkContext,
-  type PendingAssetPayload,
-} from './CategoryModal';
+import CategoryModal from './CategoryModal';
+import type {
+  AddSmartButtonPayload,
+  AssetLinkContext,
+  PendingAssetPayload,
+} from './categoryModalTypes';
 interface AddButtonProps {
   projectId?: string;
   clientId?: string;

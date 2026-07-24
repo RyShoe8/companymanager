@@ -18,6 +18,9 @@ import MultiLinkTargetPicker from '@/components/workspace/MultiLinkTargetPicker'
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import type { MeetingNotesFeedback } from '@/lib/scheduling/meetingNotesFeedback';
 import { parseMeetingNotesFeedback } from '@/lib/scheduling/meetingNotesFeedback';
+import type { MeetingUpdateScope } from '@/lib/scheduling/meetingCrud';
+
+export type { MeetingUpdateScope };
 
 export type MeetingCreateSuccessInfo = {
   invitesSent?: number;
@@ -38,8 +41,6 @@ export type MeetingFormMeeting = {
   joinPlatform?: MeetingJoinPlatform;
   description?: string;
 };
-
-export type MeetingUpdateScope = 'instance' | 'series';
 
 interface MeetingFormModalProps {
   mode: 'create' | 'edit';

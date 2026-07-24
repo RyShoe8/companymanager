@@ -5,7 +5,7 @@ import { IComment } from '@/lib/models/Comment';
 import Button from '@/components/ui/Button';
 import EditableText from '@/components/ui/EditableText';
 import AddButton from '@/components/checklist/AddButton';
-import type { AssetLinkContext } from '@/components/checklist/CategoryModal';
+import type { AssetLinkContext } from '@/components/checklist/categoryModalTypes';
 import ScreenshotGallery from '@/components/shared/ScreenshotGallery';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import { getCommentTreeMeta } from '@/lib/comments/commentUtils';

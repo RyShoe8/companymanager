@@ -97,6 +97,8 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
     const endOfUtteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastFinalSegmentRef = useRef<string>('');
     const lastInterimRef = useRef<string>('');
+    const stateRef = useRef<VoiceState>(state);
+    const startListeningRef = useRef<() => void>(() => {});
     const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
     const [isWakeArmed, setIsWakeArmed] = useState(false);
     const [wakeDetections, setWakeDetections] = useState(0);
@@ -117,6 +119,10 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
         const raw = window.localStorage.getItem('voiceWakeWordEnabled');
         setWakeWordEnabled(raw === '1');
     }, []);
+
+    useEffect(() => {
+        stateRef.current = state;
+    }, [state]);
 
     const toggleWakeWord = useCallback(() => {
         setWakeWordEnabled((prev) => {
@@ -345,7 +351,7 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
                 const hasTranscript = accumulatedTranscriptRef.current.trim() || lastInterimRef.current.trim();
                 if (hasTranscript) {
                     flushAndProcess();
-                } else if (state === 'listening') {
+                } else if (stateRef.current === 'listening') {
                     setState('idle');
                 }
             };
@@ -356,7 +362,11 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             setError('Web Speech API not available. Server STT fallback not yet configured.');
             clearMessages();
         }
-    }, [enabled, flushAndProcess, state, clearMessages, intentCtx, resetVoiceChrome]);
+    }, [enabled, flushAndProcess, clearMessages, intentCtx, resetVoiceChrome]);
+
+    useEffect(() => {
+        startListeningRef.current = startListening;
+    }, [startListening]);
 
     const stopListening = useCallback(() => {
         if (endOfUtteranceTimerRef.current) {
@@ -370,11 +380,11 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             } catch (_) {}
             recognitionRef.current = null;
         }
-        if (state === 'listening') {
+        if (stateRef.current === 'listening') {
             setState('idle');
         }
         setTranscript('');
-    }, [state]);
+    }, []);
 
     useEffect(() => {
         if (!enabled || !wakeWordEnabled || state !== 'idle' || !isWebSpeechAvailable()) {
@@ -428,7 +438,7 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             wakeRecognitionRef.current = null;
             setIsWakeArmed(false);
             setWakeActivations((v) => v + 1);
-            startListening();
+            startListeningRef.current();
         };
 
         wake.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -453,7 +463,7 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             }
             setIsWakeArmed(false);
         };
-    }, [enabled, wakeWordEnabled, state, startListening]);
+    }, [enabled, wakeWordEnabled, state]);
 
     const confirmAction = useCallback(async () => {
         const r = await intentCtx.confirm();

@@ -34,7 +34,7 @@ import CollapsibleInspectorSection from '@/components/ui/CollapsibleInspectorSec
 import { formInputClassInspector } from '@/components/ui/formClasses';
 import { IClient } from '@/lib/models/Client';
 import AddButton from '@/components/checklist/AddButton';
-import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal';
+import type { AddSmartButtonPayload } from '@/components/checklist/categoryModalTypes';
 import { useOnGoogleAssetCreated } from '@/hooks/google/useGoogleWorkspaceResume';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
