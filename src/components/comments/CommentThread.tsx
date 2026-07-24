@@ -125,10 +125,23 @@ export default function CommentThread({
 
   useEffect(() => {
     if (!pollIntervalMs || pollIntervalMs < 1000) return;
-    const id = setInterval(() => {
+
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       loadComments();
-    }, pollIntervalMs);
-    return () => clearInterval(id);
+    };
+
+    const id = setInterval(tick, pollIntervalMs);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadComments();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [pollIntervalMs, loadComments]);
 
   const postComment = useCallback(

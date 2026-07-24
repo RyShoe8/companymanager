@@ -22,6 +22,30 @@ function toMs(d: Date | string | undefined): number {
     return Number.isNaN(t) ? 0 : t;
 }
 
+/** Cheap fingerprint so silent reloads can keep previous array refs when data is unchanged. */
+function entityListFingerprint(
+    items: Array<{ _id?: { toString(): string } | string; updatedAt?: Date | string }>
+): string {
+    if (!Array.isArray(items) || items.length === 0) return '0';
+    let maxUpdated = 0;
+    const ids: string[] = [];
+    for (const item of items) {
+        const id =
+            typeof item._id === 'string' ? item._id : item._id?.toString?.() ?? '';
+        ids.push(id);
+        const u = toMs(item.updatedAt);
+        if (u > maxUpdated) maxUpdated = u;
+    }
+    return `${items.length}:${maxUpdated}:${ids.join(',')}`;
+}
+
+function sameEntityList(
+    prev: Array<{ _id?: { toString(): string } | string; updatedAt?: Date | string }>,
+    next: Array<{ _id?: { toString(): string } | string; updatedAt?: Date | string }>
+): boolean {
+    return entityListFingerprint(prev) === entityListFingerprint(next);
+}
+
 export type LensType = 'schedule' | 'agenda' | 'projects' | 'clients' | 'capacity';
 export type PhaseType = 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule';
 
@@ -200,18 +224,26 @@ export default function useWorkspaceData(
 
             if (generation !== loadGenerationRef.current) return;
 
-            setAllProjects((prev) =>
-                mergeProjectsPreservingRecency(prev, projectsData, {
+            setAllProjects((prev) => {
+                const merged = mergeProjectsPreservingRecency(prev, projectsData, {
                     contentByProjectId: buildContentItemsByProjectId(
                         Array.isArray(contentData) ? contentData : []
                     ),
-                })
+                });
+                return sameEntityList(prev, merged) ? prev : merged;
+            });
+            setClients((prev) =>
+                Array.isArray(clientsData) && sameEntityList(prev, clientsData) ? prev : clientsData
             );
-            setClients(clientsData);
-            setEmployees(employeesData);
+            setEmployees((prev) =>
+                Array.isArray(employeesData) && sameEntityList(prev, employeesData)
+                    ? prev
+                    : employeesData
+            );
 
             if (contentRes.ok) {
-                setContentItems(Array.isArray(contentData) ? contentData : []);
+                const nextContent = Array.isArray(contentData) ? contentData : [];
+                setContentItems((prev) => (sameEntityList(prev, nextContent) ? prev : nextContent));
             }
         } catch {
             // Error loading data
@@ -224,10 +256,23 @@ export default function useWorkspaceData(
 
     const bumpProjectLocalTouch = useCallback((projectId: string, ms?: number) => {
         const touchMs = ms ?? Date.now();
-        setProjectLocalTouchMs((prev) => ({
-            ...prev,
-            [projectId]: Math.max(prev[projectId] ?? 0, touchMs),
-        }));
+        setProjectLocalTouchMs((prev) => {
+            const next = {
+                ...prev,
+                [projectId]: Math.max(prev[projectId] ?? 0, touchMs),
+            };
+            const keys = Object.keys(next);
+            const MAX_TOUCH_KEYS = 200;
+            if (keys.length <= MAX_TOUCH_KEYS) return next;
+            // Drop oldest touches so long sessions don't grow unbounded.
+            keys
+                .sort((a, b) => (next[a] ?? 0) - (next[b] ?? 0))
+                .slice(0, keys.length - MAX_TOUCH_KEYS)
+                .forEach((k) => {
+                    delete next[k];
+                });
+            return next;
+        });
     }, []);
 
     const touchProjectLocalActivity = useCallback(
@@ -428,48 +473,84 @@ export default function useWorkspaceData(
         );
     }, [contentItems, shouldRestrictToMyAssignments, currentUserEmployeeId, currentUserId]);
 
-    return {
-        projects,
-        allProjects,
-        projectsForLens,
-        clients,
-        filteredClients,
-        employees,
-        contentItems,
-        loading,
-        isManagerOrAdmin,
-        currentUserRole,
-        currentUserEmployeeName,
-        currentUserEmployeeId,
-        currentUserId,
-        phase,
-        setPhase,
-        lens,
-        setLens,
-        timeframe,
-        setTimeframe,
-        currentDate,
-        setCurrentDate,
-        showOnlyMyAssignments,
-        setShowOnlyMyAssignments,
-        showTasks,
-        setShowTasks,
-        showContent,
-        setShowContent,
-        showMeetings,
-        setShowMeetings,
-        contentChannelFilter,
-        setContentChannelFilter,
-        teamFilter,
-        setTeamFilter,
-        filteredProjects,
-        filteredProjectsForAgenda,
-        filteredContentItems,
-        loadData,
-        fetchContentItems,
-        removeContentItem,
-        patchProjectInState,
-        touchProjectLocalActivity,
-        projectLocalTouchMs,
-    };
+    return useMemo(
+        () => ({
+            projects,
+            allProjects,
+            projectsForLens,
+            clients,
+            filteredClients,
+            employees,
+            contentItems,
+            loading,
+            isManagerOrAdmin,
+            currentUserRole,
+            currentUserEmployeeName,
+            currentUserEmployeeId,
+            currentUserId,
+            phase,
+            setPhase,
+            lens,
+            setLens,
+            timeframe,
+            setTimeframe,
+            currentDate,
+            setCurrentDate,
+            showOnlyMyAssignments,
+            setShowOnlyMyAssignments,
+            showTasks,
+            setShowTasks,
+            showContent,
+            setShowContent,
+            showMeetings,
+            setShowMeetings,
+            contentChannelFilter,
+            setContentChannelFilter,
+            teamFilter,
+            setTeamFilter,
+            filteredProjects,
+            filteredProjectsForAgenda,
+            filteredContentItems,
+            loadData,
+            fetchContentItems,
+            removeContentItem,
+            patchProjectInState,
+            touchProjectLocalActivity,
+            projectLocalTouchMs,
+        }),
+        [
+            projects,
+            allProjects,
+            projectsForLens,
+            clients,
+            filteredClients,
+            employees,
+            contentItems,
+            loading,
+            isManagerOrAdmin,
+            currentUserRole,
+            currentUserEmployeeName,
+            currentUserEmployeeId,
+            currentUserId,
+            phase,
+            lens,
+            timeframe,
+            currentDate,
+            showOnlyMyAssignments,
+            showTasks,
+            showContent,
+            showMeetings,
+            contentChannelFilter,
+            teamFilter,
+            filteredProjects,
+            filteredProjectsForAgenda,
+            filteredContentItems,
+            loadData,
+            fetchContentItems,
+            removeContentItem,
+            patchProjectInState,
+            touchProjectLocalActivity,
+            projectLocalTouchMs,
+        ]
+    );
 }

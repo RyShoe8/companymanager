@@ -6,7 +6,7 @@ import Link from 'next/link';
 import CommentThread from '@/components/comments/CommentThread';
 import type { MeetingAgendaPayload } from '@/lib/scheduling/buildMeetingAgenda';
 
-const COMMENT_POLL_MS = 15_000;
+const COMMENT_POLL_MS = 60_000;
 
 type AgendaResponse = {
   meeting: {

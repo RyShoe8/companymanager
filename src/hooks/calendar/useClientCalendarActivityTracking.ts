@@ -115,9 +115,11 @@ export function useClientCalendarActivityTracking({
           const saved = localStorage.getItem('calendar-manually-collapsed-clients');
           const manuallyCollapsed = saved ? new Set(JSON.parse(saved) as string[]) : new Set<string>();
           manuallyCollapsed.add(clientId);
+          let ids = Array.from(manuallyCollapsed);
+          if (ids.length > 200) ids = ids.slice(ids.length - 200);
           localStorage.setItem(
             'calendar-manually-collapsed-clients',
-            JSON.stringify(Array.from(manuallyCollapsed))
+            JSON.stringify(ids)
           );
         }
       } else {

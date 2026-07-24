@@ -65,6 +65,7 @@ import { IntentConfirmationProvider } from '@/components/intent/IntentConfirmati
 import { buildWorkspaceIntentContext } from '@/lib/voice/workspaceIntentContext';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
 import { useWorkspaceIntentHandler } from '@/hooks/workspace/useWorkspaceIntentHandler';
+import { usePageActivity } from '@/hooks/usePageActivity';
 import {
   collectWorkspaceItemObservations,
   markProjectItemsSeen,
@@ -102,6 +103,7 @@ export default function WorkspaceShell({
     const router = useRouter();
     const pathname = usePathname();
     const ws = useWorkspaceData(initialPhase, initialLens);
+    const pageActivity = usePageActivity();
 
     // Inspector / form state
     const [showProjectForm, setShowProjectForm] = useState(false);
@@ -172,7 +174,7 @@ export default function WorkspaceShell({
             onTeamFilterChange: ws.setTeamFilter,
             onEmailDigestIntervalChange: setEmailDigestInterval,
         }),
-        [ws]
+        [ws.lens, ws.isManagerOrAdmin, ws.showOnlyMyAssignments, ws.setShowOnlyMyAssignments, ws.showTasks, ws.setShowTasks, ws.showContent, ws.setShowContent, ws.showMeetings, ws.setShowMeetings, ws.teamFilter, ws.setTeamFilter]
     );
 
     const activeViewOptionsCount = useMemo(
@@ -289,7 +291,7 @@ export default function WorkspaceShell({
         if (ws.lens === 'projects') {
             ws.setLens('schedule');
         }
-    }, [ws.lens, ws]);
+    }, [ws.lens, ws.setLens]);
 
     const shouldPollProjectActivity = useMemo(() => {
         const pollablePhase =
@@ -304,6 +306,7 @@ export default function WorkspaceShell({
 
     const workspaceActivityTokenRef = useRef<string | null>(null);
     const refreshProjectActivity = useCallback(async () => {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
         try {
             const res = await fetch('/api/workspace/activity', { cache: 'no-store' });
             if (!res.ok) return;
@@ -332,11 +335,13 @@ export default function WorkspaceShell({
     }, [shouldPollProjectActivity, refreshProjectActivity]);
 
     useEffect(() => {
-        if (!shouldPollProjectActivity) return;
+        if (!shouldPollProjectActivity || !pageActivity.visible) return;
 
-        const intervalId = window.setInterval(refreshProjectActivity, 60_000);
+        // Active: 60s. Idle but visible: 5 min. Hidden: no interval (handled above).
+        const intervalMs = pageActivity.isActive ? 60_000 : 5 * 60_000;
+        const intervalId = window.setInterval(refreshProjectActivity, intervalMs);
         return () => window.clearInterval(intervalId);
-    }, [shouldPollProjectActivity, refreshProjectActivity]);
+    }, [shouldPollProjectActivity, pageActivity.visible, pageActivity.isActive, refreshProjectActivity]);
 
     const syncWorkspaceUrl = useCallback(
         (opts: { phase?: PhaseType; lens?: LensType }) => {

@@ -1,5 +1,7 @@
 const LAST_SEEN_PREFIX = 'nucleas-comment-last-seen:';
 const MANUALLY_COLLAPSED_KEY = 'nucleas-comment-manually-collapsed';
+const MAX_LAST_SEEN_KEYS = 300;
+const MAX_COLLAPSED_KEYS = 200;
 
 export function buildCommentThreadKey(
   userId: string,
@@ -22,9 +24,26 @@ function getCommentLastSeenMs(threadKey: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function pruneCommentLastSeenKeys(): void {
+  if (typeof window === 'undefined') return;
+  const entries: { key: string; ms: number }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith(LAST_SEEN_PREFIX)) continue;
+    const ms = Number(localStorage.getItem(key));
+    entries.push({ key, ms: Number.isFinite(ms) ? ms : 0 });
+  }
+  if (entries.length <= MAX_LAST_SEEN_KEYS) return;
+  entries
+    .sort((a, b) => a.ms - b.ms)
+    .slice(0, entries.length - MAX_LAST_SEEN_KEYS)
+    .forEach(({ key }) => localStorage.removeItem(key));
+}
+
 export function setCommentLastSeenMs(threadKey: string, ms: number): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(lastSeenStorageKey(threadKey), String(ms));
+  pruneCommentLastSeenKeys();
 }
 
 function loadManuallyCollapsed(): Set<string> {
@@ -41,7 +60,11 @@ function loadManuallyCollapsed(): Set<string> {
 
 function saveManuallyCollapsed(collapsed: Set<string>): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(MANUALLY_COLLAPSED_KEY, JSON.stringify(Array.from(collapsed)));
+  let ids = Array.from(collapsed);
+  if (ids.length > MAX_COLLAPSED_KEYS) {
+    ids = ids.slice(ids.length - MAX_COLLAPSED_KEYS);
+  }
+  localStorage.setItem(MANUALLY_COLLAPSED_KEY, JSON.stringify(ids));
 }
 
 function isCommentThreadManuallyCollapsed(threadKey: string): boolean {

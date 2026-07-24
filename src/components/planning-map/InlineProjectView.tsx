@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { usePageActivity } from '@/hooks/usePageActivity';
 import { IProject, IProjectTask, TaskStatus } from '@/lib/models/Project';
 import { IEmployee } from '@/lib/models/Employee';
 import { IContentItem, type ContentStatus } from '@/lib/models/ContentItem';
@@ -276,6 +277,7 @@ function canAddContentToProject(project: IProject, isManagerOrAdmin: boolean, cu
 }
 
 export default function InlineProjectView({ project, employees, isManagerOrAdmin, currentUserEmployeeId, onUpdate, onProjectPatched, onDelete, onClose, onRefresh, clients = [], onContentItemClick, contentRefreshTrigger, onContentListChanged, registerFlushPendingSaves, initialOpenTaskIndex, onInitialOpenTaskConsumed, initialOpenContentId, onInitialOpenContentConsumed, initialAddContentOpen, initialAddContentDate, initialAddContentPrefill, onAddContentOpenConsumed, scrollContainerRef, autoAddTaskOnOpen, onAutoAddTaskConsumed, timeframe = 'weekly', referenceDate, initialTasksExpanded = false, initialContentExpanded = false, itemSeenRefreshTrigger, sectionsOnly }: InlineProjectViewProps) {
+  const pageActivity = usePageActivity();
   const [localProject, setLocalProject] = useState(project);
   const [urlList, setUrlList] = useState<string[]>(() => getPlatformUrlList(project));
   const localProjectRef = useRef(localProject);
@@ -884,10 +886,30 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       });
 
       if (tasksToExpand.size > 0) {
-        setExpandedTaskComments((prev) => new Set([...prev, ...tasksToExpand]));
+        setExpandedTaskComments((prev) => {
+          let changed = false;
+          const next = new Set(prev);
+          for (const idx of tasksToExpand) {
+            if (!next.has(idx)) {
+              next.add(idx);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
       }
       if (contentToExpand.size > 0) {
-        setExpandedContentComments((prev) => new Set([...prev, ...contentToExpand]));
+        setExpandedContentComments((prev) => {
+          let changed = false;
+          const next = new Set(prev);
+          for (const id of contentToExpand) {
+            if (!next.has(id)) {
+              next.add(id);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
       }
     },
     [currentUserId, localProject._id, localProject.tasks, projectContentItems]
@@ -904,7 +926,10 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
         tasks: (data.tasks ?? {}) as Record<string, CommentSummary>,
         contentItems: (data.contentItems ?? {}) as Record<string, CommentSummary>,
       };
-      setCommentSummaries(summaries);
+      setCommentSummaries((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(summaries)) return prev;
+        return summaries;
+      });
       applyAutoExpandFromSummaries(summaries);
     } catch {
       // ignore
@@ -926,13 +951,16 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   }, [fetchCommentSummaries]);
 
   useEffect(() => {
+    if (!pageActivity.visible) return;
+    // Active inspector: 30s. Idle but visible: 60s.
+    const intervalMs = pageActivity.isActive ? 30_000 : 60_000;
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void fetchCommentSummaries();
       }
-    }, 15_000);
+    }, intervalMs);
     return () => window.clearInterval(intervalId);
-  }, [fetchCommentSummaries]);
+  }, [fetchCommentSummaries, pageActivity.visible, pageActivity.isActive]);
 
   useEffect(() => {
     applyAutoExpandFromSummaries(commentSummaries);

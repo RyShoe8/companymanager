@@ -79,16 +79,24 @@ export function useCalendarActivityTracking({
     const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
       openProjectId: inspectorProjectId ?? undefined,
     });
-    setItemActivityByKey(observed.activityByKey);
-    setItemStatusByKey(observed.statusByKey);
+    setItemActivityByKey((prev) =>
+      JSON.stringify(prev) === JSON.stringify(observed.activityByKey) ? prev : observed.activityByKey
+    );
+    setItemStatusByKey((prev) =>
+      JSON.stringify(prev) === JSON.stringify(observed.statusByKey) ? prev : observed.statusByKey
+    );
   }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
 
   useEffect(() => {
     if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
     const keys = workspaceItemEntries.map((entry) => entry.key);
     const observed = readObservedItemsForUser(currentUserId, keys);
-    setItemActivityByKey(observed.activityByKey);
-    setItemStatusByKey(observed.statusByKey);
+    setItemActivityByKey((prev) =>
+      JSON.stringify(prev) === JSON.stringify(observed.activityByKey) ? prev : observed.activityByKey
+    );
+    setItemStatusByKey((prev) =>
+      JSON.stringify(prev) === JSON.stringify(observed.statusByKey) ? prev : observed.statusByKey
+    );
   }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
 
   const taskActivityMs = useCallback(
@@ -360,9 +368,11 @@ export function useCalendarActivityTracking({
         // Track manually collapsed projects
         if (typeof window !== 'undefined') {
           const saved = localStorage.getItem('calendar-manually-collapsed-projects');
-          const manuallyCollapsed = saved ? new Set(JSON.parse(saved)) : new Set<string>();
+          const manuallyCollapsed = saved ? new Set(JSON.parse(saved) as string[]) : new Set<string>();
           manuallyCollapsed.add(projectId);
-          localStorage.setItem('calendar-manually-collapsed-projects', JSON.stringify(Array.from(manuallyCollapsed)));
+          let ids = Array.from(manuallyCollapsed);
+          if (ids.length > 200) ids = ids.slice(ids.length - 200);
+          localStorage.setItem('calendar-manually-collapsed-projects', JSON.stringify(ids));
         }
       } else {
         newSet.add(projectId);
@@ -370,9 +380,12 @@ export function useCalendarActivityTracking({
         if (typeof window !== 'undefined') {
           const saved = localStorage.getItem('calendar-manually-collapsed-projects');
           if (saved) {
-            const manuallyCollapsed = new Set(JSON.parse(saved));
+            const manuallyCollapsed = new Set(JSON.parse(saved) as string[]);
             manuallyCollapsed.delete(projectId);
-            localStorage.setItem('calendar-manually-collapsed-projects', JSON.stringify(Array.from(manuallyCollapsed)));
+            localStorage.setItem(
+              'calendar-manually-collapsed-projects',
+              JSON.stringify(Array.from(manuallyCollapsed))
+            );
           }
         }
       }

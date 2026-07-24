@@ -14,7 +14,7 @@ import { normalizeProjectUrlHref } from '@/lib/utils/projectUrls';
 import { getProjectStatusDisplayLabel } from '@/lib/utils/statusMapping';
 import { useMeetingDetailData } from '@/hooks/scheduling/useMeetingDetailData';
 
-const COMMENT_POLL_MS = 15_000;
+const COMMENT_POLL_MS = 60_000;
 
 interface MeetingDetailViewProps {
   token: string;

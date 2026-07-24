@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect, useMemo } from 'react';
 import { parseIntent, ParsedIntent } from '@/lib/voice/IntentParser';
 import { isWebSpeechAvailable, getVoiceConfig } from '@/lib/voice/voiceConfig';
 import { detectWakeWord } from '@/lib/voice/wakeWordMatcher';
@@ -16,6 +16,7 @@ import { useIntentConfirmation } from '@/components/intent/IntentConfirmationCon
 import type { WorkspaceIntentContextPayload } from '@/lib/voice/workspaceIntentContext';
 import { speakClientTts } from '@/lib/voice/clientTts';
 import { isFeatureEnabled } from '@/lib/utils/featureFlags';
+import { usePageActivity } from '@/hooks/usePageActivity';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'confirming';
 
@@ -83,6 +84,7 @@ interface VoiceProviderProps {
 
 export default function VoiceProvider({ children, getWorkspaceContext, isPlatformAdmin = false }: VoiceProviderProps) {
     const intentCtx = useIntentConfirmation();
+    const pageActivity = usePageActivity();
     const enabled = isFeatureEnabled('voiceEnabled') && isPlatformAdmin;
     const [state, setState] = useState<VoiceState>('idle');
     const [transcript, setTranscript] = useState('');
@@ -387,12 +389,20 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
     }, []);
 
     useEffect(() => {
-        if (!enabled || !wakeWordEnabled || state !== 'idle' || !isWebSpeechAvailable()) {
+        if (
+            !enabled ||
+            !wakeWordEnabled ||
+            state !== 'idle' ||
+            !pageActivity.isActive ||
+            !isWebSpeechAvailable()
+        ) {
             if (wakeRecognitionRef.current) {
                 try {
                     wakeRecognitionRef.current.onend = null;
                     wakeRecognitionRef.current.stop();
-                } catch (_) {}
+                } catch {
+                    // ignore
+                }
                 wakeRecognitionRef.current = null;
             }
             setIsWakeArmed(false);
@@ -402,68 +412,125 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
         const SpeechRecognition = getSpeechRecognitionConstructor();
         if (!SpeechRecognition) return;
 
-        const wake = new SpeechRecognition();
-        wake.continuous = true;
-        wake.interimResults = true;
-        wake.lang = 'en-US';
+        let cancelled = false;
+        let restartTimer: ReturnType<typeof setTimeout> | null = null;
 
-        const wakeWord = (getVoiceConfig().wakeWord || 'nucleas').toLowerCase();
-        const cooldownMs = getVoiceConfig().wakeWordCooldownMs ?? 7000;
-        const aliases = getVoiceConfig().wakeWordAliases ?? [wakeWord];
-        const minScore = getVoiceConfig().wakeMinMatchScore ?? 0.72;
-
-        wake.onstart = () => {
-            setIsWakeArmed(true);
-        };
-
-        wake.onresult = (event: SpeechRecognitionEvent) => {
-            let combined = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                combined += ` ${event.results[i][0].transcript || ''}`;
-            }
-            const match = detectWakeWord(combined, aliases, minScore);
-            if (!match.matched) {
-                return;
-            }
-            const now = Date.now();
-            if (now < wakeCooldownUntilRef.current) return;
-            wakeCooldownUntilRef.current = now + cooldownMs;
-            setWakeDetections((v) => v + 1);
-            setWakeLastAlias(match.matchedAlias);
-            setWakeLastScore(match.score);
-            try {
-                wake.onend = null;
-                wake.stop();
-            } catch (_) {}
-            wakeRecognitionRef.current = null;
-            setIsWakeArmed(false);
-            setWakeActivations((v) => v + 1);
-            startListeningRef.current();
-        };
-
-        wake.onerror = (event: SpeechRecognitionErrorEvent) => {
-            console.warn('[Voice] Wake-word detector error', event?.error);
-        };
-
-        wake.onend = () => {
-            setIsWakeArmed(false);
-            wakeRecognitionRef.current = null;
-        };
-
-        wakeRecognitionRef.current = wake;
-        wake.start();
-
-        return () => {
+        const stopWake = () => {
             if (wakeRecognitionRef.current) {
                 try {
                     wakeRecognitionRef.current.onend = null;
                     wakeRecognitionRef.current.stop();
-                } catch (_) {}
+                } catch {
+                    // ignore
+                }
                 wakeRecognitionRef.current = null;
             }
             setIsWakeArmed(false);
         };
-    }, [enabled, wakeWordEnabled, state]);
+
+        const startWakeBurst = () => {
+            if (cancelled || stateRef.current !== 'idle') return;
+
+            const wake = new SpeechRecognition();
+            // Short non-continuous bursts are far cheaper than continuous all-day listening.
+            wake.continuous = false;
+            wake.interimResults = true;
+            wake.lang = 'en-US';
+
+            const wakeWord = (getVoiceConfig().wakeWord || 'nucleas').toLowerCase();
+            const cooldownMs = getVoiceConfig().wakeWordCooldownMs ?? 7000;
+            const aliases = getVoiceConfig().wakeWordAliases ?? [wakeWord];
+            const minScore = getVoiceConfig().wakeMinMatchScore ?? 0.72;
+
+            wake.onstart = () => {
+                if (!cancelled) setIsWakeArmed(true);
+            };
+
+            wake.onresult = (event: SpeechRecognitionEvent) => {
+                let combined = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    combined += ` ${event.results[i][0].transcript || ''}`;
+                }
+                const match = detectWakeWord(combined, aliases, minScore);
+                if (!match.matched) {
+                    return;
+                }
+                const now = Date.now();
+                if (now < wakeCooldownUntilRef.current) return;
+                wakeCooldownUntilRef.current = now + cooldownMs;
+                setWakeDetections((v) => v + 1);
+                setWakeLastAlias(match.matchedAlias);
+                setWakeLastScore(match.score);
+                try {
+                    wake.onend = null;
+                    wake.stop();
+                } catch {
+                    // ignore
+                }
+                wakeRecognitionRef.current = null;
+                setIsWakeArmed(false);
+                setWakeActivations((v) => v + 1);
+                startListeningRef.current();
+            };
+
+            wake.onerror = (event: SpeechRecognitionErrorEvent) => {
+                if (event?.error && event.error !== 'no-speech' && event.error !== 'aborted') {
+                    console.warn('[Voice] Wake-word detector error', event.error);
+                }
+            };
+
+            wake.onend = () => {
+                setIsWakeArmed(false);
+                wakeRecognitionRef.current = null;
+                if (cancelled || stateRef.current !== 'idle') return;
+                // Brief pause between bursts to keep CPU light.
+                restartTimer = setTimeout(startWakeBurst, 1200);
+            };
+
+            wakeRecognitionRef.current = wake;
+            try {
+                wake.start();
+            } catch {
+                // Browser may reject overlapping starts.
+            }
+        };
+
+        startWakeBurst();
+
+        return () => {
+            cancelled = true;
+            if (restartTimer) clearTimeout(restartTimer);
+            stopWake();
+        };
+    }, [enabled, wakeWordEnabled, state, pageActivity.isActive]);
+
+    // Tear down recognition sessions on unmount so long-lived tabs don't leak mic/CPU.
+    useEffect(() => {
+        return () => {
+            if (endOfUtteranceTimerRef.current) {
+                clearTimeout(endOfUtteranceTimerRef.current);
+                endOfUtteranceTimerRef.current = null;
+            }
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.onend = null;
+                    recognitionRef.current.stop();
+                } catch {
+                    // ignore
+                }
+                recognitionRef.current = null;
+            }
+            if (wakeRecognitionRef.current) {
+                try {
+                    wakeRecognitionRef.current.onend = null;
+                    wakeRecognitionRef.current.stop();
+                } catch {
+                    // ignore
+                }
+                wakeRecognitionRef.current = null;
+            }
+        };
+    }, []);
 
     const confirmAction = useCallback(async () => {
         const r = await intentCtx.confirm();
@@ -494,28 +561,52 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
         resetVoiceChrome();
     }, [resetVoiceChrome]);
 
-    const value: VoiceContextValue = {
-        state,
-        transcript,
-        lastIntent,
-        error,
-        resultMessage,
-        startListening,
-        stopListening,
-        confirmAction,
-        cancelAction,
-        resetAfterExternalIntentCancel,
-        wakeWordEnabled,
-        isWakeArmed,
-        wakeDetections,
-        wakeActivations,
-        wakeUserCancels,
-        wakeLastAlias,
-        wakeLastScore,
-        toggleWakeWord,
-        enabled,
-        pendingActionDescription,
-    };
+    const value = useMemo<VoiceContextValue>(
+        () => ({
+            state,
+            transcript,
+            lastIntent,
+            error,
+            resultMessage,
+            startListening,
+            stopListening,
+            confirmAction,
+            cancelAction,
+            resetAfterExternalIntentCancel,
+            wakeWordEnabled,
+            isWakeArmed,
+            wakeDetections,
+            wakeActivations,
+            wakeUserCancels,
+            wakeLastAlias,
+            wakeLastScore,
+            toggleWakeWord,
+            enabled,
+            pendingActionDescription,
+        }),
+        [
+            state,
+            transcript,
+            lastIntent,
+            error,
+            resultMessage,
+            startListening,
+            stopListening,
+            confirmAction,
+            cancelAction,
+            resetAfterExternalIntentCancel,
+            wakeWordEnabled,
+            isWakeArmed,
+            wakeDetections,
+            wakeActivations,
+            wakeUserCancels,
+            wakeLastAlias,
+            wakeLastScore,
+            toggleWakeWord,
+            enabled,
+            pendingActionDescription,
+        ]
+    );
 
     return <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>;
 }
