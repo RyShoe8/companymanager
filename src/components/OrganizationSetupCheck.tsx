@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import Modal from '@/components/ui/Modal';
-import OrganizationModal from '@/components/OrganizationModal';
 
 export default function OrganizationSetupCheck({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -13,13 +11,14 @@ export default function OrganizationSetupCheck({ children }: { children: React.R
 
   useEffect(() => {
     const checkSetup = async () => {
-      // Skip check for auth pages, setup page, admin page, and public pages
+      // Skip check for auth pages, setup page, admin/billing, and public pages
       if (
         pathname === '/' ||
-        pathname?.startsWith('/login') || 
-        pathname?.startsWith('/register') || 
+        pathname?.startsWith('/login') ||
+        pathname?.startsWith('/register') ||
         pathname === '/setup-organization' ||
         pathname?.startsWith('/admin') ||
+        pathname?.startsWith('/billing') ||
         pathname === '/about' ||
         pathname === '/contact' ||
         pathname === '/terms' ||
@@ -32,6 +31,7 @@ export default function OrganizationSetupCheck({ children }: { children: React.R
         pathname?.startsWith('/recording/controls')
       ) {
         setChecking(false);
+        setNeedsSetup(false);
         return;
       }
 
@@ -41,34 +41,33 @@ export default function OrganizationSetupCheck({ children }: { children: React.R
           const data = await response.json();
           if (data && !data.organizationSetupComplete) {
             setNeedsSetup(true);
+          } else {
+            setNeedsSetup(false);
           }
         }
-      } catch (error) {
+      } catch {
         // Error checking organization setup
       } finally {
         setChecking(false);
       }
     };
 
+    setChecking(true);
     checkSetup();
   }, [pathname]);
 
-  const handleComplete = () => {
-    setNeedsSetup(false);
-    router.refresh();
-  };
+  useEffect(() => {
+    if (!checking && needsSetup) {
+      router.push('/setup-organization');
+    }
+  }, [checking, needsSetup, router]);
 
-  if (checking) {
+  if (checking || needsSetup) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-text-secondary">Loading...</div>
       </div>
     );
-  }
-
-  if (needsSetup) {
-    router.push('/setup-organization');
-    return null;
   }
 
   return <>{children}</>;

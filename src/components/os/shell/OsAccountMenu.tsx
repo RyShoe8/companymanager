@@ -21,12 +21,15 @@ export default function OsAccountMenu() {
 
     const handleLogout = useCallback(async () => {
         try {
-            await fetch('/api/auth/logout', { method: 'POST' });
-        } finally {
-            router.push('/login');
-            router.refresh();
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                signal: AbortSignal.timeout(8000),
+            });
+        } catch {
+            // still leave even if logout request fails/times out
         }
-    }, [router]);
+        window.location.assign('/login');
+    }, []);
 
     const handleAdmin = useCallback(() => {
         const { protocol, host } = window.location;
