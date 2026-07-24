@@ -187,10 +187,9 @@ export default function Navigation() {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
       router.push('/login');
       router.refresh();
-    } catch (error) {
-      // Logout error
     }
   };
 
@@ -288,7 +287,7 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className={`transition-all duration-300 ${showMarketingNav ? `sticky top-0 z-50 ${scrolled ? 'bg-background/80 backdrop-blur-xl border-b border-white/10 shadow-lg' : 'bg-transparent border-transparent'}` : 'bg-background-card border-b border-border'}`}>
+      <nav className={`transition-all duration-300 ${showMarketingNav ? `sticky top-0 z-50 ${scrolled ? 'bg-background/80 backdrop-blur-xl border-b border-white/10 shadow-lg' : 'bg-transparent border-transparent'}` : 'relative z-50 bg-background-card border-b border-border'}`}>
         <div className={`max-w-7xl mx-auto ${PAGE_GUTTER_CLASS}`}>
           <div className="flex justify-between items-center h-16">
             {/* Logo */}

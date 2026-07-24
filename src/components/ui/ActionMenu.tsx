@@ -125,13 +125,13 @@ export default function ActionMenu({
   const alignClass = align === 'right' ? 'right-0' : 'left-0';
 
   return (
-    <div className={`relative ${className}`} ref={menuRef}>
+    <div className={`relative ${isOpen ? 'z-[100]' : ''} ${className}`} ref={menuRef}>
       {triggerNode}
 
       {isOpen && (
         <>
           {useBackdrop && (
-            <div className="fixed inset-0 z-40" aria-hidden onMouseDown={() => setOpen(false)} />
+            <div className="fixed inset-0 z-40" aria-hidden onClick={() => setOpen(false)} />
           )}
           <div
             className={`absolute ${alignClass} mt-2 ${width} rounded-lg shadow-lg bg-background-card border border-border z-50 overflow-hidden ${menuClassName}`}

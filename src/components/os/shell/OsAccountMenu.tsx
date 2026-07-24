@@ -22,10 +22,9 @@ export default function OsAccountMenu() {
     const handleLogout = useCallback(async () => {
         try {
             await fetch('/api/auth/logout', { method: 'POST' });
+        } finally {
             router.push('/login');
             router.refresh();
-        } catch {
-            // ignore
         }
     }, [router]);
 
