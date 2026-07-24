@@ -1,33 +1,19 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState, useCallback } from 'react';
 import { IEmployee } from '@/lib/models/Employee';
-import { IProject, IProjectTask } from '@/lib/models/Project';
+import { IProject } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IMeeting } from '@/lib/models/Meeting';
-import {
-  TimeframeType,
-  getTimeframeRange,
-  formatDate,
-  parseDateSafe,
-  taskOverlapsViewRange,
-  taskOverlapsViewDay,
-} from '@/lib/utils/dateUtils';
-import {
-  isTaskAssignedToEmployee,
-  isTaskAssignedToOtherEmployee,
-} from '@/lib/utils/projectTeam';
-import { contentCountsInViewPeriod } from '@/lib/utils/projectHours';
-import {
-  buildStageHoursBreakdown,
-  sumStageBreakdown,
-} from '@/lib/utils/employeeUtilizationBreakdown';
-import {
-  calculateProratedHoursInRange,
-  countWeekdaysInRange,
-} from '@/lib/utils/utilizationTaskHours';
-import { sumMeetingHoursForEmployee } from '@/lib/scheduling/meetingHours';
+import { TimeframeType, formatDate, parseDateSafe, taskOverlapsViewDay } from '@/lib/utils/dateUtils';
+import { isTaskAssignedToEmployee } from '@/lib/utils/projectTeam';
 import Card from '@/components/ui/Card';
+import {
+  useEmployeeCapacityCalculations,
+  getAssignedTasksInViewPeriod,
+  getAssignedContentInViewPeriod,
+  contentProjectIdStr,
+} from '@/hooks/useEmployeeCapacityCalculations';
 
 /** Format hours for utilization cards (one decimal on Today). */
 function formatUtilizationHours(hours: number, timeframe: TimeframeType): string {
@@ -84,63 +70,25 @@ interface EmployeeSidebarProps {
   currentUserEmployeeId?: string | null;
 }
 
-/** Non-completed tasks on `project` assigned to `employee` (by id or legacy name). */
-function getOpenTasksAssignedToEmployee(project: IProject, employee: IEmployee): IProjectTask[] {
-  if (!project.tasks) return [];
-  return project.tasks.filter(
-    (task) => isTaskAssignedToEmployee(task, employee) && task.status !== 'completed'
-  );
-}
-
-/** Open assigned tasks whose date range overlaps the active view period. */
-function getAssignedTasksInViewPeriod(
-  project: IProject,
-  employee: IEmployee,
-  viewStart: Date,
-  viewEnd: Date
-): IProjectTask[] {
-  return getOpenTasksAssignedToEmployee(project, employee).filter((task) => {
-    const taskStart = parseDateSafe(task.startDate);
-    const taskEnd = parseDateSafe(task.endDate);
-    if (!taskStart || !taskEnd) return false;
-    return taskOverlapsViewRange(viewStart, viewEnd, taskStart, taskEnd);
-  });
-}
-
-function contentProjectIdStr(item: IContentItem): string {
-  const pid = item.projectId as unknown;
-  if (typeof pid === 'string') return pid;
-  if (pid && typeof (pid as { toString?: () => string }).toString === 'function') {
-    return (pid as { toString: () => string }).toString();
-  }
-  return '';
-}
-
-function getAssignedContentInViewPeriod(
-  employee: IEmployee,
-  items: IContentItem[] | undefined,
-  timeframe: TimeframeType,
-  viewStart: Date,
-  viewEnd: Date,
-  options?: { forCompleted?: boolean }
-): IContentItem[] {
-  if (!items) return [];
-  const employeeId = employee._id.toString();
-  return items.filter(
-    (c) =>
-      c.assignedToEmployeeId?.toString() === employeeId &&
-      contentCountsInViewPeriod(c, timeframe, viewStart, viewEnd, options)
-  );
-}
-
 export default function EmployeeSidebar({ employees, projects, allProjects, contentItems, meetings = [], timeframe, currentDate, currentUserRole, currentUserEmployeeId }: EmployeeSidebarProps) {
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   const [expandedBreakdowns, setExpandedBreakdowns] = useState<Set<string>>(new Set()); // Track which breakdowns are expanded (e.g., "employeeId-committed")
 
-  // Use allProjects for calculations, fallback to filtered projects if not provided
-  const calcProjects = allProjects || projects;
-
-  const range = getTimeframeRange(timeframe, currentDate);
+  const {
+    calcProjects,
+    startDate,
+    endDate,
+    getProjectsForEmployee,
+    calculateHoursForDateRange,
+    totalAvailableHours,
+    sumAssignedTaskHoursInPeriod,
+    sumAssignedContentHoursInPeriod,
+    getCommittedHours,
+    getMeetingHours,
+    getCommittedHoursBreakdown,
+    getCompletedHoursBreakdown,
+    getCompletedHours,
+  } = useEmployeeCapacityCalculations({ projects, allProjects, contentItems, meetings, timeframe, currentDate });
 
   const toggleEmployee = useCallback((employeeId: string) => {
     setExpandedEmployees(prev => {
@@ -153,286 +101,6 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
       return newSet;
     });
   }, []);
-  // Normalize start date to beginning of day, end date to end of day for accurate calculations
-  const startDate = new Date(range.start);
-  startDate.setHours(0, 0, 0, 0);
-  const endDate = new Date(range.end);
-  // Keep end date at end of day (23:59:59.999) to include the full day
-  endDate.setHours(23, 59, 59, 999);
-
-  // Helper function to count weekdays (Monday-Friday) between two dates
-  const countWeekdays = countWeekdaysInRange;
-
-  // Calculate total available hours based on timeframe (weekdays only)
-  const totalAvailableHours = (employee: IEmployee) => {
-    if (timeframe === 'today') {
-      // Same daily capacity on weekends so scheduled work can show utilization
-      return Math.round((employee.weeklyHours / 5) * 100) / 100;
-    }
-    if (timeframe === 'weekly') {
-      // Weekly is exactly 1 week = 5 weekdays
-      return employee.weeklyHours;
-    }
-
-    // For other timeframes, count weekdays in the range
-    const weekdays = countWeekdays(startDate, endDate);
-    const weeks = weekdays / 5;
-    const hours = employee.weeklyHours * weeks;
-    return Math.round(hours * 100) / 100; // Round to 2 decimals
-  };
-
-  // Helper function to get projects for an employee (filtered by current timeframe and assignments)
-  const getProjectsForEmployeeCalc = useCallback((employee: IEmployee) => {
-    return calcProjects.filter((project) => {
-      const employeeIdStr = employee._id.toString();
-
-      // Check if project is assigned to this employee by multiple IDs array (new preferred method)
-      const projectAssignedToIds = (project as any).assignedToEmployeeIds;
-      if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
-        if (projectAssignedToIds.some((id: any) => id?.toString() === employeeIdStr)) {
-          return true;
-        }
-      }
-
-      // Check if project is assigned to this employee by multiple names array
-      const projectAssignedToNames = (project as any).assignedToNames;
-      if (projectAssignedToNames && Array.isArray(projectAssignedToNames)) {
-        if (projectAssignedToNames.includes(employee.name)) {
-          return true;
-        }
-      }
-
-      // Check if project is assigned to this employee by single ID (legacy)
-      const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-      if (projectAssignedToId === employeeIdStr) {
-        return true;
-      }
-
-      // Check if project is assigned by legacy name field
-      if (project.assignedTo && project.assignedTo === employee.name) {
-        return true;
-      }
-
-      if (project.tasks?.some((task) => isTaskAssignedToEmployee(task, employee))) {
-        return true;
-      }
-
-      return false;
-    });
-  }, [calcProjects]);
-
-  // Alias for display components
-  const getProjectsForEmployee = getProjectsForEmployeeCalc;
-
-
-
-  const calculateHoursForDateRange = (
-    rangeStart: Date,
-    rangeEnd: Date,
-    projectStart: Date,
-    projectEnd: Date,
-    totalHours: number
-  ): number => {
-    const taskStart = parseDateSafe(projectStart);
-    const taskEnd = parseDateSafe(projectEnd);
-    if (!taskStart || !taskEnd) return 0;
-    return calculateProratedHoursInRange(rangeStart, rangeEnd, taskStart, taskEnd, totalHours);
-  };
-
-  const sumAssignedTaskHoursInPeriod = useCallback(
-    (employee: IEmployee) => {
-      let total = 0;
-      getProjectsForEmployeeCalc(employee).forEach((project) => {
-        getAssignedTasksInViewPeriod(project, employee, startDate, endDate).forEach((task) => {
-          if (!task.estimatedHours || !task.startDate || !task.endDate) return;
-          const taskStart = parseDateSafe(task.startDate);
-          const taskEnd = parseDateSafe(task.endDate);
-          if (!taskStart || !taskEnd) return;
-          total += calculateHoursForDateRange(
-            startDate,
-            endDate,
-            taskStart,
-            taskEnd,
-            task.estimatedHours
-          );
-        });
-      });
-      return Math.round(total * 100) / 100;
-    },
-    [getProjectsForEmployeeCalc, startDate, endDate, timeframe]
-  );
-
-  const sumAssignedContentHoursInPeriod = useCallback(
-    (employee: IEmployee) => {
-      const hours = getAssignedContentInViewPeriod(
-        employee,
-        contentItems,
-        timeframe,
-        startDate,
-        endDate
-      ).reduce((sum, c) => sum + (c.estimatedHours || 0), 0);
-      return Math.round(hours * 100) / 100;
-    },
-    [contentItems, timeframe, startDate, endDate]
-  );
-
-  const getCommittedHours = (employee: IEmployee) => {
-    const employeeProjects = getProjectsForEmployeeCalc(employee);
-    let totalHours = 0;
-
-    // Calculate hours from projects
-    // NOTE: Completed projects are excluded from committed hours
-    // This ensures that marking items as complete frees up employee capacity
-    // NOTE: Projects no longer have startDate/endDate - only tasks do
-    employeeProjects.forEach((project) => {
-      // Skip completed projects - they don't count toward committed hours
-      if (project.status === 'completed') return;
-
-      // Calculate task hours assigned to this employee (count independently of project hours)
-      let hasEmployeeTasks = false;
-      let taskHoursInRange = 0;
-      if (project.tasks && project.tasks.length > 0) {
-        taskHoursInRange = project.tasks
-          .filter(
-            (task) =>
-              isTaskAssignedToEmployee(task, employee) &&
-              task.estimatedHours &&
-              task.status !== 'completed'
-          )
-          .reduce((sum, task) => {
-            hasEmployeeTasks = true;
-            if (!task.estimatedHours || !task.startDate || !task.endDate) return sum;
-            const taskStart = parseDateSafe(task.startDate);
-            const taskEnd = parseDateSafe(task.endDate);
-            if (!taskStart || !taskEnd) return sum;
-            const hours = calculateHoursForDateRange(
-              startDate,
-              endDate,
-              taskStart,
-              taskEnd,
-              task.estimatedHours
-            );
-            return sum + hours;
-          }, 0);
-        totalHours += taskHoursInRange;
-      }
-
-      // If project is assigned to this employee AND there are no tasks assigned to this employee,
-      // count project-level hours (not date-distributed since projects don't have dates anymore)
-      const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
-      const isProjectAssignedToEmployee = projectAssignedToId === employee._id.toString();
-      if (isProjectAssignedToEmployee && project.estimatedHours && !hasEmployeeTasks) {
-        // Calculate total hours assigned to other employees via tasks
-        let otherEmployeeTaskHours = 0;
-        if (project.tasks && project.tasks.length > 0) {
-          project.tasks.forEach((task) => {
-            if (
-              task.estimatedHours &&
-              task.status !== 'completed' &&
-              isTaskAssignedToOtherEmployee(task, employee)
-            ) {
-              otherEmployeeTaskHours += task.estimatedHours;
-            }
-          });
-        }
-
-        // Project hours minus tasks assigned to others
-        // Since projects don't have dates, we add full remaining hours to committed
-        const remainingProjectHours = Math.max(0, project.estimatedHours - otherEmployeeTaskHours);
-        totalHours += remainingProjectHours;
-      }
-    });
-
-
-
-    getAssignedContentInViewPeriod(employee, contentItems, timeframe, startDate, endDate).forEach((content) => {
-      const hours = content.estimatedHours || 0;
-      if (hours > 0) totalHours += hours;
-    });
-
-    if (meetings.length > 0) {
-      totalHours += sumMeetingHoursForEmployee(meetings, employee, startDate, endDate);
-    }
-
-    // Round to 2 decimal places for display
-    return Math.round(totalHours * 100) / 100;
-  };
-
-  const getMeetingHours = (employee: IEmployee) => {
-    if (meetings.length === 0) return 0;
-    return sumMeetingHoursForEmployee(meetings, employee, startDate, endDate);
-  };
-
-  const projectById = useMemo(() => {
-    const map = new Map<string, IProject>();
-    calcProjects.forEach((p) => map.set(p._id.toString(), p));
-    return map;
-  }, [calcProjects]);
-
-  const buildBreakdownForEmployee = useCallback(
-    (employee: IEmployee, mode: 'committed' | 'completed') => {
-      const contentInPeriod = getAssignedContentInViewPeriod(
-        employee,
-        contentItems,
-        timeframe,
-        startDate,
-        endDate,
-        mode === 'completed' ? { forCompleted: true } : undefined
-      );
-
-      return buildStageHoursBreakdown({
-        projects: getProjectsForEmployeeCalc(employee),
-        employee,
-        mode,
-        rangeStart: startDate,
-        rangeEnd: endDate,
-        calculateHoursInRange: calculateHoursForDateRange,
-        isTaskAssignedToEmployee: isTaskAssignedToEmployee,
-        isTaskAssignedToOtherEmployee: isTaskAssignedToOtherEmployee,
-        contentItems: contentInPeriod,
-        projectById,
-      });
-    },
-    [
-      contentItems,
-      timeframe,
-      startDate,
-      endDate,
-      getProjectsForEmployeeCalc,
-      projectById,
-    ]
-  );
-
-  const getCommittedHoursBreakdown = (employee: IEmployee) =>
-    buildBreakdownForEmployee(employee, 'committed');
-
-  const getCompletedHoursBreakdown = (employee: IEmployee) =>
-    buildBreakdownForEmployee(employee, 'completed');
-
-  // Calculate breakdown by stage for remaining hours
-  const getRemainingHoursBreakdown = (employee: IEmployee) => {
-    const committedBreakdown = getCommittedHoursBreakdown(employee);
-    const available = totalAvailableHours(employee);
-
-    // Calculate remaining per stage (available - committed per stage)
-    // Remaining shows how much capacity is left after accounting for committed hours in each stage
-    return {
-      Plan: Math.round(Math.max(0, available - committedBreakdown.Plan) * 100) / 100,
-      Build: Math.round(Math.max(0, available - committedBreakdown.Build) * 100) / 100,
-      Run: Math.round(Math.max(0, available - committedBreakdown.Run) * 100) / 100,
-    };
-  };
-
-  const getAvailableHours = (employee: IEmployee) => {
-    const available = totalAvailableHours(employee);
-    const committed = getCommittedHours(employee);
-    return Math.round(Math.max(0, available - committed) * 100) / 100; // Round to 2 decimals
-  };
-
-  // Calculate completed hours for an employee (tasks, content, and run-stage project fallback)
-  const getCompletedHours = (employee: IEmployee) => {
-    return sumStageBreakdown(getCompletedHoursBreakdown(employee));
-  };
 
   if (employees.length === 0) {
     return (
@@ -663,7 +331,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       pills.push({
                         key: 'plan',
                         title: `Plan: ${committedBreakdown.Plan}h`,
-                        label: `📋 ${committedBreakdown.Plan}h`,
+                        label: `ðŸ“‹ ${committedBreakdown.Plan}h`,
                         className:
                           'px-2 py-0.5 rounded-md font-medium bg-cyan-500/25 text-cyan-300 border border-cyan-400/40',
                       });
@@ -672,7 +340,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       pills.push({
                         key: 'build',
                         title: `Build: ${committedBreakdown.Build}h`,
-                        label: `🔨 ${committedBreakdown.Build}h`,
+                        label: `ðŸ”¨ ${committedBreakdown.Build}h`,
                         className:
                           'px-2 py-0.5 rounded-md font-medium bg-amber-500/25 text-amber-300 border border-amber-400/40',
                       });
@@ -681,7 +349,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       pills.push({
                         key: 'run',
                         title: `Run: ${committedBreakdown.Run}h`,
-                        label: `🚀 ${committedBreakdown.Run}h`,
+                        label: `ðŸš€ ${committedBreakdown.Run}h`,
                         className:
                           'px-2 py-0.5 rounded-md font-medium bg-emerald-500/25 text-emerald-300 border border-emerald-400/40',
                       });
@@ -690,7 +358,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       pills.push({
                         key: 'tasks',
                         title: `Tasks: ${taskHours}h`,
-                        label: `✅ ${taskHours}h`,
+                        label: `âœ… ${taskHours}h`,
                         className:
                           'px-2 py-0.5 rounded-md font-medium bg-sky-500/20 text-sky-300 border border-sky-400/30',
                       });
@@ -699,7 +367,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       pills.push({
                         key: 'content',
                         title: `Content: ${contentHours}h`,
-                        label: `📝 ${contentHours}h`,
+                        label: `ðŸ“ ${contentHours}h`,
                         className:
                           'px-2 py-0.5 rounded-md font-medium bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30',
                       });
@@ -708,7 +376,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       pills.push({
                         key: 'meetings',
                         title: `Meetings: ${meetingHours}h`,
-                        label: `📅 ${meetingHours}h`,
+                        label: `ðŸ“… ${meetingHours}h`,
                         className:
                           'px-2 py-0.5 rounded-md font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-400/30',
                       });
@@ -750,7 +418,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       className="flex justify-between items-center w-full text-left hover:opacity-80 transition-opacity group"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="text-text-muted text-sm">{expandedBreakdowns.has(`${employeeId}-committed`) ? '▼' : '▶'}</span>
+                        <span className="text-text-muted text-sm">{expandedBreakdowns.has(`${employeeId}-committed`) ? 'â–¼' : 'â–¶'}</span>
                         <span className="text-text-secondary">Committed:</span>
                         <span className="text-xs text-text-muted group-hover:text-text-secondary transition-colors">(click to expand)</span>
                       </div>
@@ -802,7 +470,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                       className="flex justify-between items-center w-full text-left hover:opacity-80 transition-opacity group"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="text-text-muted text-sm">{expandedBreakdowns.has(`${employeeId}-completed`) ? '▼' : '▶'}</span>
+                        <span className="text-text-muted text-sm">{expandedBreakdowns.has(`${employeeId}-completed`) ? 'â–¼' : 'â–¶'}</span>
                         <span className="text-text-secondary">Completed:</span>
                         <span className="text-xs text-text-muted group-hover:text-text-secondary transition-colors">(click to expand)</span>
                       </div>
@@ -928,7 +596,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                                   style={{ backgroundColor: project.color + '15' }}
                                 >
                                   <div className="text-text-primary truncate">
-                                    <span className="mr-1" aria-hidden>✅</span>
+                                    <span className="mr-1" aria-hidden>âœ…</span>
                                     {taskInfo.name}
                                   </div>
                                   <div className="text-text-secondary">
@@ -948,7 +616,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                                   ? 'Today'
                                   : contentInfo.dueDate
                                     ? formatDate(contentInfo.dueDate)
-                                    : '—';
+                                    : 'â€”';
 
                               return (
                                 <div
@@ -957,7 +625,7 @@ export default function EmployeeSidebar({ employees, projects, allProjects, cont
                                   style={{ backgroundColor: project.color + '15' }}
                                 >
                                   <div className="text-text-primary truncate">
-                                    <span className="mr-1" aria-hidden>📝</span>
+                                    <span className="mr-1" aria-hidden>ðŸ“</span>
                                     {contentInfo.name}
                                   </div>
                                   <div className="text-text-secondary">

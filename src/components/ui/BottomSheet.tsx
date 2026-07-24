@@ -211,11 +211,3 @@ export default function BottomSheet({
     document.body
   );
 }
-
-interface QuickActionProps { icon: ReactNode; label: string; onClick: () => void; variant?: 'default' | 'danger' | 'success' | 'warning'; disabled?: boolean; }
-export function QuickAction({ icon, label, onClick, variant = 'default', disabled = false }: QuickActionProps) {
-  const variantClasses = { default: 'text-gray-900 hover:bg-gray-50', danger: 'text-red-600 hover:bg-red-50', success: 'text-emerald-700 hover:bg-emerald-50', warning: 'text-amber-700 hover:bg-amber-50' };
-  return (<button onClick={onClick} disabled={disabled} className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${variantClasses[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-    <span className="w-5 h-5 flex items-center justify-center">{icon}</span><span className="font-medium">{label}</span>
-  </button>);
-}

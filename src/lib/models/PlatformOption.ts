@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import type { PlatformStackSlug } from '@/lib/models/PlatformCategory';
 
-export interface IPlatformOption extends Document {
+interface IPlatformOption extends Document {
   stackType: PlatformStackSlug;
   optionId: string;
   categorySlug: string;

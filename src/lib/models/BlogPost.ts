@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type BlogPostStatus = 'draft' | 'published';
+type BlogPostStatus = 'draft' | 'published';
 
 export interface IBlogPost extends Document {
   slug: string;

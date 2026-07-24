@@ -1,6 +1,6 @@
 const RECORDING_CONTROLS_WINDOW_NAME = 'nucleas-recording-controls';
 
-export function buildRecordingControlsPopoutUrl(): string {
+function buildRecordingControlsPopoutUrl(): string {
   const path = '/recording/controls?popout=1';
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;

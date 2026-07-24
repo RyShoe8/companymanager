@@ -1,6 +1,6 @@
 import { getTaskCreatorEmployeeId } from '@/lib/projects/taskDeleteAuth';
 
-export const CONTRIBUTOR_TASK_FIELDS = ['name', 'description', 'estimatedHours'] as const;
+const CONTRIBUTOR_TASK_FIELDS = ['name', 'description', 'estimatedHours'] as const;
 
 export type ContributorTaskField = (typeof CONTRIBUTOR_TASK_FIELDS)[number];
 

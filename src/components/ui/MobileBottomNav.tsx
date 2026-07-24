@@ -15,7 +15,7 @@ function isMarketingPage(pathname: string | null): boolean {
   return false;
 }
 
-export function MobileNavVoiceButton() {
+function MobileNavVoiceButton() {
   const { voice } = useMobileShell();
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTriggeredRef = useRef(false);

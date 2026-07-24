@@ -16,7 +16,7 @@ function grecaptchaReady(): boolean {
   return typeof window !== 'undefined' && Boolean(window.grecaptcha);
 }
 
-export function isRecaptchaReady(): boolean {
+function isRecaptchaReady(): boolean {
   if (!getRecaptchaSiteKey()) return true;
   return grecaptchaReady();
 }
@@ -86,14 +86,12 @@ export function useRecaptcha() {
     }
 
     let settled = false;
-    let pollTimer: number | undefined;
-    let timeoutTimer: number | undefined;
 
     const cleanup = () => {
       window.removeEventListener(RECAPTCHA_LOADED_EVENT, onLoaded);
       window.removeEventListener(RECAPTCHA_FAILED_EVENT, onFailed);
-      if (pollTimer != null) window.clearInterval(pollTimer);
-      if (timeoutTimer != null) window.clearTimeout(timeoutTimer);
+      window.clearInterval(pollTimer);
+      window.clearTimeout(timeoutTimer);
     };
 
     const markReady = () => {
@@ -118,11 +116,11 @@ export function useRecaptcha() {
     window.addEventListener(RECAPTCHA_LOADED_EVENT, onLoaded);
     window.addEventListener(RECAPTCHA_FAILED_EVENT, onFailed);
 
-    pollTimer = window.setInterval(() => {
+    const pollTimer = window.setInterval(() => {
       markReady();
     }, RECAPTCHA_POLL_MS);
 
-    timeoutTimer = window.setTimeout(() => {
+    const timeoutTimer = window.setTimeout(() => {
       if (!grecaptchaReady()) markFailed();
     }, RECAPTCHA_WAIT_MS);
 

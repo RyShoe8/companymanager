@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export interface IMeetingSeriesSettings extends Document {
+interface IMeetingSeriesSettings extends Document {
   organizationId: string;
   googleRecurringEventId?: string;
   iCalUID?: string;

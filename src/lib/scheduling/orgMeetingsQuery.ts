@@ -3,7 +3,6 @@ import Meeting from '@/lib/models/Meeting';
 import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
 import User from '@/lib/models/User';
 import { meetingInstanceDedupeKey } from '@/lib/scheduling/meetingDedupe';
-import { meetingPassesAssignmentFilter as meetingPassesAssignmentFilterShared } from '@/lib/scheduling/meetingHours';
 import { Types } from 'mongoose';
 
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
@@ -169,15 +168,4 @@ export async function attachSeriesRecurrenceCounts(
     const count = countBySeries.get(seriesId);
     return count != null ? { ...meeting, seriesRecurrenceCount: count } : meeting;
   });
-}
-
-export function meetingPassesAssignmentFilter(
-  meeting: Pick<OrgMeetingRecord, 'userId' | 'attendeeEmployeeIds'>,
-  options: {
-    showOnlyMyAssignments: boolean;
-    currentUserEmployeeId: string | null;
-    currentUserId: string | null;
-  }
-): boolean {
-  return meetingPassesAssignmentFilterShared(meeting, options);
 }

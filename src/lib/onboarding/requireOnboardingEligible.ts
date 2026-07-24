@@ -31,7 +31,7 @@ function settingsToSlotInput(
   };
 }
 
-export async function computeOnboardingAvailableSlots(
+async function computeOnboardingAvailableSlots(
   settings: PlatformOnboardingSettingsDoc,
   now: Date = new Date()
 ) {

@@ -84,7 +84,7 @@ export function buildProjectInboxKey(projectId: string): string {
   return `inbox:project:${projectId}`;
 }
 
-export function buildTaskItemSignature(
+function buildTaskItemSignature(
   task: IProjectTask,
   options?: { commentActivityMs?: number }
 ): string {
@@ -103,7 +103,7 @@ export function buildTaskItemSignature(
   });
 }
 
-export function buildContentItemSignature(
+function buildContentItemSignature(
   item: IContentItem,
   options?: { commentActivityMs?: number }
 ): string {

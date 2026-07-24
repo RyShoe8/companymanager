@@ -14,6 +14,7 @@ import { mergeProjectsPreservingRecency } from '@/lib/utils/mergeProjectsPreserv
 import { buildContentItemsByProjectId } from '@/lib/utils/projectLatestActivity';
 import { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 import { filterContentItemsForMyAssignments } from '@/lib/workspace/workspaceContentFilter';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 
 function toMs(d: Date | string | undefined): number {
     if (!d) return 0;
@@ -173,7 +174,7 @@ export default function useWorkspaceData(
                         }
                         if (currentEmployee) {
                             const role = currentEmployee.role || 'User';
-                            setIsManagerOrAdmin(role === 'Manager' || role === 'Administrator');
+                            setIsManagerOrAdmin(isManagerOrAdminRole(role));
                             setCurrentUserRole(role as 'Administrator' | 'Manager' | 'User');
                             setCurrentUserEmployeeName(currentEmployee.name || null);
                             setCurrentUserEmployeeId(currentEmployee._id?.toString() || null);
@@ -297,12 +298,12 @@ export default function useWorkspaceData(
                         return true;
                     }
                 }
-                const projectAssignedToIds = (project as any).assignedToEmployeeIds;
+                const projectAssignedToIds = project.assignedToEmployeeIds;
                 if (projectAssignedToIds && Array.isArray(projectAssignedToIds)) {
-                    if (projectAssignedToIds.some((id: any) => id?.toString() === currentUserEmployeeId))
+                    if (projectAssignedToIds.some((id) => id?.toString() === currentUserEmployeeId))
                         return true;
                 }
-                const projectAssignedToId = (project as any).assignedToEmployeeId?.toString();
+                const projectAssignedToId = project.assignedToEmployeeId?.toString();
                 if (
                     projectAssignedToId === currentUserEmployeeId ||
                     project.assignedTo === currentUserEmployeeName
@@ -310,7 +311,7 @@ export default function useWorkspaceData(
                     return true;
                 if (
                     project.tasks?.some((task) => {
-                        const taskAssignedToId = (task as any).assignedToEmployeeId?.toString();
+                        const taskAssignedToId = task.assignedToEmployeeId?.toString();
                         return (
                             taskAssignedToId === currentUserEmployeeId ||
                             task.assignedTo === currentUserEmployeeName

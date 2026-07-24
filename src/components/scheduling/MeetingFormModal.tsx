@@ -24,9 +24,6 @@ export type MeetingCreateSuccessInfo = {
   skippedAttendees?: { name: string; reason: string }[];
   meetingNotes?: MeetingNotesFeedback;
 };
-
-export { parseMeetingNotesFeedback };
-
 export type MeetingFormMeeting = {
   _id: string;
   title: string;

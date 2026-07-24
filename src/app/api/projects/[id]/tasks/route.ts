@@ -5,6 +5,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateProjectFields } from '@/lib/utils/apiHelpers';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { parseDateSafe, getDefaultTaskDates, resolveTaskDateInput } from '@/lib/utils/dateUtils';
 import { Types } from 'mongoose';
 import {
@@ -136,8 +137,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       userId: session.userId,
       organizationId: user.organizationId,
     });
-    const isManagerOrAdmin =
-      currentUserEmployee?.role === 'Manager' || currentUserEmployee?.role === 'Administrator';
+    const isManagerOrAdmin = isManagerOrAdminRole(currentUserEmployee?.role);
     const employeeId = currentUserEmployee?._id?.toString() ?? null;
 
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);

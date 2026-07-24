@@ -3,7 +3,7 @@
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { formInputClassCompact } from '@/components/ui/formClasses';
 
-export const REPEAT_OPTIONS: { value: RecurrencePreset; label: string }[] = [
+const REPEAT_OPTIONS: { value: RecurrencePreset; label: string }[] = [
   { value: 'none', label: 'Does not repeat' },
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },

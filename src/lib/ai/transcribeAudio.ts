@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { toFile } from 'openai/uploads';
 
-export async function transcribeAudioBuffer(
+async function transcribeAudioBuffer(
   buffer: Buffer,
   filename: string,
   apiKey: string

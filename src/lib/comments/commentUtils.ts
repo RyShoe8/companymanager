@@ -8,7 +8,7 @@ export type CommentTimestampDoc = {
   updatedAt?: Date | string;
 };
 
-export function activityMsFromComment(doc: CommentTimestampDoc): number {
+function activityMsFromComment(doc: CommentTimestampDoc): number {
   const created = doc.createdAt ? new Date(doc.createdAt).getTime() : 0;
   const updated = doc.updatedAt ? new Date(doc.updatedAt).getTime() : 0;
   return Math.max(created, updated);
@@ -28,7 +28,7 @@ export function mergeCommentSummary(
   };
 }
 
-export function emptyCommentSummary(): CommentSummary {
+function emptyCommentSummary(): CommentSummary {
   return { count: 0, latestActivityMs: 0 };
 }
 

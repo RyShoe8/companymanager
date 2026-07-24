@@ -4,7 +4,7 @@ import {
   type WorkspaceDigestInterval,
 } from '@/lib/workspace/notificationTypes';
 
-export interface IWorkspaceNotificationPreference extends Document {
+interface IWorkspaceNotificationPreference extends Document {
   userId: Types.ObjectId;
   employeeId: Types.ObjectId;
   organizationId: string;

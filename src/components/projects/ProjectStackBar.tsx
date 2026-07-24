@@ -19,7 +19,7 @@ import {
 
 export type StackItem<C extends string> = { category: C; id: string; login?: string };
 
-export interface ProjectStackBarConfig<C extends string> {
+interface ProjectStackBarConfig<C extends string> {
   /** Toolbar toggle button label, e.g. "Tech Stack". */
   buttonLabel: ReactNode;
   /** Noun used in alerts, e.g. "technology" / "tool". */

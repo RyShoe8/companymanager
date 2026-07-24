@@ -6,12 +6,12 @@ import Project from '@/lib/models/Project';
 import { createGoogleDocLinkedAsset } from '@/lib/google/workspaceOperations';
 import type { ShareWarning } from '@/lib/google/drive';
 
-export const MEETING_NOTES_DRIVE_NOTICE =
+const MEETING_NOTES_DRIVE_NOTICE =
   'Connect Google Drive to auto-create meeting notes. Link Drive from any project’s Create menu (Document, Spreadsheet, or File).';
 
 export const MEETING_NOTES_TAG = 'meeting-notes';
 
-export type MeetingNotesAssetSummary = {
+type MeetingNotesAssetSummary = {
   projectId: string;
   assetId: string;
   name: string;

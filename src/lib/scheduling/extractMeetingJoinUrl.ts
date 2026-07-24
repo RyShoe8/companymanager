@@ -77,7 +77,7 @@ export function extractMeetingJoinUrl(event: GoogleCalendarEvent): MeetingJoinIn
   return null;
 }
 
-export function getJoinPlatformLabel(platform?: MeetingJoinPlatform): string {
+function getJoinPlatformLabel(platform?: MeetingJoinPlatform): string {
   switch (platform) {
     case 'google_meet':
       return 'Google Meet';

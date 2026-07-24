@@ -3,7 +3,7 @@ import type { LensType, PhaseType } from '@/lib/hooks/useWorkspaceData';
 
 export type GuideRole = 'Administrator' | 'Manager' | 'User';
 
-export type GuidePlacement = 'top' | 'bottom' | 'left' | 'right' | 'center';
+type GuidePlacement = 'top' | 'bottom' | 'left' | 'right' | 'center';
 
 export interface WorkspaceGuideActions {
   openCreateMenu: () => void;
@@ -19,7 +19,7 @@ export interface WorkspaceGuideActions {
   closeCommandPalette: () => void;
 }
 
-export interface GuideActionContext {
+interface GuideActionContext {
   router: AppRouterInstance;
   workspaceActions: WorkspaceGuideActions | null;
 }

@@ -12,7 +12,7 @@ import type { TimeframeType } from '@/lib/utils/dateUtils';
 import { projectSaveErrorMessage } from '@/lib/utils/projectSaveError';
 import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 
-export type FocusType = 'project' | 'task' | 'client';
+type FocusType = 'project' | 'task' | 'client';
 
 interface InspectorHostProps {
     focusId: string | null;

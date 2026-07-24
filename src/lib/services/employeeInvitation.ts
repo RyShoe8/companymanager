@@ -11,7 +11,7 @@ export interface EmailSendResult {
   emailError?: string;
 }
 
-export interface EnsureInvitationParams {
+interface EnsureInvitationParams {
   employee: IEmployee;
   inviterUserId: string | Types.ObjectId;
   emailChanged?: boolean;
@@ -20,7 +20,7 @@ export interface EnsureInvitationParams {
 /**
  * Create or refresh a pending invitation for an employee without a linked user account.
  */
-export async function ensureInvitationForEmployee(
+async function ensureInvitationForEmployee(
   params: EnsureInvitationParams
 ): Promise<IInvitation> {
   const { employee, inviterUserId, emailChanged } = params;

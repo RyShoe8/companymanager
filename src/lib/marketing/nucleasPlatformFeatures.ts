@@ -18,4 +18,4 @@ export const NUCLEAS_PLATFORM_FEATURES = [
   'Organization branding and multi-project management',
 ] as const;
 
-export type NucleasPlatformFeature = (typeof NUCLEAS_PLATFORM_FEATURES)[number];
+type NucleasPlatformFeature = (typeof NUCLEAS_PLATFORM_FEATURES)[number];

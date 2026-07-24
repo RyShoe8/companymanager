@@ -14,7 +14,7 @@ function lastSeenStorageKey(threadKey: string): string {
   return `${LAST_SEEN_PREFIX}${threadKey}`;
 }
 
-export function getCommentLastSeenMs(threadKey: string): number | null {
+function getCommentLastSeenMs(threadKey: string): number | null {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem(lastSeenStorageKey(threadKey));
   if (raw == null) return null;
@@ -44,7 +44,7 @@ function saveManuallyCollapsed(collapsed: Set<string>): void {
   localStorage.setItem(MANUALLY_COLLAPSED_KEY, JSON.stringify(Array.from(collapsed)));
 }
 
-export function isCommentThreadManuallyCollapsed(threadKey: string): boolean {
+function isCommentThreadManuallyCollapsed(threadKey: string): boolean {
   return loadManuallyCollapsed().has(threadKey);
 }
 

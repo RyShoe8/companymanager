@@ -2,7 +2,7 @@ type NamedEmployee = {
   name: string;
 };
 
-export type EmployeeRankedCandidate<T extends NamedEmployee> = {
+type EmployeeRankedCandidate<T extends NamedEmployee> = {
   employee: T;
   score: number;
   reason: 'exact' | 'fuzzy';

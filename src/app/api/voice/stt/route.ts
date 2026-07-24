@@ -18,9 +18,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Audio file too large' }, { status: 413 });
         }
 
-        // In a full implementation, you'd send this audio Blob to an STT service (e.g., OpenAI Whisper AWS Transcribe)
-        // const transcript = await transcribeAudio(file);
-
+        // TODO: wire this audio Blob to a real STT service (e.g. OpenAI Whisper, AWS Transcribe).
         // Simulated fallback response
         return NextResponse.json({ text: "Simulated server-side transcription for Option B fallback." });
     } catch (error) {

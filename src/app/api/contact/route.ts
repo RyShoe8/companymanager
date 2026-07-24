@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     });
     if (!captcha.ok) return recaptchaFailureResponse(captcha);
 
-    let { type, name, email, subject, message } = body;
+    const { type } = body;
+    let { name, email, subject, message } = body;
 
     // Validate required fields
     if (!type || !name || !email || !subject || !message) {

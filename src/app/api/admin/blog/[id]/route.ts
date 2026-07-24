@@ -11,7 +11,7 @@ import { applyDerivedSeoOnSave } from '@/lib/blog/deriveBlogSeo';
 import { coverImageUrlError } from '@/lib/blog/coverImageUrl';
 
 async function uniqueSlug(base: string, excludeId: string): Promise<string> {
-  let slug = base || 'post';
+  const slug = base || 'post';
   let n = 0;
   while (true) {
     const candidate = n === 0 ? slug : `${slug}-${n}`;

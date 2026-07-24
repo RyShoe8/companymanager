@@ -7,6 +7,7 @@ import Recording from '@/lib/models/Recording';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { canUserContributeToProject } from '@/lib/utils/projectTeam';
 import { isValidObjectId } from '@/lib/utils/security';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import type { IRecording } from '@/lib/models/Recording';
 
 export type RecordingSessionContext = {
@@ -35,8 +36,7 @@ export async function getRecordingSessionContext(
       email: user.email.toLowerCase(),
     });
   }
-  const isManagerOrAdmin =
-    currentUserEmployee?.role === 'Manager' || currentUserEmployee?.role === 'Administrator';
+  const isManagerOrAdmin = isManagerOrAdminRole(currentUserEmployee?.role);
   const orgUserIds = await getOrganizationUserIds(userId, user.organizationId);
 
   return {
@@ -82,7 +82,7 @@ export async function assertProjectRecordingAccess(
   return null;
 }
 
-export async function canAccessRecording(
+async function canAccessRecording(
   ctx: RecordingSessionContext,
   recording: Pick<IRecording, 'organizationId' | 'projectId' | 'userId'>
 ): Promise<boolean> {

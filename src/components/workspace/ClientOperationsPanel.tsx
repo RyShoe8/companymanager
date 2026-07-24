@@ -27,7 +27,7 @@ import {
 } from '@/lib/clients/aggregateClientOperations';
 import { clientIdStr } from '@/lib/clients/clientApiHelpers';
 import { getClientUrlList, syncClientUrlFields } from '@/lib/clients/clientUrls';
-import { deleteLinkedAsset, canUserDeleteAsset } from '@/lib/utils/linkedAssets';
+import { deleteLinkedAsset, canUserDeleteAsset, isTextDocumentAssetType } from '@/lib/utils/linkedAssets';
 import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
 import HoverDeleteButton from '@/components/shared/HoverDeleteButton';
 import { TECH_STACK_CATALOG } from '@/lib/techStack/catalog';
@@ -53,10 +53,6 @@ function linkedAssetOpenHref(asset: LinkedAssetRow): string | null {
   if (asset.url?.trim()) return asset.url.trim();
   if (asset.fileUrl?.trim()) return asset.fileUrl.trim();
   return null;
-}
-
-function isTextDocumentAssetType(type: string): boolean {
-  return type === 'text';
 }
 
 interface ClientOperationsPanelProps {

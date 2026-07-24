@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
-import ContentItem, { type IContentItem } from '@/lib/models/ContentItem';
+import ContentItem, { type IContentItem, type ContentChannel } from '@/lib/models/ContentItem';
 import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (channelParam && CHANNELS.includes(channelParam as any)) {
+    if (channelParam && CHANNELS.includes(channelParam as ContentChannel)) {
       query.channel = channelParam;
     }
 
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const projectInOrg = orgUserIds.some((id) => id.toString() === (project as any).userId?.toString());
+    const projectInOrg = orgUserIds.some((id) => id.toString() === project.userId?.toString());
     if (!projectInOrg) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }

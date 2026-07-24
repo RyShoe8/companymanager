@@ -1,5 +1,5 @@
 /** Decode address from mailto:path (strip query). */
-export function parseMailtoEmail(mailtoUrl: string): string | null {
+function parseMailtoEmail(mailtoUrl: string): string | null {
   const trimmed = mailtoUrl.trim();
   if (!trimmed.toLowerCase().startsWith('mailto:')) return null;
   try {
@@ -12,7 +12,7 @@ export function parseMailtoEmail(mailtoUrl: string): string | null {
 }
 
 /** Consumer Gmail / Googlemail only (not Workspace vanity domains). */
-export function isConsumerGmailDomain(email: string): boolean {
+function isConsumerGmailDomain(email: string): boolean {
   const at = email.lastIndexOf('@');
   if (at < 0) return false;
   const dom = email.slice(at + 1).toLowerCase().trim();

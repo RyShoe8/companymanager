@@ -2,10 +2,10 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-export const ACTION_MENU_ITEM_CLASS =
+const ACTION_MENU_ITEM_CLASS =
   'relative z-10 w-full text-left px-4 py-2.5 text-sm text-text-primary transition-colors duration-150 ease-out hover:text-primary';
 
-export const ACTION_MENU_ITEM_DISABLED_CLASS =
+const ACTION_MENU_ITEM_DISABLED_CLASS =
   'relative z-10 w-full text-left px-4 py-2.5 text-sm text-text-muted cursor-not-allowed';
 
 export type ActionMenuItem = {
@@ -15,7 +15,7 @@ export type ActionMenuItem = {
   icon?: React.ReactNode;
 };
 
-export type ActionMenuAlign = 'left' | 'right';
+type ActionMenuAlign = 'left' | 'right';
 
 type MenuHighlight = { top: number; height: number };
 

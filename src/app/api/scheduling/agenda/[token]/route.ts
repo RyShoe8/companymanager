@@ -13,6 +13,8 @@ import { buildMeetingAgenda } from '@/lib/scheduling/buildMeetingAgenda';
 import { buildMeetingDetailPayload } from '@/lib/scheduling/buildMeetingDetailPayload';
 import { resolveMeetingLinkedProjectIds } from '@/lib/scheduling/resolveMeetingLinkedProjectIds';
 import type { IProject } from '@/lib/models/Project';
+import type { IClient } from '@/lib/models/Client';
+import type { IContentItem } from '@/lib/models/ContentItem';
 import { canUserContributeToProject } from '@/lib/utils/projectTeam';
 import {
   getOrganizationUserIds,
@@ -189,14 +191,17 @@ export async function GET(
       joinUrl: meeting.joinUrl,
       joinPlatform: meeting.joinPlatform,
     };
-    const payload = buildMeetingAgenda(meetingWindow, migrated as any, contentItems as any);
+    const migratedProjects = migrated as unknown as IProject[];
+    const typedContentItems = contentItems as unknown as IContentItem[];
+    const typedLinkedClients = linkedClients as unknown as IClient[];
+    const payload = buildMeetingAgenda(meetingWindow, migratedProjects, typedContentItems);
     const detail = buildMeetingDetailPayload(
       meetingWindow,
-      migrated as any,
+      migratedProjects,
       assetsByProjectId,
-      contentItems as any,
+      typedContentItems,
       invitees,
-      linkedClients as any
+      typedLinkedClients
     );
 
     return NextResponse.json({

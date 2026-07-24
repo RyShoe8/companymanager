@@ -17,6 +17,3 @@ export const BLOG_BODY_PROSE_CLASS =
 /** TipTap editor surface — same body prose rules plus editing chrome. */
 export const BLOG_EDITOR_PROSE_CLASS =
   `${BLOG_BODY_PROSE_CLASS} min-h-[280px] px-4 py-3 focus:outline-none`;
-
-/** @deprecated Use BLOG_BODY_PROSE_CLASS */
-export const BLOG_PROSE_CLASS = BLOG_BODY_PROSE_CLASS;

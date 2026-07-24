@@ -1,4 +1,4 @@
-export const RETENTION_MONTHS = 6;
+const RETENTION_MONTHS = 6;
 
 export function isRetentionDryRun(): boolean {
   const value = process.env.RETENTION_DRY_RUN?.trim().toLowerCase();

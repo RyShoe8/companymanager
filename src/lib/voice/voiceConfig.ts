@@ -2,6 +2,8 @@
  * Voice configuration: provider selection, feature flags, privacy settings.
  */
 
+import { getSpeechRecognitionConstructor } from '@/lib/voice/speechRecognitionTypes';
+
 /** HAL-like TTS defaults (calm, measured, lower pitch) */
 export const HAL_TTS_RATE = 0.9;
 export const HAL_TTS_PITCH = 0.85;
@@ -55,7 +57,7 @@ export function getVoiceConfig(): VoiceConfig {
 }
 
 /** Actions that require explicit voice confirmation before executing */
-export const HIGH_RISK_ACTIONS = new Set([
+const HIGH_RISK_ACTIONS = new Set([
     'DELETE_ENTITY',
     'EDIT_ENTITY', // Status changes, unassign
 ]);
@@ -63,8 +65,5 @@ export const HIGH_RISK_ACTIONS = new Set([
 /** Check if Web Speech API is available */
 export function isWebSpeechAvailable(): boolean {
     if (typeof window === 'undefined') return false;
-    return !!(
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition
-    );
+    return !!getSpeechRecognitionConstructor();
 }

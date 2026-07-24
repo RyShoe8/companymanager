@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-export type OsRole = 'Administrator' | 'Manager' | 'User' | null;
+type OsRole = 'Administrator' | 'Manager' | 'User' | null;
 
 export interface OsAuthState {
     loading: boolean;

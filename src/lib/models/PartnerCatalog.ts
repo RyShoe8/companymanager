@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 /** Partner link entry in the catalog (e.g. product, integration). */
-export interface IPartnerLink {
+interface IPartnerLink {
   name: string;
   url?: string;
   productType?: string; // References productTypes taxonomy; shared with referral system
@@ -9,7 +9,7 @@ export interface IPartnerLink {
 }
 
 /** Catalog of partner links and product types for Smart Buttons and referral. */
-export interface IPartnerCatalog extends Document {
+interface IPartnerCatalog extends Document {
   name: string;
   partnerLinks: IPartnerLink[];
   productTypes: string[]; // e.g. engineering, marketing, sales, operations; shared with Section 5 referral

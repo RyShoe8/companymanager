@@ -212,8 +212,3 @@ export async function captureDisplayFrame(): Promise<File> {
     stopStream(stream);
   }
 }
-
-/** @deprecated Use captureDisplayFrame */
-export async function captureScreenshot(): Promise<File> {
-  return captureDisplayFrame();
-}

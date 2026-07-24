@@ -1,8 +1,8 @@
-export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 128;
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
 
 /** Common symbols allowed for the special-character requirement. */
-export const PASSWORD_SPECIAL_CHARS = '!@#$%^&*._-';
+const PASSWORD_SPECIAL_CHARS = '!@#$%^&*._-';
 
 export const PASSWORD_REQUIREMENTS_MESSAGE =
   'At least 8 characters, including one number and one special character (!@#$%^&*._-).';

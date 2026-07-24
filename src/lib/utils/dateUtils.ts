@@ -6,53 +6,13 @@ export interface DateRange {
 }
 
 /**
- * Get the start and end dates for the current week
- */
-export function getCurrentWeekRange(): DateRange {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday
-  const start = new Date(now.setDate(diff));
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
-
-/**
  * Get the start and end dates for the current month
  */
-export function getCurrentMonthRange(): DateRange {
+function getCurrentMonthRange(): DateRange {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   start.setHours(0, 0, 0, 0);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
-
-/**
- * Get the start and end dates for the current quarter
- */
-export function getCurrentQuarterRange(): DateRange {
-  const now = new Date();
-  const quarter = Math.floor(now.getMonth() / 3);
-  const start = new Date(now.getFullYear(), quarter * 3, 1);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
-
-/**
- * Get the start and end dates for the current year
- */
-export function getCurrentYearRange(): DateRange {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 1);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(now.getFullYear(), 11, 31);
   end.setHours(23, 59, 59, 999);
   return { start, end };
 }
@@ -164,27 +124,6 @@ export function toIsoDateInputValueUTC(value: Date | string): string {
 }
 
 /**
- * Format a date range to a readable string
- */
-export function formatDateRange(start: Date, end: Date): string {
-  return `${formatDate(start)} - ${formatDate(end)}`;
-}
-
-/**
- * Check if a date falls within a date range
- */
-export function isDateInRange(date: Date, range: DateRange): boolean {
-  return date >= range.start && date <= range.end;
-}
-
-/**
- * Check if a date range overlaps with another date range
- */
-export function doRangesOverlap(range1: DateRange, range2: DateRange): boolean {
-  return range1.start <= range2.end && range1.end >= range2.start;
-}
-
-/**
  * Safely parse a date value, returning undefined if invalid
  * @param dateValue - Date string, Date object, or undefined
  * @returns Valid Date object or undefined
@@ -199,7 +138,7 @@ export function parseDateSafe(dateValue: string | Date | undefined | null): Date
 }
 
 /** UTC calendar day index for inclusive range comparisons (matches stored task dates). */
-export function utcCalendarDayIndex(date: Date): number {
+function utcCalendarDayIndex(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
@@ -279,16 +218,6 @@ export function resolveTaskDisplayDates(
     return { startDate: taskEnd, endDate: taskEnd };
   }
   return { startDate: taskStart!, endDate: taskEnd! };
-}
-
-/** True when two inclusive date ranges share at least one UTC calendar day. */
-export function datesOverlapUtcCalendarDays(
-  rangeStart: Date,
-  rangeEnd: Date,
-  periodStart: Date,
-  periodEnd: Date
-): boolean {
-  return taskOverlapsViewRange(rangeStart, rangeEnd, periodStart, periodEnd);
 }
 
 /**

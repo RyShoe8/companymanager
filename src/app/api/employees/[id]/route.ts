@@ -48,7 +48,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, role, jobTitle, team, weeklyHours, employeeType, email, userId } = body;
+    const { role, jobTitle, team, weeklyHours, employeeType, userId } = body;
+    let { name, email } = body;
 
     await connectDB();
     const { id } = await params;

@@ -20,7 +20,7 @@ export type ContentRecurrenceTemplate = {
   estimatedHours?: number;
 };
 
-export function buildContentRowsForDates(
+function buildContentRowsForDates(
   template: ContentRecurrenceTemplate,
   publishDates: Date[],
   seriesId: string,

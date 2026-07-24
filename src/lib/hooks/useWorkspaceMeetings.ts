@@ -5,7 +5,7 @@ import type { IMeeting } from '@/lib/models/Meeting';
 import { sortMeetingsByStart } from '@/lib/scheduling/meetingHours';
 import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
 
-export function useWorkspaceMeetings(
+function useWorkspaceMeetings(
   timeframe: TimeframeType,
   currentDate: Date,
   enabled: boolean,

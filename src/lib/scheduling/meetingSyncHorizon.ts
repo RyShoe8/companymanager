@@ -1,8 +1,8 @@
-export const MEETING_SYNC_PAST_DAYS = 30;
-export const MEETING_SYNC_FUTURE_MONTHS = 6;
+const MEETING_SYNC_PAST_DAYS = 30;
+const MEETING_SYNC_FUTURE_MONTHS = 6;
 export const MEETING_SYNC_CHUNK_DAYS = 30;
 /** Drop synced rows older than this many days before now. */
-export const MEETING_SYNC_RETENTION_PAST_DAYS = 90;
+const MEETING_SYNC_RETENTION_PAST_DAYS = 90;
 
 export type DateRange = { start: Date; end: Date };
 
@@ -69,7 +69,7 @@ export function getFullSyncChunks(desired: DateRange): DateRange[] {
 }
 
 /** Near-term refresh window (optional daily reconcile). */
-export function getNearTermRefreshRange(now = new Date()): DateRange {
+function getNearTermRefreshRange(now = new Date()): DateRange {
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
   const end = new Date(now);

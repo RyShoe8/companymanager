@@ -1,7 +1,7 @@
 import { slugifyTitle } from '@/lib/blog/slugify';
 import InsightVendor from '@/lib/models/InsightVendor';
 
-export function slugifyVendorName(name: string): string {
+function slugifyVendorName(name: string): string {
   const base = slugifyTitle(name) || 'vendor';
   return base.slice(0, 80);
 }

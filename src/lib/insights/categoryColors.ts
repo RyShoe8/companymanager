@@ -1,4 +1,4 @@
-export type InsightCategoryColorKey =
+type InsightCategoryColorKey =
   | 'legal'
   | 'branding'
   | 'design'

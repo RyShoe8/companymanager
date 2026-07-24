@@ -8,6 +8,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { validateImageFile, isValidObjectId } from '@/lib/utils/security';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { deleteStoredFile } from '@/lib/storage/deleteStoredFile';
 import { put } from '@vercel/blob';
 
@@ -19,8 +20,7 @@ async function requireManagerContext(sessionUserId: string) {
 
   const Employee = (await import('@/lib/models/Employee')).default;
   const employee = await Employee.findOne({ userId: sessionUserId, organizationId: user.organizationId });
-  const isManagerOrAdmin =
-    employee?.role === 'Manager' || employee?.role === 'Administrator';
+  const isManagerOrAdmin = isManagerOrAdminRole(employee?.role);
   if (!isManagerOrAdmin) {
     return { error: NextResponse.json({ error: 'Only Managers and Administrators can manage client logos' }, { status: 403 }) };
   }

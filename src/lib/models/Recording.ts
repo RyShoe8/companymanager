@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type RecordingStatus = 'uploading' | 'processing' | 'complete' | 'failed';
+type RecordingStatus = 'uploading' | 'processing' | 'complete' | 'failed';
 
 export interface IRecording extends Document {
   title: string;

@@ -18,7 +18,7 @@ export class RecordingCaptureError extends Error {
 
 export type RecordingAudioSource = 'system' | 'mic';
 
-export type RecordingCaptureResult = {
+type RecordingCaptureResult = {
   videoFile: File;
   audioFile: File | null;
   durationSeconds: number;
@@ -135,7 +135,7 @@ function recordingFileExtension(mimeType: string): string {
   return 'webm';
 }
 
-export function isMp4RecordingMimeType(mimeType: string): boolean {
+function isMp4RecordingMimeType(mimeType: string): boolean {
   return mimeType.startsWith('video/mp4');
 }
 

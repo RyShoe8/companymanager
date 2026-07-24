@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const query: any = {
+    const query: Record<string, unknown> = {
       entityType,
       entityId,
     };
@@ -71,11 +71,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Build threaded structure
-    const commentMap = new Map();
-    const rootComments: any[] = [];
+    type LeanComment = (typeof comments)[number];
+    type CommentWithReplies = LeanComment & { replies: CommentWithReplies[] };
+    const commentMap = new Map<string, CommentWithReplies>();
+    const rootComments: CommentWithReplies[] = [];
 
     // First pass: create map of all comments
-    comments.forEach((comment: any) => {
+    comments.forEach((comment) => {
       commentMap.set(comment._id.toString(), {
         ...comment,
         replies: [],
@@ -83,8 +85,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Second pass: build tree structure
-    comments.forEach((comment: any) => {
-      const commentObj = commentMap.get(comment._id.toString());
+    comments.forEach((comment) => {
+      const commentObj = commentMap.get(comment._id.toString())!;
       if (comment.parentId) {
         const parent = commentMap.get(comment.parentId.toString());
         if (parent) {
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const commentData: any = {
+    const commentData: Record<string, unknown> = {
       content,
       authorId: session.userId,
       authorName: user.name || user.email.split('@')[0],

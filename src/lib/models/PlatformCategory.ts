@@ -4,7 +4,7 @@ export type PlatformStackSlug = string;
 /** @deprecated Use PlatformStackSlug — stack type is any active stack slug. */
 export type PlatformStackType = PlatformStackSlug;
 
-export interface IPlatformCategory extends Document {
+interface IPlatformCategory extends Document {
   stackType: PlatformStackSlug;
   slug: string;
   label: string;

@@ -1,6 +1,6 @@
 import Meeting, { IMeeting } from '@/lib/models/Meeting';
 import MeetingSeriesSettings from '@/lib/models/MeetingSeriesSettings';
-import Project from '@/lib/models/Project';
+import Project, { type IProject } from '@/lib/models/Project';
 import Client from '@/lib/models/Client';
 import { getGoogleAccessTokenForUser } from '@/lib/scheduling/calendarConnection';
 import { extractMeetingJoinUrl } from '@/lib/scheduling/extractMeetingJoinUrl';
@@ -13,10 +13,7 @@ import {
   pushMeetingDescriptionToGoogle,
 } from '@/lib/scheduling/meetingCalendarSync';
 import { stripNucleasAgendaFromDescription } from '@/lib/scheduling/meetingAgendaDescription';
-import {
-  findMeetingsForProjectPropagation,
-  propagateMeetingProjectsAndCalendars,
-} from '@/lib/scheduling/meetingPropagation';
+import { propagateMeetingProjectsAndCalendars } from '@/lib/scheduling/meetingPropagation';
 import { propagateMeetingInstanceAfterLocalEdit } from '@/lib/scheduling/propagateMeetingInstance';
 import { resolveMeetingInvitees } from '@/lib/scheduling/meetingAttendees';
 import type { MeetingVideoMode } from '@/lib/scheduling/meetingVideoConference';
@@ -77,7 +74,7 @@ async function loadOrgProjects(
     _id: { $in: projectIds },
     userId: { $in: orgUserIds },
   }).lean();
-  return projects.map((p) => migrateProjectFields(migrateStagesToTasks(p))) as any[];
+  return projects.map((p) => migrateProjectFields(migrateStagesToTasks(p))) as unknown as IProject[];
 }
 
 function applyVideoToMeeting(
@@ -484,5 +481,3 @@ export async function deleteMeetingRecord(params: {
   await Meeting.deleteOne({ _id: meeting._id });
   return { deletedCount: 1, googleDeleted };
 }
-
-export { findMeetingsForProjectPropagation };

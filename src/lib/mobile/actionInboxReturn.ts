@@ -1,5 +1,5 @@
-export const RETURN_TO_ACTION_KEY = 'nucleas:return-to-action';
-export const ACTION_INBOX_ITEM_KEY = 'nucleas:action-inbox-item-key';
+const RETURN_TO_ACTION_KEY = 'nucleas:return-to-action';
+const ACTION_INBOX_ITEM_KEY = 'nucleas:action-inbox-item-key';
 
 export function markOpenedFromActionInbox(itemKey: string): void {
   if (typeof window === 'undefined') return;

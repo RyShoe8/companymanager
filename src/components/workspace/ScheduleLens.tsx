@@ -4,6 +4,7 @@ import { IProject } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { TimeframeType } from '@/lib/utils/dateUtils';
 import CalendarView from '@/components/planning-map/CalendarView';
+import type { TeamFilterType } from '@/components/workspace/WorkspaceTeamFilter';
 
 interface ScheduleLensProps {
     projects: IProject[];
@@ -21,7 +22,7 @@ interface ScheduleLensProps {
     currentUserId?: string | null;
     isManagerOrAdmin: boolean;
     showOnlyMyAssignments: boolean;
-    teamFilter?: string;
+    teamFilter?: TeamFilterType;
     onRefreshContent: () => void;
     onAddContent: (project: IProject, defaultDate?: Date) => void;
     onAddTask?: (project: IProject) => void;
@@ -73,7 +74,7 @@ export default function ScheduleLens({
             currentUserId={currentUserId}
             isManagerOrAdmin={isManagerOrAdmin}
             showOnlyMyAssignments={showOnlyMyAssignments}
-            teamFilter={teamFilter as any}
+            teamFilter={teamFilter}
             onRefreshContent={onRefreshContent}
             onAddContent={onAddContent}
             onAddTask={onAddTask}

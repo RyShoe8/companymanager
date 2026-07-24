@@ -4,6 +4,12 @@ import { createContext, useContext, useState, useCallback, useRef, ReactNode, us
 import { parseIntent, ParsedIntent } from '@/lib/voice/IntentParser';
 import { isWebSpeechAvailable, getVoiceConfig } from '@/lib/voice/voiceConfig';
 import { detectWakeWord } from '@/lib/voice/wakeWordMatcher';
+import {
+    getSpeechRecognitionConstructor,
+    type SpeechRecognitionInstance,
+    type SpeechRecognitionEvent,
+    type SpeechRecognitionErrorEvent,
+} from '@/lib/voice/speechRecognitionTypes';
 import { fetchLlmVoiceIntent } from '@/lib/voice/fetchVoiceIntent';
 import { enrichIntentWithContext } from '@/lib/voice/enrichIntentWithContext';
 import { useIntentConfirmation } from '@/components/intent/IntentConfirmationContext';
@@ -84,8 +90,8 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
     const [error, setError] = useState<string | null>(null);
     const [resultMessage, setResultMessage] = useState<string | null>(null);
     const [pendingActionDescription, setPendingActionDescription] = useState<string | null>(null);
-    const recognitionRef = useRef<any>(null);
-    const wakeRecognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+    const wakeRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
     const wakeCooldownUntilRef = useRef<number>(0);
     const accumulatedTranscriptRef = useRef<string>('');
     const endOfUtteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,37 +164,10 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
 
     const processTranscript = useCallback(
         async (text: string) => {
-            console.log('[Voice] Processing finalized transcript:', text);
             setState('processing');
 
             const wsCtx = getWorkspaceContext?.() ?? null;
             const llmResult = await fetchLlmVoiceIntent(text, wsCtx);
-            const llmShapeSummary = (() => {
-                const raw = llmResult.ok ? llmResult.llmRaw : null;
-                if (!raw || typeof raw !== 'object') return null;
-                const top = raw as Record<string, unknown>;
-                const slots =
-                    top.slots && typeof top.slots === 'object' && !Array.isArray(top.slots)
-                        ? (top.slots as Record<string, unknown>)
-                        : null;
-                const read = (...keys: string[]): unknown => {
-                    for (const key of keys) {
-                        if (key in top) return top[key];
-                        if (slots && key in slots) return slots[key];
-                    }
-                    return undefined;
-                };
-                const titles = read('titles', 'task_titles', 'tasks');
-                return {
-                    action: String(read('action') ?? ''),
-                    keys: Object.keys(top).slice(0, 12),
-                    hasSlots: !!slots,
-                    titlesType: Array.isArray(titles) ? 'array' : typeof titles,
-                    titlesLen: Array.isArray(titles) ? titles.length : 0,
-                    hasEmployeeAlias: !!read('employee_name', 'employeeName', 'assignee', 'assigned_to'),
-                    hasProjectAlias: !!read('project_name', 'projectName', 'project', 'projectId'),
-                };
-            })();
 
             let intent: ParsedIntent | null = null;
             let source: 'llm' | 'rules' = 'rules';
@@ -197,7 +176,6 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             if (llmResult.ok && llmResult.intent) {
                 intent = llmResult.intent;
                 source = 'llm';
-                console.log('[Voice] Parsed via LLM', { type: intent.type, slots: intent.slots });
             } else {
                 if (!llmResult.ok) {
                     rulesFallbackReason =
@@ -210,17 +188,9 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
                     rulesFallbackReason = 'llm_json_unmapped';
                 }
 
-                console.log('[Voice] Using rules fallback:', {
-                    reason: rulesFallbackReason,
-                    detail: !llmResult.ok ? llmResult.error : llmResult.llmRaw ?? null,
-                    llmShapeSummary: rulesFallbackReason === 'llm_json_unmapped' ? llmShapeSummary : null,
-                    transcriptPreview: text.slice(0, 100),
-                });
-
                 const parsedRules = parseIntent(text);
                 intent = enrichIntentWithContext(parsedRules, wsCtx ?? undefined) ?? parsedRules;
                 source = 'rules';
-                console.log('[Voice] Parsed via rules', { type: intent.type, slots: intent.slots });
             }
 
             setLastIntent(intent);
@@ -304,8 +274,12 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
         }
 
         if (isWebSpeechAvailable()) {
-            const SpeechRecognition =
-                (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            const SpeechRecognition = getSpeechRecognitionConstructor();
+            if (!SpeechRecognition) {
+                setError('Web Speech API not available. Server STT fallback not yet configured.');
+                clearMessages();
+                return;
+            }
             const recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = true;
@@ -316,7 +290,7 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
                 setState('listening');
             };
 
-            recognition.onresult = (event: any) => {
+            recognition.onresult = (event: SpeechRecognitionEvent) => {
                 let interimTranscript = '';
                 let hadNewContent = false;
 
@@ -352,7 +326,7 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
                 }
             };
 
-            recognition.onerror = (event: any) => {
+            recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
                 if (endOfUtteranceTimerRef.current) {
                     clearTimeout(endOfUtteranceTimerRef.current);
                     endOfUtteranceTimerRef.current = null;
@@ -415,8 +389,7 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             return;
         }
 
-        const SpeechRecognition =
-            (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognitionConstructor();
         if (!SpeechRecognition) return;
 
         const wake = new SpeechRecognition();
@@ -431,23 +404,15 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
 
         wake.onstart = () => {
             setIsWakeArmed(true);
-            console.log('[Voice] Wake-word armed', { wakeWord });
         };
 
-        wake.onresult = (event: any) => {
+        wake.onresult = (event: SpeechRecognitionEvent) => {
             let combined = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 combined += ` ${event.results[i][0].transcript || ''}`;
             }
             const match = detectWakeWord(combined, aliases, minScore);
             if (!match.matched) {
-                if (match.score >= Math.max(0.55, minScore - 0.12)) {
-                    console.log('[Voice] Wake candidate (below threshold)', {
-                        heard: match.normalizedHeard,
-                        score: Number(match.score.toFixed(3)),
-                        threshold: minScore,
-                    });
-                }
                 return;
             }
             const now = Date.now();
@@ -456,13 +421,6 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             setWakeDetections((v) => v + 1);
             setWakeLastAlias(match.matchedAlias);
             setWakeLastScore(match.score);
-            console.log('[Voice] Wake-word detected', {
-                configuredWakeWord: wakeWord,
-                matchedAlias: match.matchedAlias,
-                score: Number(match.score.toFixed(3)),
-                normalizedHeard: match.normalizedHeard,
-                at: now,
-            });
             try {
                 wake.onend = null;
                 wake.stop();
@@ -473,7 +431,7 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             startListening();
         };
 
-        wake.onerror = (event: any) => {
+        wake.onerror = (event: SpeechRecognitionErrorEvent) => {
             console.warn('[Voice] Wake-word detector error', event?.error);
         };
 
@@ -502,7 +460,6 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
         resetVoiceChrome();
         if (r) {
             if (r.success) {
-                console.log('[Voice] Intent executed', r.message);
                 setResultMessage(r.message);
                 speakClientTts(r.message);
             } else {
@@ -519,7 +476,6 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
         }
         intentCtx.cancel();
         resetVoiceChrome();
-        console.log('[Voice] User cancelled confirmation');
         setResultMessage('Action cancelled.');
         clearMessages();
     }, [intentCtx, resetVoiceChrome, clearMessages, wakeWordEnabled, state]);

@@ -9,7 +9,7 @@ import {
 import { parseDateSafe } from '@/lib/utils/dateUtils';
 
 /** Show extend control when this many or fewer occurrences remain (including current). */
-export const EXTEND_SERIES_REMAINING_THRESHOLD = 3;
+const EXTEND_SERIES_REMAINING_THRESHOLD = 3;
 
 export function shouldShowExtendSeries(pos: SeriesPosition): boolean {
   const remaining = pos.total - pos.index + 1;

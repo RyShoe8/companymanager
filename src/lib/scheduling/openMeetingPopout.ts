@@ -1,5 +1,5 @@
-export const MEETING_POPOUT_WIDTH = 960;
-export const MEETING_POPOUT_HEIGHT = 720;
+const MEETING_POPOUT_WIDTH = 960;
+const MEETING_POPOUT_HEIGHT = 720;
 
 export type MeetingPopoutResult = {
   opened: boolean;
@@ -8,19 +8,19 @@ export type MeetingPopoutResult = {
 
 const MEETING_POPOUT_WINDOW_NAME = 'nucleas-meeting';
 
-export function buildMeetingPopoutUrl(agendaToken: string): string {
+function buildMeetingPopoutUrl(agendaToken: string): string {
   const path = `/scheduling/meeting/${encodeURIComponent(agendaToken)}?popout=1`;
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;
 }
 
-export function buildAssetPopoutUrl(assetId: string): string {
+function buildAssetPopoutUrl(assetId: string): string {
   const path = `/assets/view/${encodeURIComponent(assetId)}?popout=1`;
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;
 }
 
-export function openSizedPopout(
+function openSizedPopout(
   url: string,
   windowName: string,
   width: number = MEETING_POPOUT_WIDTH,

@@ -211,7 +211,7 @@ export function PlatformGuideProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function usePlatformGuide(): PlatformGuideContextValue {
+function usePlatformGuide(): PlatformGuideContextValue {
   const ctx = useContext(PlatformGuideContext);
   if (!ctx) {
     throw new Error('usePlatformGuide must be used within PlatformGuideProvider');

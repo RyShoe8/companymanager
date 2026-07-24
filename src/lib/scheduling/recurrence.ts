@@ -84,7 +84,7 @@ export function buildRecurrenceRule(options: BuildRecurrenceOptions): string[] {
 }
 
 /** List window end for importing instances after creating a series. */
-export function getRecurrenceImportRangeEnd(
+function getRecurrenceImportRangeEnd(
   start: Date,
   recurrenceEnd: RecurrenceEnd,
   until?: Date

@@ -6,6 +6,7 @@
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
 import Employee from '@/lib/models/Employee';
+import { Types } from 'mongoose';
 
 export async function migrateAssignmentsToEmployeeId() {
   try {
@@ -15,7 +16,7 @@ export async function migrateAssignmentsToEmployeeId() {
 
     // Get all employees grouped by organization
     const employees = await Employee.find({}).lean();
-    const employeesByOrg: Record<string, Array<{ _id: any; name: string }>> = {};
+    const employeesByOrg: Record<string, Array<{ _id: Types.ObjectId; name: string }>> = {};
 
     employees.forEach(emp => {
       if (!employeesByOrg[emp.organizationId]) {
@@ -31,7 +32,7 @@ export async function migrateAssignmentsToEmployeeId() {
     // Get all users grouped by organization to find their projects
     const User = (await import('@/lib/models/User')).default;
     const allUsers = await User.find({}).lean();
-    const usersByOrg: Record<string, any[]> = {};
+    const usersByOrg: Record<string, Types.ObjectId[]> = {};
 
     allUsers.forEach(u => {
       if (!usersByOrg[u.organizationId]) {
@@ -57,7 +58,7 @@ export async function migrateAssignmentsToEmployeeId() {
         if (project.assignedTo && !project.assignedToEmployeeId) {
           const employee = orgEmployees.find(e => e.name === project.assignedTo);
           if (employee) {
-            (project as any).assignedToEmployeeId = employee._id;
+            project.assignedToEmployeeId = employee._id;
             updated = true;
           }
         }
@@ -65,7 +66,7 @@ export async function migrateAssignmentsToEmployeeId() {
         // Migrate task-level assignments
         if (project.tasks && Array.isArray(project.tasks)) {
           for (let i = 0; i < project.tasks.length; i++) {
-            const task = project.tasks[i] as any;
+            const task = project.tasks[i];
             if (task.assignedTo && !task.assignedToEmployeeId) {
               const employee = orgEmployees.find(e => e.name === task.assignedTo);
               if (employee) {

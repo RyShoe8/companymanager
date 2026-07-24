@@ -26,7 +26,7 @@ export const SOCIAL_NETWORK_LABELS: Record<SocialNetwork, string> = {
 };
 
 /** Normalize user input to https URL or null if invalid. */
-export function normalizeSocialUrl(raw: string): string | null {
+function normalizeSocialUrl(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   try {

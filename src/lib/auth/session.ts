@@ -14,7 +14,7 @@ export interface SessionPayload {
   [key: string]: unknown;
 }
 
-export async function encrypt(payload: SessionPayload): Promise<string> {
+async function encrypt(payload: SessionPayload): Promise<string> {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -22,7 +22,7 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
     .sign(key);
 }
 
-export async function decrypt(session: string): Promise<SessionPayload | null> {
+async function decrypt(session: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(session, key);
     return payload as SessionPayload;

@@ -29,7 +29,7 @@ type MeetingAnchor = Pick<
  * Recurring: entire series in the org (all instance dates, all users who synced).
  * Non-recurring: same iCalUID across users, else editor only.
  */
-export async function findMeetingsForProjectPropagation(
+async function findMeetingsForProjectPropagation(
   anchor: MeetingAnchor
 ): Promise<IMeeting[]> {
   const { organizationId } = anchor;

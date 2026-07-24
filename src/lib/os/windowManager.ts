@@ -7,7 +7,7 @@
 
 import type { ModuleDefinition, WindowState, WorkspaceLayout } from './types';
 
-export const INITIAL_Z_INDEX = 10;
+const INITIAL_Z_INDEX = 10;
 
 export const initialLayout: WorkspaceLayout = {
     windows: [],

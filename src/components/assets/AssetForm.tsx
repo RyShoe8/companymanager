@@ -15,9 +15,17 @@ interface AssetFormProps {
   linkedProjectTaskIndex?: number;
   /** Stable task reference (prefer over linkedProjectTaskIndex). */
   linkedProjectTaskId?: string;
-  onSubmit: (data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedClientId'> & { linkedProjectId?: string; linkedClientId?: string; linkedProjectTaskIndex?: number; linkedProjectTaskId?: string; file?: File }) => void;
+  onSubmit: (data: AssetFormSubmitData) => void;
   onCancel: () => void;
 }
+
+export type AssetFormSubmitData = Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedClientId' | 'linkedProjectTaskId'> & {
+  linkedProjectId?: string;
+  linkedClientId?: string;
+  linkedProjectTaskIndex?: number;
+  linkedProjectTaskId?: string;
+  file?: File;
+};
 
 export default function AssetForm({ asset, projects = [], clients = [], linkedProjectId: initialLinkedProjectId, linkedClientId: initialLinkedClientId, linkedProjectTaskIndex: initialLinkedProjectTaskIndex, linkedProjectTaskId: initialLinkedProjectTaskId, onSubmit, onCancel }: AssetFormProps) {
   const [name, setName] = useState(asset?.name || '');
@@ -58,7 +66,7 @@ export default function AssetForm({ asset, projects = [], clients = [], linkedPr
             const project = await response.json();
             if (project.tasks && project.tasks.length > 0) {
               setSelectedProjectTasks(
-                project.tasks.map((task: any, index: number) => ({
+                project.tasks.map((task: { _id?: string; name: string }, index: number) => ({
                   index,
                   id: task._id?.toString(),
                   name: task.name,
@@ -86,7 +94,7 @@ export default function AssetForm({ asset, projects = [], clients = [], linkedPr
     e.preventDefault();
     const tagArray = tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
 
-    const submitData: any = {
+    const submitData: AssetFormSubmitData = {
       name,
       type,
       description: description || undefined,

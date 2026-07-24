@@ -8,7 +8,7 @@ export interface IAvailabilitySlot {
   outOfOffice?: boolean;
 }
 
-export interface IUserAvailability extends Document {
+interface IUserAvailability extends Document {
   userId: Types.ObjectId;
   timezone: string;
   slots: IAvailabilitySlot[];

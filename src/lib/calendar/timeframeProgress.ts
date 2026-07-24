@@ -25,7 +25,7 @@ function contentPublishDateInRange(
   return t0 >= v0 && t0 <= v1;
 }
 
-export function countProjectTimeframeItems(
+function countProjectTimeframeItems(
   project: IProject,
   contentItems: IContentItem[],
   rangeStart: Date,

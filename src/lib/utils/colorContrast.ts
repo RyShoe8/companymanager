@@ -35,7 +35,7 @@ function relativeLuminance(r: number, g: number, b: number): number {
 }
 
 /** True when background is light enough that white text/icons are hard to see. */
-export function isLightBackgroundColor(color: string): boolean {
+function isLightBackgroundColor(color: string): boolean {
   const rgb = parseColorToRgb(color);
   if (!rgb) return false;
   return relativeLuminance(rgb[0], rgb[1], rgb[2]) > 0.5;

@@ -1,10 +1,10 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type FeedbackSubmissionType = 'Bug' | 'Feature Request' | 'Enterprise' | 'Other';
-export type FeedbackSubmissionSource = 'contact' | 'app';
-export type FeedbackSubmissionStatus = 'new' | 'done';
+type FeedbackSubmissionType = 'Bug' | 'Feature Request' | 'Enterprise' | 'Other';
+type FeedbackSubmissionSource = 'contact' | 'app';
+type FeedbackSubmissionStatus = 'new' | 'done';
 
-export interface IFeedbackSubmission extends Document {
+interface IFeedbackSubmission extends Document {
   type: FeedbackSubmissionType;
   subject: string;
   message: string;

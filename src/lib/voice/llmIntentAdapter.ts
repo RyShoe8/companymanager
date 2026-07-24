@@ -1,6 +1,6 @@
 import { joinBatchTaskTitles, type ParsedIntent } from '@/lib/voice/IntentParser';
 
-export type VoiceLlmRawIntent = {
+type VoiceLlmRawIntent = {
   action?: string;
   slots?: Record<string, unknown> | null;
   entity?: string | null;
@@ -165,7 +165,7 @@ export function rescueCreateTaskIntent(raw: unknown, rawTranscript: string): Par
 }
 
 /** Map navigation_target → ParsedIntent (aligned with WorkspaceShell handleIntent + CommandRegistry). */
-export function navigationTargetToParsedIntent(targetRaw: string, rawTranscript: string): ParsedIntent | null {
+function navigationTargetToParsedIntent(targetRaw: string, rawTranscript: string): ParsedIntent | null {
   const key = targetRaw.toLowerCase().replace(/\s+/g, '_');
 
   const navPlaces = ['workspace', 'assets', 'employees', 'employee', 'team', 'admin'] as const;

@@ -149,7 +149,7 @@ function taskOverlapsRange(task: IProjectTask, rangeStart: Date, rangeEnd: Date)
 }
 
 /** Content belongs to a calendar range if undated or publish day falls within the range. */
-export function contentInDisplayRange(
+function contentInDisplayRange(
   item: IContentItem,
   rangeStart: Date,
   rangeEnd: Date
@@ -250,7 +250,7 @@ export function filterContentToSeriesRepresentativesInRange(
 }
 
 /** Whether a task should appear in list/calendar views (one per recurrence series). */
-export function isTaskSeriesRepresentative(
+function isTaskSeriesRepresentative(
   task: IProjectTask,
   allTasks: IProjectTask[],
   referenceDate?: Date
@@ -266,7 +266,7 @@ export function isTaskSeriesRepresentative(
 }
 
 /** Whether a content item should appear in list/calendar views (one per recurrence series). */
-export function isContentSeriesRepresentative(
+function isContentSeriesRepresentative(
   item: IContentItem,
   allItems: IContentItem[],
   referenceDate?: Date

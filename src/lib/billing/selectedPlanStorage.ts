@@ -1,5 +1,5 @@
-export const NUCLEAS_SELECTED_PLAN_STORAGE_KEY = 'nucleas_selected_plan_id';
-export const NUCLEAS_SELECTED_INTERVAL_STORAGE_KEY = 'nucleas_selected_billing_interval';
+const NUCLEAS_SELECTED_PLAN_STORAGE_KEY = 'nucleas_selected_plan_id';
+const NUCLEAS_SELECTED_INTERVAL_STORAGE_KEY = 'nucleas_selected_billing_interval';
 
 export type StoredBillingInterval = 'month' | 'year';
 

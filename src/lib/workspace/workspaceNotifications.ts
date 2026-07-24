@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import connectDB from '@/lib/db/mongodb';
-import Employee, { type EmployeeRole, type IEmployee } from '@/lib/models/Employee';
+import Employee, { type IEmployee } from '@/lib/models/Employee';
 import User from '@/lib/models/User';
 import WorkspaceNotificationEvent, {
   type IWorkspaceNotificationEvent,
@@ -9,6 +9,7 @@ import WorkspaceNotificationPreference from '@/lib/models/WorkspaceNotificationP
 import type { IContentItem } from '@/lib/models/ContentItem';
 import type { IProject, IProjectTask } from '@/lib/models/Project';
 import { getAppBaseUrl } from '@/lib/utils/appBaseUrl';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import {
   getProjectTeamEmployeeIds,
   getTaskAssigneeEmployeeIds,
@@ -98,10 +99,6 @@ function normalizeId(id: unknown): string | null {
     return (id as { toString(): string }).toString();
   }
   return String(id);
-}
-
-function isManagerRole(role: EmployeeRole | undefined): boolean {
-  return role === 'Manager' || role === 'Administrator';
 }
 
 function taskSignature(task: TaskLike): string {
@@ -229,7 +226,7 @@ export function resolveProjectRecipientEmployeeIds(
   const teamIds = [...getProjectTeamEmployeeIds(project)];
   return teamIds.filter((employeeId) => {
     const employee = employeesById.get(employeeId);
-    return employee ? isManagerRole(employee.role) : false;
+    return employee ? isManagerOrAdminRole(employee.role) : false;
   });
 }
 

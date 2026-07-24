@@ -8,7 +8,7 @@ import type { ItemSeenStatus } from '@/lib/workspace/itemSeenState';
 import type { CalendarItemEntry } from '@/lib/calendar/calendarItemMode';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 
-export const CALENDAR_ITEM_ROW_HEIGHT = 140;
+const CALENDAR_ITEM_ROW_HEIGHT = 140;
 export const GANTT_ITEM_ROW_HEIGHT = 56;
 
 type ClientBadge = { name: string; color?: string };
@@ -65,7 +65,7 @@ function cardSurfaceClass(accentColor?: string, headerTextClass?: string) {
   };
 }
 
-export default function CalendarItemCard({
+function CalendarItemCard({
   entry,
   seenStatus = 'none',
   clientBadge,

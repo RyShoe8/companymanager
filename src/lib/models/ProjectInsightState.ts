@@ -1,8 +1,8 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export type ProjectInsightStatus = 'completed' | 'dismissed';
+type ProjectInsightStatus = 'completed' | 'dismissed';
 
-export interface IProjectInsightState extends Document {
+interface IProjectInsightState extends Document {
   projectId: Types.ObjectId;
   itemId: Types.ObjectId;
   status: ProjectInsightStatus;

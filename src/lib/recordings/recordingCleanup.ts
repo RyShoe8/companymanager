@@ -6,7 +6,7 @@ function toObjectId(id: string): Types.ObjectId {
   return new Types.ObjectId(id);
 }
 
-export async function deleteRecordingStorage(
+async function deleteRecordingStorage(
   recording: Pick<IRecording, 'videoUrl' | 'audioUrl'>
 ): Promise<void> {
   await deleteStoredFile(recording.videoUrl);
@@ -31,7 +31,7 @@ export async function deleteRecordingsForTask(taskId: string): Promise<number> {
   return deleteRecordingsByFilter({ taskId: toObjectId(taskId) });
 }
 
-export async function deleteRecordingsForContentItem(contentItemId: string): Promise<number> {
+async function deleteRecordingsForContentItem(contentItemId: string): Promise<number> {
   if (!Types.ObjectId.isValid(contentItemId)) return 0;
   return deleteRecordingsByFilter({ contentItemId: toObjectId(contentItemId) });
 }

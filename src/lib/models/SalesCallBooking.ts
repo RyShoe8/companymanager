@@ -20,7 +20,7 @@ SalesCallBookingSchema.index(
   { unique: true, partialFilterExpression: { status: 'scheduled' } }
 );
 
-export type SalesCallBookingDoc = InferSchemaType<typeof SalesCallBookingSchema> & {
+type SalesCallBookingDoc = InferSchemaType<typeof SalesCallBookingSchema> & {
   _id: mongoose.Types.ObjectId;
 };
 

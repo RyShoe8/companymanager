@@ -29,7 +29,7 @@ export function formatTaskAssigneeLabel(task: IProjectTask, employees: IEmployee
   );
 }
 
-export function formatContentAssigneeLabel(item: IContentItem, employees: IEmployee[]): string | undefined {
+function formatContentAssigneeLabel(item: IContentItem, employees: IEmployee[]): string | undefined {
   return resolveEmployeeName(employees, item.assignedToEmployeeId?.toString(), undefined);
 }
 

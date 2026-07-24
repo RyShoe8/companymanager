@@ -1,4 +1,4 @@
-export const RECORDING_POPOUT_CHANNEL = 'nucleas-recording-controls';
+const RECORDING_POPOUT_CHANNEL = 'nucleas-recording-controls';
 
 export type RecordingPopoutPhase = 'stabilizing' | 'armed' | 'recording';
 
@@ -10,7 +10,7 @@ export type RecordingPopoutMessage =
   | { type: 'stop' }
   | { type: 'closed' };
 
-export function createRecordingPopoutChannel(): BroadcastChannel | null {
+function createRecordingPopoutChannel(): BroadcastChannel | null {
   if (typeof BroadcastChannel === 'undefined') return null;
   return new BroadcastChannel(RECORDING_POPOUT_CHANNEL);
 }

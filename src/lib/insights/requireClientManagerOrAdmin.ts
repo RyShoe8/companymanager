@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Client from '@/lib/models/Client';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 
 export async function requireClientManagerOrAdmin(
   request: NextRequest,
@@ -30,8 +31,7 @@ export async function requireClientManagerOrAdmin(
   }
 
   const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-  const isManagerOrAdmin =
-    employee && (employee.role === 'Manager' || employee.role === 'Administrator');
+  const isManagerOrAdmin = employee && isManagerOrAdminRole(employee.role);
 
   if (!isManagerOrAdmin) {
     return {

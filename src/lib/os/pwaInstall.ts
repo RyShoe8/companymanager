@@ -1,4 +1,4 @@
-export const PWA_INSTALL_KEYS = {
+const PWA_INSTALL_KEYS = {
     seenOnLoad: 'nucleas-os-install-seen-on-load',
     seenOnModules: 'nucleas-os-install-seen-on-modules',
     dismissed: 'nucleas-os-install-dismissed',
@@ -53,17 +53,12 @@ export function isRunningInBrowserTab(): boolean {
     return isOsHost() && !isRunningAsInstalledPwa();
 }
 
-export function hasPwaInstalledFlag(): boolean {
+function hasPwaInstalledFlag(): boolean {
     return readFlag(PWA_INSTALL_KEYS.installed);
 }
 
 export function markPwaInstalled(): void {
     writeFlag(PWA_INSTALL_KEYS.installed);
-}
-
-/** Running as PWA or user confirmed / detected install via related-apps API. */
-export function isPwaInstalled(): boolean {
-    return isRunningAsInstalledPwa() || hasPwaInstalledFlag();
 }
 
 export async function detectInstalledRelatedAppAsync(): Promise<boolean> {
@@ -86,11 +81,6 @@ export async function detectInstalledRelatedAppAsync(): Promise<boolean> {
         // ignore — API may be unavailable or blocked
     }
     return hasPwaInstalledFlag();
-}
-
-export async function detectPwaInstalledAsync(): Promise<boolean> {
-    if (isRunningAsInstalledPwa()) return true;
-    return detectInstalledRelatedAppAsync();
 }
 
 function readFlag(key: string): boolean {
@@ -119,14 +109,6 @@ export function markSeenInstallOnLoad(): void {
     writeFlag(PWA_INSTALL_KEYS.seenOnLoad);
 }
 
-export function hasSeenInstallOnModules(): boolean {
-    return readFlag(PWA_INSTALL_KEYS.seenOnModules);
-}
-
-export function markSeenInstallOnModules(): void {
-    writeFlag(PWA_INSTALL_KEYS.seenOnModules);
-}
-
 export function isInstallDismissed(): boolean {
     return readFlag(PWA_INSTALL_KEYS.dismissed);
 }
@@ -135,16 +117,8 @@ export function markInstallDismissed(): void {
     writeFlag(PWA_INSTALL_KEYS.dismissed);
 }
 
-export function hasInstallEngaged(): boolean {
-    return readFlag(PWA_INSTALL_KEYS.engaged);
-}
-
 export function markInstallEngaged(): void {
     writeFlag(PWA_INSTALL_KEYS.engaged);
-}
-
-export function shouldShowInstallPrompt(): boolean {
-    return isOsHost() && isRunningInBrowserTab() && !hasPwaInstalledFlag() && !isInstallDismissed();
 }
 
 /** Clear reminder flags only — does not mark the app as installed. */

@@ -8,7 +8,7 @@ export interface PopOutOptions {
     placement?: PopoutPlacementOverride;
 }
 
-export interface WindowManagerActions {
+interface WindowManagerActions {
     open: (moduleId: string, options?: OpenWindowOptions) => string | null;
     close: (windowId: string) => void;
     focus: (windowId: string) => void;

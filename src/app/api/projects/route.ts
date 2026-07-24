@@ -6,7 +6,37 @@ import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } fr
 import { buildProjectsListQuery } from '@/lib/utils/projectsListQuery';
 import { getDefaultTaskDates, resolveTaskDateInput } from '@/lib/utils/dateUtils';
 import { validateTaskAssigneesOnProjectTeam, mergeProjectTeamWithClient, type ProjectTeamSource } from '@/lib/utils/projectTeam';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { Types } from 'mongoose';
+
+interface ProjectCreateTaskData extends Record<string, unknown> {
+  name?: string;
+  assignedToEmployeeIds?: Types.ObjectId[];
+  assignedToEmployeeId?: Types.ObjectId;
+  assignedTo?: string;
+}
+
+interface ProjectCreateData extends Record<string, unknown> {
+  name: string;
+  description?: string;
+  urls: string[];
+  projectType: string;
+  category: string;
+  color: string;
+  logo?: string;
+  status: string;
+  clientId?: string;
+  userId: string;
+  endDate?: Date;
+  estimatedHours?: number;
+  devUrl?: string;
+  liveUrl?: string;
+  assignedToEmployeeIds?: Types.ObjectId[];
+  assignedToNames?: string[];
+  assignedToEmployeeId?: Types.ObjectId;
+  assignedTo?: string;
+  tasks?: ProjectCreateTaskData[];
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,7 +89,7 @@ export async function GET(request: NextRequest) {
     });
 
     const projects = await Project.find(query).sort({ createdAt: -1 }).lean();
-    const migratedProjects = projects.map((project: any) =>
+    const migratedProjects = projects.map((project) =>
       migrateProjectFields(migrateStagesToTasks(project))
     );
 
@@ -86,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const isManagerOrAdmin = currentUserEmployee && isManagerOrAdminRole(currentUserEmployee.role);
 
     if (!isManagerOrAdmin) {
       return NextResponse.json({ error: 'Only Managers and Administrators can create projects' }, { status: 403 });
@@ -102,7 +132,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const projectData: any = {
+    const projectData: ProjectCreateData = {
       name,
       description,
       urls: urls || [],
@@ -175,16 +205,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: assigneeError }, { status: 400 });
       }
 
-      projectData.tasks = await Promise.all(tasks.map(async (task: any) => {
+      projectData.tasks = await Promise.all(tasks.map(async (task: Record<string, unknown> & { startDate?: unknown; endDate?: unknown; assignedToEmployeeIds?: unknown; assignedToEmployeeId?: unknown; assignedTo?: unknown }) => {
         const defaultDates = getDefaultTaskDates();
         const startDate = resolveTaskDateInput(task.startDate, { fallback: defaultDates.startDate });
         const endDate = resolveTaskDateInput(task.endDate, { fallback: defaultDates.endDate });
 
-        const taskData: any = {
+        const taskData = {
           ...task,
           startDate,
           endDate,
-        };
+        } as unknown as ProjectCreateTaskData;
 
         // Handle employee assignment for tasks - prefer employeeIds array, then single id, then legacy name
         if (task.assignedToEmployeeIds !== undefined) {
@@ -193,29 +223,29 @@ export async function POST(request: NextRequest) {
             taskData.assignedToEmployeeId = undefined;
             taskData.assignedTo = undefined;
           } else {
-            taskData.assignedToEmployeeIds = task.assignedToEmployeeIds.map((id: string) => new Types.ObjectId(id));
+            taskData.assignedToEmployeeIds = task.assignedToEmployeeIds.map((id) => new Types.ObjectId(id as string));
             const assignedEmployees = await Employee.find({ _id: { $in: taskData.assignedToEmployeeIds } });
             taskData.assignedTo = assignedEmployees.map((e) => e.name).join(', ');
             taskData.assignedToEmployeeId = taskData.assignedToEmployeeIds[0];
           }
         } else if (task.assignedToEmployeeId) {
-          taskData.assignedToEmployeeId = new Types.ObjectId(task.assignedToEmployeeId);
+          taskData.assignedToEmployeeId = new Types.ObjectId(task.assignedToEmployeeId as string);
           taskData.assignedToEmployeeIds = [taskData.assignedToEmployeeId];
-          const assignedEmployee = await Employee.findById(task.assignedToEmployeeId);
+          const assignedEmployee = await Employee.findById(task.assignedToEmployeeId as string);
           if (assignedEmployee) {
             taskData.assignedTo = assignedEmployee.name;
           }
         } else if (task.assignedTo) {
           // Legacy support: if name provided, try to find employee and set ID
           const assignedEmployee = await Employee.findOne({
-            name: task.assignedTo,
+            name: task.assignedTo as string,
             organizationId: user.organizationId
           });
           if (assignedEmployee) {
             taskData.assignedToEmployeeId = assignedEmployee._id;
             taskData.assignedToEmployeeIds = [assignedEmployee._id];
           }
-          taskData.assignedTo = task.assignedTo;
+          taskData.assignedTo = task.assignedTo as string;
         }
 
         return taskData;

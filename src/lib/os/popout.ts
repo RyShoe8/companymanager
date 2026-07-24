@@ -5,7 +5,7 @@ export interface OpenPopoutOptions {
     placement?: PopoutPlacementOverride;
 }
 
-export function buildPopoutUrl(windowId: string): string {
+function buildPopoutUrl(windowId: string): string {
     const path = `/os/popout?windowId=${encodeURIComponent(windowId)}`;
     if (typeof window === 'undefined') return path;
     return `${window.location.origin}${path}`;

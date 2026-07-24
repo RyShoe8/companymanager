@@ -4,12 +4,12 @@ import type { IProject } from '@/lib/models/Project';
  * Client-built context for intent parsing (voice + command palette).
  * `projects` is for confirmation UI only — omit from `/api/parse-intent` body.
  */
-export type WorkspaceIntentViewContext = {
+type WorkspaceIntentViewContext = {
   lens: string;
   pathname: string;
 };
 
-export type WorkspaceProjectOption = {
+type WorkspaceProjectOption = {
   id: string;
   name: string;
 };
@@ -26,7 +26,7 @@ export type WorkspaceIntentContextPayload = {
 };
 
 /** Subset sent to the LLM (compact, no long arrays). */
-export type ParseIntentApiContext = Omit<WorkspaceIntentContextPayload, 'projects'>;
+type ParseIntentApiContext = Omit<WorkspaceIntentContextPayload, 'projects'>;
 
 function localTodayIso(): string {
   const d = new Date();

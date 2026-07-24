@@ -107,7 +107,7 @@ export const marketingStackSchemaDefinition = {
   default: [],
 };
 
-export const platformStackItemSchemaDefinition = {
+const platformStackItemSchemaDefinition = {
   category: { type: String, required: true, trim: true },
   optionId: { type: String, trim: true, required: true },
   login: { type: String, trim: true },

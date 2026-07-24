@@ -23,7 +23,7 @@ export type ScreenshotUploadStatus =
   | 'success'
   | 'error';
 
-export function defaultScreenshotName(): string {
+function defaultScreenshotName(): string {
   const d = new Date();
   return `Screenshot ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }

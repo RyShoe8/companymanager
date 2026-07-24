@@ -64,8 +64,8 @@ export default function OrganizationModal({ onUpdate, onClose }: OrganizationMod
         // Refresh the page to ensure all components have updated data
         window.location.reload();
       }
-    } catch (error: any) {
-      setError(error.message || 'Failed to update organization');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to update organization');
     } finally {
       setLoading(false);
     }

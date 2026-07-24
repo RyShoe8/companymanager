@@ -1,6 +1,6 @@
 import type { WindowState } from './types';
 
-export interface ScreenBounds {
+interface ScreenBounds {
     availLeft: number;
     availTop: number;
     availWidth: number;
@@ -81,7 +81,7 @@ function clampToScreenBounds(
 }
 
 /** Place a pop-out at explicit screen coordinates (tear-off). */
-export function computePopoutPlacementAtScreen(
+function computePopoutPlacementAtScreen(
     screenLeft: number,
     screenTop: number,
     width: number,

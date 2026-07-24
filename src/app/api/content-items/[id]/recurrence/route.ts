@@ -7,6 +7,7 @@ import Project from '@/lib/models/Project';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
 import { canUserContributeToProject } from '@/lib/utils/projectTeam';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import {
@@ -39,8 +40,7 @@ export async function POST(
       userId: session.userId,
       organizationId: user.organizationId,
     });
-    const isManagerOrAdmin =
-      currentUserEmployee?.role === 'Manager' || currentUserEmployee?.role === 'Administrator';
+    const isManagerOrAdmin = isManagerOrAdminRole(currentUserEmployee?.role);
 
     const item = await ContentItem.findById(id);
     if (!item) {

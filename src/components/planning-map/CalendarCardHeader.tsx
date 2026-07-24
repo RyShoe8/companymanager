@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 
-export function AnimatedProgressNumber({ target }: { target: number }) {
+function AnimatedProgressNumber({ target }: { target: number }) {
   const [value, setValue] = useState(0);
 
   useEffect(() => {

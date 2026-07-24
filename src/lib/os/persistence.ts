@@ -59,7 +59,7 @@ export function saveOsState(userId: string | null, state: PersistedOsState): voi
     }
 }
 
-export function clearOsState(userId: string | null): void {
+function clearOsState(userId: string | null): void {
     if (typeof window === 'undefined') return;
     try {
         window.localStorage.removeItem(keyFor(userId));

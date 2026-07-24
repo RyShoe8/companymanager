@@ -13,6 +13,7 @@ import {
   computeClientTimeframeProgress,
   computeProjectTimeframeProgress,
 } from '@/lib/calendar/timeframeProgress';
+
 import { buildProjectEntityRangeItems } from '@/lib/calendar/projectEntityRangeItems';
 import {
   buildContentItemsByProjectId,
@@ -191,9 +192,6 @@ export function buildClientCalendarRows(
     };
   }).filter((row) => row.projectIds.length > 0 || row.client);
 }
-
-export { computeClientTimeframeProgress, computeProjectTimeframeProgress };
-
 export function sortClientRowsByActivity(
   rows: ClientCalendarRow[],
   unseenCountByClientId?: Map<string, number>
@@ -211,12 +209,12 @@ export function sortClientRowsByActivity(
   });
 }
 
-export function nonHubProjectsForClient(clientId: string, projects: IProject[]): IProject[] {
+function nonHubProjectsForClient(clientId: string, projects: IProject[]): IProject[] {
   return projectsForClient(clientId, projects).filter((p) => !isClientHubProject(p));
 }
 
 /** Whether a client has any project task/content activity in a calendar bucket. */
-export function clientOverlapsDateRange(
+function clientOverlapsDateRange(
   clientProjects: IProject[],
   contentItems: IContentItem[],
   rangeStart: Date,

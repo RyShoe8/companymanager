@@ -1,9 +1,6 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { calendarDayKey } from '@/lib/calendar/calendarItemMode';
-
-export { calendarDayKey };
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 

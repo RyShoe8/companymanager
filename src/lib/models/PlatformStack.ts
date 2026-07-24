@@ -2,7 +2,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export type PlatformLinkingMode = 'catalog' | 'url';
 
-export interface IPlatformStack extends Document {
+interface IPlatformStack extends Document {
   slug: string;
   label: string;
   displayOrder: number;

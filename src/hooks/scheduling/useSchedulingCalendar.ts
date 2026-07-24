@@ -38,7 +38,7 @@ function writeStoredSyncTimestamps(timestamps: number[]): void {
   }
 }
 
-export function buildMeetingsRangeQuery(timeframe: TimeframeType, currentDate: Date): string {
+function buildMeetingsRangeQuery(timeframe: TimeframeType, currentDate: Date): string {
   const { start, end } = getTimeframeRange(timeframe, currentDate);
   return `start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
 }

@@ -72,7 +72,7 @@ export default function EditableSelect({ value, options, onSave, className = '',
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const handleSelect = async (optionValue: string, e?: React.MouseEvent) => {
+  const handleSelect = async (optionValue: string, e?: React.SyntheticEvent) => {
     e?.stopPropagation();
     e?.preventDefault();
     if (optionValue !== value) await onSave(optionValue);
@@ -84,7 +84,7 @@ export default function EditableSelect({ value, options, onSave, className = '',
     switch (e.key) {
       case 'ArrowDown': e.preventDefault(); setHighlightedIndex(prev => Math.min(prev + 1, options.length - 1)); break;
       case 'ArrowUp': e.preventDefault(); setHighlightedIndex(prev => Math.max(prev - 1, 0)); break;
-      case 'Enter': e.preventDefault(); if (highlightedIndex >= 0) handleSelect(options[highlightedIndex].value, e as any); break;
+      case 'Enter': e.preventDefault(); if (highlightedIndex >= 0) handleSelect(options[highlightedIndex].value, e); break;
       case 'Escape': setIsOpen(false); break;
     }
   };

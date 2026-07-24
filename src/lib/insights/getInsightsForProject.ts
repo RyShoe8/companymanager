@@ -1,17 +1,3 @@
-export type {
-  InsightVendorDto,
-  InsightCategoryDto,
-  InsightItemDto,
-  InsightProgress,
-  CategoryWithStatus,
-} from '@/lib/insights/insightDto';
-
-export {
-  getInsightProgressForOwner,
-  getInsightsForOwner,
-  getInsightCategoriesWithStatusForOwner,
-} from '@/lib/insights/getInsightsForOwner';
-
 import {
   getInsightProgressForOwner,
   getInsightsForOwner,

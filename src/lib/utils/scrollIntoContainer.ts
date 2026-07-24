@@ -6,7 +6,7 @@ export type ScrollIntoContainerOptions = {
 };
 
 /** Scroll an element into view within a scrollable container (not the document). */
-export function scrollElementIntoContainer(
+function scrollElementIntoContainer(
   element: HTMLElement,
   container: HTMLElement,
   options: ScrollIntoContainerOptions = {}
@@ -57,7 +57,7 @@ export function scrollElementIntoContainer(
 }
 
 /** True when the element is fully visible inside the container's scrollport. */
-export function isElementInContainerView(
+function isElementInContainerView(
   element: HTMLElement,
   container: HTMLElement,
   padding = 0

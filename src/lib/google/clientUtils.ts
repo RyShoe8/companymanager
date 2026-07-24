@@ -1,4 +1,4 @@
-export const GOOGLE_WORKSPACE_PENDING_KEY = 'googleWorkspacePendingAction';
+const GOOGLE_WORKSPACE_PENDING_KEY = 'googleWorkspacePendingAction';
 
 export type GoogleWorkspacePendingAction = {
   step: 'googleDocument' | 'googleSpreadsheet' | 'googleFile';
@@ -33,7 +33,7 @@ export function buildGoogleConnectUrl(returnTo?: string): string {
   return `${path}?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
-export function formatAssetTypeLabel(type: string): string {
+function formatAssetTypeLabel(type: string): string {
   switch (type) {
     case 'text':
       return 'Note';
@@ -49,10 +49,10 @@ export function formatAssetTypeLabel(type: string): string {
   }
 }
 
-export function isInAppTextAsset(type: string): boolean {
+function isInAppTextAsset(type: string): boolean {
   return type === 'text';
 }
 
-export function isGoogleWorkspaceAsset(type: string): boolean {
+function isGoogleWorkspaceAsset(type: string): boolean {
   return type === 'document' || type === 'spreadsheet' || type === 'file';
 }

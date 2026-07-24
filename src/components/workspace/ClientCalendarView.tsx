@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { IClient } from '@/lib/models/Client';
 import { IProject } from '@/lib/models/Project';
@@ -59,12 +59,8 @@ import {
 } from '@/lib/workspace/itemSeenState';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
 import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
-import {
-  collectWorkspaceItemObservations,
-  observeItemsForUser,
-  readObservedItemsForUser,
-  type ItemSeenStatus,
-} from '@/lib/workspace/itemSeenState';
+import { type ItemSeenStatus } from '@/lib/workspace/itemSeenState';
+import { useClientCalendarActivityTracking } from '@/hooks/calendar/useClientCalendarActivityTracking';
 
 const WEEKLY_HEADER_HEIGHT = 100;
 const WEEKLY_EXPANDED_PROJECT_HEIGHT = 88;
@@ -424,87 +420,27 @@ export default function ClientCalendarView({
   itemSeenRefreshTrigger,
 }: ClientCalendarViewProps) {
   const isMobile = useIsMobile();
-  const [expandedClients, setExpandedClients] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set();
-    const saved = localStorage.getItem('calendar-expanded-clients');
-    if (saved) {
-      try {
-        return new Set(JSON.parse(saved) as string[]);
-      } catch {
-        return new Set();
-      }
-    }
-    return new Set();
-  });
-  const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
   const prevUnseenCountByClientRef = useRef<Map<string, number>>(new Map());
   const hasInitializedClientUnseenRef = useRef(false);
   const itemMode = showTasks || showContent;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(
-      'calendar-expanded-clients',
-      JSON.stringify(Array.from(expandedClients))
-    );
-  }, [expandedClients]);
-
-  const clientIds = useMemo(() => new Set(clients.map((c) => String(c._id))), [clients]);
-
-  const clientByProjectId = useMemo(() => {
-    const clientMap = new Map(clients.map((c) => [String(c._id), c]));
-    const map = new Map<string, IClient>();
-    for (const project of allProjects) {
-      const clientId = project.clientId?.toString();
-      if (clientId && clientMap.has(clientId)) {
-        map.set(String(project._id), clientMap.get(clientId)!);
-      }
-    }
-    return map;
-  }, [clients, allProjects]);
-
-  const clientScopedProjects = useMemo(
-    () => allProjects.filter((p) => p.clientId && clientIds.has(String(p.clientId))),
-    [allProjects, clientIds]
-  );
-
-  const workspaceItemEntries = useMemo(
-    () => collectWorkspaceItemObservations(clientScopedProjects, contentItems),
-    [clientScopedProjects, contentItems]
-  );
-
-  useEffect(() => {
-    if (!currentUserId) return;
-    const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
-      openProjectId: inspectorProjectId ?? undefined,
-    });
-    setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
-
-  useEffect(() => {
-    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
-    const keys = workspaceItemEntries.map((entry) => entry.key);
-    const observed = readObservedItemsForUser(currentUserId, keys);
-    setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
-
-  const unseenCountByClientId = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const project of clientScopedProjects) {
-      const clientId = project.clientId?.toString();
-      if (!clientId) continue;
-      const projectId = project._id.toString();
-      let count = map.get(clientId) ?? 0;
-      for (const [key, status] of Object.entries(itemStatusByKey)) {
-        if (status === 'none') continue;
-        if (key.startsWith(`task:${projectId}:`) || key.startsWith(`content:${projectId}:`)) {
-          count += 1;
-        }
-      }
-      map.set(clientId, count);
-    }
-    return map;
-  }, [clientScopedProjects, itemStatusByKey]);
+  const {
+    expandedClients,
+    setExpandedClients,
+    itemStatusByKey,
+    clientIds,
+    clientByProjectId,
+    clientScopedProjects,
+    unseenCountByClientId,
+    toggleClientExpanded,
+  } = useClientCalendarActivityTracking({
+    clients,
+    allProjects,
+    contentItems,
+    currentUserId,
+    inspectorProjectId,
+    itemSeenRefreshTrigger,
+  });
 
   const itemModeOptions: CalendarItemModeOptions = useMemo(
     () => ({
@@ -571,7 +507,7 @@ export default function ClientCalendarView({
         return updated;
       });
     }
-  }, [rows, unseenCountByClientId, currentUserId]);
+  }, [rows, unseenCountByClientId, currentUserId, setExpandedClients]);
 
   const clientRowForBucket = (
     row: ClientCalendarRow,
@@ -615,53 +551,6 @@ export default function ClientCalendarView({
       : rows;
 
   const viewTitle = getCalendarPeriodTitle(timeframe, currentDate);
-
-  const toggleClientExpanded = (clientId: string) => {
-    setExpandedClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(clientId)) {
-        next.delete(clientId);
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('calendar-manually-collapsed-clients');
-          const manuallyCollapsed = saved ? new Set(JSON.parse(saved) as string[]) : new Set<string>();
-          manuallyCollapsed.add(clientId);
-          localStorage.setItem(
-            'calendar-manually-collapsed-clients',
-            JSON.stringify(Array.from(manuallyCollapsed))
-          );
-        }
-      } else {
-        next.add(clientId);
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('calendar-manually-collapsed-clients');
-          if (saved) {
-            const manuallyCollapsed = new Set(JSON.parse(saved) as string[]);
-            manuallyCollapsed.delete(clientId);
-            localStorage.setItem(
-              'calendar-manually-collapsed-clients',
-              JSON.stringify(Array.from(manuallyCollapsed))
-            );
-          }
-        }
-      }
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    const clientIds = new Set(clients.map((c) => String(c._id)));
-    setExpandedClients((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      for (const id of prev) {
-        if (!clientIds.has(id)) {
-          next.delete(id);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [clients]);
 
   const renderClientGrid = (bucketRows: ClientCalendarRow[], emptyTitle: string, emptyDesc: string) => {
     if (bucketRows.length === 0) {

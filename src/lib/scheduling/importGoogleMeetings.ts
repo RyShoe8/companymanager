@@ -40,7 +40,7 @@ function descriptionForImport(
   return stripped || defaultDescription || undefined;
 }
 
-export async function loadExistingMeetingsByGoogleEventId(
+async function loadExistingMeetingsByGoogleEventId(
   userId: Types.ObjectId
 ): Promise<
   Map<
@@ -277,7 +277,7 @@ export function filterSeriesInstances(
 }
 
 /** Events on an invitee calendar that match the organizer's shared meeting. */
-export function filterEventsForSharedMeeting(
+function filterEventsForSharedMeeting(
   events: GoogleCalendarEvent[],
   iCalUID?: string,
   googleRecurringEventId?: string

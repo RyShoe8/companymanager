@@ -28,7 +28,7 @@ OnboardingBookingSchema.index(
   { unique: true, partialFilterExpression: { status: 'scheduled' } }
 );
 
-export type OnboardingBookingDoc = InferSchemaType<typeof OnboardingBookingSchema> & {
+type OnboardingBookingDoc = InferSchemaType<typeof OnboardingBookingSchema> & {
   _id: mongoose.Types.ObjectId;
 };
 

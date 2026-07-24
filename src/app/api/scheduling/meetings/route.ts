@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import { requireAuth } from '@/lib/auth/middleware';
 import Meeting from '@/lib/models/Meeting';
-import Project from '@/lib/models/Project';
+import Project, { type IProject } from '@/lib/models/Project';
 import Client from '@/lib/models/Client';
 import { getSchedulingContext, getUserSchedulingTimezone } from '@/lib/scheduling/schedulingContext';
 import { generateAgendaToken } from '@/lib/scheduling/tokenCrypto';
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
 
     const agendaPayload = buildMeetingAgenda(
       { title: String(title).trim(), start: startDate, end: endDate, agendaUrl },
-      migrated as any
+      migrated as unknown as IProject[]
     );
     const agendaText = formatAgendaPlainText(agendaPayload);
     const fullDescription = [description, agendaText].filter(Boolean).join('\n\n');

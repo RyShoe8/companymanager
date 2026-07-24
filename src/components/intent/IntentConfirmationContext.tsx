@@ -39,11 +39,6 @@ export function useIntentConfirmation(): IntentConfirmationContextValue {
   }
   return ctx;
 }
-
-export function useIntentConfirmationOptional(): IntentConfirmationContextValue | null {
-  return useContext(IntentConfirmationContext);
-}
-
 interface IntentConfirmationProviderProps {
   children: ReactNode;
   executeIntent: (intent: ParsedIntent) => ExecuteResult | Promise<ExecuteResult>;

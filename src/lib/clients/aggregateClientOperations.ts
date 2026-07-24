@@ -8,7 +8,7 @@ import type {
 } from '@/lib/models/platformFields';
 import { clientIdStr } from '@/lib/clients/clientApiHelpers';
 
-export type PlatformSource =
+type PlatformSource =
   | { type: 'client' }
   | { type: 'project'; projectId: string; projectName: string };
 

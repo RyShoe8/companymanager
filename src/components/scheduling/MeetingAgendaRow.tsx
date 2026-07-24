@@ -1,10 +1,7 @@
 'use client';
 
 import Button from '@/components/ui/Button';
-import {
-  openMeetingPopout,
-  MEETING_POPUP_BLOCKED_MESSAGE,
-} from '@/lib/scheduling/openMeetingPopout';
+import { openMeetingPopout } from '@/lib/scheduling/openMeetingPopout';
 import { IEmployee } from '@/lib/models/Employee';
 import type { MeetingJoinPlatform } from '@/lib/scheduling/extractMeetingJoinUrl';
 import MeetingJoinCallButton from '@/components/scheduling/MeetingJoinCallButton';
@@ -264,5 +261,3 @@ export default function MeetingAgendaRow({
     </div>
   );
 }
-
-export { MEETING_POPUP_BLOCKED_MESSAGE };

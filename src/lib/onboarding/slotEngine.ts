@@ -1,4 +1,4 @@
-export type AvailabilitySlot = {
+type AvailabilitySlot = {
   dayOfWeek: number;
   startTime: string;
   endTime: string;

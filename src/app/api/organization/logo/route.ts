@@ -20,7 +20,7 @@ async function getOrgAdminOrganization(sessionUserId: string) {
     return { error: 'Only organization administrators can manage organization logos', status: 403 as const };
   }
 
-  let organization = await Organization.findOne({ userId: user._id });
+  const organization = await Organization.findOne({ userId: user._id });
   if (!organization) {
     return { error: 'Organization not found', status: 404 as const };
   }

@@ -9,12 +9,18 @@ import {
   getAssetSessionContext,
 } from '@/lib/assets/assetAccess';
 
-// Dynamic import for sharp (optional - will fallback if not installed)
-let sharp: any = null;
-try {
-  sharp = require('sharp');
-} catch (e) {
-  // Sharp not installed. Image compression will be skipped. Install with: npm install sharp
+// Lazily-loaded sharp (optional - image compression is skipped if unavailable)
+type SharpFactory = (input: Buffer) => import('sharp').Sharp;
+
+let sharpFactoryPromise: Promise<SharpFactory | null> | null = null;
+
+function loadSharpFactory(): Promise<SharpFactory | null> {
+  if (!sharpFactoryPromise) {
+    sharpFactoryPromise = import('sharp')
+      .then((mod) => mod.default as unknown as SharpFactory)
+      .catch(() => null);
+  }
+  return sharpFactoryPromise;
 }
 
 export async function POST(request: NextRequest) {
@@ -28,7 +34,7 @@ export async function POST(request: NextRequest) {
     let name = formData.get('name') as string;
     let description = formData.get('description') as string | null;
     let category = formData.get('category') as string | null;
-    let tags = formData.get('tags') as string | null;
+    const tags = formData.get('tags') as string | null;
     const linkedProjectId = formData.get('linkedProjectId') as string | null;
     const linkedProjectTaskIndex = formData.get('linkedProjectTaskIndex') as string | null;
     const linkedProjectTaskId = formData.get('linkedProjectTaskId') as string | null;
@@ -123,14 +129,15 @@ export async function POST(request: NextRequest) {
     if (isImage && !(await validateImageFile(file))) {
       return NextResponse.json({ error: 'Invalid image file' }, { status: 400 });
     }
-    if (isImage && sharp) {
+    const sharpFactory = isImage ? await loadSharpFactory() : null;
+    if (isImage && sharpFactory) {
       try {
         // Compress and convert to WebP
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
         // Use sharp with proper error handling
-        const sharpInstance = sharp(buffer);
+        const sharpInstance = sharpFactory(buffer);
         const compressedBuffer = await sharpInstance
           .webp({ quality: 80, effort: 4 }) // Good balance between quality and file size
           .resize(1920, 1920, {
@@ -145,9 +152,8 @@ export async function POST(request: NextRequest) {
         if (assetType === 'screenshot' || !assetType) {
           finalType = 'screenshot';
         }
-      } catch (error: any) {
-        // Error compressing image
-        // Fallback to original if compression fails
+      } catch {
+        // Error compressing image - fallback to original if compression fails
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         const base64 = buffer.toString('base64');
@@ -161,7 +167,7 @@ export async function POST(request: NextRequest) {
       fileUrl = `data:${file.type};base64,${base64}`;
     }
 
-    const assetData: any = {
+    const assetData: Record<string, unknown> = {
       name,
       type: finalType,
       fileUrl,

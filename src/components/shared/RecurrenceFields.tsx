@@ -3,9 +3,7 @@
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 import { expandInitialSeriesDates } from '@/lib/recurrence/recurrenceHorizons';
 import { formInputClass } from '@/components/ui/formClasses';
-import RepeatPresetSelect, { REPEAT_OPTIONS } from '@/components/shared/RepeatPresetSelect';
-
-export { REPEAT_OPTIONS };
+import RepeatPresetSelect from '@/components/shared/RepeatPresetSelect';
 
 export interface RecurrenceFieldsProps {
   repeatPreset: RecurrencePreset;

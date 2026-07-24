@@ -16,7 +16,7 @@ export function getOsViewportBounds(): ViewportBounds {
     };
 }
 
-export function clampWindowToViewport(window: WindowState, bounds: ViewportBounds): WindowState {
+function clampWindowToViewport(window: WindowState, bounds: ViewportBounds): WindowState {
     if (window.maximized) return window;
     const clamped = clampToViewport(
         { x: window.x, y: window.y, width: window.width, height: window.height },

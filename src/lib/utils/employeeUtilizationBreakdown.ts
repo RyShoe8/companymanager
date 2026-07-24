@@ -15,11 +15,11 @@ export type HoursInRangeFn = (
   totalHours: number
 ) => number;
 
-export function emptyStageBreakdown(): StageHoursBreakdown {
+function emptyStageBreakdown(): StageHoursBreakdown {
   return { Plan: 0, Build: 0, Run: 0 };
 }
 
-export function roundStageBreakdown(breakdown: StageHoursBreakdown): StageHoursBreakdown {
+function roundStageBreakdown(breakdown: StageHoursBreakdown): StageHoursBreakdown {
   return {
     Plan: Math.round(breakdown.Plan * 100) / 100,
     Build: Math.round(breakdown.Build * 100) / 100,
@@ -38,7 +38,7 @@ export function getProjectStage(status: string): ProjectStage {
   return 'Plan';
 }
 
-export function isProjectDirectAssignee(project: IProject, employeeId: string): boolean {
+function isProjectDirectAssignee(project: IProject, employeeId: string): boolean {
   const assignedId = (project as { assignedToEmployeeId?: { toString(): string } }).assignedToEmployeeId;
   return assignedId?.toString() === employeeId;
 }

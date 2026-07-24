@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 
-export type MobileNavEntity = { id: string; name: string };
+type MobileNavEntity = { id: string; name: string };
 
 export type MobileInboxItem = {
   id: string;
@@ -21,7 +21,7 @@ export type MobileInboxItem = {
   onOpen: () => void;
 };
 
-export type MobileShellActions = {
+type MobileShellActions = {
   onLensSelect?: (lens: 'schedule' | 'agenda' | 'clients' | 'capacity') => void;
   onPhaseSelect?: (phase: 'All' | 'Plan' | 'Build' | 'Run' | 'Schedule') => void;
   onViewProject?: (projectId: string) => void;
@@ -59,7 +59,7 @@ function readPendingCreateAction(): PendingCreateAction | null {
   return null;
 }
 
-export type MobileVoiceControl = {
+type MobileVoiceControl = {
   enabled: boolean;
   state: 'idle' | 'listening' | 'processing' | 'confirming';
   wakeWordEnabled: boolean;

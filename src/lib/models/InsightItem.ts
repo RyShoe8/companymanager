@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export interface IInsightItem extends Document {
+interface IInsightItem extends Document {
   categoryId: Types.ObjectId;
   title: string;
   description: string;

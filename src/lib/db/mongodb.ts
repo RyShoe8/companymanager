@@ -9,11 +9,11 @@ interface MongooseCache {
 
 // Use global to maintain a cached connection across hot reloads in development
 declare global {
-  // eslint-disable-next-line no-var
+   
   var mongoose: MongooseCache | undefined;
 }
 
-let cached: MongooseCache = global.mongoose || { conn: null, promise: null };
+const cached: MongooseCache = global.mongoose || { conn: null, promise: null };
 
 if (!global.mongoose) {
   global.mongoose = cached;

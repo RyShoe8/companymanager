@@ -6,14 +6,14 @@ export function isTouchMobileDevice(): boolean {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
-export function isCameraCaptureSupported(): boolean {
+function isCameraCaptureSupported(): boolean {
   return (
     typeof navigator !== 'undefined' &&
     typeof navigator.mediaDevices?.getUserMedia === 'function'
   );
 }
 
-export function hasScreenCaptureApi(): boolean {
+function hasScreenCaptureApi(): boolean {
   return (
     typeof navigator !== 'undefined' &&
     typeof navigator.mediaDevices?.getDisplayMedia === 'function'

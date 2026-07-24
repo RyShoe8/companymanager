@@ -9,6 +9,7 @@ import { normalizeTaskStatus } from '@/lib/projects/projectCleanup';
 import { resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import {
   getTaskByProject,
   isEmployeeAssignedToTask,
@@ -69,7 +70,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Employee not found' }, { status: 403 });
     }
 
-    const isManagerOrAdmin = employee.role === 'Manager' || employee.role === 'Administrator';
+    const isManagerOrAdmin = isManagerOrAdminRole(employee.role);
     const resolved = getTaskByProject(project, taskId, taskIndex);
     if (!resolved) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });

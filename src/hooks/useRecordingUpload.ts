@@ -52,7 +52,7 @@ export type RecordingUploadStatus =
 
 export type MicPermissionStatus = 'idle' | 'checking' | 'ready' | 'blocked';
 
-export function defaultRecordingName(): string {
+function defaultRecordingName(): string {
   const d = new Date();
   return `Recording ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }

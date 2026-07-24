@@ -3,13 +3,6 @@
  */
 
 /**
- * Escape special regex characters to prevent NoSQL injection
- */
-export function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
  * Sanitize HTML to prevent XSS
  */
 export function escapeHtml(text: string): string {
@@ -31,18 +24,6 @@ export function isValidObjectId(id: string): boolean {
 }
 
 /**
- * Sanitize filename to prevent path traversal
- */
-export function sanitizeFilename(filename: string): string {
-  // Remove path separators and dangerous characters
-  return filename
-    .replace(/[\/\\]/g, '')
-    .replace(/\.\./g, '')
-    .replace(/[^a-zA-Z0-9._-]/g, '_')
-    .substring(0, 255); // Limit length
-}
-
-/**
  * Validate email format
  */
 export function isValidEmail(email: string): boolean {
@@ -58,18 +39,6 @@ export function sanitizeString(input: string, maxLength: number = 1000): string 
     return '';
   }
   return input.trim().substring(0, maxLength);
-}
-
-/**
- * Validate URL scheme for outbound links
- */
-export function isSafeExternalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
-  } catch {
-    return false;
-  }
 }
 
 /**

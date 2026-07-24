@@ -1,4 +1,4 @@
-export type MeetingNotesAssetSummary = {
+type MeetingNotesAssetSummary = {
   projectId: string;
   assetId: string;
   name: string;

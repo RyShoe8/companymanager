@@ -6,6 +6,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Project from '@/lib/models/Project';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 
 export async function requireProjectManagerOrAdmin(
   request: NextRequest,
@@ -31,8 +32,7 @@ export async function requireProjectManagerOrAdmin(
   }
 
   const employee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-  const isManagerOrAdmin =
-    employee && (employee.role === 'Manager' || employee.role === 'Administrator');
+  const isManagerOrAdmin = employee && isManagerOrAdminRole(employee.role);
 
   if (!isManagerOrAdmin) {
     return {

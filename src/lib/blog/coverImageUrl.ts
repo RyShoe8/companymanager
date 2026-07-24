@@ -1,6 +1,6 @@
 export const COVER_IMAGE_URL_MAX = 500;
 
-export function isValidCoverImageUrl(url: string): boolean {
+function isValidCoverImageUrl(url: string): boolean {
   const trimmed = url.trim();
   if (!trimmed) return true;
   if (trimmed.length > COVER_IMAGE_URL_MAX) return false;

@@ -22,7 +22,7 @@ function envBool(key: string, fallback: boolean = true): boolean {
   return val !== '0' && val !== 'false';
 }
 
-export function getFeatureFlags(): FeatureFlags {
+function getFeatureFlags(): FeatureFlags {
   return {
     workspaceShellEnabled: envBool('NEXT_PUBLIC_FF_WORKSPACE_SHELL', true),
     agendaViewEnabled: envBool('NEXT_PUBLIC_FF_AGENDA_VIEW', true),

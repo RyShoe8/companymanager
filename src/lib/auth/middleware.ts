@@ -9,7 +9,7 @@ export async function requireAuth(request: NextRequest) {
   return session;
 }
 
-export async function getUserId(request: NextRequest): Promise<string | null> {
+async function getUserId(request: NextRequest): Promise<string | null> {
   const session = await getSession();
   return session?.userId || null;
 }

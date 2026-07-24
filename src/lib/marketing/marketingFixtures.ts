@@ -29,12 +29,12 @@ export const MARKETING_PROJECT_IDS = {
   summitHub: new Types.ObjectId('674a00000000000000000106'),
 } as const;
 
-export const MARKETING_CLIENT_IDS = {
+const MARKETING_CLIENT_IDS = {
   northwind: new Types.ObjectId('674a00000000000000000601'),
   summit: new Types.ObjectId('674a00000000000000000602'),
 } as const;
 
-export const MARKETING_EMPLOYEE_IDS = {
+const MARKETING_EMPLOYEE_IDS = {
   alex: new Types.ObjectId('674a00000000000000000201'),
   jordan: new Types.ObjectId('674a00000000000000000202'),
   sam: new Types.ObjectId('674a00000000000000000203'),
@@ -189,7 +189,7 @@ export const MARKETING_PROJECTS = [
   },
 ] as unknown as IProject[];
 
-export const MARKETING_CLIENT_PROJECTS = [
+const MARKETING_CLIENT_PROJECTS = [
   {
     _id: MARKETING_PROJECT_IDS.northwindHub,
     name: 'Northwind Digital HQ',
@@ -457,7 +457,7 @@ export function marketingActiveProjects(): IProject[] {
   return MARKETING_PROJECTS.filter((p) => p.status !== 'completed') as IProject[];
 }
 
-export const MARKETING_ASSET_IDS = {
+const MARKETING_ASSET_IDS = {
   heroScreenshot: new Types.ObjectId('674a00000000000000000501'),
   walkthroughRecording: new Types.ObjectId('674a00000000000000000502'),
   brandGuide: new Types.ObjectId('674a00000000000000000503'),
@@ -468,7 +468,7 @@ export const MARKETING_ASSET_IDS = {
   socialClip: new Types.ObjectId('674a00000000000000000508'),
 } as const;
 
-export const MARKETING_ASSETS = [
+const MARKETING_ASSETS = [
   {
     _id: MARKETING_ASSET_IDS.heroScreenshot,
     name: 'Homepage hero screenshot',
@@ -637,7 +637,7 @@ export const MARKETING_MEETING_DETAIL: MeetingDetailPayload = buildMeetingDetail
   }
 );
 
-export function marketingProjectName(projectId?: Types.ObjectId | string): string {
+function marketingProjectName(projectId?: Types.ObjectId | string): string {
   if (!projectId) return '';
   const id = projectId.toString();
   return MARKETING_PROJECTS.find((p) => p._id.toString() === id)?.name ?? 'Project';

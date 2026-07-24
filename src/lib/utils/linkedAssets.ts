@@ -1,6 +1,6 @@
 import type { PendingAssetPayload } from '@/components/checklist/CategoryModal';
 
-export async function createLinkedAsset(payload: PendingAssetPayload): Promise<boolean> {
+async function createLinkedAsset(payload: PendingAssetPayload): Promise<boolean> {
   const res = await fetch('/api/assets', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,6 +70,16 @@ export function linkedAssetHref(asset: LinkedAssetChip): string | null {
   if (asset.fileUrl) return asset.fileUrl;
   if (asset.url) return asset.url;
   return null;
+}
+
+export function isTextDocumentAssetType(type: string): boolean {
+  return type === 'text';
+}
+
+/** Capitalized display label for a linked asset type (e.g. "image" -> "Image"). */
+export function formatLinkedAssetTypeLabel(type: string): string {
+  if (!type) return 'Other';
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 export async function deleteLinkedAsset(id: string): Promise<{ ok: boolean; error?: string }> {

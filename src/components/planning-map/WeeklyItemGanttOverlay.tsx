@@ -2,9 +2,6 @@
 
 import type { ReactNode } from 'react';
 import type { WeekSpanLayout } from '@/lib/calendar/calendarItemMode';
-
-export const GANTT_ITEM_ROW_HEIGHT = 56;
-
 interface WeeklyItemGanttOverlayProps {
   layouts: WeekSpanLayout[];
   renderBar: (layout: WeekSpanLayout) => ReactNode;

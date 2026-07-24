@@ -51,20 +51,37 @@ export function mapStageStatusToTaskStatus(stageStatus: string): 'planning' | 'a
   }
 }
 
+interface MigratableProjectStage {
+  name?: string;
+  description?: string;
+  startDate?: unknown;
+  endDate?: unknown;
+  estimatedHours?: unknown;
+  assignedTo?: unknown;
+  status?: string;
+}
+
+interface MigratableProjectLike {
+  tasks?: unknown[];
+  stages?: MigratableProjectStage[];
+  projectType?: string;
+  category?: string;
+}
+
 /**
  * Migrate stages to tasks for backward compatibility
  * Returns the project with migrated tasks if migration occurred
  */
-export function migrateStagesToTasks(project: any): any {
+export function migrateStagesToTasks<T extends MigratableProjectLike>(project: T): T {
   if ((!project.tasks || project.tasks.length === 0) && project.stages && project.stages.length > 0) {
-    project.tasks = project.stages.map((stage: any) => ({
+    project.tasks = project.stages.map((stage) => ({
       name: stage.name,
       description: stage.description,
       startDate: stage.startDate,
       endDate: stage.endDate,
       estimatedHours: stage.estimatedHours,
       assignedTo: stage.assignedTo,
-      status: mapStageStatusToTaskStatus(stage.status),
+      status: mapStageStatusToTaskStatus(stage.status as string),
     }));
   }
   return project;
@@ -73,7 +90,7 @@ export function migrateStagesToTasks(project: any): any {
 /**
  * Safely migrate projectType and category if they are swapped (old format)
  */
-export function migrateProjectFields(project: any): any {
+export function migrateProjectFields<T extends MigratableProjectLike>(project: T): T {
   const websiteTypes = ['website', 'store', 'app', 'generic'];
   const internalClientTypes = ['internal', 'client'];
 
@@ -83,13 +100,13 @@ export function migrateProjectFields(project: any): any {
     const currentCategory = project.category;
 
     // projectType should be 'internal' or 'client'
-    project.projectType = internalClientTypes.includes(currentCategory) ? currentCategory : 'client';
+    project.projectType = internalClientTypes.includes(currentCategory ?? '') ? currentCategory : 'client';
     // category should be one of the website types
     project.category = currentType;
   }
 
   // Also ensure category is set if missing (for very old projects)
-  if (!project.category && websiteTypes.includes(project.projectType)) {
+  if (!project.category && websiteTypes.includes(project.projectType ?? '')) {
     // In this case projectType is correct but category is missing
     // Actually if projType is website, it IS swapped.
   }

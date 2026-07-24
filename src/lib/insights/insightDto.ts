@@ -1,4 +1,4 @@
-export interface InsightVendorDto {
+interface InsightVendorDto {
   id: string;
   name: string;
   description: string;
@@ -9,7 +9,7 @@ export interface InsightVendorDto {
   displayOrder: number;
 }
 
-export interface InsightCategoryDto {
+interface InsightCategoryDto {
   id: string;
   name: string;
   slug: string;

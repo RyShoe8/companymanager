@@ -60,7 +60,7 @@ export function validateIncomingTaskArray(options: ValidateTaskArrayOptions): st
   return null;
 }
 
-export function taskDedupeSignature(task: Record<string, unknown>): string {
+function taskDedupeSignature(task: Record<string, unknown>): string {
   const assignees = Array.isArray(task.assignedToEmployeeIds)
     ? [...task.assignedToEmployeeIds].map(String).sort()
     : task.assignedToEmployeeId

@@ -25,7 +25,7 @@ export function getRecaptchaMinScore(): number {
   return Number.isFinite(parsed) ? parsed : 0.5;
 }
 
-export function isProductionRecaptchaRequired(): boolean {
+function isProductionRecaptchaRequired(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 

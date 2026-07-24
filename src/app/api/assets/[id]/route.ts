@@ -5,6 +5,7 @@ import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isValidObjectId, sanitizeString } from '@/lib/utils/security';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { validateAssetLinkExclusivity } from '@/lib/assets/validateAssetLinks';
 import {
   assertCanLinkAsset,
@@ -60,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     const body = await request.json();
-    let { name, type, url, textContent, description, category, tags, linkedProjectId, linkedClientId, linkedProjectTaskIndex, linkedProjectTaskId, linkedContentItemId, clientAccessible } = body;
+    const { name, type, url, textContent, description, category, tags, linkedProjectId, linkedClientId, linkedProjectTaskIndex, linkedProjectTaskId, linkedContentItemId, clientAccessible } = body;
 
     await connectDB();
     const { id } = await params;
@@ -124,7 +125,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (!Array.isArray(tags)) {
         return NextResponse.json({ error: 'Tags must be an array' }, { status: 400 });
       }
-      asset.tags = tags.map((tag: any) => sanitizeString(String(tag), 50)).filter((tag: string) => tag.length > 0);
+      asset.tags = tags.map((tag: unknown) => sanitizeString(String(tag), 50)).filter((tag: string) => tag.length > 0);
     }
     if (linkedClientId !== undefined) {
       if (linkedClientId === null || linkedClientId === '') {
@@ -223,7 +224,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const Employee = (await import('@/lib/models/Employee')).default;
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const isManagerOrAdmin = currentUserEmployee && isManagerOrAdminRole(currentUserEmployee.role);
     const isOwner = asset.userId.toString() === session.userId;
 
     if (!isManagerOrAdmin && !isOwner) {

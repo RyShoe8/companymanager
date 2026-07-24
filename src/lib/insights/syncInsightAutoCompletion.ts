@@ -58,7 +58,7 @@ export async function syncAllLinkedPlatformInsights(
 }
 
 /** @deprecated Use syncAllLinkedPlatformInsights('project', projectId, linkedSlugs) */
-export async function syncAllLinkedPlatformInsightsForProject(
+async function syncAllLinkedPlatformInsightsForProject(
   projectId: string,
   linkedSlugs: Iterable<string>
 ): Promise<void> {

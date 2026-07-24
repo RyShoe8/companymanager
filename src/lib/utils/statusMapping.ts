@@ -47,7 +47,7 @@ export function mapStatusToStage(status: BackendProjectStatus): ProjectStage {
 /**
  * Map frontend stage to backend status
  */
-export function mapStageToStatus(stage: ProjectStage, currentStatus?: BackendProjectStatus): BackendProjectStatus {
+function mapStageToStatus(stage: ProjectStage, currentStatus?: BackendProjectStatus): BackendProjectStatus {
   switch (stage) {
     case 'Plan':
       return 'planning';
@@ -60,11 +60,17 @@ export function mapStageToStatus(stage: ProjectStage, currentStatus?: BackendPro
   }
 }
 
+interface StageFilterableProject {
+  projectType?: string;
+  status: BackendProjectStatus;
+  endDate?: Date | string | null;
+}
+
 /**
  * Get all projects for a specific stage
  * Filters out projects that have passed their endDate (if set)
  */
-export function getProjectsForStage(projects: any[], stage: ProjectStage): any[] {
+export function getProjectsForStage<T extends StageFilterableProject>(projects: T[], stage: ProjectStage): T[] {
   const statusMap: Record<ProjectStage, BackendProjectStatus[]> = {
     Plan: ['planning'],
     Build: ['in-development', 'in-review'],

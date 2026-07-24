@@ -1,5 +1,5 @@
 /** Curated IANA timezones for scheduling UIs (US-heavy + common global). */
-export const COMMON_TIMEZONE_VALUES = [
+const COMMON_TIMEZONE_VALUES = [
   'Pacific/Honolulu',
   'America/Anchorage',
   'America/Los_Angeles',
@@ -28,7 +28,7 @@ export const COMMON_TIMEZONE_VALUES = [
 
 export type TimezoneOption = { value: string; label: string };
 
-export function formatTimezoneLabel(timeZone: string): string {
+function formatTimezoneLabel(timeZone: string): string {
   const name = timeZone.replace(/_/g, ' ');
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -56,7 +56,7 @@ export function getTimezoneSelectOptions(currentValue?: string): TimezoneOption[
   }));
 }
 
-export function isKnownTimezone(value: string): boolean {
+function isKnownTimezone(value: string): boolean {
   try {
     Intl.DateTimeFormat(undefined, { timeZone: value });
     return true;

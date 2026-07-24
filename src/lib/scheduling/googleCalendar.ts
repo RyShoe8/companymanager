@@ -21,7 +21,7 @@ export function getCalendarOAuthScopes(): string {
   return CALENDAR_SCOPE;
 }
 
-export type GoogleCalendarConferenceEntryPoint = {
+type GoogleCalendarConferenceEntryPoint = {
   entryPointType?: string;
   uri?: string;
   label?: string;
@@ -60,7 +60,7 @@ function isConferencePending(event: GoogleCalendarEvent): boolean {
   return event.conferenceData?.createRequest?.status?.statusCode === 'pending';
 }
 
-export async function getCalendarEvent(
+async function getCalendarEvent(
   accessToken: string,
   calendarId: string,
   eventId: string
@@ -90,7 +90,7 @@ function hasVideoConferenceEntryPoint(event: GoogleCalendarEvent): boolean {
 }
 
 /** Poll Google when conference creation is still pending. */
-export async function resolveCalendarEventConference(
+async function resolveCalendarEventConference(
   accessToken: string,
   calendarId: string,
   event: GoogleCalendarEvent

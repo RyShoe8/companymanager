@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import connectDB from '@/lib/db/mongodb';
 import Project from '@/lib/models/Project';
+import type { ProjectCategory, ProjectType, ProjectStatus } from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getOrganizationUserIds, migrateStagesToTasks, migrateProjectFields } from '@/lib/utils/apiHelpers';
@@ -15,6 +16,7 @@ import {
   sanitizeTaskAssigneesForProjectTeam,
   type ProjectTeamSource,
 } from '@/lib/utils/projectTeam';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { sanitizeSocialLinks, validateSocialLinksUpdate } from '@/lib/utils/socialUrls';
 import { sanitizeTechStack, validateTechStackUpdate } from '@/lib/utils/techStack';
 import { sanitizeMarketingStack, validateMarketingStackUpdate } from '@/lib/utils/marketingStack';
@@ -32,6 +34,68 @@ import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 import { diffNewLinkedCategorySlugs } from '@/lib/insights/getProjectLinkedCategorySlugs';
 import { syncInsightAutoCompletion } from '@/lib/insights/syncInsightAutoCompletion';
 import { relinkTaskAssets } from '@/lib/assets/relinkTaskAssets';
+
+interface ProjectUpdateRequestBody {
+  name?: string;
+  description?: string;
+  url?: string;
+  urls?: string[];
+  devUrl?: string | null;
+  liveUrl?: string | null;
+  projectType?: ProjectType;
+  category?: ProjectCategory;
+  color?: string;
+  colorPalette?: unknown;
+  fontPalette?: unknown;
+  logo?: string;
+  status?: ProjectStatus;
+  endDate?: string | Date | null;
+  estimatedHours?: number | string | null;
+  assignedTo?: string | null;
+  assignedToEmployeeId?: string | null;
+  assignedToEmployeeIds?: string[] | null;
+  assignedToNames?: string[];
+  tasks?: unknown[];
+  socialLinks?: unknown;
+  socialsToolbarVisible?: boolean;
+  techStack?: unknown;
+  marketingStack?: unknown;
+  platformStacks?: unknown;
+  allowBulkTaskExpand?: boolean;
+}
+
+interface ProjectUpdateTaskInput extends Record<string, unknown> {
+  _id?: unknown;
+  name?: string;
+  description?: string;
+  status?: unknown;
+  startDate?: unknown;
+  endDate?: unknown;
+  estimatedHours?: number | null;
+  assignedTo?: string;
+  assignedToEmployeeId?: string;
+  assignedToEmployeeIds?: string[];
+  recurrenceSeriesId?: unknown;
+  recurrencePreset?: unknown;
+  createdByEmployeeId?: { toString(): string } | string | null;
+}
+
+interface ProjectUpdateTaskData extends Record<string, unknown> {
+  name: string;
+  description?: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  estimatedHours?: number | null;
+  status: 'active' | 'completed' | 'in-review';
+  completedAt?: Date | null;
+  _id?: Types.ObjectId;
+  recurrenceSeriesId?: string;
+  recurrencePreset?: unknown;
+  createdByEmployeeId?: Types.ObjectId;
+  assignedToEmployeeIds?: Types.ObjectId[];
+  assignedToEmployeeId?: Types.ObjectId;
+  assignedTo?: string;
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -85,7 +149,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (JSON.stringify(migratedProject) !== JSON.stringify(project)) {
       // Save migration if it occurred (async, don't wait)
       Project.findByIdAndUpdate(id, {
-        tasks: (migratedProject as any).tasks,
+        tasks: migratedProject.tasks,
         projectType: migratedProject.projectType,
         category: migratedProject.category
       }, { new: true }).catch(() => {
@@ -106,17 +170,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (session instanceof NextResponse) return session;
 
     // Safely parse JSON body with better error handling
-    let body: any;
+    let body: ProjectUpdateRequestBody;
     try {
-      body = await request.json();
-      if (!body || typeof body !== 'object') {
-        console.error('Invalid body received:', body);
+      const parsedBody: unknown = await request.json();
+      if (!parsedBody || typeof parsedBody !== 'object') {
+        console.error('Invalid body received:', parsedBody);
         return NextResponse.json({ error: 'Request body must be a valid JSON object' }, { status: 400 });
       }
-      // Only log if it's not just a status update (to reduce noise)
-      if (Object.keys(body).length > 1 || !body.status) {
-        console.log('Received update body:', Object.keys(body));
-      }
+      body = parsedBody as ProjectUpdateRequestBody;
     } catch (parseError) {
       console.error('Error parsing request body:', parseError);
       const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown error';
@@ -168,7 +229,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Check if user is a Manager or Administrator
     const Employee = (await import('@/lib/models/Employee')).default;
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const isManagerOrAdmin = currentUserEmployee && isManagerOrAdminRole(currentUserEmployee.role);
 
     // Find all users in the same organization
     const orgUserIds = await getOrganizationUserIds(session.userId, user.organizationId);
@@ -367,7 +428,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
     if (estimatedHours !== undefined) {
-      project.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : estimatedHours;
+      project.estimatedHours = estimatedHours === null || estimatedHours === '' ? undefined : (estimatedHours as number);
     }
     // Handle multiple employee assignments (preferred)
     if (assignedToEmployeeIds !== undefined) {
@@ -436,7 +497,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           taskAssigneeTeam = mergeProjectTeamWithClient(project, client);
         }
 
-        const { tasks: sanitizedTasks, stripped } = sanitizeTaskAssigneesForProjectTeam(taskAssigneeTeam, tasks);
+        const { tasks: sanitizedTasks, stripped } = sanitizeTaskAssigneesForProjectTeam(
+          taskAssigneeTeam,
+          tasks as ProjectUpdateTaskInput[]
+        );
         if (stripped.length > 0) {
           console.warn(
             'Stripped off-team task assignees:',
@@ -474,13 +538,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           return NextResponse.json({ error: taskGuardError }, { status: 400 });
         }
 
-        // Debug: Log received tasks to verify status is included
-        console.log('Processing tasks update:', sanitizedTasks.length, 'tasks');
-
         const previousTasks = [...(project.tasks ?? [])];
         previousTasksSnapshot = previousTasks;
 
-        project.tasks = await Promise.all(sanitizedTasks.map(async (task: any, index: number) => {
+        project.tasks = (await Promise.all(sanitizedTasks.map(async (task: ProjectUpdateTaskInput, index: number) => {
           // Handle dates - provide defaults if not specified or invalid
           const defaultDates = getDefaultTaskDates();
           const startDate = resolveTaskDateInput(task.startDate, { fallback: defaultDates.startDate });
@@ -501,9 +562,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             }
           }
 
-          // Debug logging to help identify status preservation issues
-          console.log(`Task ${index} "${task.name || 'Untitled'}": received status="${task.status}" (type: ${typeof task.status}), setting to="${taskStatus}"`);
-
           const previousTask =
             task._id && Types.ObjectId.isValid(String(task._id))
               ? previousTasks.find((t) => t._id?.toString() === String(task._id))
@@ -514,7 +572,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           const previousCompletedAt = (previousTask as { completedAt?: Date } | undefined)?.completedAt;
 
           // Build taskData explicitly - don't rely on spread operator for status
-          const taskData: any = {
+          const taskData: ProjectUpdateTaskData = {
             name: typeof task.name === 'string' ? task.name.trim() : '',
             description: task.description || undefined,
             startDate,
@@ -591,7 +649,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           }
 
           return taskData;
-        }));
+        }))) as unknown as typeof project.tasks;
         let postTaskAssigneeTeam: ProjectTeamSource = project;
         if (project.clientId) {
           const Client = (await import('@/lib/models/Client')).default;
@@ -686,11 +744,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Project not found after save' }, { status: 404 });
     }
 
-    // Only log task details if tasks were updated (to reduce noise)
-    if (tasks !== undefined && savedProject.tasks && Array.isArray(savedProject.tasks)) {
-      console.log('Final tasks being returned:', savedProject.tasks.length, 'tasks');
-    }
-
     return NextResponse.json(savedProject);
   } catch (error) {
     // Update project error - log the actual error for debugging
@@ -719,9 +772,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       userId: session.userId,
       organizationId: user.organizationId,
     });
-    const isManagerOrAdmin =
-      currentUserEmployee &&
-      (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const isManagerOrAdmin = currentUserEmployee && isManagerOrAdminRole(currentUserEmployee.role);
 
     if (!isManagerOrAdmin) {
       return NextResponse.json(

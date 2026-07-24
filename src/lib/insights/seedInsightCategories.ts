@@ -34,5 +34,3 @@ export async function seedInsightCategoriesIfEmpty(): Promise<void> {
     }))
   );
 }
-
-export { SEED_CATEGORIES };

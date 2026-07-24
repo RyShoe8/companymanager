@@ -6,7 +6,7 @@ import { Types } from 'mongoose';
 const MAX_ATTENDEES = 50;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
-export type SkippedAttendee = {
+type SkippedAttendee = {
   id?: string;
   name: string;
   reason: string;

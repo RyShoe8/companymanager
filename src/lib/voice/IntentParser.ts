@@ -3,7 +3,7 @@
  * Maps natural language to structured intents for the VoiceExecutor.
  */
 
-export type IntentType =
+type IntentType =
     | 'NAVIGATE'
     | 'SET_TIMEFRAME'
     | 'FILTER_PHASE'
@@ -38,7 +38,7 @@ export interface ParsedIntent {
 }
 
 /** Separator for BATCH_ADD_TASKS `titlesJoined` slot (unlikely in natural titles). */
-export const BATCH_TASK_TITLES_DELIM = '\u001f';
+const BATCH_TASK_TITLES_DELIM = '\u001f';
 
 export function joinBatchTaskTitles(titles: string[]): string {
     return titles.map((t) => t.split(BATCH_TASK_TITLES_DELIM).join('')).join(BATCH_TASK_TITLES_DELIM);
@@ -478,7 +478,6 @@ export function parseIntent(transcript: string): ParsedIntent {
         .trim();
 
     const cleaned = normalize(transcript);
-    console.log('[Voice] Parsing transcript:', { raw: transcript, cleaned });
 
     if (!cleaned) {
         return { type: 'UNKNOWN', confidence: 0, slots: {}, rawTranscript: transcript };
@@ -494,12 +493,10 @@ export function parseIntent(transcript: string): ParsedIntent {
                     slots: rule.extractSlots(match),
                     rawTranscript: transcript,
                 };
-                console.log('[Voice] Detected Intent:', intent);
                 return intent;
             }
         }
     }
 
-    console.log('[Voice] No intent matched');
     return { type: 'UNKNOWN', confidence: 0, slots: {}, rawTranscript: transcript };
 }

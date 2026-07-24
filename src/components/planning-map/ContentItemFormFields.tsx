@@ -11,7 +11,7 @@ import { CONTENT_CHANNELS, CONTENT_STATUSES } from '@/components/planning-map/co
 import RecurrenceFields from '@/components/shared/RecurrenceFields';
 import type { RecurrencePreset } from '@/lib/scheduling/recurrence';
 
-export function InspectorFormField({
+function InspectorFormField({
   label,
   children,
   hint,
@@ -31,7 +31,7 @@ export function InspectorFormField({
   );
 }
 
-export function FormSelect({
+function FormSelect({
   label,
   value,
   onChange,
@@ -56,7 +56,7 @@ export function FormSelect({
   );
 }
 
-export function DistributionSection({
+function DistributionSection({
   distributionMethods,
   onToggle,
   inspectorStyled = false,

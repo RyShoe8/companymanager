@@ -216,7 +216,7 @@ export function collectCalendarItemsForRange(
   return entries;
 }
 
-export function bucketItemsByDay(
+function bucketItemsByDay(
   items: CalendarItemEntry[],
   days: Date[]
 ): Map<string, CalendarItemEntry[]> {
@@ -232,7 +232,7 @@ export function bucketItemsByDay(
   return map;
 }
 
-export function dedupeRangeItems(items: CalendarItemEntry[]): CalendarItemEntry[] {
+function dedupeRangeItems(items: CalendarItemEntry[]): CalendarItemEntry[] {
   const seen = new Set<string>();
   const result: CalendarItemEntry[] = [];
   for (const item of items) {
@@ -472,7 +472,7 @@ export function taskIndexForEntry(entry: CalendarItemEntry & { type: 'task' }): 
   return resolveTaskIndexInProject(entry.project, entry.task);
 }
 
-export function contentInRangeForProject(
+function contentInRangeForProject(
   project: IProject,
   contentItems: IContentItem[],
   rangeStart: Date,
@@ -505,7 +505,7 @@ export function contentInRangeForProject(
   });
 }
 
-export function tasksInRangeForProject(
+function tasksInRangeForProject(
   project: IProject,
   rangeStart: Date,
   rangeEnd: Date,

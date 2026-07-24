@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import {
@@ -36,16 +36,8 @@ import { getPeriodViewTitle, shiftPeriodDate } from '@/lib/utils/periodNavigatio
 import {
     canUserContributeToProject,
     getTaskAssigneeEmployeeIds,
-    isEmployeeOnProjectTeam,
 } from '@/lib/utils/projectTeam';
-import {
-    buildContentItemKey,
-    buildTaskItemKey,
-    collectWorkspaceItemObservations,
-    type ItemSeenStatus,
-    observeItemsForUser,
-    readObservedItemsForUser,
-} from '@/lib/workspace/itemSeenState';
+import { type ItemSeenStatus } from '@/lib/workspace/itemSeenState';
 import {
     filterContentToSeriesRepresentatives,
     filterTasksToSeriesRepresentatives,
@@ -54,6 +46,7 @@ import {
     isActiveWorkspaceContent,
     isActiveWorkspaceTask,
 } from '@/lib/workspace/activeWorkspaceItems';
+import { useAgendaItemActivityTracking } from '@/hooks/calendar/useAgendaItemActivityTracking';
 
 interface AgendaViewProps {
     projects: IProject[];
@@ -213,8 +206,6 @@ export default function AgendaView({
     inspectorProjectId = null,
     projectLocalTouchMs = {},
 }: AgendaViewProps) {
-    const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
-    const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
     const [popoutMessage, setPopoutMessage] = useState<string | null>(null);
 
     const assignmentFilterOpts = useMemo(
@@ -234,61 +225,22 @@ export default function AgendaView({
         ]
     );
 
-    const taskKeyFor = useCallback(
-        (project: IProject, task: IProjectTask, idx: number) =>
-            buildTaskItemKey(
-                project._id.toString(),
-                (task as { _id?: { toString(): string } })._id?.toString() ?? null,
-                idx
-            ),
-        []
-    );
-
-    const contentKeyFor = useCallback(
-        (item: IContentItem) => buildContentItemKey(item.projectId?.toString() ?? 'none', item._id.toString()),
-        []
-    );
-
-    const workspaceItemEntries = useMemo(
-        () => collectWorkspaceItemObservations(projects, contentItems),
-        [projects, contentItems]
-    );
-
-    useEffect(() => {
-        if (!currentUserId) return;
-        const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
-            openProjectId: inspectorProjectId ?? undefined,
-        });
-        setItemActivityByKey(observed.activityByKey);
-        setItemStatusByKey(observed.statusByKey);
-    }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
-
-    useEffect(() => {
-        if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
-        const keys = workspaceItemEntries.map((entry) => entry.key);
-        const observed = readObservedItemsForUser(currentUserId, keys);
-        setItemActivityByKey(observed.activityByKey);
-        setItemStatusByKey(observed.statusByKey);
-    }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
-
-    const taskActivityMs = useCallback(
-        (project: IProject, task: IProjectTask, idx: number) =>
-            itemActivityByKey[taskKeyFor(project, task, idx)] ?? 0,
-        [itemActivityByKey, taskKeyFor]
-    );
-
-    const contentActivityMs = useCallback(
-        (item: IContentItem) => itemActivityByKey[contentKeyFor(item)] ?? 0,
-        [itemActivityByKey, contentKeyFor]
-    );
-
-    const projectBadgeEligible = useCallback(
-        (project: IProject): boolean =>
-            !!currentUserEmployeeId &&
-            !!isManagerOrAdmin &&
-            isEmployeeOnProjectTeam(project, currentUserEmployeeId),
-        [currentUserEmployeeId, isManagerOrAdmin]
-    );
+    const {
+        itemStatusByKey,
+        taskKeyFor,
+        contentKeyFor,
+        taskActivityMs,
+        contentActivityMs,
+        projectBadgeEligible,
+    } = useAgendaItemActivityTracking({
+        projects,
+        contentItems,
+        currentUserId,
+        currentUserEmployeeId,
+        isManagerOrAdmin,
+        inspectorProjectId,
+        itemSeenRefreshTrigger,
+    });
 
     const agendaDays = useMemo(() => {
         const { start, end } = getTimeframeRange(timeframe, currentDate);

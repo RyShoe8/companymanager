@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { IAsset } from '@/lib/models/Asset';
 import AssetCard from '@/components/assets/AssetCard';
 import AssetSearch from '@/components/assets/AssetSearch';
-import AssetForm from '@/components/assets/AssetForm';
+import AssetForm, { type AssetFormSubmitData } from '@/components/assets/AssetForm';
 import AssetFilters from '@/components/assets/AssetFilters';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
@@ -159,14 +159,7 @@ function AssetsPageContent() {
     }
   };
 
-  const handleSubmitAsset = async (
-    data: Omit<Partial<IAsset>, 'linkedProjectId' | 'linkedClientId'> & {
-      linkedProjectId?: string;
-      linkedClientId?: string;
-      linkedProjectTaskIndex?: number;
-      linkedProjectTaskId?: string;
-    }
-  ) => {
+  const handleSubmitAsset = async (data: AssetFormSubmitData) => {
     try {
       const url = editingAsset ? `/api/assets/${editingAsset._id}` : '/api/assets';
       const method = editingAsset ? 'PUT' : 'POST';

@@ -38,7 +38,7 @@ export type MeetingDetailAsset = {
   openMode: 'external' | 'popout';
 };
 
-export type MeetingDetailActionButton = {
+type MeetingDetailActionButton = {
   label: string;
   url: string;
   kind?: IProjectActionButton['kind'];
@@ -71,7 +71,7 @@ export type MeetingDetailContentItem = AgendaContentItem & {
   assets: MeetingDetailAsset[];
 };
 
-export type MeetingDetailProjectBlock = Omit<AgendaProjectBlock, 'tasks' | 'contentItems'> & {
+type MeetingDetailProjectBlock = Omit<AgendaProjectBlock, 'tasks' | 'contentItems'> & {
   resources: MeetingDetailProjectResources;
   assets: MeetingDetailAsset[];
   tasks: MeetingDetailTaskItem[];

@@ -1,12 +1,12 @@
 import * as brevo from '@getbrevo/brevo';
 
-export type BrevoKeyType = 'missing' | 'smtp' | 'rest';
+type BrevoKeyType = 'missing' | 'smtp' | 'rest';
 
 function readRawBrevoApiKey(): string {
   return (process.env.BREVO_API_KEY ?? '').trim();
 }
 
-export function getBrevoKeyType(): BrevoKeyType {
+function getBrevoKeyType(): BrevoKeyType {
   const key = readRawBrevoApiKey();
   if (!key) return 'missing';
   if (key.startsWith('xsmtpsib-')) return 'smtp';
@@ -14,7 +14,7 @@ export function getBrevoKeyType(): BrevoKeyType {
 }
 
 /** Valid REST API v3 key, or null if missing / SMTP / too short */
-export function getBrevoApiKey(): string | null {
+function getBrevoApiKey(): string | null {
   const key = readRawBrevoApiKey();
   if (!key) return null;
   if (key.startsWith('xsmtpsib-')) return null;
@@ -22,19 +22,19 @@ export function getBrevoApiKey(): string | null {
   return key;
 }
 
-export function getBrevoSenderEmail(): string {
+function getBrevoSenderEmail(): string {
   const fromEnv = (process.env.BREVO_SENDER_EMAIL ?? '').trim();
   return fromEnv || 'theteam@nucleas.app';
 }
 
 /** Brevo list ID for Nucleas user signups (default: list #3 "Users"). */
-export function getBrevoUsersListId(): number {
+function getBrevoUsersListId(): number {
   const raw = (process.env.BREVO_USERS_LIST_ID ?? '3').trim();
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
 }
 
-export function getBrevoConfigurationError(): string | null {
+function getBrevoConfigurationError(): string | null {
   const keyType = getBrevoKeyType();
   if (keyType === 'missing') {
     return 'Brevo API is not configured. Set BREVO_API_KEY in your environment (Vercel → Environment Variables).';
@@ -61,7 +61,7 @@ type AxiosLikeError = {
   message?: string;
 };
 
-export const BREVO_KEY_DISABLED_MESSAGE =
+const BREVO_KEY_DISABLED_MESSAGE =
   'Your Brevo API key is disabled. In Brevo go to Settings → SMTP & API → API Keys, enable the key used in BREVO_API_KEY (or create a new one), update Vercel if you rotated it, then redeploy.';
 
 function parseBrevoError(error: unknown): {
@@ -110,7 +110,7 @@ export function formatBrevoError(error: unknown): string {
   return 'Failed to send email via Brevo';
 }
 
-export function logBrevoError(context: string, error: unknown): void {
+function logBrevoError(context: string, error: unknown): void {
   const { status, message, code } = parseBrevoError(error);
   console.error(context, { status, message, code });
 }
@@ -310,7 +310,7 @@ If you didn't expect this invitation, you can safely ignore this email.
 export interface CreateContactData {
   email: string;
   name?: string;
-  attributes?: Record<string, any>;
+  attributes?: Record<string, unknown>;
 }
 
 /**
@@ -331,7 +331,7 @@ export async function createBrevoContact(data: CreateContactData): Promise<void>
     const createdDateStr = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
     
     // Build attributes object
-    const attributes: Record<string, any> = {
+    const attributes: Record<string, unknown> = {
       CREATED: createdDateStr,
     };
     
@@ -386,9 +386,10 @@ export async function deleteBrevoContact(email: string): Promise<void> {
 
   try {
     await contactsApiInstance.deleteContact(email.toLowerCase());
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If contact doesn't exist, that's okay - silently continue
-    if (error?.response?.statusCode !== 404) {
+    const err = error as AxiosLikeError;
+    if (err?.response?.statusCode !== 404) {
       // Error deleting contact from Brevo
       // Don't throw - we don't want to fail employee deletion if Brevo fails
     }

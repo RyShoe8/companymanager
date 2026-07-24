@@ -5,8 +5,6 @@ import User from '@/lib/models/User';
 import type { IUser } from '@/lib/models/User';
 import { isPlatformAdmin } from '@/lib/auth/platformAdmin';
 
-export { isPlatformAdmin } from '@/lib/auth/platformAdmin';
-
 export async function requirePlatformAdmin(): Promise<
   { user: IUser; error: null } | { user: null; error: NextResponse }
 > {

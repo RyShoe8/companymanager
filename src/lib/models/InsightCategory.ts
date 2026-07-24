@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export interface IInsightCategory extends Document {
+interface IInsightCategory extends Document {
   name: string;
   slug: string;
   stageOrder: number;

@@ -64,5 +64,3 @@ export async function estimateHoursWithOpenAI(
   if (!Number.isFinite(hours)) return null;
   return clampHours(hours);
 }
-
-export { clampHours, MIN_HOURS, MAX_HOURS };

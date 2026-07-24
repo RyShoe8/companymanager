@@ -15,7 +15,6 @@ import EditableNumber from '@/components/ui/EditableNumber';
 import EditableSelect from '@/components/ui/EditableSelect';
 import SwipeableCard from '@/components/ui/SwipeableCard';
 import Modal from '@/components/ui/Modal';
-import ModalAction from '@/components/ui/ModalAction';
 import ConfirmModal from '@/components/shared/ConfirmModal';
 import AssetDeleteConfirmModal from '@/components/shared/AssetDeleteConfirmModal';
 import Button from '@/components/ui/Button';
@@ -39,7 +38,7 @@ import type { AddSmartButtonPayload } from '@/components/checklist/CategoryModal
 import { useOnGoogleAssetCreated } from '@/hooks/google/useGoogleWorkspaceResume';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { emailSmartButtonHref } from '@/lib/utils/emailSmartLinks';
-import { labelForPaletteIndex, parseCssColorInput, formatColorPaletteForCopy } from '@/lib/utils/cssColorInput';
+import { parseCssColorInput } from '@/lib/utils/cssColorInput';
 import {
   taskAssigneeSelectOptions,
   getTaskAssigneeEmployeeIds,
@@ -50,11 +49,7 @@ import {
   sanitizeTaskAssigneesForProjectTeam,
   mergeProjectTeamWithClient,
 } from '@/lib/utils/projectTeam';
-import {
-  labelForFontPaletteIndex,
-  maxFontPaletteEntries,
-  parseFontFamilyInput,
-} from '@/lib/utils/fontPaletteInput';
+import { parseFontFamilyInput } from '@/lib/utils/fontPaletteInput';
 import { normalizeProjectUrlHref, truncateProjectUrlDisplay } from '@/lib/utils/projectUrls';
 import { getPlatformUrlList, syncPlatformUrlFields } from '@/lib/utils/platformUrls';
 import PlatformUrlsSection from '@/components/shared/PlatformUrlsSection';
@@ -62,7 +57,13 @@ import TaskLinkedAssets from '@/components/planning-map/TaskLinkedAssets';
 import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import ContentLinkedAssets from '@/components/planning-map/ContentLinkedAssets';
 import EmptyStateIllustration from '@/components/ui/EmptyStateIllustration';
-import { deleteLinkedAsset, canUserDeleteAsset, normalizeAssetUserId } from '@/lib/utils/linkedAssets';
+import {
+  deleteLinkedAsset,
+  canUserDeleteAsset,
+  normalizeAssetUserId,
+  isTextDocumentAssetType,
+  linkedAssetHref,
+} from '@/lib/utils/linkedAssets';
 import ProjectSocialsBar from '@/components/projects/ProjectSocialsBar';
 import ProjectTechStackBar from '@/components/projects/ProjectTechStackBar';
 import ProjectMarketingStackBar from '@/components/projects/ProjectMarketingStackBar';
@@ -97,6 +98,11 @@ import {
   shouldAutoExpandCommentThread,
 } from '@/lib/comments/commentReadState';
 import ItemSeenTag from '@/components/workspace/ItemSeenTag';
+import { useProjectPaletteSheet } from '@/hooks/useProjectPaletteSheet';
+import { useProjectFontSheet } from '@/hooks/useProjectFontSheet';
+import ProjectPaletteSheetModal from '@/components/planning-map/ProjectPaletteSheetModal';
+import ProjectFontSheetModal from '@/components/planning-map/ProjectFontSheetModal';
+import TaskActionsModal from '@/components/planning-map/TaskActionsModal';
 import {
   buildContentItemKey,
   buildContentItemObservation,
@@ -217,16 +223,6 @@ function normalizeLinkedAsset(raw: unknown): LinkedAssetRow | null {
           ? (o.linkedContentItemId as { toString: () => string }).toString()
           : undefined,
   };
-}
-
-function linkedAssetOpenHref(asset: LinkedAssetRow): string | null {
-  if (asset.fileUrl) return asset.fileUrl;
-  if (asset.url) return asset.url;
-  return null;
-}
-
-function isTextDocumentAssetType(type: string): boolean {
-  return type === 'text';
 }
 
 function formatLinkedAssetTypeLabel(type: string): string {
@@ -365,13 +361,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
   const [previewEditName, setPreviewEditName] = useState('');
   const [previewEditContent, setPreviewEditContent] = useState('');
   const [previewSaving, setPreviewSaving] = useState(false);
-  const [paletteSheetOpen, setPaletteSheetOpen] = useState(false);
-  const [paletteDraft, setPaletteDraft] = useState<string[]>(['#3b82f6']);
-  const [paletteSaving, setPaletteSaving] = useState(false);
-  const [paletteCopyFeedback, setPaletteCopyFeedback] = useState(false);
-  const [fontSheetOpen, setFontSheetOpen] = useState(false);
-  const [fontDraft, setFontDraft] = useState<string[]>(['']);
-  const [fontSaving, setFontSaving] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [taskAssetsRefreshToken, setTaskAssetsRefreshToken] = useState(0);
   const [contentAssetsRefreshToken, setContentAssetsRefreshToken] = useState(0);
@@ -542,7 +531,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     setDeletingLinkedAsset(true);
     const result = await deleteLinkedAsset(assetPendingDelete._id);
     if (result.ok) {
-      if (previewImage && linkedAssetOpenHref(assetPendingDelete) === previewImage.src) {
+      if (previewImage && linkedAssetHref(assetPendingDelete) === previewImage.src) {
         setPreviewImage(null);
       }
       setAssetPendingDelete(null);
@@ -1278,7 +1267,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     }
   };
 
-  const handleFieldUpdate = async (field: string, value: any) => {
+  const handleFieldUpdate = async (field: string, value: unknown) => {
     const optimistic = { ...localProjectRef.current, [field]: value } as IProject;
     setLocalProject(optimistic);
     bumpWorkspaceRecency(optimistic);
@@ -1335,109 +1324,28 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [onProjectPatched]
   );
 
-  const openPaletteSheet = useCallback(() => {
-    const pal = localProject.colorPalette;
-    const initial =
-      Array.isArray(pal) && pal.length > 0 ? pal.map((c) => String(c)) : [localProject.color || '#3b82f6'];
-    setPaletteDraft(initial.length > 0 ? initial : ['#3b82f6']);
-    setPaletteSheetOpen(true);
-  }, [localProject.colorPalette, localProject.color]);
+  const {
+    paletteSheetOpen,
+    setPaletteSheetOpen,
+    paletteDraft,
+    setPaletteDraft,
+    paletteSaving,
+    paletteCopyFeedback,
+    openPaletteSheet,
+    savePaletteFromDraft,
+    clearPalette,
+    handleCopyPalette,
+  } = useProjectPaletteSheet({ localProject, project, setLocalProject, onUpdate });
 
-  const savePaletteFromDraft = async () => {
-    const sanitized: string[] = [];
-    for (let i = 0; i < paletteDraft.length; i++) {
-      const t = paletteDraft[i].trim();
-      if (!t) continue;
-      const p = parseCssColorInput(t);
-      if (!p.ok) {
-        alert(`Invalid ${labelForPaletteIndex(i)}: ${t}. Use #hex or rgb() / rgba().`);
-        return;
-      }
-      sanitized.push(p.normalized);
-    }
-    setPaletteSaving(true);
-    const nextColor = sanitized.length > 0 ? sanitized[0] : localProject.color;
-    setLocalProject((prev) => ({ ...prev, colorPalette: sanitized as string[], color: nextColor } as IProject));
-    try {
-      await onUpdate({
-        colorPalette: sanitized,
-        ...(sanitized.length > 0 ? { color: sanitized[0] } : {}),
-      });
-      setPaletteSheetOpen(false);
-    } catch (error) {
-      console.error('Error saving palette:', error);
-      setLocalProject(project);
-      alert(error instanceof Error ? error.message : 'Failed to save');
-    } finally {
-      setPaletteSaving(false);
-    }
-  };
-
-  const clearPalette = async () => {
-    setPaletteSaving(true);
-    setPaletteDraft(['']);
-    setLocalProject((prev) => ({ ...prev, colorPalette: [] as string[], color: prev.color } as IProject));
-    try {
-      await onUpdate({ colorPalette: [] });
-      setPaletteSheetOpen(false);
-    } catch (error) {
-      console.error('Error clearing palette:', error);
-      setLocalProject(project);
-      alert(error instanceof Error ? error.message : 'Failed to save');
-    } finally {
-      setPaletteSaving(false);
-    }
-  };
-
-  const openFontSheet = useCallback(() => {
-    const pal = localProject.fontPalette;
-    const initial =
-      Array.isArray(pal) && pal.length > 0 ? pal.map((f) => String(f)) : [''];
-    setFontDraft(initial.length > 0 ? initial : ['']);
-    setFontSheetOpen(true);
-  }, [localProject.fontPalette]);
-
-  const saveFontFromDraft = async () => {
-    const sanitized: string[] = [];
-    for (let i = 0; i < fontDraft.length; i++) {
-      const t = fontDraft[i].trim();
-      if (!t) {
-        if (i === 0) {
-          alert('Primary font is required. Enter a font family name.');
-          return;
-        }
-        continue;
-      }
-      const p = parseFontFamilyInput(t);
-      if (!p.ok) {
-        alert(
-          `Invalid ${labelForFontPaletteIndex(i)}: ${t}. Use letters, numbers, spaces, commas, quotes, or hyphens.`
-        );
-        return;
-      }
-      sanitized.push(p.normalized);
-    }
-    if (sanitized.length === 0) {
-      alert('Add at least one valid font.');
-      return;
-    }
-    if (sanitized.length > maxFontPaletteEntries) {
-      alert(`You can save at most ${maxFontPaletteEntries} fonts.`);
-      return;
-    }
-    setFontSaving(true);
-    setLocalProject((prev) => ({ ...prev, fontPalette: sanitized } as IProject));
-    try {
-      await onUpdate({ fontPalette: sanitized });
-      setFontSheetOpen(false);
-    } catch (error) {
-      console.error('Error saving fonts:', error);
-      setLocalProject(project);
-      alert(error instanceof Error ? error.message : 'Failed to save');
-    } finally {
-      setFontSaving(false);
-    }
-  };
+  const {
+    fontSheetOpen,
+    setFontSheetOpen,
+    fontDraft,
+    setFontDraft,
+    fontSaving,
+    openFontSheet,
+    saveFontFromDraft,
+  } = useProjectFontSheet({ localProject, project, setLocalProject, onUpdate });
 
   useEffect(() => () => {
     estimateTimersRef.current.forEach((t) => clearTimeout(t));
@@ -1608,13 +1516,13 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     [onProjectPatched]
   );
 
-  const handleTaskUpdate = async (taskIndex: number, field: string, value: any) => {
+  const handleTaskUpdate = async (taskIndex: number, field: string, value: unknown) => {
     if (field === 'status' && !isManagerOrAdmin) {
       const previousTasks = [...(localProject.tasks || [])];
       const optimisticTasks = [...previousTasks];
       const existingTask = optimisticTasks[taskIndex];
       if (!existingTask) return;
-      optimisticTasks[taskIndex] = { ...existingTask, status: value };
+      optimisticTasks[taskIndex] = { ...existingTask, status: value as TaskStatus };
       setLocalProject((prev) => ({ ...prev, tasks: optimisticTasks } as IProject));
       bumpWorkspaceRecency({ ...localProjectRef.current, tasks: optimisticTasks } as IProject);
       try {
@@ -1638,7 +1546,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
           status?: TaskStatus;
           projectUpdatedAt?: string;
         };
-        const savedStatus = data.task?.status ?? data.status ?? value;
+        const savedStatus = data.task?.status ?? data.status ?? (value as TaskStatus);
         const projectUpdatedAt = data.projectUpdatedAt
           ? new Date(data.projectUpdatedAt)
           : new Date();
@@ -2173,21 +2081,6 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
     onAutoAddTaskConsumed?.();
   }, [autoAddTaskOnOpen, canContributeToProject, project._id, onAutoAddTaskConsumed, handleOpenDraftTask]);
 
-  const handleCopyPalette = async () => {
-    const text = formatColorPaletteForCopy(paletteDraft);
-    if (!text) {
-      alert('Add at least one valid color to copy.');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      setPaletteCopyFeedback(true);
-      window.setTimeout(() => setPaletteCopyFeedback(false), 2000);
-    } catch {
-      alert('Could not copy to clipboard.');
-    }
-  };
-
   const statusOptions = [{ value: 'planning', label: 'Planning', color: '#3b82f6' }, { value: 'in-development', label: 'Building', color: '#22c55e' }, { value: 'launched', label: 'Running', color: '#a855f7' }, { value: 'completed', label: 'Completed', color: '#10b981' }];
   const projectTypeOptions = [{ value: 'internal', label: 'Internal' }, { value: 'client', label: 'Client' }];
   const categoryOptions = [{ value: 'website', label: 'Website' }, { value: 'store', label: 'Store' }, { value: 'app', label: 'App' }, { value: 'generic', label: 'Generic' }];
@@ -2533,7 +2426,7 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
                   {visibleLinkedAssets.map((asset) => {
                     const chipClass =
                       'relative group inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 max-w-[260px]';
-                    const href = linkedAssetOpenHref(asset);
+                    const href = linkedAssetHref(asset);
                     const deleteBtn = canUserDeleteAsset(asset.userId, currentUserId, isManagerOrAdmin) ? (
                       <HoverDeleteButton
                         label={`Delete asset ${asset.name}`}
@@ -3101,86 +2994,24 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       )}
 
       {/* Task Actions */}
-      <Modal
+      <TaskActionsModal
         isOpen={showTaskActions && selectedTaskIndex !== null}
+        task={selectedTaskIndex !== null ? localProject.tasks?.[selectedTaskIndex] : undefined}
+        isManagerOrAdmin={isManagerOrAdmin}
+        canDeleteTask={
+          selectedTaskIndex !== null &&
+          !!localProject.tasks?.[selectedTaskIndex] &&
+          userCanDeleteTask(localProject.tasks[selectedTaskIndex])
+        }
         onClose={() => {
           setShowTaskActions(false);
           setSelectedTaskIndex(null);
         }}
-        title={selectedTaskIndex !== null ? localProject.tasks?.[selectedTaskIndex]?.name : 'Task Actions'}
-        maxWidth="sm"
-        elevated
-        bodyPadding={false}
-      >
-        <div className="py-1">
-          {selectedTaskIndex !== null && localProject.tasks?.[selectedTaskIndex] && (
-            <>
-              {localProject.tasks[selectedTaskIndex].status === 'active' && (
-                <ModalAction
-                  icon={
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  }
-                  label="Submit for Review"
-                  onClick={() => handleSubmitForReview(selectedTaskIndex)}
-                  variant="warning"
-                />
-              )}
-              {localProject.tasks[selectedTaskIndex].status === 'in-review' && isManagerOrAdmin && (
-                <>
-                  <ModalAction
-                    icon={
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    }
-                    label="Approve & Complete"
-                    onClick={() => handleCompleteTask(selectedTaskIndex)}
-                    variant="success"
-                  />
-                  <ModalAction
-                    icon={
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    }
-                    label="Decline Review"
-                    onClick={() => handleDeclineReview(selectedTaskIndex)}
-                    variant="danger"
-                  />
-                </>
-              )}
-              {localProject.tasks[selectedTaskIndex].status !== 'completed' && (
-                <ModalAction
-                  icon={
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  }
-                  label="Mark Complete"
-                  onClick={() => handleCompleteTask(selectedTaskIndex)}
-                  variant="success"
-                />
-              )}
-              {selectedTaskIndex != null &&
-                localProject.tasks[selectedTaskIndex] &&
-                userCanDeleteTask(localProject.tasks[selectedTaskIndex]) && (
-                <ModalAction
-                  icon={
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  }
-                  label="Delete Task"
-                  onClick={() => handleDeleteTask(selectedTaskIndex)}
-                  variant="danger"
-                />
-              )}
-            </>
-          )}
-        </div>
-      </Modal>
+        onSubmitForReview={() => selectedTaskIndex !== null && handleSubmitForReview(selectedTaskIndex)}
+        onCompleteTask={() => selectedTaskIndex !== null && handleCompleteTask(selectedTaskIndex)}
+        onDeclineReview={() => selectedTaskIndex !== null && handleDeclineReview(selectedTaskIndex)}
+        onDeleteTask={() => selectedTaskIndex !== null && handleDeleteTask(selectedTaskIndex)}
+      />
 
       <ConfirmModal
         isOpen={showDeleteConfirm}
@@ -3311,199 +3142,27 @@ export default function InlineProjectView({ project, employees, isManagerOrAdmin
       />
 
       {/* Project color palette */}
-      <Modal
+      <ProjectPaletteSheetModal
         isOpen={paletteSheetOpen}
-        onClose={() => {
-          if (!paletteSaving) setPaletteSheetOpen(false);
-        }}
-        title="Color palette"
-        elevated
-        stackAboveOverlays
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Primary is optional and is used on the map when set. Enter hex (#RGB or #RRGGBB) or rgb() / rgba(). Blank rows are omitted when you save. Clear palette removes all swatches but keeps your project color on the map.
-          </p>
-          <div className="space-y-3">
-            {paletteDraft.map((row, idx) => {
-              const trimmed = row.trim();
-              const parsed = trimmed ? parseCssColorInput(trimmed) : null;
-              const ok = parsed?.ok === true;
-              return (
-                <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-2 sm:pt-0">
-                    {labelForPaletteIndex(idx)}
-                  </span>
-                  <div
-                    className={`h-9 w-9 shrink-0 rounded-lg border-2 ${
-                      ok ? 'border-gray-200' : 'border-dashed border-amber-500/80 bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)_50%/8px_8px]'
-                    }`}
-                    style={ok && parsed ? { backgroundColor: parsed.normalized } : undefined}
-                    aria-hidden
-                  />
-                  <input
-                    type="text"
-                    value={row}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setPaletteDraft((prev) => prev.map((x, i) => (i === idx ? v : x)));
-                    }}
-                    disabled={paletteSaving}
-                    placeholder={idx === 0 ? '#3b82f6 or rgb(59, 130, 246)' : '#RRGGBB or rgb()'}
-                    className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm font-mono"
-                  />
-                  {idx >= 1 && (
-                    <button
-                      type="button"
-                      disabled={paletteSaving}
-                      onClick={() => setPaletteDraft((prev) => prev.filter((_, i) => i !== idx))}
-                      className="text-sm text-red-600 hover:underline shrink-0 text-left sm:text-right sm:w-16"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={paletteSaving}
-            onClick={() => setPaletteDraft((prev) => [...prev, ''])}
-          >
-            Add color
-          </Button>
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-            <Button type="button" size="sm" disabled={paletteSaving} onClick={() => void savePaletteFromDraft()}>
-              {paletteSaving ? 'Saving…' : 'Save'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={paletteSaving}
-              onClick={() => void clearPalette()}
-            >
-              Clear palette
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={paletteSaving}
-              onClick={() => void handleCopyPalette()}
-            >
-              {paletteCopyFeedback ? 'Copied' : 'Copy palette'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={paletteSaving}
-              onClick={() => setPaletteSheetOpen(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        paletteDraft={paletteDraft}
+        paletteSaving={paletteSaving}
+        paletteCopyFeedback={paletteCopyFeedback}
+        setPaletteDraft={setPaletteDraft}
+        onClose={() => setPaletteSheetOpen(false)}
+        onSave={savePaletteFromDraft}
+        onClear={clearPalette}
+        onCopy={handleCopyPalette}
+      />
 
       {/* Project font listing */}
-      <Modal
+      <ProjectFontSheetModal
         isOpen={fontSheetOpen}
-        onClose={() => {
-          if (!fontSaving) setFontSheetOpen(false);
-        }}
-        title="Fonts"
-        elevated
-        stackAboveOverlays
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Brand typefaces for this project. Primary is required. Extra rows can be left blank and are omitted when you save.
-          </p>
-          <div className="space-y-3">
-            {fontDraft.map((row, idx) => {
-              const trimmed = row.trim();
-              const parsed = trimmed ? parseFontFamilyInput(trimmed) : null;
-              const ok = parsed?.ok === true;
-              const previewFamily =
-                ok && parsed && /^[\p{L}\p{N}\s\-]+$/u.test(parsed.normalized) && !parsed.normalized.includes(',')
-                  ? parsed.normalized
-                  : undefined;
-              return (
-                <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-2 sm:pt-0">
-                    {labelForFontPaletteIndex(idx)}
-                  </span>
-                  {previewFamily ? (
-                    <span
-                      className="text-lg shrink-0 text-gray-700 w-9 text-center"
-                      style={{ fontFamily: previewFamily }}
-                      aria-hidden
-                    >
-                      Aa
-                    </span>
-                  ) : (
-                    <span
-                      className="text-lg shrink-0 text-gray-400 w-9 text-center"
-                      aria-hidden
-                    >
-                      Aa
-                    </span>
-                  )}
-                  <input
-                    type="text"
-                    value={row}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setFontDraft((prev) => prev.map((x, i) => (i === idx ? v : x)));
-                    }}
-                    disabled={fontSaving}
-                    placeholder={idx === 0 ? 'Inter' : 'Georgia or "Inter", sans-serif'}
-                    className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
-                  />
-                  {idx >= 1 && (
-                    <button
-                      type="button"
-                      disabled={fontSaving}
-                      onClick={() => setFontDraft((prev) => prev.filter((_, i) => i !== idx))}
-                      className="text-sm text-red-600 hover:underline shrink-0 text-left sm:text-right sm:w-16"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={fontSaving || fontDraft.length >= maxFontPaletteEntries}
-            onClick={() => setFontDraft((prev) => [...prev, ''])}
-          >
-            Add font
-          </Button>
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-            <Button type="button" size="sm" disabled={fontSaving} onClick={() => void saveFontFromDraft()}>
-              {fontSaving ? 'Saving…' : 'Save'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={fontSaving}
-              onClick={() => setFontSheetOpen(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        fontDraft={fontDraft}
+        fontSaving={fontSaving}
+        setFontDraft={setFontDraft}
+        onClose={() => setFontSheetOpen(false)}
+        onSave={saveFontFromDraft}
+      />
 
       <ImagePreviewModal
         isOpen={previewImage !== null}

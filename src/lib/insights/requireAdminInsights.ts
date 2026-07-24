@@ -5,8 +5,8 @@ export async function requireAdminInsights() {
   return requireAdminUser();
 }
 
-export function adminInsightsForbidden(error: NextResponse) {
+function adminInsightsForbidden(error: NextResponse) {
   return error;
 }
 
-export type AdminInsightsContext = Awaited<ReturnType<typeof requireAdminInsights>>;
+type AdminInsightsContext = Awaited<ReturnType<typeof requireAdminInsights>>;

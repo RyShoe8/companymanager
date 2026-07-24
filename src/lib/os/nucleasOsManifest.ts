@@ -1,5 +1,5 @@
 /** Shared PWA manifest fields for Nucleas OS (served dynamically with origin-specific URLs). */
-export const NUCLEAS_OS_MANIFEST_DISPLAY = {
+const NUCLEAS_OS_MANIFEST_DISPLAY = {
     name: 'Nucleas OS',
     short_name: 'Nucleas OS',
     description: 'Nucleas operating system for planning and running your company workspace.',

@@ -5,7 +5,7 @@ import { getTimeframeRange, type TimeframeType } from '@/lib/utils/dateUtils';
 import { getCalendarPeriodTitle } from '@/lib/utils/calendarPeriodNav';
 import { isClientHubProject } from '@/lib/clients/clientProjectHelpers';
 
-export type ImpactReportTask = {
+type ImpactReportTask = {
   id: string;
   name: string;
   projectId: string;
@@ -14,7 +14,7 @@ export type ImpactReportTask = {
   estimatedHours?: number;
 };
 
-export type ImpactReportContent = {
+type ImpactReportContent = {
   id: string;
   title: string;
   channel: string;
@@ -25,14 +25,14 @@ export type ImpactReportContent = {
   estimatedHours?: number;
 };
 
-export type ImpactReportMeeting = {
+type ImpactReportMeeting = {
   id: string;
   title: string;
   start: string;
   end: string;
 };
 
-export type ImpactReportProject = {
+type ImpactReportProject = {
   id: string;
   name: string;
   status: string;

@@ -7,7 +7,7 @@ import InsightVendor from '@/lib/models/InsightVendor';
 import { seedInsightCategoriesIfEmpty } from '@/lib/insights/seedInsightCategories';
 import { generateUniqueVendorSlug } from '@/lib/insights/vendorSlug';
 
-export type InsightVendorCsvRow = {
+type InsightVendorCsvRow = {
   name: string;
   url: string;
   description: string;

@@ -34,7 +34,7 @@ export async function deleteCommentsForTask(
   return result.deletedCount ?? 0;
 }
 
-export async function deleteCommentsForContentItem(contentItemId: string): Promise<number> {
+async function deleteCommentsForContentItem(contentItemId: string): Promise<number> {
   const result = await Comment.deleteMany(contentItemCommentsFilter(contentItemId));
   return result.deletedCount ?? 0;
 }

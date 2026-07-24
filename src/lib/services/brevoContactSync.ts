@@ -4,7 +4,7 @@ import Employee from '@/lib/models/Employee';
 import { createBrevoContact } from '@/lib/services/email';
 
 /** Resolve display name for an org from Organization doc (keyed by admin userId). */
-export async function getOrganizationName(organizationId: string): Promise<string | undefined> {
+async function getOrganizationName(organizationId: string): Promise<string | undefined> {
   if (!organizationId) return undefined;
   await connectDB();
   const org = await Organization.findOne({ userId: organizationId }).select('name').lean();
@@ -26,7 +26,7 @@ export type SyncUserToBrevoOptions = {
  * Create or update a Brevo contact on list #3 (Users) with standard Nucleas attributes.
  * Safe to call fire-and-forget — errors are logged, not thrown.
  */
-export async function syncUserToBrevo(options: SyncUserToBrevoOptions): Promise<void> {
+async function syncUserToBrevo(options: SyncUserToBrevoOptions): Promise<void> {
   let organizationName = options.organizationName?.trim();
   if (!organizationName && options.organizationId) {
     organizationName = await getOrganizationName(options.organizationId);
@@ -53,7 +53,7 @@ export function syncUserToBrevoInBackground(options: SyncUserToBrevoOptions): vo
 }
 
 /** Resolve role/job fields from Employee when syncing an invited user who just registered. */
-export async function syncRegisteredUserToBrevo(options: {
+async function syncRegisteredUserToBrevo(options: {
   email: string;
   name?: string;
   organizationId: string;

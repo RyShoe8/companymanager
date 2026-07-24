@@ -5,12 +5,23 @@ import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import Button from '@/components/ui/Button';
 
+export interface QuickProjectFormData {
+  name: string;
+  description?: string;
+  color: string;
+  projectType: 'internal' | 'client';
+  clientId?: string;
+  category: 'website' | 'store' | 'app' | 'generic';
+  status?: 'planning' | 'in-development' | 'launched';
+  assignedToEmployeeIds?: string[];
+}
+
 interface QuickProjectFormProps {
   clients: IClient[];
   employees: IEmployee[];
   defaultStatus?: 'planning' | 'in-development' | 'launched';
   defaultClientId?: string;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: QuickProjectFormData) => Promise<void>;
   onCancel: () => void;
 }
 

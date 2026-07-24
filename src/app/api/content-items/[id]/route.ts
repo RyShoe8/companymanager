@@ -34,10 +34,10 @@ async function getContentItemWithAccess(id: string, session: { userId: string })
   const item = await ContentItem.findById(id).lean();
   if (!item) return { item: null, error: { status: 404, message: 'Content item not found' } };
 
-  const project = await Project.findById((item as any).projectId).lean();
+  const project = await Project.findById(item.projectId).lean();
   if (!project) return { item: null, error: { status: 404, message: 'Project not found' } };
 
-  const projectInOrg = orgUserIds.some((uid) => uid.toString() === (project as any).userId?.toString());
+  const projectInOrg = orgUserIds.some((uid) => uid.toString() === project.userId?.toString());
   if (!projectInOrg) return { item: null, error: { status: 404, message: 'Content item not found' } };
 
   const isManagerOrAdmin = userRole === 'Administrator' || userRole === 'Manager';
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     await connectDB();
     const { id } = await params;
 
-    const { item, error } = await getContentItemWithAccess(id, session as any);
+    const { item, error } = await getContentItemWithAccess(id, session);
     if (error) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(item);
   } catch (e) {
@@ -80,7 +80,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await connectDB();
     const { id } = await params;
 
-    const access = await getContentItemWithAccess(id, session as any);
+    const access = await getContentItemWithAccess(id, session);
     const { error, currentUserEmployee } = access;
     if (error) return NextResponse.json({ error: error.message }, { status: error.status });
 
@@ -196,7 +196,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await connectDB();
     const { id } = await params;
 
-    const { item, error } = await getContentItemWithAccess(id, session as any);
+    const { item, error } = await getContentItemWithAccess(id, session);
     if (error) return NextResponse.json({ error: error.message }, { status: error.status });
 
     const projectId = (item as { projectId?: Types.ObjectId }).projectId?.toString();

@@ -9,7 +9,7 @@ export interface Command {
     keywords: string[];
     /** Return false to hide this command from palette / voice */
     canExecute?: () => boolean;
-    execute: (...args: any[]) => void;
+    execute: (...args: unknown[]) => void;
     /** For voice: natural language patterns that match this command */
     voicePatterns?: string[];
 }
@@ -55,7 +55,7 @@ class CommandRegistryImpl {
         );
     }
 
-    execute(id: string, ...args: any[]): boolean {
+    execute(id: string, ...args: unknown[]): boolean {
         const cmd = this.commands.get(id);
         if (!cmd) return false;
         if (cmd.canExecute && !cmd.canExecute()) return false;

@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
-export interface IUserCalendarConnection extends Document {
+interface IUserCalendarConnection extends Document {
   userId: Types.ObjectId;
   provider: 'google';
   refreshTokenEncrypted: string;

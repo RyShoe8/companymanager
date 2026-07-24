@@ -2,7 +2,7 @@
  * Fetch Simple Icons SVGs and apply brand colors (matching colored social icons).
  */
 
-export const VERSIONS = ['16.23.0', '11.6.0'];
+const VERSIONS = ['16.23.0', '11.6.0'];
 
 /** Relative luminance threshold — icons at or below this need dark:invert in dark UI. */
 const DARK_LUMINANCE_MAX = 0.08;
@@ -75,7 +75,7 @@ export function isDarkBrandHex(hex) {
   return hexLuminance(hex) <= DARK_LUMINANCE_MAX;
 }
 
-export function colorizeSvg(svg, hex) {
+function colorizeSvg(svg, hex) {
   const color = normalizeHex(hex);
   if (!color) return svg;
   const fill = `#${color}`;
@@ -123,16 +123,6 @@ export async function fetchColoredIcon(slug, slugOverrides = {}) {
     hex,
     resolvedSlug,
   };
-}
-
-/** Resolve brand hex for a slug (used for lettermark fallbacks). */
-export async function getBrandHex(slug, slugOverrides = {}) {
-  const map = await loadHexMap();
-  const slugs = slugOverrides[slug] ?? [slug];
-  for (const s of slugs) {
-    if (map.has(s)) return map.get(s);
-  }
-  return map.get(slug) ?? null;
 }
 
 /** Extract the first hex fill from an SVG (for custom overrides). */

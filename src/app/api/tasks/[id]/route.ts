@@ -6,6 +6,7 @@ import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import { touchProjectActivity } from '@/lib/projects/touchProjectActivity';
 import { getOrganizationUserIds } from '@/lib/utils/apiHelpers';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { getTaskByProject, isEmployeeAssignedToTask, toTaskIndex } from '@/lib/projects/taskLookup';
 import {
   canContributorUpdateTaskFields,
@@ -61,7 +62,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Employee not found' }, { status: 403 });
     }
 
-    const isManagerOrAdmin = employee.role === 'Manager' || employee.role === 'Administrator';
+    const isManagerOrAdmin = isManagerOrAdminRole(employee.role);
     const employeeId = employee._id.toString();
     const resolved = getTaskByProject(project, taskId, taskIndex);
     if (!resolved) {
@@ -159,7 +160,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Employee not found' }, { status: 403 });
     }
 
-    const isManagerOrAdmin = employee.role === 'Manager' || employee.role === 'Administrator';
+    const isManagerOrAdmin = isManagerOrAdminRole(employee.role);
     const employeeId = employee._id.toString();
     const resolved = getTaskByProject(project, taskId, taskIndex);
     if (!resolved) {

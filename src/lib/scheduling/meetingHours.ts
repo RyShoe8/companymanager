@@ -3,7 +3,7 @@ import type { IEmployee } from '@/lib/models/Employee';
 import { localCalendarDayIndex } from '@/lib/utils/dateUtils';
 import { meetingInstanceDedupeKey } from '@/lib/scheduling/meetingDedupe';
 
-export function meetingDurationHours(
+function meetingDurationHours(
   meeting: Pick<IMeeting, 'start' | 'end'>,
   rangeStart: Date,
   rangeEnd: Date
@@ -100,7 +100,7 @@ export function sumMeetingHoursForEmployee(
   return Math.round(total * 100) / 100;
 }
 
-export function meetingPassesAssignmentFilter(
+function meetingPassesAssignmentFilter(
   meeting: Pick<IMeeting, 'userId' | 'attendeeEmployeeIds'>,
   options: {
     showOnlyMyAssignments: boolean;

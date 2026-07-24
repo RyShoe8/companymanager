@@ -16,20 +16,14 @@ import LinkedRecordingChips from '@/components/shared/LinkedRecordingChips';
 import {
   canUserDeleteAsset,
   deleteLinkedAsset,
+  formatLinkedAssetTypeLabel,
+  isTextDocumentAssetType,
   linkedAssetHref,
   normalizeLinkedAssetChip,
   type LinkedAssetChip,
 } from '@/lib/utils/linkedAssets';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
 import { useOnGoogleAssetCreated } from '@/hooks/google/useGoogleWorkspaceResume';
-
-function isTextDocumentAssetType(type: string): boolean {
-  return type === 'text';
-}
-
-function formatLinkedAssetTypeLabel(type: string): string {
-  return type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Other';
-}
 
 interface TaskLinkedAssetsProps {
   project: IProject;

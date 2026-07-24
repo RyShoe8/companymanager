@@ -21,7 +21,7 @@ import type { IAsset } from '@/lib/models/Asset';
 import { resolveShareEmailsForAssetLink } from '@/lib/google/resolveShareEmails';
 import type { ShareWarning } from '@/lib/google/drive';
 
-export async function requireDriveAccessToken(
+async function requireDriveAccessToken(
   userId: string
 ): Promise<{ accessToken: string } | NextResponse> {
   const accessToken = await getGoogleDriveAccessTokenForUser(new Types.ObjectId(userId));
@@ -34,12 +34,12 @@ export async function requireDriveAccessToken(
   return { accessToken };
 }
 
-export type FinalizeGoogleFileResult =
+type FinalizeGoogleFileResult =
   | { ok: true; asset: IAsset; shareWarnings: ShareWarning[] }
   | { ok: false; reason: 'no_drive' }
   | { ok: false; reason: 'asset_error'; error: string };
 
-export async function finalizeGoogleFileAsAssetRecord(
+async function finalizeGoogleFileAsAssetRecord(
   session: { userId: string },
   file: GoogleDriveFile,
   options: {
@@ -82,7 +82,7 @@ export async function finalizeGoogleFileAsAssetRecord(
   return { ok: true, asset: assetResult.asset, shareWarnings };
 }
 
-export async function finalizeGoogleFileAsAsset(
+async function finalizeGoogleFileAsAsset(
   session: { userId: string },
   file: GoogleDriveFile,
   options: {

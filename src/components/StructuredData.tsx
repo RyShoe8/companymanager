@@ -1,8 +1,6 @@
-import { Metadata } from 'next';
-
 interface StructuredDataProps {
   type: 'Organization' | 'WebSite' | 'WebPage' | 'SoftwareApplication' | 'FAQPage' | 'BreadcrumbList' | 'BlogPosting' | 'Blog' | 'HowTo';
-  data: Record<string, any>;
+  data: Record<string, unknown>;
 }
 
 export function StructuredData({ type, data }: StructuredDataProps) {

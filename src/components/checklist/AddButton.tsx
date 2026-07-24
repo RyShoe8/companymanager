@@ -9,9 +9,6 @@ import CategoryModal, {
   type AssetLinkContext,
   type PendingAssetPayload,
 } from './CategoryModal';
-
-export type { AddSmartButtonPayload, AssetLinkContext, PendingAssetPayload };
-
 interface AddButtonProps {
   projectId?: string;
   clientId?: string;

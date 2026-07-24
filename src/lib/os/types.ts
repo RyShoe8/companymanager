@@ -9,14 +9,14 @@
 
 import type { ReactNode } from 'react';
 
-export type OsPermissionLevel = 'admin' | 'manager' | 'member' | 'client';
+type OsPermissionLevel = 'admin' | 'manager' | 'member' | 'client';
 
-export interface ModuleSize {
+interface ModuleSize {
     width: number;
     height: number;
 }
 
-export interface ModulePosition {
+interface ModulePosition {
     x: number;
     y: number;
 }

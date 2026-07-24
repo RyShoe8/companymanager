@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
     let organizationId: string | undefined;
     let employeeId: string | undefined;
     let isNewUser = false;
-    let isJoiningExistingOrg = false;
+    const isJoiningExistingOrg = false;
 
     // Handle invitation if present
     if (invitationToken) {
@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
         }
       } else if (isJoiningExistingOrg) {
         // Check if employee already exists before creating
-        let existingEmployee = await Employee.findOne({
+        const existingEmployee = await Employee.findOne({
           email: email.toLowerCase(),
           organizationId: organizationId,
         });

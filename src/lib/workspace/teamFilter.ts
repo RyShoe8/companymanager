@@ -9,7 +9,7 @@ function getTaskAssigneeEmployeeIds(task: IProjectTask): string[] {
       .map((id) => id?.toString())
       .filter((id): id is string => Boolean(id));
   }
-  const single = (task as any).assignedToEmployeeId?.toString();
+  const single = task.assignedToEmployeeId?.toString();
   return single ? [single] : [];
 }
 

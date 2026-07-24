@@ -8,6 +8,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { validateImageFile, isValidObjectId } from '@/lib/utils/security';
 import { getOrganizationUserIds, migrateProjectFields } from '@/lib/utils/apiHelpers';
+import { isManagerOrAdminRole } from '@/lib/utils/roles';
 import { deleteStoredFile } from '@/lib/storage/deleteStoredFile';
 import { put } from '@vercel/blob';
 
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Check if user is a Manager or Administrator
     const Employee = (await import('@/lib/models/Employee')).default;
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const isManagerOrAdmin = currentUserEmployee && isManagerOrAdminRole(currentUserEmployee.role);
 
     if (!isManagerOrAdmin) {
       return NextResponse.json({ error: 'Only Managers and Administrators can upload project logos' }, { status: 403 });
@@ -146,7 +147,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // Check if user is a Manager or Administrator
     const Employee = (await import('@/lib/models/Employee')).default;
     const currentUserEmployee = await Employee.findOne({ userId: session.userId, organizationId: user.organizationId });
-    const isManagerOrAdmin = currentUserEmployee && (currentUserEmployee.role === 'Manager' || currentUserEmployee.role === 'Administrator');
+    const isManagerOrAdmin = currentUserEmployee && isManagerOrAdminRole(currentUserEmployee.role);
 
     if (!isManagerOrAdmin) {
       return NextResponse.json({ error: 'Only Managers and Administrators can delete project logos' }, { status: 403 });
