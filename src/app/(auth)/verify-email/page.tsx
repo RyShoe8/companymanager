@@ -28,7 +28,7 @@ function VerifyEmailContent() {
           : ''
   );
   const [sending, setSending] = useState(false);
-  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady } = useRecaptcha();
+  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady, loadError: recaptchaLoadError } = useRecaptcha();
 
   if (verifiedParam === '1') {
     return (
@@ -91,6 +91,11 @@ function VerifyEmailContent() {
             {error}
           </div>
         )}
+        {recaptchaLoadError && !error && (
+          <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg text-sm">
+            {recaptchaLoadError}
+          </div>
+        )}
         {message && (
           <div className="bg-success/10 border border-success/30 text-success px-4 py-3 rounded-lg text-sm">
             {message}
@@ -109,14 +114,16 @@ function VerifyEmailContent() {
           <Button
             type="button"
             onClick={() => void handleResend()}
-            disabled={sending || (recaptchaEnabled && !recaptchaReady)}
+            disabled={sending || Boolean(recaptchaLoadError) || (recaptchaEnabled && !recaptchaReady)}
             className="w-full"
           >
             {sending
               ? 'Sending…'
-              : recaptchaEnabled && !recaptchaReady
-                ? 'Loading security check…'
-                : 'Resend verification email'}
+              : recaptchaLoadError
+                ? 'Security check unavailable'
+                : recaptchaEnabled && !recaptchaReady
+                  ? 'Loading security check…'
+                  : 'Resend verification email'}
           </Button>
           <RecaptchaNotice className="text-xs text-text-muted text-center" />
         </div>

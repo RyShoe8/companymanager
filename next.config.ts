@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' https://cdn.cookie-script.com https://www.googletagmanager.com https://www.google-analytics.com https://analytics.ahrefs.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self';",
+              "default-src 'self'; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' https://cdn.cookie-script.com https://www.googletagmanager.com https://www.google-analytics.com https://analytics.ahrefs.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; frame-src 'self' https://www.google.com https://www.gstatic.com; frame-ancestors 'none'; base-uri 'self';",
           },
         ],
       },

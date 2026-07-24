@@ -40,7 +40,7 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [loadingInvitation, setLoadingInvitation] = useState(false);
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
-  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady } = useRecaptcha();
+  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady, loadError: recaptchaLoadError } = useRecaptcha();
 
   // Load invitation details if token is present
   useEffect(() => {
@@ -171,6 +171,11 @@ function RegisterForm() {
               {error}
             </div>
           )}
+          {recaptchaLoadError && !error && (
+            <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
+              {recaptchaLoadError}
+            </div>
+          )}
           <div className="space-y-4">
             <Input
               label="Name (optional)"
@@ -225,13 +230,15 @@ function RegisterForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={loading || (recaptchaEnabled && !recaptchaReady)}
+              disabled={loading || Boolean(recaptchaLoadError) || (recaptchaEnabled && !recaptchaReady)}
             >
               {loading
                 ? 'Creating account...'
-                : recaptchaEnabled && !recaptchaReady
-                  ? 'Loading security check…'
-                  : 'Create account'}
+                : recaptchaLoadError
+                  ? 'Security check unavailable'
+                  : recaptchaEnabled && !recaptchaReady
+                    ? 'Loading security check…'
+                    : 'Create account'}
             </Button>
             <RecaptchaNotice className="text-xs text-text-muted text-center" />
           </div>

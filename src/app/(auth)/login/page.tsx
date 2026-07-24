@@ -27,7 +27,7 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady } = useRecaptcha();
+  const { executeRecaptcha, isEnabled: recaptchaEnabled, ready: recaptchaReady, loadError: recaptchaLoadError } = useRecaptcha();
 
   // Check for error in URL params
   useEffect(() => {
@@ -97,6 +97,11 @@ function LoginForm() {
               {error}
             </div>
           )}
+          {recaptchaLoadError && !error && (
+            <div className="bg-error-light border border-error/30 text-error px-4 py-3 rounded-lg">
+              {recaptchaLoadError}
+            </div>
+          )}
           <div className="space-y-4">
             <Input
               label="Email address"
@@ -119,13 +124,15 @@ function LoginForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={loading || (recaptchaEnabled && !recaptchaReady)}
+              disabled={loading || Boolean(recaptchaLoadError) || (recaptchaEnabled && !recaptchaReady)}
             >
               {loading
                 ? 'Signing in...'
-                : recaptchaEnabled && !recaptchaReady
-                  ? 'Loading security check…'
-                  : 'Sign in'}
+                : recaptchaLoadError
+                  ? 'Security check unavailable'
+                  : recaptchaEnabled && !recaptchaReady
+                    ? 'Loading security check…'
+                    : 'Sign in'}
             </Button>
             <RecaptchaNotice className="text-xs text-text-muted text-center" />
           </div>

@@ -119,11 +119,11 @@ export default async function RootLayout({
             },
           }}
         />
+        <RecaptchaScript />
         {!isMinimalShell && (
           <>
             <AnalyticsScripts />
             <GoogleAnalytics />
-            {!isBareShell ? <RecaptchaScript /> : null}
           </>
         )}
         <PostHogProvider>
