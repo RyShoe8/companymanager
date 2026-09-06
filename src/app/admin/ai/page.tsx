@@ -64,6 +64,14 @@ export default function AiSettingsPage() {
           <p>Bearer token: {snapshot.secrets.bearerTokenConfigured ? 'configured' : 'missing'} · Cron secret: {snapshot.secrets.cronSecretConfigured ? 'configured' : 'missing'}</p>
           <p className="text-sm text-text-secondary">Secrets stay in Vercel and are never shown here. Setting a model does not test its availability.</p>
         </section>
+        <section className="space-y-3"><h2 className="text-lg font-semibold">Shared server load limits</h2>
+          {([['dailyRequestLimit', 'Maximum attempts per UTC day', 1, 10000],
+            ['minimumIntervalSeconds', 'Minimum seconds between attempts', 1, 86400],
+            ['maxOutputTokens', 'Maximum output tokens per request', 256, 4096]] as const).map(([key, label, min, max]) =>
+            <label className="block" key={key}>{label}<input className={field} type="number" required min={min} max={max} step={1}
+              value={values[key]} onChange={event => setValues({ ...values, [key]: Number(event.target.value) })} /></label>)}
+          <p className="text-sm text-text-secondary">Shared across all organizations. Limited requests stay queued and can be cancelled. Failed or interrupted attempts count; editing settings does not reset usage. These bounds do not guarantee the remote server’s capacity. Confirm limits with its owner before increasing them.</p>
+        </section>
         <section className="space-y-3"><h2 className="text-lg font-semibold">Budget ceilings (USD)</h2>
           {budgetFields.map(([key, label]) => <label className="block" key={key}>{label}<input className={field} inputMode="decimal" required value={amounts[key]} onChange={event => setAmounts({ ...amounts, [key]: event.target.value })} /></label>)}
           <p className="text-sm text-text-secondary">Zero blocks new requests. The project ceiling cannot exceed the organization ceiling. Processing requires a positive reservation within both ceilings. Organization managers may set lower limits. Limits use UTC calendar months; existing usage and reservations are never reset by editing settings.</p>

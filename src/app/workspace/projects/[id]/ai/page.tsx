@@ -1,6 +1,7 @@
 import ProjectAiPanel from '@/components/ai/ProjectAiPanel';
 
-export default async function ProjectAiPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectAiPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ objectiveId?: string }> }) {
   const { id } = await params;
-  return <ProjectAiPanel key={id} projectId={id} />;
+  const { objectiveId } = await searchParams;
+  return <ProjectAiPanel key={`${id}:${objectiveId ?? ''}`} projectId={id} initialObjectiveId={objectiveId} />;
 }

@@ -31,6 +31,8 @@ export async function getPlanningPolicy(organizationId: string, projectId: strin
   const policy = { endpoint: gateway.endpoint, model: gateway.model, protocol: gateway.protocol,
     reservationMicros: settings.reservationMicros, organizationLimitMicros, projectLimitMicros,
     noProviderFee: settings.noProviderFee, promptVersion: PLANNING_PROMPT_VERSION,
+    dailyRequestLimit: settings.dailyRequestLimit, minimumIntervalSeconds: settings.minimumIntervalSeconds,
+    maxOutputTokens: settings.maxOutputTokens,
     revisions: [platform.revision, organization.revision, project.revision],
   };
   return { gateway, ...policy, digest: digestValue(policy) };

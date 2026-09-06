@@ -18,7 +18,7 @@ type Snapshot = {
 const field = 'w-full rounded border border-border bg-background p-2 text-text-primary';
 const button = 'rounded border border-border px-3 py-2 text-sm disabled:opacity-50';
 
-export default function ProjectAiPanel({ projectId }: { projectId: string }) {
+export default function ProjectAiPanel({ projectId, initialObjectiveId }: { projectId: string; initialObjectiveId?: string }) {
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,7 +26,7 @@ export default function ProjectAiPanel({ projectId }: { projectId: string }) {
   const [outcome, setOutcome] = useState('');
   const [constraints, setConstraints] = useState('');
   const [criteria, setCriteria] = useState('');
-  const [objectiveId, setObjectiveId] = useState('');
+  const [objectiveId, setObjectiveId] = useState(initialObjectiveId ?? '');
   const [summary, setSummary] = useState('');
   const [tasks, setTasks] = useState([{ name: '', criteria: '' }]);
   const activeRequest = useRef<AbortController | null>(null);
@@ -37,14 +37,18 @@ export default function ProjectAiPanel({ projectId }: { projectId: string }) {
   const hasPendingRun = data?.runs.some(run => ['queued', 'running', 'cancellation_requested'].includes(run.status)) ?? false;
   const endpoint = `/api/projects/${encodeURIComponent(projectId)}/ai`;
   const load = useCallback(async (signal: AbortSignal) => {
-    const response = await fetch(endpoint, { signal, cache: 'no-store' });
+    const response = await fetch(`${endpoint}${initialObjectiveId ? `?objectiveId=${encodeURIComponent(initialObjectiveId)}` : ''}`, { signal, cache: 'no-store' });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error ?? 'Unable to load planning.');
     if (!signal.aborted) {
+      // One explicitly selected older objective, not an accumulating history cache.
+      if (body.selectedObjective && !body.objectives.some((item: Objective) => item._id === body.selectedObjective.id)) {
+        body.objectives = [{ ...body.selectedObjective, _id: body.selectedObjective.id }, ...body.objectives];
+      }
       loadedPlanRuns.current = new Set((body.runs as Run[]).filter(run => run.status === 'awaiting_acceptance').map(run => run._id));
       setData(body);
     }
-  }, [endpoint]);
+  }, [endpoint, initialObjectiveId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -110,7 +114,9 @@ export default function ProjectAiPanel({ projectId }: { projectId: string }) {
 
   return <main className="mx-auto max-w-5xl space-y-6 p-6 text-text-primary">
     <Link href={`/workspace?project=${encodeURIComponent(projectId)}`} className="text-sm underline">Back to workspace</Link>
+    <Link href="/workspace/ai-attention" className="ml-4 text-sm underline">AI needs attention</Link>
     <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/runs`} className="ml-4 text-sm underline">AI run history</Link>
+    <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/library`} className="ml-4 text-sm underline">All objectives and plans</Link>
     <header><h1 className="text-2xl font-semibold">{data?.project.name ?? 'Project'} · AI planning</h1>
       <p className="mt-2 text-sm text-text-secondary">{data?.statusMessage ?? 'Loading planning…'}</p>
       <p className="mt-1 text-sm text-text-secondary">Models run remotely. Status refresh pauses when this page is hidden or idle; queued work continues on the server.</p>
@@ -150,7 +156,7 @@ export default function ProjectAiPanel({ projectId }: { projectId: string }) {
           </select></label>
           {data.capabilities.inference && <div className="space-y-2 rounded border border-border p-3">
             <p className="text-sm">Plan with {data.planning.model}. Only the selected objective, constraints, and acceptance criteria will be sent to the remote endpoint. No repository files or other project data are included.</p>
-            <p className="text-sm">Budget reservation: {data.planning.reservationMicros === null ? 'Not configured' : `$${(data.planning.reservationMicros / 1000000).toFixed(4)}`}. This is a reservation, not a confirmed charge. Processing starts on the next scheduled worker invocation, usually within five minutes.</p>
+            <p className="text-sm">Budget reservation: {data.planning.reservationMicros === null ? 'Not configured' : `$${(data.planning.reservationMicros / 1000000).toFixed(4)}`}. This is a reservation, not a confirmed charge. Scheduled processing is subject to shared daily and spacing limits. Requests may wait until the next UTC day; queued requests can be cancelled.</p>
             <button type="button" className={button} disabled={busy || hasPendingRun || !objectiveId}
               onClick={() => void mutate({ action: 'plan_with_ai', objectiveId })}>Send objective · Plan with AI</button>
           </div>}
@@ -172,6 +178,7 @@ export default function ProjectAiPanel({ projectId }: { projectId: string }) {
         <p className="text-sm text-text-secondary">Approval creates unassigned active tasks. It does not start AI execution. Existing tasks and human assignments are preserved.</p>
         {data.plans.map(plan => <article key={plan._id} className="space-y-3 rounded border border-border p-4">
           <h3 className="font-medium">{plan.summary}</h3><p className="text-sm">{plan.source === 'remote-model' ? 'AI-generated' : 'Human-authored'} · {plan.status} · Expires {new Date(plan.expiresAt).toLocaleString()}</p>
+          <Link className="text-sm underline" href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/library/plans/${encodeURIComponent(plan._id)}`}>Review this plan version</Link>
           <ol className="list-decimal space-y-3 pl-5">{plan.tasks.map(task => <li key={task.key}><strong>{task.name}</strong>
             {task.description && <p>{task.description}</p>}
             <ul className="list-disc pl-5">{task.acceptanceCriteria.map((criterion, index) => <li key={index}>{criterion}</li>)}</ul>

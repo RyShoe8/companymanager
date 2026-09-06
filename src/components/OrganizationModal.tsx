@@ -130,6 +130,7 @@ export default function OrganizationModal({ onUpdate, onClose }: OrganizationMod
       )}
 
       <Link href="/workspace/ai-settings" onClick={onClose} className="block text-sm text-primary underline">AI budget settings (managers and administrators)</Link>
+      <Link href="/workspace/ai-attention" onClick={onClose} className="block text-sm text-primary underline">AI needs attention</Link>
       <div className="flex gap-2 justify-end pt-4 border-t border-border">
         <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
           {isAdmin ? 'Cancel' : 'Close'}

@@ -220,6 +220,10 @@ export default function Navigation() {
 
   const dropdownItems = [
     {
+      label: 'AI needs attention',
+      onClick: () => window.location.assign('/workspace/ai-attention'),
+    },
+    {
       label: 'Profile',
       onClick: () => setShowProfileModal(true),
       icon: (

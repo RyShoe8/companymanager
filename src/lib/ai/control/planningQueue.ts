@@ -76,11 +76,11 @@ export async function cancelPlanning(access: AiAccess, runId: string) {
   });
 }
 
-export async function updatePlanningRun(job: InstanceType<typeof AiPlanningJob>, status: 'running' | 'blocked' | 'awaiting_acceptance' | 'cancelled',
+export async function updatePlanningRun(job: InstanceType<typeof AiPlanningJob>, status: 'queued' | 'running' | 'blocked' | 'awaiting_acceptance' | 'cancelled',
   summary: string, session: ClientSession, details: { failureCode?: string; planId?: Types.ObjectId;
     inputTokens?: number; outputTokens?: number; latencyMs?: number; costMicros?: number } = {}) {
   const run = await AiRun.findOneAndUpdate({ _id: job.runId, organizationId: job.organizationId, projectId: job.projectId }, {
-    $set: { status, ...details, ...(status === 'running' ? { startedAt: new Date() } : { completedAt: new Date() }) },
+    $set: { status, ...details, ...(status === 'queued' ? {} : status === 'running' ? { startedAt: new Date() } : { completedAt: new Date() }) },
     $inc: { revision: 1 },
   }, { session, new: true });
   if (!run) throw new Error('Missing run.');

@@ -73,6 +73,7 @@ export default function AiRunInspector({ projectId, runId }: { projectId: string
       </section>
       {data.plan && <section className="space-y-2"><h2 className="text-lg font-semibold">Plan evidence</h2>
         <p className="break-all">Plan ID: {data.plan.id} · {data.plan.status} · {data.plan.taskCount} proposed tasks</p>
+        <Link className="underline" href={`${root}/library/plans/${encodeURIComponent(data.plan.id)}`}>Review this plan version</Link>
         <p>Expires: {when(data.plan.expiresAt)} · Approved: {when(data.plan.approvedAt)}</p>
         <p>Materialized tasks: {data.plan.materializedTaskIds.length}. This does not indicate task completion.</p>
         <p className="break-all text-xs">Plan digest: {data.plan.digest}</p>

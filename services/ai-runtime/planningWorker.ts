@@ -4,7 +4,8 @@ import { Types } from 'mongoose';
 import { invokeModel, GatewayError } from '@nucleas/ai-core/gateway';
 import { buildPlanningInput, digestValue, parseGeneratedPlan, planningRequest } from '@nucleas/ai-core/planning';
 import type { ModelResult, PlanDraft } from '@nucleas/ai-contracts';
-import { AiDispatchLock, AiObjective, AiPlan, AiPlanningJob } from '@/lib/models/AiControl';
+import { AiDispatchLock, AiDispatchUsage, AiObjective, AiPlan, AiPlanningJob } from '@/lib/models/AiControl';
+import { dispatchAllowed, reserveDispatch, DISPATCH_USAGE_ID } from '@/lib/ai/control/dispatchLimits';
 import Project from '@/lib/models/Project';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
@@ -94,6 +95,8 @@ export async function processPlanningQueue(): Promise<{ status: string; runId?: 
     // Crashed/expired attempts are not replayed: provider completion and charges may be unknown.
     const expired = await AiPlanningJob.find({ status: 'running', leaseExpiresAt: { $lte: now } }).limit(10);
     for (const job of expired) await finish(job, { failureCode: 'lease_expired', actualMicros: job.dispatchedAt ? null : 0, expired: true });
+    if (!dispatchAllowed(await AiDispatchUsage.findById(DISPATCH_USAGE_ID),
+      (await readPlatformSettings()).value, new Date())) return { status: 'throttled' };
     const job = await aiTransaction(async session => {
       const claimed = await AiPlanningJob.findOneAndUpdate({ status: 'queued', cancelRequested: false }, {
         $set: { status: 'running', leaseToken: token, leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
@@ -110,16 +113,35 @@ export async function processPlanningQueue(): Promise<{ status: string; runId?: 
       return { status: 'blocked', runId: String(job.runId) };
     }
     // Mark an attempt BEFORE network I/O. Recovery conservatively retains its reservation.
-    const dispatched = await AiPlanningJob.updateOne({ _id: job._id, leaseToken: token, status: 'running',
-      cancelRequested: false, leaseExpiresAt: { $gt: new Date() },
-    }, { $set: { dispatchedAt: new Date() } });
-    if (dispatched.modifiedCount !== 1) {
+    const dispatched = await aiTransaction(async session => {
+      const current = await AiPlanningJob.findOne({ _id: job._id, leaseToken: token, status: 'running',
+        cancelRequested: false, leaseExpiresAt: { $gt: new Date() },
+      }).session(session);
+      if (!current) return 'cancelled';
+      const latest = await getPlanningPolicy(job.organizationId, String(job.projectId), session);
+      if (latest.digest !== policy.digest) return 'stale';
+      if (!await reserveDispatch(latest, new Date(), session)) {
+        current.status = 'queued'; current.leaseToken = undefined; current.leaseExpiresAt = undefined;
+        await current.save({ session });
+        await updatePlanningRun(current, 'queued', 'Waiting for the shared inference request limit; no remote call was sent.', session);
+        return 'throttled';
+      }
+      current.dispatchedAt = new Date();
+      await current.save({ session });
+      return 'dispatched';
+    });
+    if (dispatched === 'throttled') return { status: 'throttled', runId: String(job.runId) };
+    if (dispatched === 'stale') {
+      await finish(job, { failureCode: 'stale_input_or_policy', actualMicros: 0 });
+      return { status: 'blocked', runId: String(job.runId) };
+    }
+    if (dispatched !== 'dispatched') {
       await finish(job, { failureCode: 'cancelled_before_dispatch', actualMicros: 0 });
       return { status: 'cancelled', runId: String(job.runId) };
     }
     let result: ModelResult | undefined;
     try {
-      result = await invokeModel(policy.gateway, planningRequest(job.input));
+      result = await invokeModel(policy.gateway, planningRequest(job.input, policy.maxOutputTokens));
       const draft = parseGeneratedPlan(result.content);
       // Config/membership/project changes during inference invalidate publication too.
       if ((await getPlanningPolicy(job.organizationId, String(job.projectId))).digest !== policy.digest || !await currentInputIsAuthorized(job)) {

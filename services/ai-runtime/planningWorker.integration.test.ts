@@ -2,13 +2,15 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import mongoose, { Types } from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server-core';
 import { randomUUID } from 'node:crypto';
-import { AiBudget, AiBudgetReservation, AiDispatchLock, AiObjective, AiPlan, AiPlanningJob, AiRun, AiRunEvent } from '@/lib/models/AiControl';
+import { AiBudget, AiBudgetReservation, AiDispatchLock, AiObjective, AiPlan, AiPlanningJob, AiRun, AiRunEvent, AiRunAcknowledgement } from '@/lib/models/AiControl';
 import { AiSettings, AiSettingsAudit } from '@/lib/models/AiSettings';
 import { defaultPlatformAiSettings } from '@/lib/ai/settingsSchema';
 import { platformSettingsId, saveSettings, readPlatformSettings } from '@/lib/ai/control/settings';
 import { saveBudgetSettings, budgetSettingsView } from '@/lib/ai/control/budgetSettings';
 import { getPlanningPolicy } from '@/lib/ai/control/config';
 import { listProjectRuns, getRunDetail, getRunEvents } from '@/lib/ai/control/runQueries';
+import { listLibrary, getLibraryObjective, getLibraryPlan } from '@/lib/ai/control/libraryQueries';
+import { listAttention, acknowledgeRun } from '@/lib/ai/control/attention';
 import User from '@/lib/models/User';
 import Employee from '@/lib/models/Employee';
 import Project from '@/lib/models/Project';
@@ -17,6 +19,9 @@ import { queuePlanning, cancelPlanning, type AiAccess } from '@/lib/ai/control/p
 import { approvePlan } from '@/lib/ai/control/plans';
 import { processPlanningQueue } from './planningWorker';
 import type { ModelResult } from '@nucleas/ai-contracts';
+import { AiDispatchUsage } from '@/lib/models/AiControl';
+import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
+import { aiTransaction } from '@/lib/ai/control/transaction';
 
 // Never read .env.local, use production MongoDB, or invoke a real model in this suite.
 vi.mock('@/lib/db/mongodb', () => ({ default: async () => mongoose }));
@@ -33,7 +38,7 @@ vi.mock('@nucleas/ai-core/gateway', async importOriginal => {
 let replica: MongoMemoryReplSet;
 let access: AiAccess;
 let objective: InstanceType<typeof AiObjective>;
-const models = [AiSettings, AiSettingsAudit,AiPlanningJob, AiDispatchLock, AiBudgetReservation, AiBudget, AiRunEvent, AiRun, AiPlan, AiObjective, Project, Employee, User];
+const models = [AiDispatchUsage, AiRunAcknowledgement, AiSettings, AiSettingsAudit, AiPlanningJob, AiDispatchLock, AiBudgetReservation, AiBudget, AiRunEvent, AiRun, AiPlan, AiObjective, Project, Employee, User];
 const response: ModelResult = { content: JSON.stringify({ summary: 'Synthetic plan', tasks: [{ key: 'test', name: 'Add a regression', acceptanceCriteria: ['Test passes'], dependsOn: [] }] }),
   model: 'synthetic-model', inputTokens: 20, outputTokens: 30, latencyMs: 10, finishReason: 'stop' };
 
@@ -50,6 +55,7 @@ beforeEach(async () => {
   for (const item of models) await item.collection.deleteMany({});
   vi.stubEnv('NUCLEAS_AI_REMOTE_BEARER_TOKEN', 'synthetic-only');
   vi.stubEnv('CRON_SECRET', 'synthetic-cron');
+  vi.stubEnv('NEXTAUTH_SECRET', 'synthetic-cursor-secret');
   await AiSettings.create({ _id: platformSettingsId, value: { ...defaultPlatformAiSettings,
     remoteEnabled: true, dispatchEnabled: true, model: 'synthetic-model',
     reservationMicros: 25, organizationLimitMicros: 100, projectLimitMicros: 75,
@@ -67,6 +73,134 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('durable planning on a real isolated replica set', () => {
+  it('rolls back quota with a failed dispatch transaction', async () => {
+    await expect(aiTransaction(async session => {
+      expect(await reserveDispatch(defaultPlatformAiSettings, new Date(), session)).toBe(true);
+      throw new Error('Synthetic marker failure');
+    })).rejects.toThrow('Synthetic marker failure');
+    expect(await AiDispatchUsage.countDocuments()).toBe(0);
+  });
+  it('serializes concurrent reservations and never resets usage on settings edits', async () => {
+    const limits = { dailyRequestLimit: 1, minimumIntervalSeconds: 300 };
+    // Pre-create the singleton to exercise transaction write-conflict retry.
+    await AiDispatchUsage.create({ _id: DISPATCH_USAGE_ID, day: '2000-01-01', attempts: 0, lastStartedAt: new Date(0) });
+    const results = await Promise.all([1, 2].map(() => aiTransaction(session => reserveDispatch(limits, new Date(), session))));
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const settings = await readPlatformSettings();
+    await saveSettings(platformSettingsId, settings.revision, { ...settings.value, maxOutputTokens: 1024 }, access.userId);
+    expect((await AiDispatchUsage.findById(DISPATCH_USAGE_ID))?.attempts).toBe(1);
+  });
+  it('keeps throttled jobs queued and cancellable without sending another request', async () => {
+    await queuePlanning(access, String(objective._id), randomUUID());
+    await processPlanningQueue();
+    expect(model.mock.calls[0][1].maxOutputTokens).toBe(2048);
+    const next = await queuePlanning(access, String(objective._id), randomUUID());
+    expect((await processPlanningQueue()).status).toBe('throttled');
+    expect(model).toHaveBeenCalledTimes(1);
+    expect((await AiRun.findById(next.runId))?.status).toBe('queued');
+    await cancelPlanning(access, next.runId);
+    expect((await AiRun.findById(next.runId))?.status).toBe('cancelled');
+    expect((await AiDispatchUsage.findById(DISPATCH_USAGE_ID))?.attempts).toBe(1);
+  });
+  it('enforces the daily cap after cooldown and counts invalid responses', async () => {
+    await AiSettings.updateOne({ _id: platformSettingsId }, { $set: { 'value.dailyRequestLimit': 1 } });
+    model.mockResolvedValue({ ...response, content: 'invalid JSON' });
+    await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    await AiDispatchUsage.updateOne({ _id: DISPATCH_USAGE_ID }, { $set: { lastStartedAt: new Date(Date.now() - 360000) } });
+    await queuePlanning(access, String(objective._id), randomUUID());
+    expect((await processPlanningQueue()).status).toBe('throttled');
+    expect(model).toHaveBeenCalledTimes(1);
+    await AiDispatchUsage.updateOne({ _id: DISPATCH_USAGE_ID }, { $set: { day: '2000-01-01' } });
+    model.mockResolvedValue(response);
+    expect((await processPlanningQueue()).status).toBe('processed');
+    expect((await AiDispatchUsage.findById(DISPATCH_USAGE_ID))?.attempts).toBe(1);
+  });
+  const attentionAccess = () => ({ userId: access.userId, organizationId: access.organizationId, employeeId: String(access.employeeId),
+    canManage: access.canManage, ownerIds: access.ownerIds });
+  it('shows review-ready runs only to project contributors and organization managers', async () => {
+    const queued = await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    expect((await listAttention(attentionAccess(), 'review', null)).items.map(item => item.id)).toEqual([queued.runId]);
+    expect((await listAttention({ ...attentionAccess(), canManage: false }, 'review', null)).items).toHaveLength(1);
+    expect((await listAttention({ ...attentionAccess(), canManage: false, employeeId: String(new Types.ObjectId()) }, 'review', null)).items).toHaveLength(0);
+    expect((await listAttention({ ...attentionAccess(), organizationId: 'other-org' }, 'review', null)).items).toHaveLength(0);
+    expect((await listAttention(attentionAccess(), 'issues', null)).items).toHaveLength(0);
+  });
+  it('acknowledges only one user and revision without changing run state or events', async () => {
+    const queued = await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    const run = await AiRun.findById(queued.runId); const eventCount = await AiRunEvent.countDocuments();
+    await acknowledgeRun(access, queued.runId, run!.revision); await acknowledgeRun(access, queued.runId, run!.revision);
+    expect(await AiRunAcknowledgement.countDocuments()).toBe(1);
+    expect((await listAttention(attentionAccess(), 'all', null)).items).toHaveLength(0);
+    expect((await listAttention({ ...attentionAccess(), userId: String(new Types.ObjectId()) }, 'all', null)).items).toHaveLength(1);
+    expect((await AiRun.findById(queued.runId))?.status).toBe('awaiting_acceptance'); expect(await AiRunEvent.countDocuments()).toBe(eventCount);
+    await AiRun.updateOne({ _id: run!._id }, { $inc: { revision: 1 } });
+    expect((await listAttention(attentionAccess(), 'all', null)).items).toHaveLength(1);
+    await expect(acknowledgeRun(access, queued.runId, run!.revision)).rejects.toMatchObject({ status: 409 });
+    await expect(acknowledgeRun({ ...access, organizationId: 'other-org' }, queued.runId, run!.revision + 1)).rejects.toMatchObject({ status: 404 });
+  });
+  it('bounds scans across inaccessible projects without skipping the next accessible item', async () => {
+    const employeeId = new Types.ObjectId();
+    const visible = await Project.create({ userId: access.userId, name: 'Visible project', assignedToEmployeeIds: [employeeId] });
+    const row = { organizationId: access.organizationId, projectId: access.project._id, role: 'architect', status: 'blocked', revision: 0,
+      createdAt: new Date('2026-09-01T00:00:00Z'), updatedAt: new Date(), inputDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64), createdByUserId: new Types.ObjectId(access.userId) };
+    await AiRun.collection.insertMany(Array.from({ length: 160 }, () => ({ ...row, _id: new Types.ObjectId() })));
+    const visibleId = new Types.ObjectId();
+    await AiRun.collection.insertOne({ ...row, _id: visibleId, projectId: visible._id, createdAt: new Date('2026-08-01T00:00:00Z') });
+    const viewer = { ...attentionAccess(), canManage: false, employeeId: String(employeeId) };
+    const first = await listAttention(viewer, 'issues', null);
+    expect(first.items).toHaveLength(0); expect(first.nextCursor).not.toBeNull();
+    const next = await listAttention(viewer, 'issues', first.nextCursor);
+    expect(next.items.map(item => item.id)).toEqual([String(visibleId)]); expect(next.nextCursor).toBeNull();
+  });
+  it('rechecks ownership and assignment revocation on each attention refresh', async () => {
+    await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    const viewer = { ...attentionAccess(), canManage: false };
+    expect((await listAttention(viewer, 'all', null)).items).toHaveLength(1);
+    await Project.updateOne({ _id: access.project._id }, { $set: { tasks: [], assignedToEmployeeIds: [], assignedToEmployeeId: null } });
+    expect((await listAttention(viewer, 'all', null)).items).toHaveLength(0);
+    await Project.updateOne({ _id: access.project._id }, { $set: { userId: new Types.ObjectId() } });
+    expect((await listAttention(attentionAccess(), 'all', null)).items).toHaveLength(0);
+  });
+  it.each(['objectives', 'plans'] as const)('paginates %s summaries without duplicates or leaking another organization', async kind => {
+    const createdAt = new Date('2026-09-01T00:00:00Z');
+    const records = Array.from({ length: 31 }, (_, index) => ({ _id: new Types.ObjectId(), organizationId: access.organizationId,
+      projectId: access.project._id, requestId: randomUUID(), createdAt, updatedAt: createdAt, title: `Objective ${index}`, summary: `Plan ${index}`,
+      outcome: 'private-outcome', tasks: [{ name: 'private-task' }], status: 'draft', source: 'human', expiresAt: new Date(Date.now() + 86400000) }));
+    const collection = kind === 'objectives' ? AiObjective.collection : AiPlan.collection;
+    await collection.insertMany(records);
+    await collection.insertOne({ ...records[0], _id: new Types.ObjectId(), organizationId: 'other-org', createdAt: new Date() });
+    const first = await listLibrary(access, kind, null); expect(first.items).toHaveLength(25);
+    await collection.insertOne({ ...records[0], _id: new Types.ObjectId(), requestId: randomUUID(), createdAt: new Date() });
+    const second = await listLibrary(access, kind, first.nextCursor);
+    // The setup includes one existing objective, but no existing plan.
+    expect(second.items).toHaveLength(kind === 'objectives' ? 7 : 6); expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.items, ...second.items].map(item => item.id)).size).toBe(kind === 'objectives' ? 32 : 31);
+    expect(JSON.stringify(first)).not.toContain('private-outcome'); expect(JSON.stringify(first)).not.toContain('private-task');
+  });
+  it('loads an older plan exactly and approval replay preserves task identity', async () => {
+    const queued = await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    const plan = await AiPlan.findOne({ runId: queued.runId });
+    await AiPlan.collection.insertMany(Array.from({ length: 26 }, () => ({ _id: new Types.ObjectId(), organizationId: access.organizationId,
+      projectId: access.project._id, requestId: randomUUID(), summary: 'Newer plan', status: 'draft', source: 'human', createdAt: new Date(Date.now() + 1000), expiresAt: new Date(Date.now() + 86400000) })));
+    expect((await listLibrary(access, 'plans', null)).items.some(item => item.id === String(plan!._id))).toBe(false);
+    const detail = await getLibraryPlan(access, String(plan!._id));
+    expect(detail.digest).toBe(plan!.digest); expect(detail.stale).toBe(false); expect(detail.expired).toBe(false);
+    expect((await getLibraryObjective(access, detail.objectiveId)).title).toBe(objective.title);
+    const first = await approvePlan(access, detail.id, detail.digest);
+    const replay = await approvePlan(access, detail.id, detail.digest);
+    expect(first!.taskIds).toEqual(replay!.taskIds); expect(replay!.alreadyApproved).toBe(true);
+    expect((await getLibraryPlan(access, detail.id)).materializedTaskIds).toEqual(first!.taskIds);
+  });
+  it('denies foreign objective/plan detail reads and reports stale/expired drafts without mutating tasks', async () => {
+    const queued = await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    const plan = await AiPlan.findOne({ runId: queued.runId });
+    await expect(getLibraryObjective({ ...access, organizationId: 'other-org' }, String(objective._id))).rejects.toMatchObject({ status: 404 });
+    await expect(getLibraryPlan({ ...access, organizationId: 'other-org' }, String(plan!._id))).rejects.toMatchObject({ status: 404 });
+    await AiPlan.updateOne({ _id: plan!._id }, { $set: { expiresAt: new Date(0), projectUpdatedAt: new Date(0) } });
+    expect(await getLibraryPlan(access, String(plan!._id))).toMatchObject({ expired: true, stale: true });
+    expect((await Project.findById(access.project._id))?.tasks).toHaveLength(1);
+    await expect(approvePlan(access, String(plan!._id), plan!.digest)).rejects.toMatchObject({ status: 409 });
+  });
   it('paginates tied timestamps without duplicate runs, including when new runs arrive', async () => {
     const createdAt = new Date('2026-09-01T00:00:00Z');
     const records = Array.from({ length: 31 }, () => ({ _id: new Types.ObjectId(), organizationId: access.organizationId,
@@ -183,7 +317,9 @@ describe('durable planning on a real isolated replica set', () => {
   });
   it('rolls back run/job creation if the project budget cannot be reserved', async () => {
     await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    await AiDispatchUsage.updateOne({ _id: DISPATCH_USAGE_ID }, { $set: { lastStartedAt: new Date(Date.now() - 360000) } });
     await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    await AiDispatchUsage.updateOne({ _id: DISPATCH_USAGE_ID }, { $set: { lastStartedAt: new Date(Date.now() - 360000) } });
     await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
     await expect(queuePlanning(access, String(objective._id), randomUUID())).rejects.toThrow('Budget unavailable');
     expect(await AiRun.countDocuments()).toBe(3);

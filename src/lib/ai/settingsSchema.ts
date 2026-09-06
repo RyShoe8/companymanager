@@ -13,6 +13,9 @@ export const platformAiSettingsSchema = z.object({
     } catch { return false; }
   }, 'Use a public HTTPS hostname without credentials, query parameters or fragments.'),
   model: z.string().trim().min(1).max(200), noProviderFee: z.boolean(),
+  dailyRequestLimit: z.number().int().min(1).max(10000).default(48),
+  minimumIntervalSeconds: z.number().int().min(1).max(86400).default(300),
+  maxOutputTokens: z.number().int().min(256).max(4096).default(2048),
   reservationMicros: micros, organizationLimitMicros: micros, projectLimitMicros: micros,
 }).strict().superRefine((value, ctx) => {
   if (value.projectLimitMicros > value.organizationLimitMicros) ctx.addIssue({ code: 'custom', message: 'Project ceiling cannot exceed organization ceiling.' });
@@ -24,6 +27,7 @@ export const defaultPlatformAiSettings: PlatformAiSettings = {
   planningEnabled: true, remoteEnabled: false, dispatchEnabled: false, protocol: 'openai-chat',
   endpoint: 'https://llm.rogly.net/v1/chat/completions', model: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ',
   noProviderFee: false, reservationMicros: 0, organizationLimitMicros: 0, projectLimitMicros: 0,
+  dailyRequestLimit: 48, minimumIntervalSeconds: 300, maxOutputTokens: 2048,
 };
 export const aiBudgetSettingsSchema = z.object({ limitMicros: micros.nullable() }).strict();
 export type AiBudgetSettings = z.infer<typeof aiBudgetSettingsSchema>;

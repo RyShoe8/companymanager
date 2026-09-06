@@ -8,6 +8,7 @@ import { approvePlan, planDigest } from '@/lib/ai/control/plans';
 import { cancelPlanning, queuePlanning } from '@/lib/ai/control/planningQueue';
 import { planningAvailability } from '@/lib/ai/control/config';
 import { ensureAiIndexes } from '@/lib/ai/control/indexes';
+import { getLibraryObjective } from '@/lib/ai/control/libraryQueries';
 
 export const dynamic = 'force-dynamic';
 const mutationSchema = z.discriminatedUnion('action', [
@@ -33,9 +34,11 @@ export async function GET(request: NextRequest, context: Context) {
       AiPlan.find(scope).sort({ createdAt: -1 }).limit(25).lean(),
       AiRun.find(scope).select('role status model createdAt completedAt planId failureCode inputTokens outputTokens latencyMs costMicros').sort({ createdAt: -1 }).limit(25).lean(),
     ]);
+    const requestedObjectiveId = request.nextUrl.searchParams.get('objectiveId');
+    const selectedObjective = requestedObjectiveId ? await getLibraryObjective(access, requestedObjectiveId) : null;
     const availability = await planningAvailability(access.organizationId, String(access.project._id));
     return aiResponse({ project: { id: String(access.project._id), name: access.project.name },
-      canManage: access.canManage, objectives, plans, runs,
+      canManage: access.canManage, objectives, plans, runs, selectedObjective,
       capabilities: { inference: availability.enabled && access.canManage, execution: false },
       planning: availability,
       statusMessage: availability.enabled ? 'AI planning is queued on the server. Generated drafts require human approval; code execution is disabled.' :

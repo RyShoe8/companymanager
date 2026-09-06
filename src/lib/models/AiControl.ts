@@ -16,6 +16,7 @@ const objectiveSchema = new Schema({
 }, { timestamps: true });
 objectiveSchema.index({ organizationId: 1, projectId: 1, requestId: 1 }, { unique: true });
 objectiveSchema.index({ organizationId: 1, projectId: 1, createdAt: -1 });
+objectiveSchema.index({ organizationId: 1, projectId: 1, createdAt: -1, _id: -1 });
 
 const planTask = new Schema({
   key: { type: String, required: true }, name: { type: String, required: true },
@@ -39,6 +40,7 @@ const planSchema = new Schema({
 }, { timestamps: true });
 planSchema.index({ organizationId: 1, projectId: 1, requestId: 1 }, { unique: true });
 planSchema.index({ organizationId: 1, projectId: 1, createdAt: -1 });
+planSchema.index({ organizationId: 1, projectId: 1, createdAt: -1, _id: -1 });
 
 const runSchema = new Schema({
   ...scope,
@@ -56,6 +58,13 @@ const runSchema = new Schema({
 }, { timestamps: true });
 runSchema.index({ organizationId: 1, projectId: 1, createdAt: -1 });
 runSchema.index({ organizationId: 1, projectId: 1, createdAt: -1, _id: -1 });
+runSchema.index({ organizationId: 1, status: 1, createdAt: -1, _id: -1 });
+
+const acknowledgementSchema = new Schema({
+  organizationId: { type: String, required: true }, userId: { type: Schema.Types.ObjectId, required: true },
+  runId: { type: Schema.Types.ObjectId, required: true }, revision: { type: Number, required: true, min: 0 },
+}, { timestamps: true });
+acknowledgementSchema.index({ organizationId: 1, userId: 1, runId: 1 }, { unique: true });
 
 const eventSchema = new Schema({
   ...scope, runId: { type: Schema.Types.ObjectId, required: true },
@@ -104,6 +113,12 @@ const dispatchLockSchema = new Schema({
   _id: { type: String, required: true }, token: { type: String, required: true },
   expiresAt: { type: Date, required: true },
 });
+const dispatchUsageSchema = new Schema({
+  _id: { type: String, required: true },
+  day: { type: String, required: true },
+  attempts: { type: Number, required: true },
+  lastStartedAt: { type: Date, required: true },
+});
 
 function modelFor<T>(name: string, schema: Schema<T>): Model<T> {
   return (mongoose.models[name] as Model<T> | undefined) ?? mongoose.model<T>(name, schema);
@@ -111,8 +126,10 @@ function modelFor<T>(name: string, schema: Schema<T>): Model<T> {
 export const AiObjective = modelFor<InferSchemaType<typeof objectiveSchema>>('AiObjective', objectiveSchema);
 export const AiPlan = modelFor<InferSchemaType<typeof planSchema>>('AiPlan', planSchema);
 export const AiRun = modelFor<InferSchemaType<typeof runSchema>>('AiRun', runSchema);
+export const AiRunAcknowledgement = modelFor<InferSchemaType<typeof acknowledgementSchema>>('AiRunAcknowledgement', acknowledgementSchema);
 export const AiRunEvent = modelFor<InferSchemaType<typeof eventSchema>>('AiRunEvent', eventSchema);
 export const AiBudget = modelFor<InferSchemaType<typeof budgetSchema>>('AiBudget', budgetSchema);
 export const AiBudgetReservation = modelFor<InferSchemaType<typeof reservationSchema>>('AiBudgetReservation', reservationSchema);
 export const AiPlanningJob = modelFor<InferSchemaType<typeof jobSchema>>('AiPlanningJob', jobSchema);
 export const AiDispatchLock = modelFor<InferSchemaType<typeof dispatchLockSchema>>('AiDispatchLock', dispatchLockSchema);
+export const AiDispatchUsage = modelFor<InferSchemaType<typeof dispatchUsageSchema>>('AiDispatchUsage', dispatchUsageSchema);
