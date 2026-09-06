@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
@@ -128,6 +129,7 @@ export default function OrganizationModal({ onUpdate, onClose }: OrganizationMod
         </>
       )}
 
+      <Link href="/workspace/ai-settings" onClick={onClose} className="block text-sm text-primary underline">AI budget settings (managers and administrators)</Link>
       <div className="flex gap-2 justify-end pt-4 border-t border-border">
         <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
           {isAdmin ? 'Cancel' : 'Close'}

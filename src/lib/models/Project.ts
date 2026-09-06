@@ -34,6 +34,10 @@ export type ProjectCategory = 'website' | 'store' | 'app' | 'generic';
 export type TaskStatus = 'active' | 'completed' | 'in-review';
 
 export interface IProjectTask {
+  objectiveId?: Types.ObjectId;
+  aiPlanId?: Types.ObjectId;
+  acceptanceCriteria?: string[];
+  dependencyTaskIds?: Types.ObjectId[];
   _id?: Types.ObjectId; // Mongoose adds by default; use for stable task references (project.tasks.id(taskId))
   name: string;
   description?: string;
@@ -241,6 +245,10 @@ const ProjectSchema: Schema = new Schema(
     ],
     tasks: [
       {
+        objectiveId: { type: Schema.Types.ObjectId, ref: 'AiObjective' },
+        aiPlanId: { type: Schema.Types.ObjectId, ref: 'AiPlan' },
+        acceptanceCriteria: { type: [String], default: undefined },
+        dependencyTaskIds: { type: [Schema.Types.ObjectId], default: undefined },
         name: {
           type: String,
           required: false,

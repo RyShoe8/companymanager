@@ -7,6 +7,7 @@ import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
 const navItems = [
   { href: '/admin', label: 'Users' },
   { href: '/admin/plans', label: 'Plans' },
+  { href: '/admin/ai', label: 'AI Settings' },
   { href: '/admin/onboarding', label: 'Onboarding' },
   { href: '/admin/blog', label: 'Blog' },
   { href: '/admin/feedback', label: 'Feedback' },

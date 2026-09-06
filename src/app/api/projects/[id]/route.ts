@@ -30,6 +30,7 @@ import { cleanupNewlyCompletedTasks, cleanupProjectMedia, normalizeTaskStatus } 
 import { cleanupRemovedTasks, findRemovedTasks } from '@/lib/cleanup/entityCleanup';
 import { resolveProjectCompletedAt, resolveTaskCompletedAt } from '@/lib/cleanup/statusTimestamps';
 import { resolveTaskCreatedByEmployeeId } from '@/lib/projects/taskCreatorPreserve';
+import { preserveTaskAiMetadata } from '@/lib/projects/taskAiMetadata';
 import { validateIncomingTaskArray } from '@/lib/projects/taskArrayGuards';
 import { diffNewLinkedCategorySlugs } from '@/lib/insights/getProjectLinkedCategorySlugs';
 import { syncInsightAutoCompletion } from '@/lib/insights/syncInsightAutoCompletion';
@@ -573,6 +574,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
           // Build taskData explicitly - don't rely on spread operator for status
           const taskData: ProjectUpdateTaskData = {
+            ...preserveTaskAiMetadata(task, previousTask),
             name: typeof task.name === 'string' ? task.name.trim() : '',
             description: task.description || undefined,
             startDate,

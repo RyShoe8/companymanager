@@ -230,7 +230,7 @@ export function observeItemsForUser(
       const priorActivity = state.activityMs[item.key] ?? 0;
       const priorSeen = state.seenMs[item.key] ?? 0;
       if (
-        priorSeen > priorActivity &&
+        priorSeen > 0 && priorSeen >= priorActivity &&
         item.baseActivityMs <= priorSeen &&
         isCommentOnlySignatureDrift(priorSignature, item.signature)
       ) {

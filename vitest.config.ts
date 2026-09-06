@@ -8,6 +8,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@nucleas/ai-contracts': path.resolve(__dirname, './packages/ai-contracts/src/index.ts'),
+      '@nucleas/ai-core': path.resolve(__dirname, './packages/ai-core/src'),
       '@': path.resolve(__dirname, './src'),
       'server-only': path.resolve(__dirname, './src/test/mocks/server-only.ts'),
     },

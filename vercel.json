@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/ai-planning",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/sync-meetings",
       "schedule": "0 5 * * 0"
     },

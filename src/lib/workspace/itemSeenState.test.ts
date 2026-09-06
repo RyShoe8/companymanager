@@ -143,6 +143,8 @@ describe('itemSeenState', () => {
   });
 
   it('ignores comment-only signature drift after markProjectItemsSeen when base activity is unchanged', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
     const sigWithComments = JSON.stringify({
       taskId: 'task-new',
       name: 'Draft',
@@ -164,6 +166,8 @@ describe('itemSeenState', () => {
 
     markProjectItemsSeen(USER_ID, PROJECT_ID);
 
+    // Seen and activity timestamps are equal; later comment hydration must not reopen it.
+    vi.setSystemTime(10_001);
     const drift = observeItemsForUser(USER_ID, [
       observation(EXISTING_TASK_KEY, 'sig-existing'),
       observation(NEW_TASK_KEY, sigWithoutComments, 2_000),

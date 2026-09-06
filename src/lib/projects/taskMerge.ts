@@ -15,6 +15,10 @@ export function tasksSemanticallyEqual(a: IProjectTask, b: IProjectTask): boolea
     a.name === b.name &&
     a.description === b.description &&
     a.status === b.status &&
+    String(a.objectiveId ?? '') === String(b.objectiveId ?? '') &&
+    String(a.aiPlanId ?? '') === String(b.aiPlanId ?? '') &&
+    JSON.stringify(a.acceptanceCriteria ?? []) === JSON.stringify(b.acceptanceCriteria ?? []) &&
+    JSON.stringify((a.dependencyTaskIds ?? []).map(String)) === JSON.stringify((b.dependencyTaskIds ?? []).map(String)) &&
     String(a.estimatedHours ?? '') === String(b.estimatedHours ?? '') &&
     String(a.startDate ?? '') === String(b.startDate ?? '') &&
     String(a.endDate ?? '') === String(b.endDate ?? '') &&

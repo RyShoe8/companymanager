@@ -19,6 +19,8 @@
       }
     ],
     "paths": {
+      "@nucleas/ai-contracts": ["./packages/ai-contracts/src/index.ts"],
+      "@nucleas/ai-core/*": ["./packages/ai-core/src/*"],
       "@/*": ["./src/*"],
       "billing-engine": ["./packages/billing-engine/src/index.ts"],
       "billing-engine/next/handlers": ["./packages/billing-engine/src/next/handlers/index.ts"],
