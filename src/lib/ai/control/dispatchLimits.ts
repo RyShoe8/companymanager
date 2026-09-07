@@ -1,10 +1,25 @@
 import 'server-only';
 import type { ClientSession } from 'mongoose';
 import { AiDispatchUsage } from '@/lib/models/AiControl';
+import type { DispatchUsageView } from '../dispatchUsageView';
 
 export const DISPATCH_USAGE_ID = 'remote-planning-v1';
 type Limits = { dailyRequestLimit: number; minimumIntervalSeconds: number };
 type Usage = { day: string; attempts: number; lastStartedAt: Date };
+
+export function dispatchUsageView(usage: Usage | null, limits: Limits,
+  processingEnabled: boolean, now: Date): DispatchUsageView {
+  const utcDay = now.toISOString().slice(0, 10);
+  const attempts = usage?.day === utcDay ? usage.attempts : 0;
+  const midnight = new Date(`${utcDay}T00:00:00.000Z`).getTime() + 86400000;
+  const nextEligible = Math.max(now.getTime(),
+    usage ? usage.lastStartedAt.getTime() + limits.minimumIntervalSeconds * 1000 : 0,
+    attempts >= limits.dailyRequestLimit ? midnight : 0);
+  return { asOf: now.toISOString(), utcDay, attempts, dailyLimit: limits.dailyRequestLimit,
+    remaining: Math.max(0, limits.dailyRequestLimit - attempts),
+    lastAttemptAt: usage?.lastStartedAt.toISOString() ?? null,
+    nextEligibleAt: new Date(nextEligible).toISOString(), processingEnabled };
+}
 
 export function dispatchAllowed(usage: Usage | null, limits: Limits, now: Date): boolean {
   if (!usage) return true;

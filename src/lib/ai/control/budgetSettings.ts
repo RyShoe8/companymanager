@@ -9,6 +9,7 @@ import { AiHttpError, requireAiProject } from './access';
 import { budgetSettingsId, fenceSettings, platformSettingsId, readBudgetSettings, readPlatformSettings, saveSettings } from './settings';
 import { aiTransaction } from './transaction';
 import { aiBudgetSettingsSchema } from '@/lib/ai/settingsSchema';
+import { AiBudget } from '@/lib/models/AiControl';
 
 export async function requireBudgetAccess(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get('projectId') ?? undefined;
@@ -32,7 +33,17 @@ export async function budgetSettingsView(organizationId: string, projectId?: str
   const settings = projectId ? await readBudgetSettings(organizationId, projectId) : organization;
   const ceilingMicros = projectId ? Math.min(platform.value.projectLimitMicros, platform.value.organizationLimitMicros,
     organization.value.limitMicros ?? platform.value.organizationLimitMicros) : platform.value.organizationLimitMicros;
-  return { settings, ceilingMicros, effectiveLimitMicros: Math.min(settings.value.limitMicros ?? ceilingMicros, ceilingMicros),
+  const effectiveLimitMicros = Math.min(settings.value.limitMicros ?? ceilingMicros, ceilingMicros);
+  const asOf = new Date();
+  const period = asOf.toISOString().slice(0, 7);
+  const ledger = await AiBudget.findOne({ organizationId, scopeKey: projectId ? `project:${projectId}` : 'organization', period })
+    .select('spentMicros reservedMicros -_id').maxTimeMS(3000).lean();
+  const spentMicros = ledger?.spentMicros ?? 0;
+  const reservedMicros = ledger?.reservedMicros ?? 0;
+  return { settings, ceilingMicros, effectiveLimitMicros,
+    usage: { period, asOf: asOf.toISOString(), ledgerExists: !!ledger, spentMicros, reservedMicros,
+      remainingMicros: Math.max(0, effectiveLimitMicros - spentMicros - reservedMicros) },
+    parentPaused: !platform.value.planningEnabled || !platform.value.remoteEnabled || !platform.value.dispatchEnabled || (projectId ? organization.value.paused : false),
     reservationMicros: platform.value.reservationMicros, scope: projectId ? 'project' : 'organization' };
 }
 export async function saveBudgetSettings(access: Awaited<ReturnType<typeof requireBudgetAccess>>, revision: number, value: unknown) {

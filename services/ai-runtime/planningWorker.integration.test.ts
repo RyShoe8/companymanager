@@ -22,6 +22,11 @@ import type { ModelResult } from '@nucleas/ai-contracts';
 import { AiDispatchUsage } from '@/lib/models/AiControl';
 import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
 import { aiTransaction } from '@/lib/ai/control/transaction';
+import { clearTerminalPlanningContexts, CLEARED_PLANNING_CONTEXT } from '@/lib/ai/control/contextRetention';
+import WorkspaceNotificationEvent from '@/lib/models/WorkspaceNotificationEvent';
+import WorkspaceNotificationPreference from '@/lib/models/WorkspaceNotificationPreference';
+import { canDeliverPlanningNotification } from '@/lib/ai/control/notifications';
+import { processWorkspaceNotificationDigests } from '@/lib/workspace/workspaceNotifications';
 
 // Never read .env.local, use production MongoDB, or invoke a real model in this suite.
 vi.mock('@/lib/db/mongodb', () => ({ default: async () => mongoose }));
@@ -30,6 +35,8 @@ vi.mock('@/lib/ai/control/access', () => ({ AiHttpError: class extends Error {
   constructor(public status: number, message: string) { super(message); }
 } }));
 const model = vi.hoisted(() => vi.fn());
+const digestEmail = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/services/workspaceDigestEmail', () => ({ sendWorkspaceDigestEmail: digestEmail }));
 vi.mock('@nucleas/ai-core/gateway', async importOriginal => {
   const actual = await importOriginal<typeof import('@nucleas/ai-core/gateway')>();
   return { ...actual, invokeModel: model };
@@ -38,7 +45,7 @@ vi.mock('@nucleas/ai-core/gateway', async importOriginal => {
 let replica: MongoMemoryReplSet;
 let access: AiAccess;
 let objective: InstanceType<typeof AiObjective>;
-const models = [AiDispatchUsage, AiRunAcknowledgement, AiSettings, AiSettingsAudit, AiPlanningJob, AiDispatchLock, AiBudgetReservation, AiBudget, AiRunEvent, AiRun, AiPlan, AiObjective, Project, Employee, User];
+const models = [WorkspaceNotificationEvent, WorkspaceNotificationPreference, AiDispatchUsage, AiRunAcknowledgement, AiSettings, AiSettingsAudit, AiPlanningJob, AiDispatchLock, AiBudgetReservation, AiBudget, AiRunEvent, AiRun, AiPlan, AiObjective, Project, Employee, User];
 const response: ModelResult = { content: JSON.stringify({ summary: 'Synthetic plan', tasks: [{ key: 'test', name: 'Add a regression', acceptanceCriteria: ['Test passes'], dependsOn: [] }] }),
   model: 'synthetic-model', inputTokens: 20, outputTokens: 30, latencyMs: 10, finishReason: 'stop' };
 
@@ -47,7 +54,7 @@ beforeAll(async () => {
     instanceOpts: [{ args: ['--wiredTigerCacheSizeGB', '0.25'] }] });
   await mongoose.connect(replica.getUri('nucleas_ai_test_planning'));
   await ensureAiIndexes();
-  await Promise.all([User, Project, Employee].map(item => item.createIndexes()));
+  await Promise.all([User, Project, Employee, WorkspaceNotificationPreference].map(item => item.createIndexes()));
 }, 180000);
 afterAll(async () => { await mongoose.disconnect(); await replica?.stop(); }, 30000);
 beforeEach(async () => {
@@ -61,6 +68,7 @@ beforeEach(async () => {
     reservationMicros: 25, organizationLimitMicros: 100, projectLimitMicros: 75,
   } });
   model.mockReset(); model.mockResolvedValue(response);
+  digestEmail.mockReset(); digestEmail.mockResolvedValue(undefined);
   const user = await User.create({ email: 'ai-test@example.invalid', password: 'synthetic', organizationId: 'org-test' });
   const employee = await Employee.create({ userId: user._id, organizationId: 'org-test', name: 'Test manager', role: 'Manager' });
   const project = await Project.create({ userId: user._id, name: 'Synthetic project', tasks: [
@@ -73,6 +81,158 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('durable planning on a real isolated replica set', () => {
+  it('shows current scoped reservations without counting other scopes or months', async () => {
+    const queued = await queuePlanning(access, String(objective._id), randomUUID());
+    const scopeKey = `project:${String(access.project._id)}`;
+    const period = new Date().toISOString().slice(0, 7);
+    await AiBudget.create([{ organizationId: 'other-org', scopeKey, period, limitMicros: 999, spentMicros: 900 },
+      { organizationId: access.organizationId, scopeKey, period: '2000-01', limitMicros: 999, spentMicros: 900 }]);
+    const view = await budgetSettingsView(access.organizationId, String(access.project._id));
+    expect(view.usage).toMatchObject({ period, ledgerExists: true, spentMicros: 0, reservedMicros: 25, remainingMicros: 50 });
+    expect((await budgetSettingsView(access.organizationId)).usage).toMatchObject({ reservedMicros: 25, remainingMicros: 75 });
+    await cancelPlanning(access, queued.runId);
+    expect((await budgetSettingsView(access.organizationId, String(access.project._id))).usage).toMatchObject({ reservedMicros: 0, remainingMicros: 75 });
+  });
+  it('uses current ceilings rather than stale ledger limits and never resets held usage on read', async () => {
+    await queuePlanning(access, String(objective._id), randomUUID());
+    await saveBudgetSettings({ userId: access.userId, organizationId: access.organizationId, projectId: String(access.project._id) },
+      0, { limitMicros: 10, paused: false });
+    const before = await AiBudget.find().lean();
+    const view = await budgetSettingsView(access.organizationId, String(access.project._id));
+    expect(view.usage).toMatchObject({ reservedMicros: 25, remainingMicros: 0 });
+    expect(await AiBudget.find().lean()).toEqual(before);
+  });
+  it('reports missing current ledger explicitly without creating one', async () => {
+    const view = await budgetSettingsView(access.organizationId, String(access.project._id));
+    expect(view.usage).toMatchObject({ ledgerExists: false, spentMicros: 0, reservedMicros: 0, remainingMicros: 75 });
+    expect(await AiBudget.countDocuments()).toBe(0);
+  });
+  const enableNotifications = () => WorkspaceNotificationPreference.create({ userId: access.userId, employeeId: access.employeeId,
+    organizationId: access.organizationId, interval: '1h' });
+  it('prevents overlapping digest workers from emailing the same recipient', async () => {
+    await enableNotifications(); await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    let release!: () => void; let entered!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const sending = new Promise<void>(resolve => { entered = resolve; });
+    digestEmail.mockImplementationOnce(async () => { entered(); await waiting; });
+    const first = processWorkspaceNotificationDigests();
+    try {
+      await sending;
+      expect((await processWorkspaceNotificationDigests()).emailsSent).toBe(0);
+      expect(digestEmail).toHaveBeenCalledTimes(1);
+    } finally { release(); await first; }
+    expect((await WorkspaceNotificationPreference.findOne())?.digestLeaseToken).toBeUndefined();
+  });
+  it('retains a lease after ambiguous email failure and releases it after expiry and recovery', async () => {
+    await enableNotifications(); await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    digestEmail.mockRejectedValueOnce(new Error('Synthetic ambiguous email failure'));
+    await expect(processWorkspaceNotificationDigests()).rejects.toThrow('Synthetic ambiguous');
+    expect((await WorkspaceNotificationPreference.findOne())?.digestLeaseToken).toBeTruthy();
+    expect((await processWorkspaceNotificationDigests()).emailsSent).toBe(0);
+    expect(digestEmail).toHaveBeenCalledTimes(1);
+    await WorkspaceNotificationPreference.updateOne({}, { $set: { digestLeaseExpiresAt: new Date(0) } });
+    expect((await processWorkspaceNotificationDigests()).emailsSent).toBe(1);
+    expect((await WorkspaceNotificationPreference.findOne())?.digestLeaseToken).toBeUndefined();
+  });
+  it('releases an unused digest lease when no events exist', async () => {
+    await enableNotifications();
+    expect((await processWorkspaceNotificationDigests()).emailsSent).toBe(0);
+    expect((await WorkspaceNotificationPreference.findOne())?.digestLeaseToken).toBeUndefined();
+  });
+  it('delivers generic run links through the existing digest without a real email', async () => {
+    await enableNotifications(); await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    expect((await processWorkspaceNotificationDigests()).eventsSent).toBe(1);
+    expect(digestEmail).toHaveBeenCalledTimes(1);
+    const row = digestEmail.mock.calls[0][0].events[0];
+    expect(row.href).toContain(`/workspace/projects/${String(access.project._id)}/ai/runs/`);
+    expect(row.entityLabel).toBe('AI planning update'); expect(row.projectName).toBe('AI planning');
+  });
+  it('marks stale AI digest events suppressed rather than sent', async () => {
+    await enableNotifications(); const { runId } = await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    await AiRun.updateOne({ _id: runId }, { $inc: { revision: 1 } });
+    expect((await processWorkspaceNotificationDigests()).eventsSent).toBe(0);
+    expect(digestEmail).not.toHaveBeenCalled();
+    const event = await WorkspaceNotificationEvent.findOne();
+    expect(event?.suppressedAt).toBeInstanceOf(Date); expect(event?.digestSentAt).toBeUndefined();
+  });
+  it('enqueues one generic review notification in the terminal transaction', async () => {
+    await enableNotifications();
+    await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue(); await processPlanningQueue();
+    const events = await WorkspaceNotificationEvent.find(); expect(events).toHaveLength(1);
+    expect(events[0].eventType).toBe('ai_update'); expect(events[0].projectName).toBe('AI planning');
+    expect(events[0].changeLabel).toBe('Draft ready for your review');
+    expect(await canDeliverPlanningNotification(events[0])).toBe(true);
+    await AiRun.updateOne({ _id: events[0].entityId }, { $inc: { revision: 1 } });
+    expect(await canDeliverPlanningNotification(events[0])).toBe(false);
+  });
+  it.each(['preference', 'membership', 'role', 'ownership'])('suppresses delivery after %s revocation', async reason => {
+    await enableNotifications(); await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    const event = await WorkspaceNotificationEvent.findOne(); expect(event).not.toBeNull();
+    if (reason === 'preference') await WorkspaceNotificationPreference.updateOne({}, { $set: { interval: 'off' } });
+    if (reason === 'membership') await User.updateOne({ _id: access.userId }, { $set: { organizationId: 'other-org' } });
+    if (reason === 'role') await Employee.updateOne({ _id: access.employeeId }, { $set: { role: 'Employee' } });
+    if (reason === 'ownership') await Project.updateOne({ _id: access.project._id }, { $set: { userId: new Types.ObjectId() } });
+    expect(await canDeliverPlanningNotification(event!)).toBe(false);
+  });
+  it('does not enqueue AI email when notifications are off', async () => {
+    await queuePlanning(access, String(objective._id), randomUUID()); await processPlanningQueue();
+    expect(await WorkspaceNotificationEvent.countDocuments()).toBe(0);
+  });
+  it.each(['organization', 'project'])('fences queued work when its %s is paused and requires resubmission', async scope => {
+    const queued = await queuePlanning(access, String(objective._id), randomUUID());
+    const controls = { userId: access.userId, organizationId: access.organizationId,
+      projectId: scope === 'project' ? String(access.project._id) : undefined };
+    await saveBudgetSettings(controls, 0, { limitMicros: null, paused: true });
+    await expect(queuePlanning(access, String(objective._id), randomUUID())).rejects.toThrow();
+    expect((await processPlanningQueue()).status).toBe('blocked'); expect(model).not.toHaveBeenCalled();
+    expect((await AiRun.findById(queued.runId))?.status).toBe('blocked');
+    expect((await budgetSettingsView(access.organizationId, String(access.project._id))).parentPaused).toBe(scope === 'organization');
+    await saveBudgetSettings(controls, 1, { limitMicros: null, paused: false });
+    await queuePlanning(access, String(objective._id), randomUUID());
+    expect((await processPlanningQueue()).status).toBe('processed');
+  });
+  it('rejects returned drafts when a manager pauses during inference', async () => {
+    await queuePlanning(access, String(objective._id), randomUUID());
+    model.mockImplementationOnce(async () => {
+      await saveBudgetSettings({ userId: access.userId, organizationId: access.organizationId, projectId: undefined },
+        0, { limitMicros: null, paused: true });
+      return response;
+    });
+    expect((await processPlanningQueue()).status).toBe('blocked');
+    expect(await AiPlan.countDocuments()).toBe(0);
+    expect((await AiBudget.find()).every(budget => budget.reservedMicros === 25)).toBe(true);
+  });
+  it('clears copied input atomically on queued cancellation while preserving provenance', async () => {
+    const { runId } = await queuePlanning(access, String(objective._id), randomUUID());
+    const before = await AiPlanningJob.findOne({ runId });
+    await cancelPlanning(access, runId);
+    const after = await AiPlanningJob.findOne({ runId });
+    expect(after?.input).toBe(CLEARED_PLANNING_CONTEXT); expect(after?.inputClearedAt).toBeInstanceOf(Date);
+    expect(after?.inputDigest).toBe(before?.inputDigest);
+    expect(await AiObjective.countDocuments()).toBe(1); expect(await AiRun.countDocuments()).toBe(1);
+    expect(await clearTerminalPlanningContexts()).toBe(0);
+  });
+  it('bounds legacy cleanup and leaves active inputs and historical records intact', async () => {
+    const { runId } = await queuePlanning(access, String(objective._id), randomUUID());
+    const active = await AiPlanningJob.findOne({ runId }).lean();
+    await AiPlanningJob.collection.insertMany(Array.from({ length: 105 }, () => ({ ...active,
+      _id: new Types.ObjectId(), runId: new Types.ObjectId(), requestId: randomUUID(), active: false, status: 'cancelled' })));
+    expect(await clearTerminalPlanningContexts()).toBe(100);
+    expect(await clearTerminalPlanningContexts()).toBe(5);
+    expect(await clearTerminalPlanningContexts()).toBe(0);
+    expect((await AiPlanningJob.findOne({ runId }))?.input).toBe(active?.input);
+    expect(await AiPlanningJob.countDocuments()).toBe(106);
+    expect(await AiObjective.countDocuments()).toBe(1); expect(await AiRun.countDocuments()).toBe(1);
+  });
+  it('runs context maintenance while inference dispatch is paused', async () => {
+    const { runId } = await queuePlanning(access, String(objective._id), randomUUID());
+    await cancelPlanning(access, runId);
+    await AiPlanningJob.updateOne({ runId }, { $set: { input: 'legacy copied context' }, $unset: { inputClearedAt: 1 } });
+    await AiSettings.updateOne({ _id: platformSettingsId }, { $set: { 'value.dispatchEnabled': false } });
+    expect((await processPlanningQueue()).status).toBe('disabled');
+    expect((await AiPlanningJob.findOne({ runId }))?.input).toBe(CLEARED_PLANNING_CONTEXT);
+    expect(model).not.toHaveBeenCalled();
+  });
   it('rolls back quota with a failed dispatch transaction', async () => {
     await expect(aiTransaction(async session => {
       expect(await reserveDispatch(defaultPlatformAiSettings, new Date(), session)).toBe(true);

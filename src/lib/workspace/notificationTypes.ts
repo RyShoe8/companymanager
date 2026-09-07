@@ -22,6 +22,7 @@ export const WORKSPACE_NOTIFICATION_EVENT_TYPES = [
   'project_update',
   'client_new',
   'client_update',
+  'ai_update',
 ] as const;
 
 export type WorkspaceNotificationEventType = (typeof WORKSPACE_NOTIFICATION_EVENT_TYPES)[number];

@@ -101,7 +101,7 @@ const jobSchema = new Schema({
   active: { type: Boolean, default: true, required: true },
   input: { type: String, required: true, maxlength: 16000 }, inputDigest: { type: String, required: true },
   policyDigest: { type: String, required: true }, projectUpdatedAt: { type: Date, required: true },
-  leaseToken: String, leaseExpiresAt: Date, dispatchedAt: Date,
+  leaseToken: String, leaseExpiresAt: Date, dispatchedAt: Date, inputClearedAt: Date,
   reservationMicros: { type: Number, required: true }, cancelRequested: { type: Boolean, default: false },
 }, { timestamps: true });
 jobSchema.index({ organizationId: 1, projectId: 1, requestId: 1 }, { unique: true });
@@ -109,6 +109,7 @@ jobSchema.index({ organizationId: 1, projectId: 1, active: 1 }, { unique: true, 
 jobSchema.index({ status: 1, createdAt: 1 });
 jobSchema.index({ status: 1, leaseExpiresAt: 1 });
 jobSchema.index({ runId: 1 }, { unique: true });
+jobSchema.index({ active: 1, status: 1, inputClearedAt: 1, _id: 1 });
 const dispatchLockSchema = new Schema({
   _id: { type: String, required: true }, token: { type: String, required: true },
   expiresAt: { type: Date, required: true },

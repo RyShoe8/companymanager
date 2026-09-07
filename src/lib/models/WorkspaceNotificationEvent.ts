@@ -19,6 +19,8 @@ export interface IWorkspaceNotificationEvent extends Document {
   taskIndex?: number;
   changeLabel: string;
   digestSentAt?: Date;
+  aiRunRevision?: number;
+  suppressedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +48,8 @@ const WorkspaceNotificationEventSchema: Schema = new Schema(
     taskIndex: { type: Number },
     changeLabel: { type: String, required: true, trim: true },
     digestSentAt: { type: Date, index: true },
+    aiRunRevision: Number,
+    suppressedAt: Date,
   },
   { timestamps: true }
 );

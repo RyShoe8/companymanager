@@ -17,6 +17,7 @@ import { settleRunBudget } from '@/lib/ai/control/budgets';
 import { planDigest } from '@/lib/ai/control/plans';
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { ensureAiIndexes } from '@/lib/ai/control/indexes';
+import { clearTerminalPlanningContexts, CLEARED_PLANNING_CONTEXT } from '@/lib/ai/control/contextRetention';
 
 const LOCK_ID = 'remote-planning-v1';
 // Exceeds the function's 300s ceiling, so a replacement cannot overlap a live invocation.
@@ -62,7 +63,8 @@ async function finish(job: Job, options: { draft?: PlanDraft; result?: ModelResu
     current.status = status === 'awaiting_acceptance' ? 'done' : status;
     current.active = false;
     // Clear persisted prompt data after the attempt; inputDigest remains as provenance.
-    current.input = '[context cleared]';
+    current.input = CLEARED_PLANNING_CONTEXT;
+    current.inputClearedAt = new Date();
     await current.save({ session });
     await settleRunBudget(current.organizationId, current.runId, options.actualMicros, session);
     await updatePlanningRun(current, status,
@@ -78,9 +80,11 @@ async function finish(job: Job, options: { draft?: PlanDraft; result?: ModelResu
 
 /** One bounded serverless invocation, never a background promise attached to a user request. */
 export async function processPlanningQueue(): Promise<{ status: string; runId?: string }> {
-  if (!(await readPlatformSettings()).value.dispatchEnabled) return { status: 'disabled' };
   await connectDB();
   await ensureAiIndexes();
+  // Privacy maintenance is independent of permission to send new model requests.
+  await clearTerminalPlanningContexts();
+  if (!(await readPlatformSettings()).value.dispatchEnabled) return { status: 'disabled' };
   const token = randomUUID();
   const now = new Date();
   try {

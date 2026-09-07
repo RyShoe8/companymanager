@@ -6,6 +6,8 @@ import { AiHttpError, type requireAiProject } from './access';
 import { getPlanningPolicy } from './config';
 import { reserveRunBudget, settleRunBudget } from './budgets';
 import { aiTransaction } from './transaction';
+import { CLEARED_PLANNING_CONTEXT } from './contextRetention';
+import { enqueuePlanningNotification } from './notifications';
 
 export type AiAccess = Awaited<ReturnType<typeof requireAiProject>>;
 export async function queuePlanning(access: AiAccess, objectiveId: string, requestId: string) {
@@ -60,6 +62,7 @@ export async function cancelPlanning(access: AiAccess, runId: string) {
     job.cancelRequested = true;
     if (job.status === 'queued') {
       job.status = 'cancelled'; job.active = false;
+      job.input = CLEARED_PLANNING_CONTEXT; job.inputClearedAt = new Date();
       await settleRunBudget(job.organizationId, job.runId, 0, session);
     }
     await job.save({ session });
@@ -87,4 +90,5 @@ export async function updatePlanningRun(job: InstanceType<typeof AiPlanningJob>,
   await AiRunEvent.create([{ organizationId: job.organizationId, projectId: job.projectId,
     runId: run._id, sequence: run.revision, type: `run.${status}`, summary,
   }], { session });
+  await enqueuePlanningNotification(run, session);
 }

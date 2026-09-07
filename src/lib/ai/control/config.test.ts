@@ -15,6 +15,11 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe('database-backed planning policy', () => {
+  it.each(['organization', 'project'])('blocks a paused %s scope', async scope => {
+    mocks.budget.mockImplementation(async (_org: string, project?: string) => ({ revision: 1,
+      value: { limitMicros: null, paused: scope === 'project' ? !!project : !project } }));
+    await expect(getPlanningPolicy('org', 'project')).rejects.toThrow();
+  });
   it('enables planning for every organization without environment flags', async () => {
     vi.stubEnv('NUCLEAS_AI_PLANNING_ENABLED', 'false');
     expect(await isAiPlanningEnabled()).toBe(true);

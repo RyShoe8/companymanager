@@ -29,7 +29,7 @@ export const defaultPlatformAiSettings: PlatformAiSettings = {
   noProviderFee: false, reservationMicros: 0, organizationLimitMicros: 0, projectLimitMicros: 0,
   dailyRequestLimit: 48, minimumIntervalSeconds: 300, maxOutputTokens: 2048,
 };
-export const aiBudgetSettingsSchema = z.object({ limitMicros: micros.nullable() }).strict();
+export const aiBudgetSettingsSchema = z.object({ limitMicros: micros.nullable(), paused: z.boolean().default(false) }).strict();
 export type AiBudgetSettings = z.infer<typeof aiBudgetSettingsSchema>;
 
 // Decimal parsing avoids floating-point drift and rejects exponent/negative input.

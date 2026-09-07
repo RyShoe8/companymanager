@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import connectDB from '@/lib/db/mongodb';
 import Employee, { type IEmployee } from '@/lib/models/Employee';
 import User from '@/lib/models/User';
@@ -21,6 +22,7 @@ import {
   type WorkspaceNotificationEventType,
 } from '@/lib/workspace/notificationTypes';
 import { sendWorkspaceDigestEmail } from '@/lib/services/workspaceDigestEmail';
+import { canDeliverPlanningNotification } from '@/lib/ai/control/notifications';
 
 type TaskLike = {
   _id?: { toString(): string } | string;
@@ -276,7 +278,9 @@ export function eventToDigestRow(
 ): DigestEventRow {
   const projectId = normalizeId(event.projectId) ?? '';
   const href =
-    event.entityKind === 'client'
+    event.eventType === 'ai_update'
+      ? `${baseUrl.replace(/\/$/, '')}/workspace/projects/${encodeURIComponent(projectId)}/ai/runs/${encodeURIComponent(event.entityId ?? '')}`
+      : event.entityKind === 'client'
       ? buildClientDeepLink({ baseUrl, clientId: event.entityId ?? '' })
       : event.entityKind === 'project'
         ? buildWorkspaceDeepLink({ baseUrl, projectId })
@@ -696,39 +700,68 @@ export async function processWorkspaceNotificationDigests(now = new Date()): Pro
     const interval = pref.interval as WorkspaceDigestInterval;
     if (!isDigestDue(interval, pref.lastDigestSentAt, now)) continue;
 
-    const pending = await WorkspaceNotificationEvent.find({
-      recipientUserId: pref.userId,
-      $or: [{ digestSentAt: null }, { digestSentAt: { $exists: false } }],
-    })
-      .sort({ createdAt: 1 })
-      .lean();
+    // Six minutes exceeds the scheduled route's five-minute execution ceiling.
+    const token = randomUUID();
+    const claimed = await WorkspaceNotificationPreference.findOneAndUpdate({ _id: pref._id,
+      interval: pref.interval, lastDigestSentAt: pref.lastDigestSentAt ?? null,
+      $or: [{ digestLeaseExpiresAt: null }, { digestLeaseExpiresAt: { $lte: new Date() } }],
+    }, { $set: { digestLeaseToken: token, digestLeaseExpiresAt: new Date(Date.now() + 360000) } }, { new: true });
+    if (!claimed) continue;
+    let releaseLease = true;
+    try {
 
-    if (pending.length === 0) continue;
+      const pending = await WorkspaceNotificationEvent.find({
+        recipientUserId: pref.userId,
+        suppressedAt: null,
+        $or: [{ digestSentAt: null }, { digestSentAt: { $exists: false } }],
+      })
+        .sort({ createdAt: 1 })
+        .limit(100)
+        .lean();
 
-    const user = await User.findById(pref.userId).lean();
-    if (!user?.email) continue;
+      if (pending.length === 0) continue;
 
-    const rows = pending.map((event) => eventToDigestRow(event, baseUrl));
-    await sendWorkspaceDigestEmail({
-      to: user.email,
-      recipientName: user.name,
-      events: rows,
-      baseUrl,
-    });
+      const user = await User.findById(pref.userId).lean();
+      if (!user?.email) continue;
 
-    const sentAt = new Date();
-    await WorkspaceNotificationEvent.updateMany(
-      { _id: { $in: pending.map((e) => e._id) } },
-      { $set: { digestSentAt: sentAt } }
-    );
-    await WorkspaceNotificationPreference.updateOne(
-      { _id: pref._id },
-      { $set: { lastDigestSentAt: sentAt } }
-    );
+      const deliverable = [];
+      for (const event of pending) {
+        if (event.eventType === 'ai_update' && !await canDeliverPlanningNotification(event)) {
+          await WorkspaceNotificationEvent.updateOne({ _id: event._id }, { $set: { suppressedAt: new Date() } });
+        } else deliverable.push(event);
+      }
+      if (!deliverable.length) continue;
+      // Recheck revocation and lease immediately before the external effect.
+      if (!await WorkspaceNotificationPreference.exists({ _id: pref._id, digestLeaseToken: token,
+        digestLeaseExpiresAt: { $gt: new Date() }, interval: { $ne: 'off' } })) continue;
+      const rows = deliverable.map((event) => eventToDigestRow(event, baseUrl));
+      releaseLease = false;
+      await sendWorkspaceDigestEmail({
+        to: user.email,
+        recipientName: user.name,
+        events: rows,
+        baseUrl,
+      });
 
-    usersProcessed += 1;
-    emailsSent += 1;
-    eventsSent += pending.length;
+      const sentAt = new Date();
+      await WorkspaceNotificationEvent.updateMany(
+        { _id: { $in: deliverable.map((e) => e._id) } },
+        { $set: { digestSentAt: sentAt } }
+      );
+      await WorkspaceNotificationPreference.updateOne(
+        { _id: pref._id, digestLeaseToken: token },
+        { $set: { lastDigestSentAt: sentAt } }
+      );
+
+      usersProcessed += 1;
+      emailsSent += 1;
+      eventsSent += deliverable.length;
+      releaseLease = true;
+    } finally {
+      // Ambiguous email/acknowledgment failures retain the lease until expiry, not an immediate retry.
+      if (releaseLease) await WorkspaceNotificationPreference.updateOne({ _id: pref._id, digestLeaseToken: token },
+        { $unset: { digestLeaseToken: 1, digestLeaseExpiresAt: 1 } });
+    }
   }
 
   return { usersProcessed, emailsSent, eventsSent };

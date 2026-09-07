@@ -10,6 +10,8 @@ interface IWorkspaceNotificationPreference extends Document {
   organizationId: string;
   interval: WorkspaceDigestInterval;
   lastDigestSentAt?: Date;
+  digestLeaseToken?: string;
+  digestLeaseExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +28,8 @@ const WorkspaceNotificationPreferenceSchema: Schema = new Schema(
       required: true,
     },
     lastDigestSentAt: { type: Date },
+    digestLeaseToken: String,
+    digestLeaseExpiresAt: Date,
   },
   { timestamps: true }
 );

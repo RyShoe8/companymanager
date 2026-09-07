@@ -55,7 +55,37 @@ Admin → AI Settings includes a global daily attempt cap (default 48 per UTC da
 
 All organizations share one persistent counter. The counter and dispatch marker commit together before network I/O; failed, interrupted, or possibly sent attempts still count. Settings changes never reset the counter. UTC day rollover resets daily counting but preserves the interval from the last attempt. Limited jobs remain queued with their reservations and can be cancelled. Existing queued jobs with an older policy digest are rejected when eligible for processing and must be submitted again after review.
 
+The **Shared inference usage** panel in Admin → AI Settings shows the current UTC allowance and last attempt. Use **Refresh usage** after changing limits or processing a request; there is no polling. The earliest eligible timestamp reflects request limits only, not a promised start time. Worker leases, queued work, credentials and budgets may delay or prevent processing. This administrator-only snapshot does not expose prompts, tokens, internal record IDs or host telemetry, and is not a history of daily usage.
+
 The existing single-dispatch lock, 120-second request deadline, 8000-byte input limit and no-auto-retry behavior remain. These are application-side bounds, not a guarantee that the host has enough capacity or terminates inference on timeout. Confirm provider-side concurrency, token limits and timeout behavior with the endpoint owner before increasing limits. No local model or remote code execution is enabled.
+
+## Organization and project pause controls
+
+Managers can save **Pause remote AI requests** on the organization or project AI budget page. Existing settings default to unpaused. Parent pauses cannot be overridden by a project. Pause changes use the existing revision checks and settings audit; budget values, spent amounts and reservations are not reset.
+
+The budget page also shows the current UTC month's settled spend, held reservations and remaining allowance in that exact scope. No ledger activity is labeled explicitly, not presented as proof that inference is free. Remaining allowance uses the current saved ceiling; lowering a ceiling never erases usage and can leave no allowance. This read does not create or modify budget ledgers. Reload for a fresh snapshot; there is no polling. Organization and project ledgers represent the same requests against separate ceilings and must not be added together. A project allowance does not guarantee admission when parent budgets or other controls block it.
+
+Paused scopes cannot submit new inference requests. Existing queued work is blocked when the worker checks it, and settings revisions invalidate old queued work even after resuming. Submit a fresh request after review. Policy checks reject a draft returned after a pause, but cannot terminate inference on the provider. Unknown charges retain reservations. Manual planning, history, previously created plans and cancellation stay available. Old open clients must reload to send an explicit pause state when saving budgets.
+
+## Support diagnostics
+
+Admin → AI Settings → **Planning diagnostics** provides a manually refreshed, administrator-only snapshot. Queue, running and expired-running-lease counts are capped at 100+. Expired leases are included in running records. A dispatch lease may remain intentionally held after an ambiguous provider response; it is not proof of active remote inference. Independent queries may observe slightly different moments.
+
+For old queued requests, check processing controls, daily allowance/spacing, and Vercel cron logs. For expired running leases, the existing worker recovers at most ten per invocation while processing is enabled; recovery blocks uncertain attempts rather than resending them. Do not manually clear leases or reservations to force a retry. Diagnose unknown completion and charges first. The panel itself never changes jobs, calls inference, or tests provider health.
+
+## Copied planning-context retention
+
+Queued cancellation and terminal worker completion clear the job's redundant `input` field and record `inputClearedAt`, retaining its digest. Each authenticated cron invocation also clears at most 100 older inactive done/blocked/cancelled jobs without that marker. This privacy maintenance runs even when inference processing is paused; it does not send model requests. It rechecks terminal status at update time and leaves queued/running jobs alone.
+
+Only the job's copied prompt is overwritten, not the original objective, approved or draft plans, events, reservations, or run history. The copied text cannot be recovered from that job after cleanup; the objective remains available under its existing permissions. No production cleanup was performed during implementation. This is not a general record-deletion or blob-retention policy.
+
+## AI email updates
+
+Review-ready and blocked planning runs enqueue one generic notification for the manager who requested the run, only if their existing workspace email preference is enabled. Notification creation shares the terminal run transaction. No emails are sent from the planning worker; the existing workspace digest cron handles delivery and its configured interval.
+
+Before delivering AI events, the sender rechecks run revision/status, membership, manager role, project ownership and preference. Revoked or stale events are marked `suppressedAt` rather than reported sent. Messages use generic labels and a sign-in-protected run link; objective text, project names, model payloads and credentials are omitted. Previously created events are not backfilled. Personal attention acknowledgment does not change email preferences.
+
+Digest batches now hold at most 100 events per recipient; remaining events wait for later eligible digests. Each recipient has a six-minute database lease, longer than the scheduled route's five-minute runtime ceiling, preventing overlapping scheduled invocations from sending that recipient concurrently. The worker rechecks the lease and notification opt-out before sending. Normal completion or unused claims release the lease; ambiguous email/acknowledgment failures retain it until expiry. A crash is recoverable after expiry. The email transport is still not exactly-once: retry after ambiguous provider completion may duplicate email. No live email delivery was tested during implementation; tests replace the email sender.
 
 ## Local tests
 

@@ -14,6 +14,7 @@ export async function getPlanningPolicy(organizationId: string, projectId: strin
   const organization = await readBudgetSettings(organizationId, undefined, session);
   const project = await readBudgetSettings(organizationId, projectId, session);
   const settings = platform.value;
+  if (organization.value.paused || project.value.paused) throw new GatewayError('configuration');
   if (!settings.planningEnabled || !settings.dispatchEnabled || !settings.remoteEnabled || !process.env.CRON_SECRET?.trim()) throw new GatewayError('configuration');
   const gateway: GatewayConfiguration = {
     endpoint: settings.endpoint, model: settings.model, protocol: settings.protocol,
