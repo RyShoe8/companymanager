@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
-import type { IProject, IProjectTask } from '@/lib/models/Project';
+import Project, { type IProjectTask } from '@/lib/models/Project';
 import { mergeProjectsPreservingRecency } from '@/lib/utils/mergeProjectsPreservingRecency';
 
 describe('mergeProjectsPreservingRecency', () => {
@@ -10,20 +10,20 @@ describe('mergeProjectsPreservingRecency', () => {
     const localUpdatedAt = new Date('2026-06-15T12:00:00Z');
     const staleUpdatedAt = new Date('2026-06-01T12:00:00Z');
     const previous = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: localUpdatedAt,
         tasks: [],
-      } as IProject,
+      }).toObject(),
     ];
     const fetched = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: staleUpdatedAt,
         tasks: [],
-      } as IProject,
+      }).toObject(),
     ];
 
     const merged = mergeProjectsPreservingRecency(previous, fetched);
@@ -37,22 +37,25 @@ describe('mergeProjectsPreservingRecency', () => {
     ];
     const fetchedTasks = [{ name: 'T', status: 'active' } as IProjectTask];
     const previous = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: new Date('2026-06-15T12:00:00Z'),
         tasks: localTasks,
-      } as IProject,
+      }).toObject(),
     ];
     const fetched = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: new Date('2026-06-01'),
         tasks: fetchedTasks,
-      } as IProject,
+      }).toObject(),
     ];
 
+    // Preserve the legacy missing-ID case; model construction generates task IDs.
+    previous[0].tasks = localTasks;
+    fetched[0].tasks = fetchedTasks;
     const merged = mergeProjectsPreservingRecency(previous, fetched);
     expect(merged[0].tasks?.[0]?.completedAt).toEqual(completedAt);
     expect(merged[0].tasks?.[0]?.status).toBe('completed');
@@ -60,21 +63,21 @@ describe('mergeProjectsPreservingRecency', () => {
 
   it('accepts fetched project when it is newer than local', () => {
     const previous = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: new Date('2026-06-01'),
         tasks: [],
-      } as IProject,
+      }).toObject(),
     ];
     const fetchedUpdatedAt = new Date('2026-06-20');
     const fetched = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: fetchedUpdatedAt,
         tasks: [],
-      } as IProject,
+      }).toObject(),
     ];
 
     const merged = mergeProjectsPreservingRecency(previous, fetched);
@@ -87,20 +90,20 @@ describe('mergeProjectsPreservingRecency', () => {
     const staleUpdatedAt = new Date('2026-06-01T12:00:00Z');
     const projectIdStr = projectId.toString();
     const previous = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: localUpdatedAt,
         tasks: [],
-      } as IProject,
+      }).toObject(),
     ];
     const fetched = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: staleUpdatedAt,
         tasks: [],
-      } as IProject,
+      }).toObject(),
     ];
     const contentByProjectId = new Map([
       [
@@ -130,20 +133,20 @@ describe('mergeProjectsPreservingRecency', () => {
       { _id: taskId, name: 'Kept', status: 'active' } as IProjectTask,
     ];
     const previous = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: new Date('2026-06-15T12:00:00Z'),
         tasks: localTasks,
-      } as IProject,
+      }).toObject(),
     ];
     const fetched = [
-      {
+      new Project({
         _id: projectId,
         name: 'P',
         updatedAt: new Date('2026-06-01'),
         tasks: fetchedTasks,
-      } as IProject,
+      }).toObject(),
     ];
 
     const merged = mergeProjectsPreservingRecency(previous, fetched);

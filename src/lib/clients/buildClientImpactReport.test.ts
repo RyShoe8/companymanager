@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
 import { buildClientImpactReport } from '@/lib/clients/buildClientImpactReport';
-import type { IProject } from '@/lib/models/Project';
+import Project, { type IProject } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 
-function project(partial: Partial<IProject> & { _id: string; name: string }): IProject {
-  return partial as IProject;
+function project(partial: Partial<IProject> & { name: string }): IProject {
+  return new Project(partial);
 }
 
 describe('buildClientImpactReport', () => {
@@ -17,7 +17,7 @@ describe('buildClientImpactReport', () => {
 
   it('excludes hub from active projects list', () => {
     const hub = project({
-      _id: 'hub1',
+      _id: new Types.ObjectId(),
       name: 'Acme Corp',
       projectType: 'client-admin',
       clientId: client._id,
@@ -25,7 +25,7 @@ describe('buildClientImpactReport', () => {
       tasks: [{ name: 'Hub task', status: 'active' }],
     });
     const deliverable = project({
-      _id: 'del1',
+      _id: new Types.ObjectId(),
       name: 'Website',
       projectType: 'client',
       clientId: client._id,
@@ -43,12 +43,12 @@ describe('buildClientImpactReport', () => {
     });
 
     expect(report.projects).toHaveLength(1);
-    expect(report.projects[0].id).toBe('del1');
+    expect(report.projects[0].id).toBe(String(deliverable._id));
   });
 
   it('filters completed tasks by completedAt in range', () => {
     const p = project({
-      _id: 'p1',
+      _id: new Types.ObjectId(),
       name: 'Project',
       projectType: 'client',
       clientId: client._id,
@@ -87,7 +87,7 @@ describe('buildClientImpactReport', () => {
   it('includes published content in range', () => {
     const projectId = new Types.ObjectId();
     const p = project({
-      _id: projectId.toString(),
+      _id: projectId,
       name: 'Project',
       projectType: 'client',
       clientId: client._id,

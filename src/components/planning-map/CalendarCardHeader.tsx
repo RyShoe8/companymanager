@@ -1,37 +1,8 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import Image from 'next/image';
 import { getProjectCardHeaderTextClass } from '@/lib/utils/colorContrast';
-
-function AnimatedProgressNumber({ target }: { target: number }) {
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    let start = 0;
-    const duration = 600;
-    const increment = target / (duration / 16);
-
-    if (target === 0) {
-      setValue(0);
-      return;
-    }
-
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= target) {
-        setValue(target);
-        clearInterval(timer);
-      } else {
-        setValue(Math.floor(start));
-      }
-    }, 16);
-
-    return () => clearInterval(timer);
-  }, [target]);
-
-  return <>{value}</>;
-}
 
 export function CalendarActiveStats({
   showTasks,
@@ -97,7 +68,7 @@ export function CalendarProgressBar({
         />
       </div>
       <span className={`text-[10px] font-bold ${headerTextClass} shrink-0`}>
-        <AnimatedProgressNumber target={progressPercent} />%
+        {progressPercent}%
       </span>
     </div>
   );

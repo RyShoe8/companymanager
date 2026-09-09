@@ -117,6 +117,7 @@ export default function ProjectAiPanel({ projectId, initialObjectiveId }: { proj
     <Link href="/workspace/ai-attention" className="ml-4 text-sm underline">AI needs attention</Link>
     <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/runs`} className="ml-4 text-sm underline">AI run history</Link>
     <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/library`} className="ml-4 text-sm underline">All objectives and plans</Link>
+    <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/artifacts`} className="ml-4 text-sm underline">Artifacts and reviews</Link>
     <header><h1 className="text-2xl font-semibold">{data?.project.name ?? 'Project'} · AI planning</h1>
       <p className="mt-2 text-sm text-text-secondary">{data?.statusMessage ?? 'Loading planning…'}</p>
       <p className="mt-1 text-sm text-text-secondary">Models run remotely. Status refresh pauses when this page is hidden or idle; queued work continues on the server.</p>

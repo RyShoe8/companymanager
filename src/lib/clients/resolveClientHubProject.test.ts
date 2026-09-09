@@ -1,28 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { resolveClientHubProject } from '@/lib/clients/resolveClientHubProject';
-import type { IProject } from '@/lib/models/Project';
+import { Types } from 'mongoose';
+import Project, { type IProject } from '@/lib/models/Project';
 
-function project(partial: Partial<IProject> & { _id: string }): IProject {
-  return partial as IProject;
+function project(partial: Partial<IProject>): IProject {
+  return new Project(partial);
 }
 
 describe('resolveClientHubProject', () => {
+  const clientId = new Types.ObjectId();
   it('returns client-admin project for matching clientId', () => {
     const hub = project({
-      _id: 'hub1',
+      _id: new Types.ObjectId(),
       projectType: 'client-admin',
-      clientId: 'client1',
+      clientId,
     });
     const other = project({
-      _id: 'p2',
+      _id: new Types.ObjectId(),
       projectType: 'client',
-      clientId: 'client1',
+      clientId,
     });
-    expect(resolveClientHubProject('client1', [other, hub])?._id).toBe('hub1');
+    expect(resolveClientHubProject(String(clientId), [other, hub])).toBe(hub);
   });
 
   it('returns null when no hub exists', () => {
-    const p = project({ _id: 'p1', projectType: 'client', clientId: 'client1' });
-    expect(resolveClientHubProject('client1', [p])).toBeNull();
+    const p = project({ projectType: 'client', clientId });
+    expect(resolveClientHubProject(String(clientId), [p])).toBeNull();
   });
 });

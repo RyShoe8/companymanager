@@ -36,7 +36,7 @@ export default function TermsPage() {
         <Card className="p-8 mb-6">
           <h2 className="text-2xl font-semibold text-text-primary mb-4">1. Acceptance of Terms</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
-            By accessing and using Nucleas ("the Service"), you accept and agree to be bound by the terms and 
+            By accessing and using Nucleas (&quot;the Service&quot;), you accept and agree to be bound by the terms and
             provision of this agreement. If you do not agree to abide by the above, please do not use this service.
           </p>
         </Card>
@@ -44,7 +44,7 @@ export default function TermsPage() {
         <Card className="p-8 mb-6">
           <h2 className="text-2xl font-semibold text-text-primary mb-4">2. Use License</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
-            Permission is granted to temporarily use Nucleas for your organization's planning and management purposes. 
+            Permission is granted to temporarily use Nucleas for your organization&apos;s planning and management purposes.
             This is the grant of a license, not a transfer of title, and under this license you may not:
           </p>
           <ul className="list-disc list-inside space-y-2 text-text-secondary ml-4">
@@ -104,7 +104,7 @@ export default function TermsPage() {
         <Card className="p-8 mb-6">
           <h2 className="text-2xl font-semibold text-text-primary mb-4">7. Disclaimer</h2>
           <p className="text-text-secondary leading-relaxed mb-4">
-            The materials on Nucleas are provided on an 'as is' basis. Nucleas makes no warranties, expressed or implied, 
+            The materials on Nucleas are provided on an &apos;as is&apos; basis. Nucleas makes no warranties, expressed or implied,
             and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions 
             of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
           </p>

@@ -15,8 +15,10 @@ function GoogleAnalyticsPageViews() {
   const pathnameRef = useRef(pathname ?? '/');
   const searchRef = useRef('');
 
-  pathnameRef.current = pathname ?? '/';
-  searchRef.current = searchParams?.toString() ?? '';
+  useEffect(() => {
+    pathnameRef.current = pathname ?? '/';
+    searchRef.current = searchParams?.toString() ?? '';
+  }, [pathname, searchParams]);
 
   useEffect(() => {
     const applyConsent = (granted: boolean) => {

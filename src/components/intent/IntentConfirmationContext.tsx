@@ -11,6 +11,7 @@ import {
 } from 'react';
 import type { ParsedIntent } from '@/lib/voice/IntentParser';
 import type { WorkspaceIntentContextPayload } from '@/lib/voice/workspaceIntentContext';
+import { consumePendingConfirmation } from '@/lib/voice/pendingConfirmation';
 
 export type PendingIntentConfirmation = {
   sourceText: string;
@@ -51,41 +52,38 @@ export function IntentConfirmationProvider({
   onExecuted,
 }: IntentConfirmationProviderProps) {
   const [pending, setPending] = useState<PendingIntentConfirmation | null>(null);
-  const executeRef = useRef(executeIntent);
-  /** Mirrors `pending` so confirm can read latest without TS assuming ref stayed null after clear. */
+  /** Event-owned slot: edits, cancellation and consumption are synchronous. */
   const pendingMirrorRef = useRef<PendingIntentConfirmation | null>(null);
-  pendingMirrorRef.current = pending;
-  executeRef.current = executeIntent;
 
   const presentConfirmation = useCallback((p: PendingIntentConfirmation) => {
+    pendingMirrorRef.current = p;
     setPending(p);
   }, []);
 
   const patchPendingSlots = useCallback((partial: Record<string, string>) => {
-    setPending((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        intent: {
-          ...prev.intent,
-          slots: { ...prev.intent.slots, ...partial },
-        },
-      };
-    });
+    const prev = pendingMirrorRef.current;
+    if (!prev) return;
+    const next = {
+      ...prev,
+      intent: { ...prev.intent, slots: { ...prev.intent.slots, ...partial } },
+    };
+    pendingMirrorRef.current = next;
+    setPending(next);
   }, []);
 
   const cancel = useCallback(() => {
+    pendingMirrorRef.current = null;
     setPending(null);
   }, []);
 
   const confirm = useCallback(async (): Promise<ExecuteResult | undefined> => {
-    const snap = pendingMirrorRef.current;
+    const snap = consumePendingConfirmation(pendingMirrorRef);
     setPending(null);
     if (!snap) return undefined;
-    const result = await Promise.resolve(executeRef.current(snap.intent));
+    const result = await Promise.resolve(executeIntent(snap.intent));
     onExecuted?.(result, { origin: snap.origin });
     return result;
-  }, [onExecuted]);
+  }, [executeIntent, onExecuted]);
 
   const value = useMemo(
     () => ({

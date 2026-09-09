@@ -1,5 +1,7 @@
 'use client';
 
+import { useClientReady } from '@/hooks/useClientReady';
+
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
@@ -24,12 +26,9 @@ export default function RecordingNameDialog({
   processing = false,
 }: RecordingNameDialogProps) {
   const [name, setName] = useState(defaultName);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
   const busy = saving || processing;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (isOpen) setName(defaultName);

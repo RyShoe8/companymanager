@@ -1,5 +1,7 @@
 'use client';
 
+import { useClientReady } from '@/hooks/useClientReady';
+
 import { useState, useEffect, ReactNode, useRef, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -45,7 +47,7 @@ export default function BottomSheet({
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
   const wasOpen = useRef(false);
   const scrollLocked = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,6 @@ export default function BottomSheet({
     }
   };
 
-  useEffect(() => { setMounted(true); }, []);
   
   useEffect(() => {
     if (isOpen && !wasOpen.current) {

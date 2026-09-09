@@ -36,7 +36,7 @@ export default function PrivacyPage() {
           <Card className="p-8 mb-6">
             <h2 className="text-2xl font-semibold text-text-primary mb-4">1. Introduction</h2>
             <p className="text-text-secondary leading-relaxed mb-4">
-              Nucleas ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we
+              Nucleas (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how we
               collect, use, disclose, and safeguard your information when you use our Service.
             </p>
           </Card>
@@ -115,7 +115,7 @@ export default function PrivacyPage() {
               practices of these third parties. We encourage you to read their privacy policies.
             </p>
             <p className="text-text-secondary leading-relaxed">
-              We use Google OAuth for authentication. When you sign in with Google, Google's privacy policy applies to
+              We use Google OAuth for authentication. When you sign in with Google, Google&apos;s privacy policy applies to
               the information you provide to Google.
             </p>
           </Card>
@@ -148,7 +148,7 @@ export default function PrivacyPage() {
           </Card>
 
           <Card className="p-8 mb-6">
-            <h2 className="text-2xl font-semibold text-text-primary mb-4">9. Children's Privacy</h2>
+            <h2 className="text-2xl font-semibold text-text-primary mb-4">9. Children&apos;s Privacy</h2>
             <p className="text-text-secondary leading-relaxed mb-4">
               Our Service is not intended for children under 13 years of age. We do not knowingly collect personal information
               from children under 13.
@@ -159,7 +159,7 @@ export default function PrivacyPage() {
             <h2 className="text-2xl font-semibold text-text-primary mb-4">10. Changes to This Privacy Policy</h2>
             <p className="text-text-secondary leading-relaxed mb-4">
               We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy
-              Policy on this page and updating the "Last updated" date.
+              Policy on this page and updating the &quot;Last updated&quot; date.
             </p>
             <p className="text-text-secondary">
               If you have any questions about this Privacy Policy, please contact us at{' '}

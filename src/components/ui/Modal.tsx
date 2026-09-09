@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useClientReady } from '@/hooks/useClientReady';
+
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { InspectorLightProvider } from '@/contexts/InspectorLightContext';
 import { lockPageScroll, unlockPageScroll } from '@/lib/ui/scrollLock';
@@ -74,12 +76,9 @@ export default function Modal({
   stackAboveLightbox = false,
   bodyPadding = true,
 }: ModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
   const scrollLocked = useRef(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (isOpen) {

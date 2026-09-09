@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Types } from 'mongoose';
+
+const projectId = new Types.ObjectId('000000000000000000000001');
 import {
   buildClientDeepLink,
   buildWorkspaceDeepLink,
@@ -131,7 +134,7 @@ describe('workspaceNotifications', () => {
     const taskRow = eventToDigestRow(
       {
         eventType: 'task_comment',
-        projectId: 'p1',
+        projectId,
         projectName: 'Project One',
         entityKind: 'task',
         entityId: 't1',
@@ -140,12 +143,12 @@ describe('workspaceNotifications', () => {
       },
       'https://nucleas.app'
     );
-    expect(taskRow.href).toBe('https://nucleas.app/workspace?project=p1&task=t1');
+    expect(taskRow.href).toBe(`https://nucleas.app/workspace?project=${projectId}&task=t1`);
 
     const contentRow = eventToDigestRow(
       {
         eventType: 'content_comment',
-        projectId: 'p1',
+        projectId,
         projectName: 'Project One',
         entityKind: 'content',
         entityId: 'c1',
@@ -154,12 +157,12 @@ describe('workspaceNotifications', () => {
       },
       'https://nucleas.app'
     );
-    expect(contentRow.href).toBe('https://nucleas.app/workspace?project=p1&content=c1');
+    expect(contentRow.href).toBe(`https://nucleas.app/workspace?project=${projectId}&content=c1`);
 
     const clientRow = eventToDigestRow(
       {
         eventType: 'client_update',
-        projectId: 'hub1',
+        projectId: new Types.ObjectId(),
         projectName: 'Acme HQ',
         entityKind: 'client',
         entityId: 'c1',
@@ -188,7 +191,7 @@ describe('workspaceNotifications', () => {
       eventToDigestRow(
         {
           eventType: 'task_new',
-          projectId: 'p1',
+          projectId,
           projectName: 'Project One',
           entityKind: 'task',
           entityId: 't1',
@@ -200,7 +203,7 @@ describe('workspaceNotifications', () => {
       eventToDigestRow(
         {
           eventType: 'content_update',
-          projectId: 'p1',
+          projectId,
           projectName: 'Project One',
           entityKind: 'content',
           entityId: 'c1',
@@ -211,7 +214,7 @@ describe('workspaceNotifications', () => {
       ),
     ];
     const grouped = groupDigestRowsByProject(rows);
-    expect(grouped.get('p1')?.length).toBe(2);
+    expect(grouped.get(String(projectId))?.length).toBe(2);
   });
 
   it('applies digest interval throttling', () => {

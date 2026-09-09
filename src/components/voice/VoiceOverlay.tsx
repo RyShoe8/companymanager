@@ -100,7 +100,7 @@ export default function VoiceOverlay() {
                                                 key={i}
                                                 className="w-1 bg-red-400 rounded-full animate-pulse"
                                                 style={{
-                                                    height: `${8 + Math.random() * 12}px`,
+                                                    height: `${[10, 16, 20, 14, 9][i - 1]}px`,
                                                     animationDelay: `${i * 100}ms`,
                                                 }}
                                             />

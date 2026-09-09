@@ -5,14 +5,14 @@ import { mergeTasksPreservingReferences, tasksSemanticallyEqual } from '@/lib/pr
 
 describe('tasksSemanticallyEqual', () => {
   it('treats assignee changes as unequal', () => {
-    const aId = new Types.ObjectId().toString();
-    const bId = new Types.ObjectId().toString();
-    const base = {
+    const aId = new Types.ObjectId();
+    const bId = new Types.ObjectId();
+    const base: IProjectTask = {
       name: 'Task',
       description: '',
       status: 'active',
       estimatedHours: 2,
-    } as IProjectTask;
+    };
 
     expect(
       tasksSemanticallyEqual(
@@ -33,23 +33,23 @@ describe('tasksSemanticallyEqual', () => {
 describe('mergeTasksPreservingReferences', () => {
   it('uses server task when only assignees differ', () => {
     const taskId = new Types.ObjectId();
-    const aId = new Types.ObjectId().toString();
-    const bId = new Types.ObjectId().toString();
+    const aId = new Types.ObjectId();
+    const bId = new Types.ObjectId();
     const prev: IProjectTask[] = [
       {
         _id: taskId,
         name: 'Task',
         status: 'active',
-        assignedToEmployeeIds: [aId, bId] as never,
-      } as IProjectTask,
+        assignedToEmployeeIds: [aId, bId],
+      },
     ];
     const server: IProjectTask[] = [
       {
         _id: taskId,
         name: 'Task',
         status: 'active',
-        assignedToEmployeeIds: [aId] as never,
-      } as IProjectTask,
+        assignedToEmployeeIds: [aId],
+      },
     ];
 
     const merged = mergeTasksPreservingReferences(prev, server);
@@ -59,19 +59,19 @@ describe('mergeTasksPreservingReferences', () => {
 
   it('preserves previous reference when assignees and other fields match', () => {
     const taskId = new Types.ObjectId();
-    const aId = new Types.ObjectId().toString();
-    const prevTask = {
+    const aId = new Types.ObjectId();
+    const prevTask: IProjectTask = {
       _id: taskId,
       name: 'Task',
       status: 'active',
-      assignedToEmployeeIds: [aId] as never,
-    } as IProjectTask;
-    const serverTask = {
+      assignedToEmployeeIds: [aId],
+    };
+    const serverTask: IProjectTask = {
       _id: taskId,
       name: 'Task',
       status: 'active',
-      assignedToEmployeeIds: [aId] as never,
-    } as IProjectTask;
+      assignedToEmployeeIds: [aId],
+    };
 
     const merged = mergeTasksPreservingReferences([prevTask], [serverTask]);
     expect(merged[0]).toBe(prevTask);

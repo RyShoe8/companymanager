@@ -91,12 +91,12 @@ function PopoutContent() {
         [wm.windows, windowId]
     );
 
-    const module = target ? ModuleRegistry.get(target.moduleId) : null;
+    const moduleDefinition = target ? ModuleRegistry.get(target.moduleId) : null;
 
     const title =
         target?.moduleId === 'project-detail' && target.payload?.projectName
             ? target.payload.projectName
-            : module?.title ?? 'Module';
+            : moduleDefinition?.title ?? 'Module';
 
     useEffect(() => {
         document.title = title;
@@ -139,7 +139,7 @@ function PopoutContent() {
         return <PopoutError message="Module window not found. It may have been closed in the main workspace." />;
     }
 
-    if (!module) {
+    if (!moduleDefinition) {
         return <PopoutError message="Unknown module type." />;
     }
 
@@ -153,7 +153,7 @@ function PopoutContent() {
                 <header className="flex-shrink-0 flex items-center bg-background-card border-b border-border select-none h-8 px-1">
                     <div className="popout-drag flex-1 flex items-center gap-2 min-w-0 h-full px-2">
                         <span className="text-xs opacity-80" aria-hidden>
-                            {module.icon}
+                            {moduleDefinition.icon}
                         </span>
                         <span className="text-xs font-medium truncate">{title}</span>
                     </div>
@@ -196,7 +196,7 @@ function PopoutContent() {
             )}
 
             <main className="flex-1 min-h-0 overflow-auto">
-                {module.render({
+                {moduleDefinition.render({
                     windowId: target.id,
                     moduleId: target.moduleId,
                     payload: target.payload,

@@ -1,12 +1,15 @@
 'use client';
 
+import { useClientReady } from '@/hooks/useClientReady';
+
 import { createPortal } from 'react-dom';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { IProject } from '@/lib/models/Project';
 import { IClient } from '@/lib/models/Client';
 import { IEmployee } from '@/lib/models/Employee';
 import ContentItemCreateForm from '@/components/planning-map/ContentItemCreateForm';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
+import { acquirePageScrollLock } from '@/lib/ui/scrollLock';
 
 interface ContentItemCreateModalProps {
   isOpen: boolean;
@@ -36,25 +39,13 @@ export default function ContentItemCreateModal({
   onSuccess,
 }: ContentItemCreateModalProps) {
   const light = useInspectorLight();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
+
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-      document.documentElement.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+    if (!isOpen || !project) return;
+    return acquirePageScrollLock();
+  }, [isOpen, project]);
 
   if (!mounted || !isOpen || !project) return null;
 

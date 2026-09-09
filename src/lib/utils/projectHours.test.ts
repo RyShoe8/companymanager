@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { IProject, IProjectTask } from '@/lib/models/Project';
-import type { IContentItem } from '@/lib/models/ContentItem';
+import Project, { type IProjectTask } from '@/lib/models/Project';
+import ContentItem from '@/lib/models/ContentItem';
 import { computeProjectAssignedHours } from '@/lib/utils/projectHours';
 import { Types } from 'mongoose';
 
@@ -15,7 +15,6 @@ function task(partial: Partial<IProjectTask>): IProjectTask {
 
 describe('computeProjectAssignedHours', () => {
   const projectId = new Types.ObjectId();
-  const project = { _id: projectId, tasks: [] } as unknown as IProject;
 
   it('sums non-completed task hours and non-published content hours', () => {
     const tasks = [
@@ -27,9 +26,9 @@ describe('computeProjectAssignedHours', () => {
       { projectId, estimatedHours: 2, status: 'in_progress' },
       { projectId, estimatedHours: 8, status: 'published' },
       { projectId, estimatedHours: 4, status: 'ready' },
-    ] as unknown as IContentItem[];
+    ].map((item) => new ContentItem(item));
 
-    expect(computeProjectAssignedHours({ ...project, tasks }, content)).toBe(14);
+    expect(computeProjectAssignedHours(new Project({ _id: projectId, tasks }), content)).toBe(14);
   });
 
   it('ignores tasks and content on other projects', () => {
@@ -37,8 +36,8 @@ describe('computeProjectAssignedHours', () => {
     const tasks = [task({ estimatedHours: 6, status: 'active' })];
     const content = [
       { projectId: otherProjectId, estimatedHours: 20, status: 'planned' },
-    ] as unknown as IContentItem[];
+    ].map((item) => new ContentItem(item));
 
-    expect(computeProjectAssignedHours({ ...project, tasks }, content)).toBe(6);
+    expect(computeProjectAssignedHours(new Project({ _id: projectId, tasks }), content)).toBe(6);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Types } from 'mongoose';
-import type { IProject, IProjectTask } from '@/lib/models/Project';
+import Project, { type IProjectTask } from '@/lib/models/Project';
 import type { IContentItem } from '@/lib/models/ContentItem';
 import { buildProjectEntityRangeItems, buildClientProjectDisplayList } from '@/lib/calendar/projectEntityRangeItems';
 
@@ -14,7 +14,7 @@ function task(
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + 6);
   return {
-    _id: id as unknown as IProjectTask['_id'],
+    _id: new Types.ObjectId(id.padStart(24, '0')),
     name: `Task ${id}`,
     startDate,
     endDate,
@@ -32,7 +32,7 @@ describe('buildProjectEntityRangeItems', () => {
 
   it('counts and lists only active items in the viewed range', () => {
     const series = 'task-series';
-    const project = {
+    const project = new Project({
       _id: projectId,
       name: 'P',
       tasks: [
@@ -41,7 +41,7 @@ describe('buildProjectEntityRangeItems', () => {
         task('3', '2026-07-01', 'active', series),
         task('4', '2026-06-11', 'completed'),
       ],
-    } as IProject;
+    });
 
     const result = buildProjectEntityRangeItems(
       project,
@@ -55,7 +55,7 @@ describe('buildProjectEntityRangeItems', () => {
     expect(result.displayList).toHaveLength(1);
     expect(result.displayList[0].type).toBe('task');
     if (result.displayList[0].type === 'task') {
-      expect(result.displayList[0].task._id?.toString()).toBe('2');
+      expect(result.displayList[0].task._id?.toString()).toBe('2'.padStart(24, '0'));
     }
   });
 
@@ -88,7 +88,7 @@ describe('buildProjectEntityRangeItems', () => {
       },
     ] as IContentItem[];
 
-    const project = { _id: projectId, name: 'P', tasks: [] } as IProject;
+    const project = new Project({ _id: projectId, name: 'P', tasks: [] });
     const result = buildProjectEntityRangeItems(
       project,
       items,
@@ -118,7 +118,7 @@ describe('buildProjectEntityRangeItems', () => {
         updatedAt: new Date(),
       },
     ] as IContentItem[];
-    const project = { _id: projectId, name: 'P', tasks: [] } as IProject;
+    const project = new Project({ _id: projectId, name: 'P', tasks: [] });
 
     const result = buildProjectEntityRangeItems(project, items, weekStart, weekEnd, new Date());
 
@@ -127,19 +127,19 @@ describe('buildProjectEntityRangeItems', () => {
   });
 
   it('includes open-ended active tasks in the viewed range', () => {
-    const project = {
+    const project = new Project({
       _id: projectId,
       name: 'P',
       tasks: [
         {
-          _id: 'open1' as unknown as IProjectTask['_id'],
+          _id: new Types.ObjectId(),
           name: 'Ongoing client work',
           startDate: new Date('2026-06-01'),
           endDate: null,
           status: 'active',
         },
       ],
-    } as IProject;
+    });
 
     const result = buildProjectEntityRangeItems(
       project,
@@ -155,19 +155,19 @@ describe('buildProjectEntityRangeItems', () => {
   });
 
   it('buildClientProjectDisplayList returns active open-ended tasks for expansion', () => {
-    const project = {
+    const project = new Project({
       _id: projectId,
       name: 'P',
       tasks: [
         {
-          _id: 'open1' as unknown as IProjectTask['_id'],
+          _id: new Types.ObjectId(),
           name: 'Ongoing client work',
           startDate: new Date('2026-06-01'),
           endDate: null,
           status: 'active',
         },
       ],
-    } as IProject;
+    });
 
     const displayList = buildClientProjectDisplayList(
       project,
@@ -206,7 +206,7 @@ describe('buildProjectEntityRangeItems', () => {
         updatedAt: new Date(),
       },
     ] as IContentItem[];
-    const project = { _id: projectId, name: 'P', tasks: [] } as IProject;
+    const project = new Project({ _id: projectId, name: 'P', tasks: [] });
 
     const result = buildProjectEntityRangeItems(
       project,

@@ -65,6 +65,8 @@ Managers can save **Pause remote AI requests** on the organization or project AI
 
 The budget page also shows the current UTC month's settled spend, held reservations and remaining allowance in that exact scope. No ledger activity is labeled explicitly, not presented as proof that inference is free. Remaining allowance uses the current saved ceiling; lowering a ceiling never erases usage and can leave no allowance. This read does not create or modify budget ledgers. Reload for a fresh snapshot; there is no polling. Organization and project ledgers represent the same requests against separate ceilings and must not be added together. A project allowance does not guarantee admission when parent budgets or other controls block it.
 
+**Monthly budget history** on the same page lists recorded months, 12 per page, using the existing scoped ledgers. Refresh and page navigation replace the snapshot without polling or resetting unsaved budget edits. No empty months or provider charges are fabricated. Each historical limit is the ledger's recorded admission limit, not the current configured ceiling; held reservations can change through later reconciliation. This is not immutable invoicing or a new metering system. Access is restricted by the same organization/project manager checks.
+
 Paused scopes cannot submit new inference requests. Existing queued work is blocked when the worker checks it, and settings revisions invalidate old queued work even after resuming. Submit a fresh request after review. Policy checks reject a draft returned after a pause, but cannot terminate inference on the provider. Unknown charges retain reservations. Manual planning, history, previously created plans and cancellation stay available. Old open clients must reload to send an explicit pause state when saving budgets.
 
 ## Support diagnostics
@@ -90,3 +92,8 @@ Digest batches now hold at most 100 events per recipient; remaining events wait 
 ## Local tests
 
 `npm test -- --maxWorkers=2` includes real transactions against a temporary localhost MongoDB replica set with synthetic data and mocked inference. First execution downloads/caches a MongoDB binary. The temporary database is removed afterward; the binary cache remains. No production credentials are required by these integration tests.
+# Service identity and artifact integration status
+
+Admin → AI Settings → Service identities now supports disabled registration, one-time credential issuance, activation, rotation, disablement/revocation, and short-lived run-scoped grants. These are Nucleas service credentials, not the inference provider token. Do not put them in provider settings. No production credentials were issued by implementation tests.
+
+Project AI screens link to bounded artifact/review history. The service review endpoint accepts only authenticated, currently granted reviewer submissions. Human acceptance is transactional but fails closed for all currently stored artifacts because trusted sandbox attestation is not implemented. Do not manually flip verification flags or treat synthetic integration tests as execution evidence. A separately authorized remote worker, independent reviewer invocation and live acceptance checks remain deployment gates; nothing should run on the user's PC.

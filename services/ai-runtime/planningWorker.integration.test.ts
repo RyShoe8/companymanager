@@ -27,6 +27,13 @@ import WorkspaceNotificationEvent from '@/lib/models/WorkspaceNotificationEvent'
 import WorkspaceNotificationPreference from '@/lib/models/WorkspaceNotificationPreference';
 import { canDeliverPlanningNotification } from '@/lib/ai/control/notifications';
 import { processWorkspaceNotificationDigests } from '@/lib/workspace/workspaceNotifications';
+import { budgetHistory } from '@/lib/ai/control/budgetHistory';
+import { AiServiceIdentity, AiServiceGrant, AiServiceIdentityAudit } from '@/lib/models/AiServiceIdentity';
+import { registerServiceIdentity, changeServiceIdentity, authenticateServiceCredential, issueServiceGrant,
+  authorizeStoredServiceAction, revokeServiceGrant, listServiceIdentities } from '@/lib/ai/control/serviceIdentities';
+import { AiArtifact, AiArtifactReview, AiArtifactAcceptance } from '@/lib/models/AiArtifactReview';
+import { storeUnverifiedArtifact, recordArtifactReview, acceptStoredArtifact } from '@/lib/ai/control/artifactReviews';
+import { getArtifactContent } from '@/lib/ai/control/artifactQueries';
 
 // Never read .env.local, use production MongoDB, or invoke a real model in this suite.
 vi.mock('@/lib/db/mongodb', () => ({ default: async () => mongoose }));
@@ -59,7 +66,7 @@ beforeAll(async () => {
 afterAll(async () => { await mongoose.disconnect(); await replica?.stop(); }, 30000);
 beforeEach(async () => {
   if (mongoose.connection.host !== '127.0.0.1' || mongoose.connection.name !== 'nucleas_ai_test_planning') throw new Error('Refusing to clear a non-test database.');
-  for (const item of models) await item.collection.deleteMany({});
+  for (const item of [AiArtifactAcceptance, AiArtifactReview, AiArtifact, AiServiceIdentityAudit, AiServiceGrant, AiServiceIdentity, ...models]) await item.collection.deleteMany({});
   vi.stubEnv('NUCLEAS_AI_REMOTE_BEARER_TOKEN', 'synthetic-only');
   vi.stubEnv('CRON_SECRET', 'synthetic-cron');
   vi.stubEnv('NEXTAUTH_SECRET', 'synthetic-cursor-secret');
@@ -81,6 +88,229 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('durable planning on a real isolated replica set', () => {
+  const serviceActor = () => ({ userId: access.userId, organizationId: access.organizationId });
+  async function activeIdentity(role: 'architect' | 'reviewer' = 'architect') {
+    await User.updateOne({ _id: access.userId }, { $set: { isAdmin: true } });
+    const created = await registerServiceIdentity(serviceActor(), { name: `Synthetic ${role}`, role });
+    const rotated = await changeServiceIdentity(serviceActor(), { identityId: created.identityId, revision: 0, action: 'rotate' });
+    await changeServiceIdentity(serviceActor(), { identityId: created.identityId, revision: 1, action: 'activate' });
+    return { identityId: created.identityId, authorization: `Bearer ${rotated.credential}`, credential: rotated.credential! };
+  }
+  async function scopedGrant(identityId: string) {
+    const queued = await queuePlanning(access, String(objective._id), randomUUID());
+    const grant = await issueServiceGrant(serviceActor(), { identityId, runId: queued.runId, expiresInSeconds: 300 });
+    const run = await AiRun.findById(queued.runId).orFail();
+    const action = { organizationId: access.organizationId, projectId: String(access.project._id), runId: queued.runId,
+      operation: 'planning.infer', policyDigest: run.policyDigest, grantRevision: 0 };
+    return { grant, action };
+  }
+  async function reviewedArtifact(verdict: 'passed' | 'changes_required' = 'passed', patch = Buffer.from('synthetic patch')) {
+    const service = await activeIdentity('reviewer');
+    const policy = await getPlanningPolicy(access.organizationId, String(access.project._id));
+    const taskId = String(access.project.tasks![0]._id);
+    const run = await AiRun.create({ organizationId: access.organizationId, projectId: access.project._id, taskId,
+      role: 'worker', status: 'review_required', policyDigest: policy.digest, inputDigest: 'a'.repeat(64), createdByUserId: access.userId });
+    const workerIdentityId = String(new Types.ObjectId());
+    const stored = await storeUnverifiedArtifact({ organizationId: access.organizationId, projectId: String(access.project._id), taskId,
+      runId: String(run._id), workerIdentityId, repositoryCommit: 'a'.repeat(40), expectedRunRevision: 0 }, patch, [Buffer.from('synthetic test evidence')]);
+    const grant = await issueServiceGrant(serviceActor(), { identityId: service.identityId, runId: String(run._id), expiresInSeconds: 300 });
+    const review = { protocolVersion: 1, reviewId: String(new Types.ObjectId()), binding: stored.binding, workerIdentityId,
+      reviewerIdentityId: service.identityId, verdict, evidenceDigests: stored.evidenceDigests, findings: [],
+      reviewedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString() };
+    await recordArtifactReview(service.authorization, grant.grantId, 0, stored.artifactId, review);
+    return { service, grant, stored, review, run, taskId };
+  }
+  async function simulateVerifiedSandbox(artifactId: string) {
+    // Test-only attestation simulation in the guarded temporary DB. No product API can promote this flag.
+    await AiArtifact.collection.updateOne({ _id: new Types.ObjectId(artifactId) }, { $set: { executionVerified: true } });
+  }
+  it('acknowledges identical review deliveries without new events and rejects changed replay', async () => {
+    const result = await reviewedArtifact();
+    const replay = () => recordArtifactReview(result.service.authorization, result.grant.grantId, 0, result.stored.artifactId, result.review);
+    const responses = await Promise.all([replay(), replay()]);
+    expect(responses.every(item => 'alreadyRecorded' in item && item.alreadyRecorded)).toBe(true);
+    expect(await AiArtifactReview.countDocuments()).toBe(1);
+    expect(await AiRunEvent.countDocuments({ runId: result.run._id, type: 'artifact.reviewed' })).toBe(1);
+    await expect(recordArtifactReview(result.service.authorization, result.grant.grantId, 0, result.stored.artifactId,
+      { ...result.review, verdict: 'blocked' })).rejects.toMatchObject({ status: 409 });
+    await revokeServiceGrant(serviceActor(), { grantId: result.grant.grantId, revision: 0 });
+    await expect(replay()).rejects.toMatchObject({ status: 403 });
+  });
+  it('rejects review replay after cancellation', async () => {
+    const result = await reviewedArtifact();
+    await AiRun.updateOne({ _id: result.run._id }, { $set: { status: 'cancelled' } });
+    await expect(recordArtifactReview(result.service.authorization, result.grant.grantId, 0, result.stored.artifactId, result.review)).rejects.toMatchObject({ status: 403 });
+  });
+  it('reads only scoped hash-checked artifact text and selected evidence', async () => {
+    const result = await reviewedArtifact();
+    expect(await getArtifactContent(access, result.stored.artifactId, null, 0)).toMatchObject({ text: 'synthetic patch', nextOffset: null });
+    expect(await getArtifactContent(access, result.stored.artifactId, result.stored.evidenceDigests[0], 0)).toMatchObject({ text: 'synthetic test evidence' });
+    await expect(getArtifactContent({ ...access, organizationId: 'foreign' }, result.stored.artifactId, null, 0)).rejects.toMatchObject({ status: 404 });
+    await expect(getArtifactContent(access, result.stored.artifactId, 'f'.repeat(64), 0)).rejects.toMatchObject({ status: 404 });
+    await expect(getArtifactContent(access, result.stored.artifactId, null, -1)).rejects.toMatchObject({ status: 400 });
+    await AiArtifact.collection.updateOne({ _id: new Types.ObjectId(result.stored.artifactId) }, { $set: { patch: Buffer.from('tampered') } });
+    await expect(getArtifactContent(access, result.stored.artifactId, null, 0)).rejects.toMatchObject({ status: 409 });
+  });
+  it('bounds content pages and refuses binary text decoding', async () => {
+    const result = await reviewedArtifact('passed', Buffer.from('x'.repeat(20000)));
+    const first = await getArtifactContent(access, result.stored.artifactId, null, 0);
+    expect(first.text).toHaveLength(16384); expect(first.nextOffset).toBe(16384);
+    const second = await getArtifactContent(access, result.stored.artifactId, null, first.nextOffset!);
+    expect(second.text).toHaveLength(3616); expect(second.nextOffset).toBeNull();
+    const binary = await reviewedArtifact('passed', Buffer.from([255, 254]));
+    await expect(getArtifactContent(access, binary.stored.artifactId, null, 0)).rejects.toMatchObject({ status: 415 });
+  });
+  it('stores artifact bytes and immutable review without accepting unverified execution', async () => {
+    const before = await Project.findById(access.project._id).lean();
+    const result = await reviewedArtifact();
+    expect((await AiArtifact.findById(result.stored.artifactId))?.executionVerified).toBe(false);
+    expect((await AiArtifact.findById(result.stored.artifactId).lean())?.patch).toBeUndefined();
+    expect((await AiArtifactReview.findById(result.review.reviewId))?.payloadDigest).toMatch(/^[a-f0-9]{64}$/);
+    await AiArtifactReview.updateOne({ _id: result.review.reviewId }, { $set: { payload: { forged: true } } });
+    expect((await AiArtifactReview.findById(result.review.reviewId))?.payload).toMatchObject({ verdict: 'passed' });
+    await expect(acceptStoredArtifact(access, result.review.reviewId)).rejects.toMatchObject({ status: 409 });
+    expect((await Project.findById(access.project._id).lean())?.tasks).toEqual(before?.tasks);
+    expect(await AiArtifactAcceptance.countDocuments()).toBe(0);
+  });
+  it('atomically accepts one exact verified result and preserves all human assignees under duplicate requests', async () => {
+    const result = await reviewedArtifact();
+    await simulateVerifiedSandbox(result.stored.artifactId);
+    const assignments = access.project.tasks![0].assignedToEmployeeIds?.map(String);
+    const accepted = await Promise.all([acceptStoredArtifact(access, result.review.reviewId), acceptStoredArtifact(access, result.review.reviewId)]);
+    expect(accepted.filter(item => !item.alreadyAccepted)).toHaveLength(1);
+    expect(await AiArtifactAcceptance.countDocuments()).toBe(1);
+    const task = (await Project.findById(access.project._id))?.tasks?.[0];
+    expect(task?.status).toBe('completed');
+    expect(task?.assignedToEmployeeIds?.map(String)).toEqual(assignments);
+    expect((await AiRun.findById(result.run._id))?.status).toBe('completed');
+    expect(await AiRunEvent.countDocuments({ runId: result.run._id, type: 'artifact.accepted' })).toBe(1);
+  });
+  it('refuses failed review even with simulated verified execution', async () => {
+    const result = await reviewedArtifact('changes_required');
+    await simulateVerifiedSandbox(result.stored.artifactId);
+    await expect(acceptStoredArtifact(access, result.review.reviewId)).rejects.toThrow();
+    expect(await AiArtifactAcceptance.countDocuments()).toBe(0);
+    expect((await AiRun.findById(result.run._id))?.status).toBe('revision_required');
+  });
+  it('rejects acceptance when the grant issuer loses administrator authority', async () => {
+    const result = await reviewedArtifact();
+    await simulateVerifiedSandbox(result.stored.artifactId);
+    await User.updateOne({ _id: access.userId }, { $set: { isAdmin: false } });
+    await expect(acceptStoredArtifact(access, result.review.reviewId)).rejects.toThrow('issuer is no longer authorized');
+    expect(await AiArtifactAcceptance.countDocuments()).toBe(0);
+  });
+  it('rejects acceptance after reviewer grant revocation or current human role loss', async () => {
+    const result = await reviewedArtifact();
+    await simulateVerifiedSandbox(result.stored.artifactId);
+    await Employee.updateOne({ _id: access.employeeId }, { $set: { role: 'User' } });
+    await expect(acceptStoredArtifact(access, result.review.reviewId)).rejects.toMatchObject({ status: 403 });
+    await Employee.updateOne({ _id: access.employeeId }, { $set: { role: 'Manager' } });
+    await revokeServiceGrant(serviceActor(), { grantId: result.grant.grantId, revision: 0 });
+    await expect(acceptStoredArtifact(access, result.review.reviewId)).rejects.toMatchObject({ status: 409 });
+    expect(await AiArtifactAcceptance.countDocuments()).toBe(0);
+  });
+  it('rejects changed task snapshots and rolls back acceptance/run completion', async () => {
+    const result = await reviewedArtifact();
+    await simulateVerifiedSandbox(result.stored.artifactId);
+    await Project.updateOne({ _id: access.project._id }, { $set: { 'tasks.0.name': 'Human edit after review' } });
+    await expect(acceptStoredArtifact(access, result.review.reviewId)).rejects.toMatchObject({ status: 409 });
+    expect((await AiRun.findById(result.run._id))?.status).toBe('awaiting_acceptance');
+    expect(await AiArtifactAcceptance.countDocuments()).toBe(0);
+  });
+  it('rejects tampered stored bytes even when an attestation flag was set', async () => {
+    const result = await reviewedArtifact();
+    await simulateVerifiedSandbox(result.stored.artifactId);
+    await AiArtifact.collection.updateOne({ _id: new Types.ObjectId(result.stored.artifactId) }, { $set: { patch: Buffer.from('different bytes') } });
+    await expect(acceptStoredArtifact(access, result.review.reviewId)).rejects.toMatchObject({ status: 409 });
+    expect(await AiArtifactAcceptance.countDocuments()).toBe(0);
+  });
+  it('rejects foreign review access and oversized artifacts before persistence', async () => {
+    const result = await reviewedArtifact();
+    await expect(acceptStoredArtifact({ ...access, organizationId: 'other-org' }, result.review.reviewId)).rejects.toMatchObject({ status: 403 });
+    await expect(storeUnverifiedArtifact({ organizationId: access.organizationId, projectId: String(access.project._id), taskId: result.taskId,
+      runId: String(result.run._id), workerIdentityId: String(new Types.ObjectId()), repositoryCommit: 'b'.repeat(40), expectedRunRevision: 0 },
+      Buffer.alloc(1024 * 1024 + 1), [Buffer.from('test')])).rejects.toMatchObject({ status: 400 });
+    expect(await AiArtifact.countDocuments()).toBe(1);
+  });
+  it('registers disabled identities and stores only hashed, expiring credentials with audit', async () => {
+    const service = await activeIdentity();
+    expect(await authenticateServiceCredential(service.authorization)).toMatchObject({ identityId: service.identityId, credentialVersion: 1 });
+    const stored = await AiServiceIdentity.findById(service.identityId).select('+credentialHash').lean();
+    expect(stored?.credentialHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(stored)).not.toContain(service.credential);
+    expect(JSON.stringify(await AiServiceIdentityAudit.find().lean())).not.toContain(service.credential);
+    expect((await listServiceIdentities(access.organizationId, null)).items[0]).not.toHaveProperty('credentialHash');
+    expect(await AiServiceIdentityAudit.countDocuments()).toBe(3);
+  });
+  it('rejects non-administrator registration without persisting identity or audit', async () => {
+    await expect(registerServiceIdentity(serviceActor(), { name: 'No', role: 'architect' })).rejects.toMatchObject({ status: 403 });
+    expect(await AiServiceIdentity.countDocuments()).toBe(0);
+    expect(await AiServiceIdentityAudit.countDocuments()).toBe(0);
+  });
+  it('rotates credentials and rejects the old token, old grants, and stale administrative edits', async () => {
+    const service = await activeIdentity();
+    const { grant, action } = await scopedGrant(service.identityId);
+    const rotated = await changeServiceIdentity(serviceActor(), { identityId: service.identityId, revision: 2, action: 'rotate' });
+    await expect(authenticateServiceCredential(service.authorization)).rejects.toMatchObject({ status: 401 });
+    expect(await authenticateServiceCredential(`Bearer ${rotated.credential}`)).toMatchObject({ credentialVersion: 2 });
+    await expect(aiTransaction(tx => authorizeStoredServiceAction(`Bearer ${rotated.credential}`, grant.grantId, action, tx))).rejects.toMatchObject({ status: 401 });
+    await expect(changeServiceIdentity(serviceActor(), { identityId: service.identityId, revision: 2, action: 'disable' })).rejects.toMatchObject({ status: 409 });
+  });
+  it('authorizes only current stored scope and policy, and fences revoked grants', async () => {
+    const service = await activeIdentity();
+    const { grant, action } = await scopedGrant(service.identityId);
+    expect(await aiTransaction(tx => authorizeStoredServiceAction(service.authorization, grant.grantId, action, tx))).toMatchObject({ grantId: grant.grantId });
+    await expect(aiTransaction(tx => authorizeStoredServiceAction(service.authorization, grant.grantId,
+      { ...action, organizationId: 'other-org' }, tx))).rejects.toMatchObject({ status: 401 });
+    await revokeServiceGrant(serviceActor(), { grantId: grant.grantId, revision: 0 });
+    await expect(aiTransaction(tx => authorizeStoredServiceAction(service.authorization, grant.grantId, action, tx))).rejects.toThrow();
+  });
+  it('does not revive old grants after disabling and reactivating an identity', async () => {
+    const service = await activeIdentity();
+    const { grant, action } = await scopedGrant(service.identityId);
+    await changeServiceIdentity(serviceActor(), { identityId: service.identityId, revision: 2, action: 'disable' });
+    await expect(authenticateServiceCredential(service.authorization)).rejects.toMatchObject({ status: 401 });
+    await changeServiceIdentity(serviceActor(), { identityId: service.identityId, revision: 3, action: 'activate' });
+    await expect(aiTransaction(tx => authorizeStoredServiceAction(service.authorization, grant.grantId, action, tx))).rejects.toThrow();
+    await changeServiceIdentity(serviceActor(), { identityId: service.identityId, revision: 4, action: 'revoke' });
+    await expect(changeServiceIdentity(serviceActor(), { identityId: service.identityId, revision: 5, action: 'activate' })).rejects.toMatchObject({ status: 409 });
+  });
+  it('denies expired, malformed and altered credentials without accepting model-provider tokens', async () => {
+    const service = await activeIdentity();
+    for (const token of [null, 'Bearer synthetic-only', `${service.authorization}x`, service.authorization.replace('nas1.', 'nas2.')]) {
+      await expect(authenticateServiceCredential(token)).rejects.toMatchObject({ status: 401 });
+    }
+    await AiServiceIdentity.updateOne({ _id: service.identityId }, { $set: { credentialExpiresAt: new Date(0) } });
+    await expect(authenticateServiceCredential(service.authorization)).rejects.toMatchObject({ status: 401 });
+  });
+  it('rechecks issuer membership, run cancellation and organization pause on service actions', async () => {
+    const service = await activeIdentity();
+    const { grant, action } = await scopedGrant(service.identityId);
+    await User.updateOne({ _id: access.userId }, { $set: { isAdmin: false } });
+    await expect(aiTransaction(tx => authorizeStoredServiceAction(service.authorization, grant.grantId, action, tx))).rejects.toMatchObject({ status: 403 });
+    await User.updateOne({ _id: access.userId }, { $set: { isAdmin: true } });
+    await saveBudgetSettings({ ...serviceActor(), projectId: undefined }, 0, { limitMicros: null, paused: true });
+    await expect(aiTransaction(tx => authorizeStoredServiceAction(service.authorization, grant.grantId, action, tx))).rejects.toThrow();
+    await cancelPlanning(access, action.runId);
+    await expect(aiTransaction(tx => authorizeStoredServiceAction(service.authorization, grant.grantId, action, tx))).rejects.toMatchObject({ status: 403 });
+  });
+  it('paginates monthly budget history without crossing organization or project scope', async () => {
+    const scopeKey = `project:${String(access.project._id)}`;
+    await AiBudget.create(Array.from({ length: 14 }, (_, index) => ({ organizationId: access.organizationId, scopeKey,
+      period: `${2026 - Math.floor(index / 12)}-${String(12 - index % 12).padStart(2, '0')}`,
+      limitMicros: 100, spentMicros: index, reservedMicros: 25 })));
+    await AiBudget.create([{ organizationId: 'other-org', scopeKey, period: '2026-12', limitMicros: 999 },
+      { organizationId: access.organizationId, scopeKey: 'organization', period: '2026-12', limitMicros: 888 }]);
+    const first = await budgetHistory(access.organizationId, String(access.project._id), null);
+    expect(first.items).toHaveLength(12); expect(first.nextCursor).toBe('2026-01');
+    expect(Object.keys(first.items[0]).sort()).toEqual(['period', 'limitMicros', 'spentMicros', 'reservedMicros'].sort());
+    const second = await budgetHistory(access.organizationId, String(access.project._id), first.nextCursor);
+    expect(second.items).toHaveLength(2); expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.items, ...second.items].map(item => item.period)).size).toBe(14);
+    expect((await budgetHistory(access.organizationId, undefined, null)).items).toEqual([
+      { period: '2026-12', limitMicros: 888, spentMicros: 0, reservedMicros: 0 }]);
+    await expect(budgetHistory(access.organizationId, undefined, '2026-13')).rejects.toMatchObject({ status: 400 });
+  });
   it('shows current scoped reservations without counting other scopes or months', async () => {
     const queued = await queuePlanning(access, String(objective._id), randomUUID());
     const scopeKey = `project:${String(access.project._id)}`;

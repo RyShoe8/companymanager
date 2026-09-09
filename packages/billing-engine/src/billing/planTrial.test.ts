@@ -1,9 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { SubscriptionPlanModel } from '../models/SubscriptionPlan';
 import {
   checkoutTrialPeriodDays,
   getPlanTrialDays,
   isCheckoutSessionPaymentComplete,
 } from './planTrial';
+
+function plan(trialDays: number) {
+  return new SubscriptionPlanModel({ name: 'Synthetic plan', slug: 'synthetic-plan', interval: 'month', basePriceCents: 0, trialDays }).toObject();
+}
 
 describe('getPlanTrialDays', () => {
   it('returns 0 for lifetime plans', () => {
@@ -20,17 +25,19 @@ describe('getPlanTrialDays', () => {
 
   it('returns 0 when trialDays is 0 or missing', () => {
     expect(getPlanTrialDays({ trialDays: 0, interval: 'year' })).toBe(0);
-    expect(getPlanTrialDays({ interval: 'year' } as { trialDays?: number; interval: 'year' })).toBe(0);
+    const legacy = plan(0);
+    Reflect.deleteProperty(legacy, 'trialDays'); // Exercise a legacy persisted record missing this field.
+    expect(getPlanTrialDays(legacy)).toBe(0);
   });
 });
 
 describe('checkoutTrialPeriodDays', () => {
   it('returns undefined when no trial', () => {
-    expect(checkoutTrialPeriodDays({ trialDays: 0, interval: 'month' })).toBeUndefined();
+    expect(checkoutTrialPeriodDays(plan(0))).toBeUndefined();
   });
 
   it('returns days when trial configured', () => {
-    expect(checkoutTrialPeriodDays({ trialDays: 7, interval: 'month' })).toBe(7);
+    expect(checkoutTrialPeriodDays(plan(7))).toBe(7);
   });
 });
 
@@ -59,10 +66,7 @@ describe('shouldApplyPlanTrialAtCheckout', () => {
 
   it('returns false when trialDays is 0', async () => {
     const { shouldApplyPlanTrialAtCheckout } = await import('./planTrial');
-    const result = await shouldApplyPlanTrialAtCheckout('507f1f77bcf86cd799439011', {
-      trialDays: 0,
-      interval: 'month',
-    });
+    const result = await shouldApplyPlanTrialAtCheckout('507f1f77bcf86cd799439011', plan(0));
     expect(result).toBe(false);
   });
 });

@@ -4,12 +4,12 @@ import { findDuplicateTaskIds, taskIdString } from '@/lib/projects/taskArrayGuar
 import type { IProjectTask } from '@/lib/models/Project';
 
 describe('task recurrence (preset-only)', () => {
-  const baseTask: IProjectTask = {
+  const baseTask = {
     name: 'Weekly sync',
     startDate: new Date('2026-01-15T09:00:00'),
     endDate: new Date('2026-01-15T10:00:00'),
     status: 'active',
-  };
+  } satisfies IProjectTask;
 
   it('expandTaskInstances creates a bounded weekly series', () => {
     const instances = expandTaskInstances(baseTask, { preset: 'weekly' });

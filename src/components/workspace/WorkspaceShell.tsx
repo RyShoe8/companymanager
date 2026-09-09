@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { IProject } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
@@ -266,9 +266,9 @@ export default function WorkspaceShell({
         meetingRefreshKey + scheduleSyncRefreshKey
     );
 
-    onSyncBlockedRef.current = () => {
-        void refetchMeetings();
-    };
+    useLayoutEffect(() => {
+        onSyncBlockedRef.current = () => { void refetchMeetings(); };
+    }, [refetchMeetings]);
 
     const [paletteNlError, setPaletteNlError] = useState<string | null>(null);
 
@@ -1032,9 +1032,9 @@ export default function WorkspaceShell({
         }
     }, [handleScheduleCalendarSync]);
 
-    onEnterScheduleSyncRef.current = () => {
-        void handleScheduleSync();
-    };
+    useLayoutEffect(() => {
+        onEnterScheduleSyncRef.current = () => { void handleScheduleSync(); };
+    }, [handleScheduleSync]);
 
     useEffect(() => {
         if (!pendingScheduleSyncRef.current) return;

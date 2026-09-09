@@ -13,10 +13,11 @@ describe('verifyRecaptcha', () => {
     vi.restoreAllMocks();
     process.env = { ...originalEnv };
     process.env.RECAPTCHA_SECRET_KEY = 'test-secret';
-    process.env.NODE_ENV = 'test';
+    vi.stubEnv('NODE_ENV', 'test');
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env = originalEnv;
   });
 
@@ -33,7 +34,7 @@ describe('verifyRecaptcha', () => {
 
   it('skips verification in non-production when secret is unset', async () => {
     delete process.env.RECAPTCHA_SECRET_KEY;
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
 
     const result = await verifyRecaptchaToken({
       token: '',
@@ -45,7 +46,7 @@ describe('verifyRecaptcha', () => {
 
   it('rejects in production when secret is unset', async () => {
     delete process.env.RECAPTCHA_SECRET_KEY;
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
 
     const result = await verifyRecaptchaToken({
       token: 'token',

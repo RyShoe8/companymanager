@@ -103,7 +103,7 @@ function MobileNavVoiceButton() {
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
-  const { inboxItems, registerReopenActionInbox } = useMobileShell();
+  const { inboxItems, registerReopenActionInbox, voice } = useMobileShell();
   const [navOpen, setNavOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
@@ -133,7 +133,6 @@ export default function MobileBottomNav() {
   if (isMarketingPage(pathname)) return null;
 
   const inboxCount = inboxItems.length;
-  const { voice } = useMobileShell();
   const showVoice = !!voice?.enabled;
 
   return (

@@ -1,5 +1,7 @@
 'use client';
 
+import { useClientReady } from '@/hooks/useClientReady';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
@@ -65,7 +67,7 @@ export default function ScreenshotRegionSelector({
   onConfirm,
   onCancel,
 }: ScreenshotRegionSelectorProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
   const [dragging, setDragging] = useState(false);
   const [selection, setSelection] = useState<DisplayRect>(emptyRect());
   const [sourceRect, setSourceRect] = useState<ImageCropRect | null>(null);
@@ -73,9 +75,6 @@ export default function ScreenshotRegionSelector({
   const imageRef = useRef<HTMLImageElement>(null);
   const startPointRef = useRef({ x: 0, y: 0 });
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

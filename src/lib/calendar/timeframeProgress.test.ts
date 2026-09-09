@@ -17,9 +17,9 @@ describe('computeProjectTimeframeProgress', () => {
   const referenceDate = new Date('2026-06-15T12:00:00');
 
   it('returns 20% when 1 of 6 tasks and 1 of 4 content items are done in range', () => {
-    const tasks = Array.from({ length: 6 }, (_, i) => ({
+    const tasks: IProject['tasks'] = Array.from({ length: 6 }, (_, i) => ({
       name: `Task ${i + 1}`,
-      status: i === 0 ? 'completed' : 'in_progress',
+      status: i === 0 ? 'completed' : 'active',
       startDate: new Date('2026-06-05'),
       endDate: new Date('2026-06-10'),
     }));

@@ -53,6 +53,7 @@ const runSchema = new Schema({
   createdByUserId: { type: Schema.Types.ObjectId, required: true },
   startedAt: Date, completedAt: Date,
   objectiveId: Schema.Types.ObjectId, planId: Schema.Types.ObjectId,
+  currentArtifactId: Schema.Types.ObjectId, currentReviewId: Schema.Types.ObjectId,
   failureCode: String, inputTokens: Number, outputTokens: Number, latencyMs: Number,
   costMicros: Number,
 }, { timestamps: true });

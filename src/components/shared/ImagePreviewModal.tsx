@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useClientReady } from '@/hooks/useClientReady';
+
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
 import { downloadImage } from '@/lib/downloadImage';
+import { acquirePageScrollLock } from '@/lib/ui/scrollLock';
 
 interface ImagePreviewModalProps {
   isOpen: boolean;
@@ -22,28 +25,25 @@ export default function ImagePreviewModal({
   mode = 'view',
   stackAboveLightbox = false,
 }: ImagePreviewModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
   const isNaming = mode === 'naming';
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !src) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (isNaming) return;
       if (e.key === 'Escape') onClose();
     };
 
-    document.body.style.overflow = 'hidden';
+    const releaseScroll = acquirePageScrollLock();
     window.addEventListener('keydown', onKeyDown);
     return () => {
-      document.body.style.overflow = 'unset';
+      releaseScroll();
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [isOpen, onClose, isNaming]);
+  }, [isOpen, src, onClose, isNaming]);
 
   if (!mounted || !isOpen || !src) return null;
 

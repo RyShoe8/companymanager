@@ -121,7 +121,7 @@ export default function MobileNavSheet({ isOpen, onClose, isPlatformAdmin }: Mob
         }
       }
     },
-    [shell.actions, shell.runAction, shell.queueCreateAction, handleClose, router]
+    [shell, handleClose, router]
   );
 
   const handleNodeClick = (node: MobileNavNode) => {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { dollarsToMicros, microsToDollars, type PlatformAiSettings } from '@/lib/ai/settingsSchema';
 import { AiDispatchUsage } from '@/components/ai/AiDispatchUsage';
 import { AiDiagnostics } from '@/components/ai/AiDiagnostics';
+import Link from 'next/link';
 
 const field = 'block w-full rounded border border-border bg-background p-2 text-text-primary';
 const budgetFields = [['reservationMicros', 'Reservation per request'], ['organizationLimitMicros', 'Monthly ceiling per organization'],
@@ -51,6 +52,7 @@ export default function AiSettingsPage() {
     <p>Platform-wide connection and safeguards. All organizations can use planning. Models run remotely; code execution remains disabled.</p>
     <AiDispatchUsage />
     <AiDiagnostics />
+    <Link className="inline-block underline" href="/admin/ai/service-identities">Manage scoped service identities</Link>
     {message && <p role="status" className="rounded border border-border p-3">{message}</p>}
     {!values || !snapshot ? <p>{message ? 'Reload this page to retry.' : 'Loading settings…'}</p> : <form onSubmit={save}>
       <fieldset disabled={busy} className="space-y-6 disabled:opacity-60">

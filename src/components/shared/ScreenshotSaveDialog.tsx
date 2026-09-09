@@ -1,5 +1,7 @@
 'use client';
 
+import { useClientReady } from '@/hooks/useClientReady';
+
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
@@ -33,11 +35,8 @@ export default function ScreenshotSaveDialog({
   const [name, setName] = useState(defaultName);
   const [projectId, setProjectId] = useState('');
   const [taskId, setTaskId] = useState('');
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (isOpen) {

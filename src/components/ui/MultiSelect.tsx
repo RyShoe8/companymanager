@@ -29,7 +29,6 @@ export default function MultiSelect({
 }: MultiSelectProps) {
   const light = useInspectorLight();
   const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({
     top: 0,
     left: 0,
@@ -40,11 +39,10 @@ export default function MultiSelect({
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const valueRef = useRef(value);
-  valueRef.current = value;
+  useLayoutEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const updateDropdownPosition = useCallback(() => {
     if (!triggerRef.current) return;
@@ -111,7 +109,7 @@ export default function MultiSelect({
     .join(', ');
 
   const dropdown =
-    isOpen && !disabled && mounted
+    isOpen && !disabled
       ? createPortal(
           <div
             ref={dropdownRef}

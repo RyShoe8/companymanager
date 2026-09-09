@@ -1,5 +1,7 @@
 'use client';
 
+import { useClientReady } from '@/hooks/useClientReady';
+
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useInspectorLight, lightSurface } from '@/contexts/InspectorLightContext';
@@ -26,13 +28,12 @@ export default function EditableSelect({ value, options, onSave, className = '',
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentOption = options.find(opt => opt.value === value);
   const defaultTextClass = classNameHasTextColor(className) ? '' : isWorkspace ? 'text-text-primary' : 'text-gray-900';
 
-  useEffect(() => { setMounted(true); }, []);
 
   /** `position:fixed` is viewport-relative — do not add scrollY/scrollX (breaks inside scrolled inspector). */
   const updateDropdownPosition = useCallback(() => {

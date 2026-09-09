@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildMeetingAgenda } from '@/lib/scheduling/buildMeetingAgenda';
-import type { IProject } from '@/lib/models/Project';
+import Project, { type IProject } from '@/lib/models/Project';
 
 function projectWithTasks(tasks: IProject['tasks']): IProject {
-  return {
-    _id: 'proj1' as unknown as IProject['_id'],
+  return new Project({
     name: 'Test Project',
     tasks,
-  } as IProject;
+  });
 }
 
 describe('buildMeetingAgenda', () => {
@@ -42,11 +41,10 @@ describe('buildMeetingAgenda', () => {
 
   it('sorts project blocks by activity count', () => {
     const payload = buildMeetingAgenda(meeting, [
-      {
-        _id: 'quiet' as unknown as IProject['_id'],
+      new Project({
         name: 'Quiet',
         tasks: [],
-      } as IProject,
+      }),
       projectWithTasks([
         {
           name: 'Active task',

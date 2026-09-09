@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { sortAgendaProjectBlocks } from '@/lib/scheduling/buildMeetingAgenda';
 import { resolveMeetingLinkedProjectIds } from '@/lib/scheduling/resolveMeetingLinkedProjectIds';
-import type { IProject } from '@/lib/models/Project';
+import Project from '@/lib/models/Project';
+import { Types } from 'mongoose';
 
 describe('sortAgendaProjectBlocks', () => {
   it('orders blocks by in-window task and content count descending', () => {
@@ -16,19 +17,20 @@ describe('sortAgendaProjectBlocks', () => {
 
 describe('resolveMeetingLinkedProjectIds', () => {
   it('includes hub and active child projects for linked clients', () => {
-    const hub = {
-      _id: 'hub1',
-      clientId: 'client1',
+    const clientId = new Types.ObjectId();
+    const hub = new Project({
+      _id: new Types.ObjectId(),
+      clientId,
       projectType: 'client-admin',
       name: 'HQ',
-    } as IProject;
-    const child = {
-      _id: 'child1',
-      clientId: 'client1',
+    });
+    const child = new Project({
+      _id: new Types.ObjectId(),
+      clientId,
       status: 'in-development',
       name: 'Site',
-    } as IProject;
-    const ids = resolveMeetingLinkedProjectIds([], ['client1'], [hub, child]);
-    expect(ids).toEqual(['hub1', 'child1']);
+    });
+    const ids = resolveMeetingLinkedProjectIds([], [String(clientId)], [hub, child]);
+    expect(ids).toEqual([String(hub._id), String(child._id)]);
   });
 });

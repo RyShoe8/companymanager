@@ -153,7 +153,7 @@ function LoginForm() {
               href="/register"
               className="text-sm text-primary hover:text-primary-hover transition-colors"
             >
-              Don't have an account? Register
+              Don&apos;t have an account? Register
             </Link>
           </div>
         </form>

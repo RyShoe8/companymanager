@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { dollarsToMicros, microsToDollars } from '@/lib/ai/settingsSchema';
+import { AiBudgetHistory } from './AiBudgetHistory';
 
 type Snapshot = { settings: { revision: number; value: { limitMicros: number | null; paused: boolean } }; parentPaused: boolean;
   usage: { period: string; asOf: string; ledgerExists: boolean; spentMicros: number; reservedMicros: number; remainingMicros: number };
@@ -65,5 +66,6 @@ export default function AiBudgetSettingsPanel({ projectId }: { projectId?: strin
       <p className="text-sm text-text-secondary">Zero blocks new requests. Budgets use UTC calendar months. Lowering a limit does not erase spent or reserved amounts. Unknown costs retain reservations; these limits do not guarantee a provider invoice amount.</p>
       <button className="rounded border border-border px-4 py-2" type="submit">{busy ? 'Saving…' : 'Save budget'}</button>
     </fieldset></form> : <p>{message ? 'Reload to retry.' : 'Loading budget…'}</p>}
+    <AiBudgetHistory key={projectId ?? 'organization'} projectId={projectId} />
   </main>;
 }

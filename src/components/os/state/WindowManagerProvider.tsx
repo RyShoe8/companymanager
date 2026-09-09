@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, type ReactNode } from 'react';
 import { initialLayout, windowReducer } from '@/lib/os/windowManager';
 import { loadOsState, saveOsState } from '@/lib/os/persistence';
 import { focusPopoutWindow, openPopoutWindow } from '@/lib/os/popout';
@@ -27,7 +27,9 @@ export default function WindowManagerProvider({ children, userId }: WindowManage
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const layoutRef = useRef(layout);
     const popoutRefs = useRef<Map<string, globalThis.Window>>(new Map());
-    layoutRef.current = layout;
+    useLayoutEffect(() => {
+        layoutRef.current = layout;
+    }, [layout]);
 
     useEffect(() => {
         const persisted = loadOsState(userId);
