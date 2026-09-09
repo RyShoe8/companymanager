@@ -34,6 +34,7 @@ import { registerServiceIdentity, changeServiceIdentity, authenticateServiceCred
 import { AiArtifact, AiArtifactReview, AiArtifactAcceptance } from '@/lib/models/AiArtifactReview';
 import { storeUnverifiedArtifact, recordArtifactReview, acceptStoredArtifact } from '@/lib/ai/control/artifactReviews';
 import { getArtifactContent } from '@/lib/ai/control/artifactQueries';
+import { AiExecutionProbe, runExecutionProbe } from '@/lib/ai/control/executionProbe';
 
 // Never read .env.local, use production MongoDB, or invoke a real model in this suite.
 vi.mock('@/lib/db/mongodb', () => ({ default: async () => mongoose }));
@@ -66,7 +67,7 @@ beforeAll(async () => {
 afterAll(async () => { await mongoose.disconnect(); await replica?.stop(); }, 30000);
 beforeEach(async () => {
   if (mongoose.connection.host !== '127.0.0.1' || mongoose.connection.name !== 'nucleas_ai_test_planning') throw new Error('Refusing to clear a non-test database.');
-  for (const item of [AiArtifactAcceptance, AiArtifactReview, AiArtifact, AiServiceIdentityAudit, AiServiceGrant, AiServiceIdentity, ...models]) await item.collection.deleteMany({});
+  for (const item of [AiExecutionProbe, AiArtifactAcceptance, AiArtifactReview, AiArtifact, AiServiceIdentityAudit, AiServiceGrant, AiServiceIdentity, ...models]) await item.collection.deleteMany({});
   vi.stubEnv('NUCLEAS_AI_REMOTE_BEARER_TOKEN', 'synthetic-only');
   vi.stubEnv('CRON_SECRET', 'synthetic-cron');
   vi.stubEnv('NEXTAUTH_SECRET', 'synthetic-cursor-secret');
@@ -85,9 +86,32 @@ beforeEach(async () => {
   objective = await AiObjective.create({ organizationId: 'org-test', projectId: project._id, requestId: randomUUID(),
     createdByUserId: user._id, title: 'Synthetic objective', outcome: 'Tests pass', acceptanceCriteria: ['Regression covered'] });
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe('durable planning on a real isolated replica set', () => {
+  it('sends the diagnostic once under concurrency and retains its dispatch lock', async () => {
+    await User.updateOne({ _id: access.userId }, { $set: { isAdmin: true } });
+    await AiSettings.updateOne({ _id: platformSettingsId }, { $set: { 'value.model': defaultPlatformAiSettings.model } });
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ output: [] })));
+    vi.stubGlobal('fetch', fetchMock);
+    const attempts = await Promise.allSettled([runExecutionProbe(access.userId), runExecutionProbe(access.userId)]);
+    expect(attempts.filter(item => item.status === 'fulfilled')).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await AiExecutionProbe.countDocuments()).toBe(1);
+    expect((await AiDispatchUsage.findById(DISPATCH_USAGE_ID))?.attempts).toBe(1);
+    expect((await AiDispatchLock.findById(DISPATCH_USAGE_ID))?.expiresAt.getTime()).toBeGreaterThan(Date.now());
+    await expect(runExecutionProbe(access.userId)).rejects.toThrow('already been attempted');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('does not consume the diagnostic when shared inference is busy or the actor is unauthorized', async () => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    await expect(runExecutionProbe(access.userId)).rejects.toMatchObject({ status: 403 });
+    await User.updateOne({ _id: access.userId }, { $set: { isAdmin: true } });
+    await AiSettings.updateOne({ _id: platformSettingsId }, { $set: { 'value.model': defaultPlatformAiSettings.model } });
+    await AiDispatchLock.create({ _id: DISPATCH_USAGE_ID, token: 'synthetic', expiresAt: new Date(Date.now() + 60000) });
+    await expect(runExecutionProbe(access.userId)).rejects.toMatchObject({ status: 409 });
+    expect(fetchMock).not.toHaveBeenCalled(); expect(await AiExecutionProbe.countDocuments()).toBe(0);
+  });
   const serviceActor = () => ({ userId: access.userId, organizationId: access.organizationId });
   async function activeIdentity(role: 'architect' | 'reviewer' = 'architect') {
     await User.updateOne({ _id: access.userId }, { $set: { isAdmin: true } });

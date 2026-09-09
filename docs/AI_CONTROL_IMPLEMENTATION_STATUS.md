@@ -47,6 +47,10 @@ Unauthenticated model discovery succeeded earlier. It does not verify authentica
 
 ## Verification
 
+### September 9 authenticated execution-probe preparation
+
+Added a separately authorized one-time administrator diagnostic for the existing remote Responses endpoint. It accepts no arbitrary code or destination, retains an attempted marker before sending, shares dispatcher limits, caps output/response size, and returns only sanitized outcomes. It does not enable coding execution or mark artifacts verified. All **726 tests across 115 files** pass, including concurrent probe admission and API/transport safeguards; targeted lint passes. See [diagnostic behavior and limits](AI_EXECUTION_PROBE.md). Live outcome is not established by these mocked tests.
+
 ### September 8 artifact inspection and review replay follow-up
 
 Final production build passes, including TypeScript and 116 generated pages. Targeted lint and diff whitespace checks pass. Existing middleware/Browserslist warnings remain; changes are uncommitted and the original roadmap is unchanged.

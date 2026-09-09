@@ -5,6 +5,7 @@ import { dollarsToMicros, microsToDollars, type PlatformAiSettings } from '@/lib
 import { AiDispatchUsage } from '@/components/ai/AiDispatchUsage';
 import { AiDiagnostics } from '@/components/ai/AiDiagnostics';
 import Link from 'next/link';
+import ExecutionProbe from '@/components/ai/ExecutionProbe';
 
 const field = 'block w-full rounded border border-border bg-background p-2 text-text-primary';
 const budgetFields = [['reservationMicros', 'Reservation per request'], ['organizationLimitMicros', 'Monthly ceiling per organization'],
@@ -52,6 +53,7 @@ export default function AiSettingsPage() {
     <p>Platform-wide connection and safeguards. All organizations can use planning. Models run remotely; code execution remains disabled.</p>
     <AiDispatchUsage />
     <AiDiagnostics />
+    <ExecutionProbe />
     <Link className="inline-block underline" href="/admin/ai/service-identities">Manage scoped service identities</Link>
     {message && <p role="status" className="rounded border border-border p-3">{message}</p>}
     {!values || !snapshot ? <p>{message ? 'Reload this page to retry.' : 'Loading settings…'}</p> : <form onSubmit={save}>

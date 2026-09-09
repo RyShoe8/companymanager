@@ -1,0 +1,11 @@
+# One-time remote execution diagnostic
+
+This explicitly authorized administrator diagnostic sends one fixed request to `https://llm.rogly.net/v1/responses`, using Qwen/Qwen2.5-Coder-14B-Instruct-AWQ and the existing server-side `NUCLEAS_AI_REMOTE_BEARER_TOKEN`. It requests only `print(17 * 19)` via the code-interpreter tool type. No repository, task, file or environment data is included. It does not execute code locally or enable a worker.
+
+Use Admin → AI Settings → One-time remote execution probe. POST requires current administrator authority, same-origin and explicit confirmation; arbitrary request fields are rejected. GET only reads sanitized recorded status. The fixed host/model must match saved planning configuration. Redirects are forbidden; there is a 45-second network deadline, 128 output-token limit and 64 KiB response cap. The server never follows returned tool calls or executes provider text.
+
+The attempt marker commits before the network call. Concurrent submissions cannot send twice, and no UI/reset endpoint can repeat an attempted request. Crashes or ambiguous transport completion remain consumed. The diagnostic uses the planning dispatcher lock, counts against shared daily limits, and holds dispatch for fifteen minutes even after errors. It can run while planning is paused because the administrator explicitly requested this separate diagnostic. It does not reserve project funds; any provider charge is an administrator diagnostic expense, not a measured project charge.
+
+Only outcome, HTTP status, timestamps and a tool-result boolean are persisted/returned, not provider bodies, headers, credentials or code. `tool_execution_reported` requires a completed code-interpreter item matching the exact calculation and output 323. This is a provider report, not independently verified execution or proof of sandbox isolation. Ordinary model prose cannot confirm execution. HTTP failure, timeout, unrecognized tool format and absent tool output do not prove execution is unavailable. Do not automatically try alternate models/formats after an ambiguous attempt.
+
+No sandbox promotion, verification flag, task completion, deployment permission or general execution capability is granted by this probe. If it fails or remains ambiguous, obtain the owner's router/tool-server configuration or logs without requesting secrets.
