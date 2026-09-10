@@ -3,6 +3,11 @@ vi.mock('@/lib/auth/middleware', () => ({ requireAuth: vi.fn() }));
 import { sendExecutionProbe } from './executionProbe';
 afterEach(() => vi.useRealTimers());
 describe('bounded execution probe transport', () => {
+  it('distinguishes parsing failure from network failure while preserving HTTP status', async () => {
+    const result = await sendExecutionProbe('synthetic', vi.fn<typeof fetch>().mockResolvedValue(new Response('private non-json body')));
+    expect(result).toMatchObject({ httpStatus: 200, failureCategory: 'invalid_response', failurePhase: 'parsing_response', timeoutMs: 45000 });
+    expect(JSON.stringify(result)).not.toContain('private');
+  });
   it('sends only the fixed request and keeps credentials out of results', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ output: [{ type: 'code_interpreter_call', status: 'completed', code: 'print(17 * 19)', outputs: [{ type: 'logs', logs: '323\n' }] }] })));
     expect(await sendExecutionProbe('synthetic-token', transport)).toEqual({ outcome: 'tool_execution_reported', httpStatus: 200, toolResultReported: true });
@@ -27,6 +32,6 @@ describe('bounded execution probe transport', () => {
   });
   it('sanitizes transport errors', async () => {
     const transport = vi.fn<typeof fetch>().mockRejectedValue(new Error('secret header'));
-    expect(await sendExecutionProbe('synthetic', transport)).toEqual({ outcome: 'transport_or_parse_failure', toolResultReported: false });
+    expect(await sendExecutionProbe('synthetic', transport)).toMatchObject({ outcome: 'transport_or_parse_failure', toolResultReported: false, failureCategory: 'unknown', failurePhase: 'awaiting_response' });
   });
 });
