@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 type Result = { outcome: string; httpStatus?: number; toolResultReported?: boolean; cloudflareReported?: boolean; authenticationChallengePresent?: boolean };
-export default function ExecutionProbe({ kind }: { kind?: 'chat' | 'responses' }) {
+export default function ExecutionProbe({ kind }: { kind?: 'chat' | 'responses' | 'chat-recheck' }) {
   const url = kind ? `/api/admin/ai/connection-probe?kind=${kind}` : '/api/admin/ai/execution-probe';
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState('');
@@ -26,6 +26,7 @@ export default function ExecutionProbe({ kind }: { kind?: 'chat' | 'responses' }
   }
   return <section className="space-y-2 rounded border border-border p-3">
     <h2 className="font-semibold">{kind ? `One-time ${kind} connection check` : 'One-time remote execution probe'}</h2>
+    {kind === 'chat-recheck' && <p>Fresh authenticated chat check after the network change. Earlier results are preserved; this check can run only once.</p>}
     <p>{kind ? 'Requests “Reply with OK only.” No tools; 16 output tokens maximum. HTTP success means the route accepted the request, not that model output was validated.' : 'Requests only print(17 * 19) from Qwen through the remote Responses API.'} Uses the existing server secret, no repository data, no local execution. This explicit diagnostic can run while planning is paused; it does not enable processing. Counts toward shared request limits and holds shared dispatch for 15 minutes. No automatic retries.</p>
     <p>Even a reported tool result is not sandbox verification or authorization for general execution.</p>
     {result && <p role="status">Outcome: {result.outcome}{result.httpStatus ? ` · HTTP ${result.httpStatus}` : ''}</p>}

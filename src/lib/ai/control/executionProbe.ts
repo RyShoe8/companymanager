@@ -20,10 +20,13 @@ const Probe = AiExecutionProbe;
 const endpoint = 'https://llm.rogly.net/v1/responses';
 const model = 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ';
 
-export type ConnectionProbeKind = 'chat' | 'responses';
+export type ConnectionProbeKind = 'chat' | 'responses' | 'chat-recheck';
+export function executionProbeId(kind?: ConnectionProbeKind) {
+  return kind ? `remote-connection-${kind}-v1` : ID;
+}
 export async function readExecutionProbe(kind?: ConnectionProbeKind) {
   await connectDB();
-  const row = await Probe.findById(kind ? `remote-connection-${kind}-v1` : ID).select('startedAt completedAt outcome httpStatus toolResultReported cloudflareReported authenticationChallengePresent').lean();
+  const row = await Probe.findById(executionProbeId(kind)).select('startedAt completedAt outcome httpStatus toolResultReported cloudflareReported authenticationChallengePresent').lean();
   return row ?? { outcome: 'not_started' };
 }
 
@@ -59,10 +62,10 @@ export async function sendExecutionProbe(token: string, transport: typeof fetch 
 /** Fixed plain-text requests; discard response text and expose only header classifications. */
 export async function sendConnectionProbe(token: string, kind: ConnectionProbeKind, transport: typeof fetch = fetch) {
   try {
-    const response = await transport(`https://llm.rogly.net/v1/${kind === 'chat' ? 'chat/completions' : 'responses'}`, {
+    const response = await transport(`https://llm.rogly.net/v1/${kind !== 'responses' ? 'chat/completions' : 'responses'}`, {
       method: 'POST', redirect: 'error', signal: AbortSignal.timeout(45000),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ model, stream: false, ...(kind === 'chat'
+      body: JSON.stringify({ model, stream: false, ...(kind !== 'responses'
         ? { max_tokens: 16, messages: [{ role: 'user', content: 'Reply with OK only.' }] }
         : { store: false, max_output_tokens: 16, input: 'Reply with OK only.' }) }),
     });
@@ -75,7 +78,7 @@ export async function sendConnectionProbe(token: string, kind: ConnectionProbeKi
 }
 
 export async function runExecutionProbe(actorId: string, kind?: ConnectionProbeKind) {
-  const probeId = kind ? `remote-connection-${kind}-v1` : ID;
+  const probeId = executionProbeId(kind);
   await connectDB();
   const token = process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN?.trim();
   if (!token) throw new AiHttpError(503, 'Provider credential is not configured.');

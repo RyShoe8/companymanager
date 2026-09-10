@@ -6,7 +6,7 @@ import { readExecutionProbe, runExecutionProbe } from '@/lib/ai/control/executio
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-const kindSchema = z.enum(['chat', 'responses']);
+const kindSchema = z.enum(['chat', 'responses', 'chat-recheck']);
 export async function GET(request: Request) {
   const auth = await requirePlatformAdmin(); if (auth.error) return auth.error;
   try { return aiResponse(await readExecutionProbe(kindSchema.parse(new URL(request.url).searchParams.get('kind')))); }
