@@ -89,18 +89,22 @@ beforeEach(async () => {
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe('durable planning on a real isolated replica set', () => {
-  it('sends the diagnostic once under concurrency and retains its dispatch lock', async () => {
+  it.each([undefined, 'chat', 'responses'] as const)('sends diagnostic %s once under concurrency and retains its dispatch lock', async kind => {
     await User.updateOne({ _id: access.userId }, { $set: { isAdmin: true } });
     await AiSettings.updateOne({ _id: platformSettingsId }, { $set: { 'value.model': defaultPlatformAiSettings.model } });
     const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ output: [] })));
     vi.stubGlobal('fetch', fetchMock);
-    const attempts = await Promise.allSettled([runExecutionProbe(access.userId), runExecutionProbe(access.userId)]);
+    const attempts = await Promise.allSettled([runExecutionProbe(access.userId, kind), runExecutionProbe(access.userId, kind)]);
     expect(attempts.filter(item => item.status === 'fulfilled')).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(await AiExecutionProbe.countDocuments()).toBe(1);
     expect((await AiDispatchUsage.findById(DISPATCH_USAGE_ID))?.attempts).toBe(1);
     expect((await AiDispatchLock.findById(DISPATCH_USAGE_ID))?.expiresAt.getTime()).toBeGreaterThan(Date.now());
-    await expect(runExecutionProbe(access.userId)).rejects.toThrow('already been attempted');
+    await expect(runExecutionProbe(access.userId, kind)).rejects.toThrow('already been attempted');
+    if (kind) {
+      expect(await AiExecutionProbe.exists({ _id: 'remote-execution-probe-v1' })).toBeNull();
+      await expect(runExecutionProbe(access.userId, kind === 'chat' ? 'responses' : 'chat')).rejects.toThrow('Shared inference is busy');
+    }
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it('does not consume the diagnostic when shared inference is busy or the actor is unauthorized', async () => {

@@ -13,15 +13,17 @@ import { aiTransaction } from './transaction';
 const ID = 'remote-execution-probe-v1';
 const schema = new Schema({ _id: String, actorId: { type: Schema.Types.ObjectId, required: true },
   startedAt: { type: Date, required: true }, completedAt: Date,
-  outcome: { type: String, required: true }, httpStatus: Number, toolResultReported: Boolean });
+  outcome: { type: String, required: true }, httpStatus: Number, toolResultReported: Boolean,
+  cloudflareReported: Boolean, authenticationChallengePresent: Boolean });
 export const AiExecutionProbe = mongoose.models.AiExecutionProbe ?? mongoose.model('AiExecutionProbe', schema);
 const Probe = AiExecutionProbe;
 const endpoint = 'https://llm.rogly.net/v1/responses';
 const model = 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ';
 
-export async function readExecutionProbe() {
+export type ConnectionProbeKind = 'chat' | 'responses';
+export async function readExecutionProbe(kind?: ConnectionProbeKind) {
   await connectDB();
-  const row = await Probe.findById(ID).select('startedAt completedAt outcome httpStatus toolResultReported').lean();
+  const row = await Probe.findById(kind ? `remote-connection-${kind}-v1` : ID).select('startedAt completedAt outcome httpStatus toolResultReported cloudflareReported authenticationChallengePresent').lean();
   return row ?? { outcome: 'not_started' };
 }
 
@@ -54,7 +56,26 @@ export async function sendExecutionProbe(token: string, transport: typeof fetch 
   } catch { return { outcome: 'transport_or_parse_failure', toolResultReported: false }; }
 }
 
-export async function runExecutionProbe(actorId: string) {
+/** Fixed plain-text requests; discard response text and expose only header classifications. */
+export async function sendConnectionProbe(token: string, kind: ConnectionProbeKind, transport: typeof fetch = fetch) {
+  try {
+    const response = await transport(`https://llm.rogly.net/v1/${kind === 'chat' ? 'chat/completions' : 'responses'}`, {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(45000),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ model, stream: false, ...(kind === 'chat'
+        ? { max_tokens: 16, messages: [{ role: 'user', content: 'Reply with OK only.' }] }
+        : { store: false, max_output_tokens: 16, input: 'Reply with OK only.' }) }),
+    });
+    const result = { outcome: response.ok ? 'http_success' : 'http_error', httpStatus: response.status,
+      cloudflareReported: response.headers.get('server')?.toLowerCase() === 'cloudflare',
+      authenticationChallengePresent: response.headers.has('www-authenticate') };
+    await response.body?.cancel();
+    return result;
+  } catch { return { outcome: 'transport_failure' }; }
+}
+
+export async function runExecutionProbe(actorId: string, kind?: ConnectionProbeKind) {
+  const probeId = kind ? `remote-connection-${kind}-v1` : ID;
   await connectDB();
   const token = process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN?.trim();
   if (!token) throw new AiHttpError(503, 'Provider credential is not configured.');
@@ -63,7 +84,7 @@ export async function runExecutionProbe(actorId: string) {
     const actor = await User.findById(actorId).session(session);
     if (!actor || !isPlatformAdmin(actor)) throw new AiHttpError(403, 'Current administrator required.');
     await User.updateOne({ _id: actor._id }, { $inc: { __v: 1 } }, { session });
-    if (await Probe.exists({ _id: ID }).session(session)) throw new AiHttpError(409, 'This one-time probe has already been attempted. Refresh its result.');
+    if (await Probe.exists({ _id: probeId }).session(session)) throw new AiHttpError(409, 'This one-time probe has already been attempted. Refresh its result.');
     const { value } = await readPlatformSettings(session);
     if (value.endpoint !== 'https://llm.rogly.net/v1/chat/completions' || value.model !== model) throw new AiHttpError(409, 'Saved endpoint/model differs from the specifically authorized probe.');
     const now = new Date();
@@ -72,10 +93,10 @@ export async function runExecutionProbe(actorId: string) {
     if (lock && lock.expiresAt > now) throw new AiHttpError(409, 'Shared inference is busy. No probe was sent.');
     await AiDispatchLock.updateOne({ _id: 'remote-planning-v1' }, { $set: { token: lockToken, expiresAt: new Date(now.getTime() + 900000) } }, { upsert: true, session });
     if (!await reserveDispatch({ dailyRequestLimit: value.dailyRequestLimit, minimumIntervalSeconds: Math.max(300, value.minimumIntervalSeconds) }, now, session)) throw new AiHttpError(429, 'Shared inference limit reached. No probe was sent.');
-    await Probe.create([{ _id: ID, actorId, startedAt: now, outcome: 'attempted_result_unknown' }], { session });
+    await Probe.create([{ _id: probeId, actorId, startedAt: now, outcome: 'attempted_result_unknown' }], { session });
   });
   // Never send inside a retried transaction. A crash leaves an irrevocable attempted marker.
-  const result = await sendExecutionProbe(token);
-  await Probe.updateOne({ _id: ID }, { $set: { ...result, completedAt: new Date() } });
+  const result = kind ? await sendConnectionProbe(token, kind) : await sendExecutionProbe(token);
+  await Probe.updateOne({ _id: probeId }, { $set: { ...result, completedAt: new Date() } });
   return result;
 }
