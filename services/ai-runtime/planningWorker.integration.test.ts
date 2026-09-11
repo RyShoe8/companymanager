@@ -183,10 +183,17 @@ describe('durable planning on a real isolated replica set', () => {
     expect(body.reply).toMatchObject({ role: 'status', failureCategory: 'unavailable' });
     expect(body.reply.text).toMatch(/disabled/i);
     expect(await AiTeamRequest.countDocuments({ kind: 'message' })).toBe(2);
+    const replay = await saveTeam(request(input), context);
+    expect((await replay.json()).reply.id).toBe(body.reply.id);
+    expect(await AiTeamRequest.countDocuments({ kind: 'message' })).toBe(2);
+    const concurrentInput = { ...input, requestId: randomUUID() };
+    await Promise.all(Array.from({ length: 4 }, () => saveTeam(request(concurrentInput), context)));
+    expect(await AiTeamRequest.countDocuments({ requestId: concurrentInput.requestId })).toBe(1);
+    expect(await AiTeamRequest.countDocuments({ parentRequestId: concurrentInput.requestId })).toBe(1);
     expect(await AiTeamRequest.countDocuments({ role: 'assistant' })).toBe(0);
     expect(model).not.toHaveBeenCalled();
   });
-  it('stores a real gateway assistant turn when team chat inference succeeds', async () => {
+  it('blocks direct chat inference until governed admission is implemented', async () => {
     model.mockResolvedValue({
       content: 'Prioritize the launch checklist.',
       model: 'synthetic-model',
@@ -207,10 +214,10 @@ describe('durable planning on a real isolated replica set', () => {
     }), context);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      reply: { role: 'assistant', text: 'Prioritize the launch checklist.' },
+      reply: { role: 'status', failureCategory: 'unavailable' },
     });
-    expect(model).toHaveBeenCalledOnce();
-    expect(await AiTeamRequest.countDocuments({ role: 'assistant' })).toBe(1);
+    expect(model).not.toHaveBeenCalled();
+    expect(await AiTeamRequest.countDocuments({ role: 'assistant' })).toBe(0);
   });
   it('denies private intake to unauthenticated and foreign-project callers', async () => {
     const url = `https://nucleas.test/api/projects/${access.project._id}/ai/team`;

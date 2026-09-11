@@ -14,6 +14,8 @@ const schema = new Schema({
   status: { type: String, enum: ['saved', 'cancelled'], default: 'saved', required: true },
   /** Optional link from assistant/status turns back to the user requestId. */
   parentRequestId: { type: String },
+  /** Durable once-only claim; interrupted replies must not be automatically replayed. */
+  replyAttemptedAt: Date,
   failureCategory: { type: String, maxlength: 64 },
   runId: { type: String, maxlength: 64 },
 }, { timestamps: true });

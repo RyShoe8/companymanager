@@ -79,7 +79,7 @@ describe('attemptTeamChatReply', () => {
     expect(turn.text).toMatch(/disabled/i);
   });
 
-  it('returns an assistant turn when the gateway succeeds', async () => {
+  it('blocks ungoverned inference even when remote credentials are configured', async () => {
     process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN = 'synthetic-token';
     const enabled = { ...platformValue, remoteEnabled: true };
     const { readSettings, readPlatformSettings } = await import('@/lib/ai/control/settings');
@@ -104,7 +104,8 @@ describe('attemptTeamChatReply', () => {
       userText: 'Hello',
       priorTurns: [{ role: 'user', text: 'Earlier' }],
     });
-    expect(turn).toMatchObject({ role: 'assistant', text: 'OK from model' });
-    expect(invokeModel).toHaveBeenCalledOnce();
+    expect(turn).toMatchObject({ role: 'status', failureCategory: 'unavailable' });
+    expect(turn.text).toMatch(/budget reservations/);
+    expect(invokeModel).not.toHaveBeenCalled();
   });
 });

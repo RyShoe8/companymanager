@@ -129,6 +129,18 @@ export async function POST(request: NextRequest, context: Context) {
     let reply: { id: string; role: string; text: string; failureCategory?: string } | null = null;
 
     if (input.kind === 'message') {
+      const existingReply = await AiTeamRequest.findOne({ ...scopeFor(access), parentRequestId: input.requestId })
+        .select('_id role text failureCategory').maxTimeMS(3000)
+        .lean<{ _id: Types.ObjectId; role: string; text: string; failureCategory?: string } | null>();
+      if (existingReply) {
+        return aiResponse({ id: String(row._id), status: row.status, reply: {
+          id: String(existingReply._id), role: existingReply.role, text: existingReply.text,
+          ...(existingReply.failureCategory ? { failureCategory: existingReply.failureCategory } : {}),
+        } });
+      }
+      const claim = await AiTeamRequest.updateOne({ ...scope, _id: row._id, status: 'saved', replyAttemptedAt: { $exists: false } },
+        { $set: { replyAttemptedAt: new Date() } });
+      if (!claim.modifiedCount) return aiResponse({ id: String(row._id), status: row.status, reply: null, replyPendingOrPreviouslyAttempted: true });
       const prior = await AiTeamRequest.find({
         ...scopeFor(access),
         employee: input.employee,

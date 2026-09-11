@@ -9,6 +9,7 @@ import {
   type TeamSnapshot,
 } from '@/lib/ai/teamWorkspace';
 import { useAiSnapshot } from './useAiSnapshot';
+import { suggestTeamEmployee } from '@/lib/ai/teamRouting';
 
 const field = 'w-full rounded-xl border border-border bg-background p-3 text-text-primary';
 const button = 'min-h-11 rounded-xl border border-border px-4 py-2 text-sm disabled:opacity-50';
@@ -78,10 +79,9 @@ export default function AiTeamWorkspace({
       </header>
 
       <div className="mb-5 rounded-xl border border-border bg-background-elevated p-4 text-sm" role="note">
-        <strong>Live gateway path.</strong> Conversation sends persist your message, then attempt a real model
-        reply through the shared AI gateway. When inference is disabled or unreachable, a system status turn is
-        stored instead—never a simulated agent reply. Task requests remain inactive templates until scheduling is
-        connected.
+        <strong>Saved conversation workspace.</strong> Messages are stored with an honest system status.
+        Live chat remains paused until shared dispatch, budget reservations, and authorization checks are
+        connected. No model call is made here. Task requests remain inactive templates until scheduling is connected.
       </div>
 
       <label className="mb-6 block max-w-lg text-sm font-medium">
@@ -196,6 +196,7 @@ function ProjectTeam({
   useEffect(() => () => active.current?.abort(), []);
 
   const role = aiEmployees.find((item) => item.id === employee)!;
+  const suggestion = view === 'task' ? suggestTeamEmployee(text) : null;
   const items =
     data?.items.filter((item) => item.employee === employee && item.kind === view) ?? [];
   // API returns newest first; chat reads oldest→newest.
@@ -517,6 +518,10 @@ function ProjectTeam({
           <label className="block text-sm font-medium" htmlFor="ai-team-message">
             {view === 'message' ? `Message for ${role.name}` : `Task brief for ${role.name}`}
           </label>
+          {suggestion && suggestion.employee !== employee && <div className="my-3 rounded-xl border border-border p-3 text-sm">
+            <p>Suggested employee: {aiEmployees.find(item => item.id === suggestion.employee)?.name}. Matched: {suggestion.matches.join(', ')}. Keyword suggestion only; review before saving.</p>
+            <button type="button" className={`${button} mt-2`} disabled={busy} onClick={() => { setCursor(null); onEmployeeChange(suggestion.employee); }}>Use suggested employee</button>
+          </div>}
           <textarea
             id="ai-team-message"
             className={`${field} mt-2 min-h-28 resize-y`}
