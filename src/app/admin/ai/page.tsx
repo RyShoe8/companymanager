@@ -59,6 +59,7 @@ export default function AiSettingsPage() {
     <ExecutionProbe kind="chat-recheck" />
     <ExecutionProbe kind="chat-detailed" />
     <ExecutionProbe kind="chat-recovery" />
+    <ExecutionProbe kind="chat-recovery-2" />
     <Link className="inline-block underline" href="/admin/ai/service-identities">Manage scoped service identities</Link>
     {message && <p role="status" className="rounded border border-border p-3">{message}</p>}
     {!values || !snapshot ? <p>{message ? 'Reload this page to retry.' : 'Loading settings…'}</p> : <form onSubmit={save}>

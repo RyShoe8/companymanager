@@ -16,7 +16,7 @@ describe('fixed connection diagnostics', () => {
     expect(JSON.stringify(result)).not.toMatch(/secret|ENOTFOUND|host/);
     expect(transport).toHaveBeenCalledTimes(1);
   });
-  it.each(['chat', 'responses', 'chat-recheck', 'chat-detailed', 'chat-recovery'] as const)('bounds %s and sends no tools', async kind => {
+  it.each(['chat', 'responses', 'chat-recheck', 'chat-detailed', 'chat-recovery', 'chat-recovery-2'] as const)('bounds %s and sends no tools', async kind => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response('private output'));
     const result = await sendConnectionProbe('synthetic', kind, transport);
     expect(result).toMatchObject({ outcome: 'http_success', httpStatus: 200 });
@@ -36,6 +36,7 @@ describe('fixed connection diagnostics', () => {
     expect(executionProbeId('chat-recheck')).toBe('remote-connection-chat-recheck-v1');
     expect(executionProbeId('chat-detailed')).toBe('remote-connection-chat-detailed-v1');
     expect(executionProbeId('chat-recovery')).toBe('remote-connection-chat-recovery-v1');
+    expect(executionProbeId('chat-recovery-2')).toBe('remote-connection-chat-recovery-2-v1');
   });
   it('only returns header classifications and never retries rejection', async () => {
     const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response('private rejection', { status: 403,
