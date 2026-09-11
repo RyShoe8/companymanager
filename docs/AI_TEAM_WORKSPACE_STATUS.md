@@ -6,7 +6,7 @@ Additive project-scoped AI Team chat + queue platform, plus GitHub publish groun
 
 - `/workspace/ai-team` and `/workspace/ai-team/queue`, linked from the user menu, project AI planning page, mobile bottom nav, and mobile menu tree.
 - Five stable role presets: Marketing, Product Manager, Support, Engineering and Researcher. Selected role survives project switching; roles do not enter human employee/assignee fields. Researcher does not browse the live web in Nucleas today.
-- **Conversation threads** with `user` / `assistant` / `status` roles. Sending a message persists the user turn and an honest **status** turn. September 11 review found that direct gateway chat bypassed shared dispatch/budget admission; that path is now blocked until governed admission is implemented. Existing assistant history is preserved; no simulated replies are created.
+- **Conversation threads** with `user` / `assistant` / `status` roles. Sending a message persists the user turn, then attempts a **governed** gateway reply via [`teamChat.ts`](../src/lib/ai/teamChat.ts) (shared dispatch limits, budget reservation, short dispatch lease, post-call policy fence). When admission or the model fails, a **status** turn is stored—never a simulated agent reply. Live web browsing is still not available.
 - Reply admission uses a durable once-only claim. Replays return the existing reply, and concurrent/interrupted attempts cannot automatically generate additional replies.
 - Task entry offers local keyword-based employee suggestions with explicit confirmation. Ambiguous briefs do not select an employee automatically; no inference is used for suggestions.
 - Project context panel shows inference readiness, remote/planning flags, bounded recent objective/run counts, and what context is included (still no repository files).
@@ -27,7 +27,7 @@ Additive project-scoped AI Team chat + queue platform, plus GitHub publish groun
 
 ## Not yet delivered
 
-- Successful authenticated inference against `llm.rogly.net` (blocked on remote infrastructure).
+- Successful authenticated inference against `llm.rogly.net` for full planning drafts (connection probe HTTP 200 verified; planning path still needs budgets/processing and further soak).
 - Live Octokit PR creation (endpoint contract exists; returns `publish_unavailable` when other gates pass).
 - Sandbox host / attestation that flips `executionVerified`.
 - Streamed conversations, rich document context assembly, conversation→plan conversion.
@@ -35,6 +35,6 @@ Additive project-scoped AI Team chat + queue platform, plus GitHub publish groun
 - Automatic employee routing, recurring occurrence generation (timezone/DST), merging AI queue into human task lists.
 - Auto-merge to `main`, eight-hour performance soak, and full production browser acceptance.
 - Gateway consolidation of legacy estimate/summary/intent callers.
-- Governed chat admission: durable budget reservations, shared dispatch limits and lease, cancellation/revocation fencing, and terminal settlement before live chat can be re-enabled.
+- Browser/tool use for Researcher live-web lookups.
 
 Runtime connection and dispatch remain separate from saving work requests. Do not present unavailable inference as successful agent work. Do not invent pull request URLs.

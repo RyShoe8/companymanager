@@ -193,7 +193,7 @@ describe('durable planning on a real isolated replica set', () => {
     expect(await AiTeamRequest.countDocuments({ role: 'assistant' })).toBe(0);
     expect(model).not.toHaveBeenCalled();
   });
-  it('blocks direct chat inference until governed admission is implemented', async () => {
+  it('admits governed chat and stores an assistant turn without inventing content on failure paths', async () => {
     model.mockResolvedValue({
       content: 'Prioritize the launch checklist.',
       model: 'synthetic-model',
@@ -214,10 +214,13 @@ describe('durable planning on a real isolated replica set', () => {
     }), context);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      reply: { role: 'status', failureCategory: 'unavailable' },
+      reply: { role: 'assistant', text: 'Prioritize the launch checklist.' },
     });
-    expect(model).not.toHaveBeenCalled();
-    expect(await AiTeamRequest.countDocuments({ role: 'assistant' })).toBe(0);
+    expect(model).toHaveBeenCalledOnce();
+    expect(await AiTeamRequest.countDocuments({ role: 'assistant' })).toBe(1);
+    expect(await AiRun.countDocuments({ status: 'completed' })).toBe(1);
+    // Unknown provider usage retains reservations for reconciliation (noProviderFee is false in fixture).
+    expect(await AiBudgetReservation.countDocuments({ state: 'reserved' })).toBeGreaterThan(0);
   });
   it('denies private intake to unauthenticated and foreign-project callers', async () => {
     const url = `https://nucleas.test/api/projects/${access.project._id}/ai/team`;

@@ -1,10 +1,18 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
+import { GatewayError, invokeModel, validateGatewayConfiguration } from '@nucleas/ai-core/gateway';
+import { digestValue } from '@nucleas/ai-core/planning';
+import { getChatInferencePolicy } from '@/lib/ai/control/config';
+import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
+import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
+import { aiTransaction } from '@/lib/ai/control/transaction';
 import { readSettings, platformSettingsId } from '@/lib/ai/control/settings';
 import { defaultPlatformAiSettings, platformAiSettingsSchema } from '@/lib/ai/settingsSchema';
-import { AiObjective, AiRun } from '@/lib/models/AiControl';
+import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
+import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import {
+  aiEmployees,
   type AiEmployeeKey,
   type TeamContextSummary,
   type TeamMessageRole,
@@ -15,7 +23,10 @@ export type TeamChatTurn = {
   role: TeamMessageRole;
   text: string;
   failureCategory?: string;
+  runId?: string;
 };
+
+const CHAT_LOCK_MS = 60000;
 
 async function recentActivityCounts(organizationId: string, projectId: Types.ObjectId) {
   const scope = { organizationId, projectId };
@@ -52,6 +63,16 @@ function unavailableContext(
   };
 }
 
+function statusTurn(text: string, failureCategory: string, runId?: string): TeamChatTurn {
+  return {
+    requestId: randomUUID(),
+    role: 'status',
+    text,
+    failureCategory,
+    ...(runId ? { runId } : {}),
+  };
+}
+
 export async function buildTeamContextSummary(
   projectName: string,
   organizationId: string,
@@ -80,27 +101,377 @@ export async function buildTeamContextSummary(
       counts
     );
   }
-  // This direct chat path has no transactional budget reservation, shared dispatch
-  // admission, or post-inference authorization fence yet. Never bypass those gates.
-  return unavailableContext(projectName,
-    'Chat inference is paused until shared request limits, budget reservations, and authorization checks are connected. Messages can still be saved.',
-    settings, counts);
+  if (!settings.dispatchEnabled) {
+    return unavailableContext(
+      projectName,
+      'Queued AI processing is paused. Enable processing in Admin → AI Settings before team chat can call the model.',
+      settings,
+      counts
+    );
+  }
+  if (!process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN?.trim()) {
+    return unavailableContext(
+      projectName,
+      'Remote credentials are not configured on the server.',
+      settings,
+      counts
+    );
+  }
+  try {
+    validateGatewayConfiguration({
+      endpoint: settings.endpoint,
+      model: settings.model,
+      protocol: settings.protocol,
+      bearerToken: process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN ?? '',
+      timeoutMs: 20000,
+    });
+    await getChatInferencePolicy(organizationId, String(projectId));
+  } catch (error) {
+    if (error instanceof GatewayError && error.code === 'credentials') {
+      return unavailableContext(projectName, 'Remote authentication is not configured correctly.', settings, counts);
+    }
+    return unavailableContext(
+      projectName,
+      'Chat inference needs a positive request reservation within organization and project budget ceilings, with remote connection and processing enabled.',
+      settings,
+      counts
+    );
+  }
+  return {
+    projectName,
+    inferenceReady: true,
+    remoteEnabled: settings.remoteEnabled,
+    planningEnabled: settings.planningEnabled,
+    unavailableReason: null,
+    included: [
+      `Project name: ${projectName}`,
+      'Selected AI employee role preset',
+      'Recent private thread turns for this employee',
+      `Recent objectives in project: ${counts.recentObjectiveCount}${counts.recentObjectiveCount >= 25 ? '+' : ''}`,
+      `Recent AI runs in project: ${counts.recentRunCount}${counts.recentRunCount >= 25 ? '+' : ''}`,
+      'Repository files are not included in team chat',
+      'Live web browsing is not available in team chat',
+    ],
+    ...counts,
+  };
 }
 
-/** Saves an honest status until chat has durable, governed dispatch admission. */
+type AdmittedChat = {
+  runId: Types.ObjectId;
+  lockToken: string;
+  policy: Awaited<ReturnType<typeof getChatInferencePolicy>>;
+};
+
+async function admitTeamChat(input: {
+  organizationId: string;
+  projectId: Types.ObjectId;
+  userId: string;
+  userText: string;
+}): Promise<{ ok: true; admitted: AdmittedChat } | { ok: false; turn: TeamChatTurn }> {
+  const lockToken = randomUUID();
+  try {
+    return await aiTransaction(async (session) => {
+      const policy = await getChatInferencePolicy(input.organizationId, String(input.projectId), session);
+      const now = new Date();
+      const lock = await AiDispatchLock.findById(DISPATCH_USAGE_ID).session(session);
+      if (lock && lock.expiresAt > now) {
+        return {
+          ok: false as const,
+          turn: statusTurn('Shared inference is busy. Try again after the current request finishes.', 'unavailable'),
+        };
+      }
+      await AiDispatchLock.updateOne(
+        { _id: DISPATCH_USAGE_ID },
+        { $set: { token: lockToken, expiresAt: new Date(now.getTime() + CHAT_LOCK_MS) } },
+        { upsert: true, session }
+      );
+      if (
+        !(await reserveDispatch(
+          {
+            dailyRequestLimit: policy.dailyRequestLimit,
+            minimumIntervalSeconds: policy.minimumIntervalSeconds,
+          },
+          now,
+          session
+        ))
+      ) {
+        await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).session(session);
+        return {
+          ok: false as const,
+          turn: statusTurn(
+            'Shared inference request limits were reached. No model call was sent. Wait for the next eligible window and try again.',
+            'rate_limit'
+          ),
+        };
+      }
+
+      const inputDigest = digestValue(input.userText.slice(0, 6000));
+      const [run] = await AiRun.create(
+        [
+          {
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            role: 'architect',
+            status: 'queued',
+            createdByUserId: new Types.ObjectId(input.userId),
+            inputDigest,
+            policyDigest: policy.digest,
+            model: policy.model,
+          },
+        ],
+        { session }
+      );
+
+      const period = now.toISOString().slice(0, 7);
+      const budgetIds: Types.ObjectId[] = [];
+      for (const [scopeKey, limitMicros] of [
+        ['organization', policy.organizationLimitMicros],
+        [`project:${String(input.projectId)}`, policy.projectLimitMicros],
+      ] as const) {
+        const budget = await AiBudget.findOneAndUpdate(
+          { organizationId: input.organizationId, scopeKey, period },
+          { $set: { limitMicros }, $setOnInsert: { spentMicros: 0, reservedMicros: 0 } },
+          { session, upsert: true, new: true, runValidators: true }
+        );
+        budgetIds.push(budget._id);
+      }
+      await reserveRunBudget(input.organizationId, run._id, budgetIds, policy.reservationMicros, session);
+      await AiRun.updateOne(
+        { _id: run._id },
+        { $set: { status: 'running', startedAt: now }, $inc: { revision: 1 } },
+        { session }
+      );
+      await AiRunEvent.create(
+        [
+          {
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            runId: run._id,
+            sequence: 1,
+            type: 'run.running',
+            summary: 'Team chat admitted; budget reserved and shared dispatch claimed.',
+          },
+        ],
+        { session }
+      );
+      return { ok: true as const, admitted: { runId: run._id, lockToken, policy } };
+    });
+  } catch (error) {
+    if (error instanceof GatewayError) {
+      const messages: Record<GatewayError['code'], string> = {
+        configuration:
+          'Chat inference needs remote connection, processing enabled, and a positive reservation within budget ceilings.',
+        credentials: 'Remote authentication was rejected before the model was called.',
+        rate_limit: 'Shared inference limits blocked this chat request.',
+        unavailable: 'Chat inference is temporarily unavailable.',
+        invalid_response: 'Chat inference configuration is invalid.',
+        cancelled: 'Chat admission was cancelled.',
+      };
+      return { ok: false, turn: statusTurn(messages[error.code], error.code) };
+    }
+    return {
+      ok: false,
+      turn: statusTurn('Chat admission failed before a model call was sent.', 'unavailable'),
+    };
+  }
+}
+
+async function finishTeamChatRun(input: {
+  organizationId: string;
+  projectId: Types.ObjectId;
+  runId: Types.ObjectId;
+  lockToken: string;
+  actualMicros: number | null;
+  status: 'completed' | 'blocked';
+  summary: string;
+  failureCode?: string;
+  result?: { inputTokens?: number | null; outputTokens?: number | null; latencyMs?: number | null };
+}) {
+  await aiTransaction(async (session) => {
+    await settleRunBudget(input.organizationId, input.runId, input.actualMicros, session);
+    const run = await AiRun.findOneAndUpdate(
+      { _id: input.runId, organizationId: input.organizationId, projectId: input.projectId },
+      {
+        $set: {
+          status: input.status,
+          completedAt: new Date(),
+          ...(input.failureCode ? { failureCode: input.failureCode } : {}),
+          ...(input.result?.inputTokens != null ? { inputTokens: input.result.inputTokens } : {}),
+          ...(input.result?.outputTokens != null ? { outputTokens: input.result.outputTokens } : {}),
+          ...(input.result?.latencyMs != null ? { latencyMs: input.result.latencyMs } : {}),
+          ...(input.actualMicros !== null ? { costMicros: input.actualMicros } : {}),
+        },
+        $inc: { revision: 1 },
+      },
+      { session, new: true }
+    );
+    if (run) {
+      await AiRunEvent.create(
+        [
+          {
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            runId: run._id,
+            sequence: run.revision,
+            type: `run.${input.status}`,
+            summary: input.summary.slice(0, 2000),
+          },
+        ],
+        { session }
+      );
+    }
+  });
+  await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: input.lockToken }).catch(() => undefined);
+}
+
+/** Attempt a real gateway chat reply after shared admission. Never invents assistant content on failure. */
 export async function attemptTeamChatReply(input: {
   employee: AiEmployeeKey;
   projectName: string;
   organizationId: string;
   projectId: Types.ObjectId;
+  userId: string;
   userText: string;
   priorTurns: { role: TeamMessageRole; text: string }[];
 }): Promise<TeamChatTurn> {
   const context = await buildTeamContextSummary(input.projectName, input.organizationId, input.projectId);
-  return {
-    requestId: randomUUID(),
-    role: 'status',
-    text: context.unavailableReason ?? 'Governed chat inference is unavailable.',
-    failureCategory: 'unavailable',
-  };
+  if (!context.inferenceReady) {
+    return statusTurn(context.unavailableReason ?? 'Inference is unavailable.', 'unavailable');
+  }
+
+  const admission = await admitTeamChat({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    userId: input.userId,
+    userText: input.userText,
+  });
+  if (!admission.ok) return admission.turn;
+
+  const { runId, lockToken, policy } = admission.admitted;
+  const role = aiEmployees.find((item) => item.id === input.employee)!;
+  const history = input.priorTurns
+    .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
+    .slice(-8)
+    .map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.text.slice(0, 2000) }));
+  const messages = [
+    {
+      role: 'system' as const,
+      content: [
+        `You are ${role.name} assisting on the Nucleas project "${input.projectName}".`,
+        role.description,
+        `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
+        'Reply helpfully and briefly. Do not claim to have changed project data, run code, browsed the live web, or completed tasks outside this chat.',
+        'If you lack information or tools, say what is missing instead of inventing project or web facts.',
+      ].join(' '),
+    },
+    ...history,
+    { role: 'user' as const, content: input.userText.slice(0, 6000) },
+  ];
+
+  try {
+    const result = await invokeModel(policy.gateway, {
+      role: 'architect',
+      messages,
+      maxOutputTokens: Math.min(512, policy.maxOutputTokens),
+    });
+    try {
+      const latest = await getChatInferencePolicy(input.organizationId, String(input.projectId));
+      if (latest.digest !== policy.digest) {
+        await finishTeamChatRun({
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          runId,
+          lockToken,
+          actualMicros: policy.noProviderFee ? 0 : null,
+          status: 'blocked',
+          summary: 'Policy changed during chat inference; assistant text was discarded.',
+          failureCode: 'stale_policy',
+          result,
+        });
+        return statusTurn(
+          'AI settings changed during the reply. No assistant content was stored. Refresh and try again.',
+          'unavailable',
+          String(runId)
+        );
+      }
+    } catch {
+      await finishTeamChatRun({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        runId,
+        lockToken,
+        actualMicros: policy.noProviderFee ? 0 : null,
+        status: 'blocked',
+        summary: 'Authorization fence failed after chat inference.',
+        failureCode: 'stale_policy',
+        result,
+      });
+      return statusTurn(
+        'Chat authorization changed before the reply could be saved. No assistant content was stored.',
+        'unavailable',
+        String(runId)
+      );
+    }
+
+    const content = result.content.trim().slice(0, 6000);
+    if (!content) {
+      await finishTeamChatRun({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        runId,
+        lockToken,
+        actualMicros: policy.noProviderFee ? 0 : null,
+        status: 'blocked',
+        summary: 'Model returned empty chat content.',
+        failureCode: 'invalid_response',
+        result,
+      });
+      return statusTurn(
+        'The model returned an empty reply. No assistant content was stored.',
+        'invalid_response',
+        String(runId)
+      );
+    }
+
+    await finishTeamChatRun({
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      runId,
+      lockToken,
+      actualMicros: policy.noProviderFee ? 0 : null,
+      status: 'completed',
+      summary: 'Team chat reply stored after governed admission.',
+      result,
+    });
+    return { requestId: randomUUID(), role: 'assistant', text: content, runId: String(runId) };
+  } catch (error) {
+    const failureCode = error instanceof GatewayError ? error.code : classifyProbeFailure(error);
+    await finishTeamChatRun({
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      runId,
+      lockToken,
+      actualMicros: policy.noProviderFee ? 0 : null,
+      status: 'blocked',
+      summary: 'Team chat model call failed after admission.',
+      failureCode,
+    }).catch(() => undefined);
+
+    if (error instanceof GatewayError) {
+      const messagesByCode: Record<GatewayError['code'], string> = {
+        configuration: 'Remote inference is not configured for team chat.',
+        credentials: 'Remote authentication was rejected.',
+        rate_limit: 'The remote provider rate-limited this request.',
+        unavailable: 'The remote model endpoint was unreachable or returned an error.',
+        invalid_response: 'The remote response could not be validated.',
+        cancelled: 'The chat request was cancelled before completion.',
+      };
+      return statusTurn(messagesByCode[error.code], error.code, String(runId));
+    }
+    return statusTurn(
+      'The chat request failed before a model reply was received.',
+      failureCode,
+      String(runId)
+    );
+  }
 }

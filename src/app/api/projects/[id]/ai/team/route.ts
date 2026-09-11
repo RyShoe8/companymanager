@@ -160,6 +160,7 @@ export async function POST(request: NextRequest, context: Context) {
         projectName: access.project.name,
         organizationId: access.organizationId,
         projectId: access.project._id,
+        userId: access.userId,
         userText: input.text,
         priorTurns: prior
           .reverse()
@@ -177,6 +178,7 @@ export async function POST(request: NextRequest, context: Context) {
         status: 'saved',
         parentRequestId: input.requestId,
         ...(turn.failureCategory ? { failureCategory: turn.failureCategory } : {}),
+        ...(turn.runId ? { runId: turn.runId } : {}),
       });
 
       reply = {
