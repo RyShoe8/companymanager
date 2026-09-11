@@ -8,6 +8,12 @@ import { GET, POST } from './route';
 const request = (body: unknown = { confirm: true, kind: 'chat' }, origin = 'https://nucleas.test') => new Request('https://nucleas.test/api/admin/ai/connection-probe?kind=chat', { method: 'POST', headers: { origin, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ error: null, user: { _id: 'admin' } }); mocks.read.mockResolvedValue({ outcome: 'not_started' }); mocks.run.mockResolvedValue({ outcome: 'http_success' }); });
 describe('admin connection diagnostics', () => {
+  it('accepts the recovery check and rejects arbitrary recovery retries', async () => {
+    expect((await POST(request({ confirm: true, kind: 'chat-recovery' }))).status).toBe(200);
+    expect(mocks.run).toHaveBeenCalledWith('admin', 'chat-recovery');
+    expect((await POST(request({ confirm: true, kind: 'chat-recovery-2' }))).status).toBe(400);
+    expect(mocks.run).toHaveBeenCalledTimes(1);
+  });
   it('permits only the named new one-time attempt, not arbitrary retry IDs', async () => {
     expect((await POST(request({ confirm: true, kind: 'chat-recheck' }))).status).toBe(200);
     expect(mocks.run).toHaveBeenCalledWith('admin', 'chat-recheck');

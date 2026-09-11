@@ -22,7 +22,7 @@ const Probe = AiExecutionProbe;
 const endpoint = 'https://llm.rogly.net/v1/responses';
 const model = 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ';
 
-export type ConnectionProbeKind = 'chat' | 'responses' | 'chat-recheck' | 'chat-detailed';
+export type ConnectionProbeKind = 'chat' | 'responses' | 'chat-recheck' | 'chat-detailed' | 'chat-recovery';
 export function executionProbeId(kind?: ConnectionProbeKind) {
   return kind ? `remote-connection-${kind}-v1` : ID;
 }
