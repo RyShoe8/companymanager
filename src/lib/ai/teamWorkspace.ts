@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const aiEmployeeSchema = z.enum(['marketing', 'product', 'support', 'engineering']);
+export const aiEmployeeSchema = z.enum(['marketing', 'product', 'support', 'engineering', 'researcher']);
 export type AiEmployeeKey = z.infer<typeof aiEmployeeSchema>;
 
 export const teamMessageRoleSchema = z.enum(['user', 'assistant', 'status']);
@@ -28,6 +28,13 @@ export const aiEmployees = [
   { id: 'product', name: 'Product Manager AI', initials: 'PM', description: 'Requirements, priorities, acceptance criteria and project planning.' },
   { id: 'support', name: 'Support AI', initials: 'SU', description: 'Support drafts, issue triage, documentation and customer questions.' },
   { id: 'engineering', name: 'Engineering AI', initials: 'EN', description: 'Technical investigation, implementation plans and code review preparation.' },
+  {
+    id: 'researcher',
+    name: 'Researcher AI',
+    initials: 'RE',
+    description:
+      'Research briefs, competitive scans, source notes and structured summaries. Does not browse the live web or open a browser in Nucleas today—ask what is missing instead of inventing current listings.',
+  },
 ] as const;
 
 export const teamRequestSchema = z.object({

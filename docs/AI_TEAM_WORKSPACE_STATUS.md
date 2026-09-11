@@ -5,7 +5,7 @@ Additive project-scoped AI Team chat + queue platform, plus GitHub publish groun
 ## Implemented locally
 
 - `/workspace/ai-team` and `/workspace/ai-team/queue`, linked from the user menu, project AI planning page, mobile bottom nav, and mobile menu tree.
-- Four stable role presets: Marketing, Product Manager, Support and Engineering. Selected role survives project switching; roles do not enter human employee/assignee fields.
+- Five stable role presets: Marketing, Product Manager, Support, Engineering and Researcher. Selected role survives project switching; roles do not enter human employee/assignee fields. Researcher does not browse the live web in Nucleas today.
 - **Conversation threads** with `user` / `assistant` / `status` roles. Sending a message persists the user turn and an honest **status** turn. September 11 review found that direct gateway chat bypassed shared dispatch/budget admission; that path is now blocked until governed admission is implemented. Existing assistant history is preserved; no simulated replies are created.
 - Reply admission uses a durable once-only claim. Replays return the existing reply, and concurrent/interrupted attempts cannot automatically generate additional replies.
 - Task entry offers local keyword-based employee suggestions with explicit confirmation. Ambiguous briefs do not select an employee automatically; no inference is used for suggestions.

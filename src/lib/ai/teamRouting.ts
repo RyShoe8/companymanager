@@ -5,6 +5,7 @@ const terms: Record<AiEmployeeKey, readonly string[]> = {
   product: ['roadmap', 'requirements', 'acceptance criteria', 'prioritize', 'product spec'],
   support: ['support ticket', 'customer complaint', 'refund', 'help center', 'troubleshoot'],
   engineering: ['code', 'pull request', 'database', 'api', 'unit test', 'refactor'],
+  researcher: ['research', 'competitive analysis', 'sources', 'survey the market', 'literature review'],
 };
 
 /** Local, conservative suggestion only. Ambiguous briefs require a human choice. */

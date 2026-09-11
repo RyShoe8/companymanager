@@ -4,6 +4,7 @@ describe('local employee routing suggestions', () => {
   it.each([
     ['Draft a newsletter campaign', 'marketing'], ['Prioritize roadmap requirements', 'product'],
     ['Resolve a customer complaint about a refund', 'support'], ['Refactor the API and add a unit test', 'engineering'],
+    ['Write a competitive analysis research brief', 'researcher'],
   ])('suggests a role for %s', (text, role) => { expect(suggestTeamEmployee(text)?.employee).toBe(role); });
   it.each(['', 'Help me with something', 'Campaign and database', 'Decode the capital letters'])('does not guess for ambiguous or unmatched text %s', text => {
     expect(suggestTeamEmployee(text)).toBeNull();

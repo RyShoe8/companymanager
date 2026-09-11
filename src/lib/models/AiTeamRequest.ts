@@ -5,7 +5,7 @@ const schema = new Schema({
   projectId: { type: Schema.Types.ObjectId, required: true },
   createdByUserId: { type: Schema.Types.ObjectId, required: true },
   requestId: { type: String, required: true },
-  employee: { type: String, enum: ['marketing', 'product', 'support', 'engineering'], required: true },
+  employee: { type: String, enum: ['marketing', 'product', 'support', 'engineering', 'researcher'], required: true },
   kind: { type: String, enum: ['message', 'task'], required: true },
   /** Conversation role. Legacy rows without role are treated as user. */
   role: { type: String, enum: ['user', 'assistant', 'status'], default: 'user', required: true },

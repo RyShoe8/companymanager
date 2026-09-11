@@ -29,6 +29,7 @@ describe('AI team intake contract', () => {
       'product',
       'support',
       'engineering',
+      'researcher',
     ]);
   });
   it.each([
