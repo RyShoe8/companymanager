@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import MobileNavSheet from '@/components/mobile/MobileNavSheet';
 import MobileActionSheet from '@/components/mobile/MobileActionSheet';
 import { useMobileShell } from '@/contexts/MobileShellContext';
@@ -107,6 +108,8 @@ export default function MobileBottomNav() {
   const [navOpen, setNavOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const aiActive =
+    pathname?.startsWith('/workspace/ai-team') || pathname?.startsWith('/workspace/ai-attention');
 
   useEffect(() => {
     registerReopenActionInbox(() => setActionOpen(true));
@@ -149,6 +152,17 @@ export default function MobileBottomNav() {
             <span className="text-xl mb-0.5">☰</span>
             <span className="text-[10px] font-medium">Menu</span>
           </button>
+
+          <Link
+            href="/workspace/ai-team"
+            className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full touch-manipulation ${
+              aiActive ? 'text-primary' : 'text-text-secondary hover:text-text-primary'
+            }`}
+            aria-label="Open AI Team"
+          >
+            <span className="text-xl mb-0.5">🤖</span>
+            <span className="text-[10px] font-medium">AI Team</span>
+          </Link>
 
           <button
             type="button"

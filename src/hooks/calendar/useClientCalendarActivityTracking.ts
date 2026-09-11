@@ -73,20 +73,46 @@ export function useClientCalendarActivityTracking({
     [clientScopedProjects, contentItems]
   );
 
+  const workspaceKeys = useMemo(
+    () => workspaceItemEntries.map((entry) => entry.key),
+    [workspaceItemEntries]
+  );
+
   useEffect(() => {
     if (!currentUserId) return;
     const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
       openProjectId: inspectorProjectId ?? undefined,
     });
-    setItemStatusByKey(observed.statusByKey);
+    const timer = window.setTimeout(() => {
+      setItemStatusByKey(observed.statusByKey);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
 
-  useEffect(() => {
-    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
-    const keys = workspaceItemEntries.map((entry) => entry.key);
-    const observed = readObservedItemsForUser(currentUserId, keys);
-    setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
+  const refreshedObservation = useMemo(() => {
+    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return null;
+    return readObservedItemsForUser(currentUserId, workspaceKeys);
+  }, [currentUserId, itemSeenRefreshTrigger, workspaceKeys]);
+
+  if (refreshedObservation) {
+    if (JSON.stringify(itemStatusByKey) !== JSON.stringify(refreshedObservation.statusByKey)) {
+      setItemStatusByKey(refreshedObservation.statusByKey);
+    }
+  }
+
+  // Drop expanded ids for clients that are no longer in the list (render-time adjust).
+  let prunedExpanded: Set<string> | null = null;
+  for (const id of expandedClients) {
+    if (!clientIds.has(id)) {
+      if (!prunedExpanded) {
+        prunedExpanded = new Set(expandedClients);
+      }
+      prunedExpanded.delete(id);
+    }
+  }
+  if (prunedExpanded) {
+    setExpandedClients(prunedExpanded);
+  }
 
   const unseenCountByClientId = useMemo(() => {
     const map = new Map<string, number>();
@@ -139,21 +165,6 @@ export function useClientCalendarActivityTracking({
       return next;
     });
   };
-
-  useEffect(() => {
-    const ids = new Set(clients.map((c) => String(c._id)));
-    setExpandedClients((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      for (const id of prev) {
-        if (!ids.has(id)) {
-          next.delete(id);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [clients]);
 
   return {
     expandedClients,

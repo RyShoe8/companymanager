@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Button from '@/components/ui/Button';
+import { useClientReady } from '@/hooks/useClientReady';
 import { COMMUNITY_SOCIAL_LINKS } from '@/lib/constants/communitySocialLinks';
 import type { GuideStep } from '@/lib/platformGuide/types';
 
@@ -56,13 +57,9 @@ export default function PlatformGuideOverlay({
   onNext,
   onEnd,
 }: PlatformGuideOverlayProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useClientReady();
   const [targetEl, setTargetEl] = useState<Element | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const refreshRect = useCallback(() => {
     setRect(measure(targetEl));
@@ -83,11 +80,12 @@ export default function PlatformGuideOverlay({
   }, [step.id, step.skipIfTargetMissing, step.target]);
 
   useLayoutEffect(() => {
-    refreshRect();
+    const timer = window.setTimeout(() => refreshRect(), 0);
     const onScrollOrResize = () => refreshRect();
     window.addEventListener('resize', onScrollOrResize);
     window.addEventListener('scroll', onScrollOrResize, true);
     return () => {
+      window.clearTimeout(timer);
       window.removeEventListener('resize', onScrollOrResize);
       window.removeEventListener('scroll', onScrollOrResize, true);
     };

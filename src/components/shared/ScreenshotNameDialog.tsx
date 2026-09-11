@@ -27,11 +27,11 @@ export default function ScreenshotNameDialog({
   const mounted = useClientReady();
 
 
-  useEffect(() => {
-    if (isOpen) {
-      setName(defaultName);
-    }
-  }, [isOpen, defaultName]);
+  const [previous, setPrevious] = useState({ isOpen, defaultName });
+  if (previous.isOpen !== isOpen || previous.defaultName !== defaultName) {
+    setPrevious({ isOpen, defaultName });
+    if (isOpen) setName(defaultName);
+  }
 
   useEffect(() => {
     if (!isOpen) return;

@@ -24,31 +24,35 @@ function classNameHasTextColor(className: string): boolean {
   return /\btext-/.test(className);
 }
 
+export function editableDateValue(value: Date | string | null, showTime: boolean): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return showTime
+    ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    : toIsoDateInputValueUTC(value);
+}
+
 export default function EditableDate({
   value, onSave, className = '', placeholder = 'Set date', disabled = false, showTime = false, clearable = false,
   hideWhenEmpty = false, startInEditMode = false, onEditEnd,
 }: EditableDateProps) {
   const [isEditing, setIsEditing] = useState(startInEditMode);
-  const [editValue, setEditValue] = useState('');
+  const sourceValue = editableDateValue(value, showTime);
+  const [editValue, setEditValue] = useState(sourceValue);
+  const [previousValue, setPreviousValue] = useState(sourceValue);
+  const [previousStart, setPreviousStart] = useState(startInEditMode);
   const inputRef = useRef<HTMLInputElement>(null);
   const defaultTextClass = classNameHasTextColor(className) ? '' : 'text-text-primary';
 
-  useEffect(() => {
-    if (value) {
-      if (showTime) {
-        const date = new Date(value);
-        setEditValue(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
-      } else {
-        setEditValue(toIsoDateInputValueUTC(value));
-      }
-    } else {
-      setEditValue('');
-    }
-  }, [value, showTime]);
-
-  useEffect(() => {
+  if (previousValue !== sourceValue) {
+    setPreviousValue(sourceValue);
+    setEditValue(sourceValue);
+  }
+  if (previousStart !== startInEditMode) {
+    setPreviousStart(startInEditMode);
     if (startInEditMode) setIsEditing(true);
-  }, [startInEditMode]);
+  }
   useEffect(() => { if (isEditing && inputRef.current) inputRef.current.focus(); }, [isEditing]);
 
   const closeEditing = useCallback(() => {

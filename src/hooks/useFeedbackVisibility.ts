@@ -40,26 +40,29 @@ export function useFeedbackVisibility(): boolean {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!isMobile) {
-      setVisible(true);
-      return;
-    }
+    const timer = window.setTimeout(() => {
+      if (!isMobile) {
+        setVisible(true);
+        return;
+      }
 
-    const now = Date.now();
-    let periodStart = readPeriodStart();
-    if (!periodStart || now - periodStart >= PERIOD_MS) {
-      periodStart = now;
-      writePeriodStart(periodStart);
-      writeViewCount(0);
-    }
+      const now = Date.now();
+      let periodStart = readPeriodStart();
+      if (!periodStart || now - periodStart >= PERIOD_MS) {
+        periodStart = now;
+        writePeriodStart(periodStart);
+        writeViewCount(0);
+      }
 
-    const views = readViewCount();
-    if (views < MAX_VIEWS) {
-      writeViewCount(views + 1);
-      setVisible(views + 1 <= MAX_VIEWS);
-    } else {
-      setVisible(false);
-    }
+      const views = readViewCount();
+      if (views < MAX_VIEWS) {
+        writeViewCount(views + 1);
+        setVisible(views + 1 <= MAX_VIEWS);
+      } else {
+        setVisible(false);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [isMobile, pathname]);
 
   return visible;

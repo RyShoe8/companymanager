@@ -110,8 +110,11 @@ export function OsInstallProvider({ children }: { children: ReactNode }) {
             return;
         }
         markSeenInstallOnLoad();
-        setModalAlreadyInstalled(false);
-        setModalOpen(true);
+        const timer = window.setTimeout(() => {
+            setModalAlreadyInstalled(false);
+            setModalOpen(true);
+        }, 0);
+        return () => window.clearTimeout(timer);
     }, [isOsHost, isRunningAsPwa, installedRelatedApp, installCheckPending]);
 
     const handleInstall = useCallback(async (): Promise<boolean> => {

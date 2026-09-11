@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { buildWeekDays, isCalendarToday } from '@/components/planning-map/WeeklyDayGridShell';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -26,9 +26,11 @@ export default function WeeklyMobileDayPager({
   const [activeIdx, setActiveIdx] = useState(defaultIndex);
   const touchStartX = useRef<number | null>(null);
 
-  useEffect(() => {
+  const [previousWeek, setPreviousWeek] = useState({ weekKey, defaultIndex });
+  if (previousWeek.weekKey !== weekKey || previousWeek.defaultIndex !== defaultIndex) {
+    setPreviousWeek({ weekKey, defaultIndex });
     setActiveIdx(defaultIndex);
-  }, [weekKey, defaultIndex]);
+  }
 
   const goPrev = useCallback(() => {
     setActiveIdx((i) => Math.max(0, i - 1));

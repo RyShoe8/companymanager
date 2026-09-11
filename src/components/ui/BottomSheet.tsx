@@ -43,14 +43,19 @@ export default function BottomSheet({
   scrollContainerRef,
   layout = 'bottomSheet',
 }: BottomSheetProps) {
-  const [shouldRender, setShouldRender] = useState(false);
+  const [shouldRender, setShouldRender] = useState(isOpen);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const mounted = useClientReady();
-  const wasOpen = useRef(false);
   const scrollLocked = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) setShouldRender(true);
+  }
 
   const releaseScrollIfHeld = () => {
     if (scrollLocked.current) {
@@ -61,16 +66,13 @@ export default function BottomSheet({
 
   
   useEffect(() => {
-    if (isOpen && !wasOpen.current) {
-      wasOpen.current = true;
-      setShouldRender(true);
+    if (isOpen) {
       if (!scrollLocked.current) {
         lockPageScroll();
         scrollLocked.current = true;
       }
-    } else if (!isOpen && wasOpen.current) {
+    } else {
       // Closing - unlock scroll immediately; keep mounted for exit animation
-      wasOpen.current = false;
       releaseScrollIfHeld();
       const timer = setTimeout(() => {
         setShouldRender(false);
@@ -81,7 +83,6 @@ export default function BottomSheet({
 
   useEffect(() => {
     return () => {
-      wasOpen.current = false;
       releaseScrollIfHeld();
     };
   }, []);

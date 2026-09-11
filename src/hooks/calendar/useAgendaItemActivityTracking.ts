@@ -54,22 +54,37 @@ export function useAgendaItemActivityTracking({
     [projects, contentItems]
   );
 
+  const workspaceKeys = useMemo(
+    () => workspaceItemEntries.map((entry) => entry.key),
+    [workspaceItemEntries]
+  );
+
+  // Side-effecting localStorage observe — defer React state so the effect only schedules work.
   useEffect(() => {
     if (!currentUserId) return;
     const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
       openProjectId: inspectorProjectId ?? undefined,
     });
-    setItemActivityByKey(observed.activityByKey);
-    setItemStatusByKey(observed.statusByKey);
+    const timer = window.setTimeout(() => {
+      setItemActivityByKey(observed.activityByKey);
+      setItemStatusByKey(observed.statusByKey);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
 
-  useEffect(() => {
-    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
-    const keys = workspaceItemEntries.map((entry) => entry.key);
-    const observed = readObservedItemsForUser(currentUserId, keys);
-    setItemActivityByKey(observed.activityByKey);
-    setItemStatusByKey(observed.statusByKey);
-  }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
+  const refreshedObservation = useMemo(() => {
+    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return null;
+    return readObservedItemsForUser(currentUserId, workspaceKeys);
+  }, [currentUserId, itemSeenRefreshTrigger, workspaceKeys]);
+
+  if (refreshedObservation) {
+    const activityChanged =
+      JSON.stringify(itemActivityByKey) !== JSON.stringify(refreshedObservation.activityByKey);
+    const statusChanged =
+      JSON.stringify(itemStatusByKey) !== JSON.stringify(refreshedObservation.statusByKey);
+    if (activityChanged) setItemActivityByKey(refreshedObservation.activityByKey);
+    if (statusChanged) setItemStatusByKey(refreshedObservation.statusByKey);
+  }
 
   const taskActivityMs = useCallback(
     (project: IProject, task: IProjectTask, idx: number) =>

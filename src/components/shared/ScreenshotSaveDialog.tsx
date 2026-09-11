@@ -38,13 +38,15 @@ export default function ScreenshotSaveDialog({
   const mounted = useClientReady();
 
 
-  useEffect(() => {
+  const [previous, setPrevious] = useState({ isOpen, defaultName });
+  if (previous.isOpen !== isOpen || previous.defaultName !== defaultName) {
+    setPrevious({ isOpen, defaultName });
     if (isOpen) {
       setName(defaultName);
       setProjectId('');
       setTaskId('');
     }
-  }, [isOpen, defaultName]);
+  }
 
   useEffect(() => {
     if (!isOpen) return;

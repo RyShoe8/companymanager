@@ -101,7 +101,10 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
     const lastInterimRef = useRef<string>('');
     const stateRef = useRef<VoiceState>(state);
     const startListeningRef = useRef<() => void>(() => {});
-    const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+    const [wakeWordEnabled, setWakeWordEnabled] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.localStorage.getItem('voiceWakeWordEnabled') === '1';
+    });
     const [isWakeArmed, setIsWakeArmed] = useState(false);
     const [wakeDetections, setWakeDetections] = useState(0);
     const [wakeActivations, setWakeActivations] = useState(0);
@@ -114,12 +117,6 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
             setError(null);
             setResultMessage(null);
         }, 5000);
-    }, []);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const raw = window.localStorage.getItem('voiceWakeWordEnabled');
-        setWakeWordEnabled(raw === '1');
     }, []);
 
     useEffect(() => {
@@ -405,8 +402,8 @@ export default function VoiceProvider({ children, getWorkspaceContext, isPlatfor
                 }
                 wakeRecognitionRef.current = null;
             }
-            setIsWakeArmed(false);
-            return;
+            const timer = window.setTimeout(() => setIsWakeArmed(false), 0);
+            return () => window.clearTimeout(timer);
         }
 
         const SpeechRecognition = getSpeechRecognitionConstructor();

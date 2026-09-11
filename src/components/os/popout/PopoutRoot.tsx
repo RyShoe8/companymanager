@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { registerOsModules } from '@/components/os/modules/registerModules';
 import { useOsAuth } from '@/hooks/os/useOsAuth';
@@ -21,20 +21,30 @@ function getWindowControlsOverlay(): WindowControlsOverlay | undefined {
     return (navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlay }).windowControlsOverlay;
 }
 
+function subscribeStandalone(onStoreChange: () => void) {
+    const mq = window.matchMedia('(display-mode: standalone)');
+    mq.addEventListener('change', onStoreChange);
+    return () => mq.removeEventListener('change', onStoreChange);
+}
+
+function getStandaloneSnapshot() {
+    return window.matchMedia('(display-mode: standalone)').matches;
+}
+
+function subscribeWcoVisible(onStoreChange: () => void) {
+    const wco = getWindowControlsOverlay();
+    if (!wco) return () => {};
+    wco.addEventListener('geometrychange', onStoreChange);
+    return () => wco.removeEventListener('geometrychange', onStoreChange);
+}
+
+function getWcoVisibleSnapshot() {
+    return getWindowControlsOverlay()?.visible ?? false;
+}
+
 function usePopoutDisplayMode() {
-    const [standalone, setStandalone] = useState(false);
-    const [wcoVisible, setWcoVisible] = useState(false);
-
-    useEffect(() => {
-        setStandalone(window.matchMedia('(display-mode: standalone)').matches);
-
-        const wco = getWindowControlsOverlay();
-        const updateWco = () => setWcoVisible(wco?.visible ?? false);
-        updateWco();
-        wco?.addEventListener('geometrychange', updateWco);
-        return () => wco?.removeEventListener('geometrychange', updateWco);
-    }, []);
-
+    const standalone = useSyncExternalStore(subscribeStandalone, getStandaloneSnapshot, () => false);
+    const wcoVisible = useSyncExternalStore(subscribeWcoVisible, getWcoVisibleSnapshot, () => false);
     return { standalone, wcoVisible };
 }
 

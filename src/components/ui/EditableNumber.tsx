@@ -35,11 +35,17 @@ export default function EditableNumber({
   const [isEditing, setIsEditing] = useState(startInEditMode);
   const [editValue, setEditValue] = useState(value?.toString() || '');
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { setEditValue(value?.toString() || ''); }, [value]);
-  useEffect(() => {
+  const [previousValue, setPreviousValue] = useState(value);
+  const [previousStart, setPreviousStart] = useState(startInEditMode);
+  // Adjust only when the incoming props change, before children commit.
+  if (!Object.is(previousValue, value)) {
+    setPreviousValue(value);
+    setEditValue(value?.toString() || '');
+  }
+  if (previousStart !== startInEditMode) {
+    setPreviousStart(startInEditMode);
     if (startInEditMode) setIsEditing(true);
-  }, [startInEditMode]);
+  }
   useEffect(() => { if (isEditing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [isEditing]);
 
   const closeEditing = useCallback(() => {

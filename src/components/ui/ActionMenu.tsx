@@ -62,6 +62,12 @@ export default function ActionMenu({
   const [highlight, setHighlight] = useState<MenuHighlight | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuListRef = useRef<HTMLDivElement>(null);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (!isOpen) setHighlight(null);
+  }
 
   const clearHighlight = useCallback(() => setHighlight(null), []);
 
@@ -95,10 +101,6 @@ export default function ActionMenu({
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, clearHighlight, setOpen]);
-
-  useEffect(() => {
-    if (!isOpen) clearHighlight();
-  }, [isOpen, clearHighlight]);
 
   useEffect(() => {
     if (!isOpen) return;

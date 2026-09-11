@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { IMeeting } from '@/lib/models/Meeting';
 import type { IProject } from '@/lib/models/Project';
 import type { IClient } from '@/lib/models/Client';
@@ -79,12 +79,14 @@ export default function MeetingsCalendarView({
   onPopoutBlocked,
 }: MeetingsCalendarViewProps) {
   const [viewDate, setViewDate] = useState(currentDate);
+  const [syncedDateKey, setSyncedDateKey] = useState(() => `${currentDate.valueOf()}:${timeframe}`);
+  const nextDateKey = `${currentDate.valueOf()}:${timeframe}`;
+  if (syncedDateKey !== nextDateKey) {
+    setSyncedDateKey(nextDateKey);
+    setViewDate(currentDate);
+  }
 
   const sortedMeetings = useMemo(() => sortMeetingsByStart(meetings), [meetings]);
-
-  useEffect(() => {
-    setViewDate(currentDate);
-  }, [currentDate, timeframe]);
 
   const { start: startDate } = useMemo(
     () => getTimeframeRange(timeframe, viewDate),

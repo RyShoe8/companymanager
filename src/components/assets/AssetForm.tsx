@@ -5,6 +5,7 @@ import { IAsset, AssetType } from '@/lib/models/Asset';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
+import { initialAssetTaskIndex } from '@/lib/utils/assetTaskIndex';
 
 interface AssetFormProps {
   asset?: IAsset;
@@ -38,30 +39,37 @@ export default function AssetForm({ asset, projects = [], clients = [], linkedPr
   const [tags, setTags] = useState(asset?.tags?.join(', ') || '');
   const [linkedProjectId, setLinkedProjectId] = useState(asset?.linkedProjectId?.toString() || initialLinkedProjectId || '');
   const [linkedClientId, setLinkedClientId] = useState(asset?.linkedClientId?.toString() || initialLinkedClientId || '');
-  const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(asset?.linkedProjectTaskIndex?.toString() ?? asset?.linkedProjectTaskId ? '' : initialLinkedProjectTaskIndex?.toString() || '');
+  const [linkedProjectTaskIndex, setLinkedProjectTaskIndex] = useState(() => initialAssetTaskIndex(asset?.linkedProjectTaskIndex, asset?.linkedProjectTaskId?.toString(), initialLinkedProjectTaskIndex, initialLinkedProjectTaskId));
   const [linkedProjectTaskId, setLinkedProjectTaskId] = useState(asset?.linkedProjectTaskId?.toString() || initialLinkedProjectTaskId || '');
   const [clientAccessible, setClientAccessible] = useState(asset?.clientAccessible ?? false);
-  const [selectedProjectTasks, setSelectedProjectTasks] = useState<Array<{ index: number; id?: string; name: string }>>([]);
+  const [projectTasks, setProjectTasks] = useState<{ projectId: string; tasks: Array<{ index: number; id?: string; name: string }> }>({ projectId: '', tasks: [] });
+  const selectedProjectTasks = projectTasks.projectId === linkedProjectId ? projectTasks.tasks : [];
 
   // Reset file and textContent when type changes
-  useEffect(() => {
-    if (type !== 'file') {
+  function changeType(nextType: AssetType) {
+    setType(nextType);
+    if (nextType !== 'file') {
       setFile(null);
     }
-    if (type !== 'text') {
+    if (nextType !== 'text') {
       setTextContent('');
     }
-    if (type === 'text' || type === 'file') {
+    if (nextType === 'text' || nextType === 'file') {
       setUrl('');
     }
-  }, [type]);
+  }
 
   // Fetch project tasks when a project is selected
   useEffect(() => {
+    if (!linkedProjectId) return;
+    const controller = new AbortController();
+    const setSelectedProjectTasks = (tasks: typeof selectedProjectTasks) => {
+      if (!controller.signal.aborted) setProjectTasks({ projectId: linkedProjectId, tasks });
+    };
     const fetchProjectTasks = async () => {
       if (linkedProjectId) {
         try {
-          const response = await fetch(`/api/projects/${linkedProjectId}`);
+          const response = await fetch(`/api/projects/${linkedProjectId}`, { signal: controller.signal });
           if (response.ok) {
             const project = await response.json();
             if (project.tasks && project.tasks.length > 0) {
@@ -78,16 +86,14 @@ export default function AssetForm({ asset, projects = [], clients = [], linkedPr
           } else {
             setSelectedProjectTasks([]);
           }
-        } catch (error) {
+        } catch {
           // Error fetching project tasks
           setSelectedProjectTasks([]);
         }
-      } else {
-        setSelectedProjectTasks([]);
-        setLinkedProjectTaskIndex('');
       }
     };
     fetchProjectTasks();
+    return () => controller.abort();
   }, [linkedProjectId]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -158,7 +164,7 @@ export default function AssetForm({ asset, projects = [], clients = [], linkedPr
       <Select
         label="Type"
         value={type}
-        onChange={(e) => setType(e.target.value as AssetType)}
+        onChange={(e) => changeType(e.target.value as AssetType)}
         options={typeOptions}
         required
       />
@@ -244,6 +250,8 @@ export default function AssetForm({ asset, projects = [], clients = [], linkedPr
           value={linkedProjectId}
           onChange={(e) => {
             setLinkedProjectId(e.target.value);
+            setLinkedProjectTaskId('');
+            setLinkedProjectTaskIndex('');
             if (e.target.value) {
               setLinkedClientId('');
             }

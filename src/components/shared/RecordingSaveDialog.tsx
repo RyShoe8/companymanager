@@ -47,13 +47,15 @@ export default function RecordingSaveDialog({
   const busy = saving || processing;
 
 
-  useEffect(() => {
+  const [previous, setPrevious] = useState({ isOpen, defaultName });
+  if (previous.isOpen !== isOpen || previous.defaultName !== defaultName) {
+    setPrevious({ isOpen, defaultName });
     if (isOpen) {
       setName(defaultName);
       setProjectId('');
       setTaskId('');
     }
-  }, [isOpen, defaultName]);
+  }
 
   useEffect(() => {
     if (!isOpen) return;

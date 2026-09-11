@@ -70,20 +70,13 @@ function waitForGrecaptcha(timeoutMs = RECAPTCHA_WAIT_MS): Promise<void> {
 
 export function useRecaptcha() {
   const isEnabled = Boolean(getRecaptchaSiteKey());
-  const [ready, setReady] = useState(() => isRecaptchaReady());
+  const [loadedReady, setLoadedReady] = useState(() => isRecaptchaReady());
   const [loadError, setLoadError] = useState<string | null>(null);
+  const ready = !isEnabled || loadedReady;
 
   useEffect(() => {
-    if (!isEnabled) {
-      setReady(true);
-      setLoadError(null);
-      return;
-    }
-    if (grecaptchaReady()) {
-      setReady(true);
-      setLoadError(null);
-      return;
-    }
+    if (!isEnabled) return;
+    if (grecaptchaReady()) return;
 
     let settled = false;
 
@@ -97,7 +90,7 @@ export function useRecaptcha() {
     const markReady = () => {
       if (settled || !grecaptchaReady()) return;
       settled = true;
-      setReady(true);
+      setLoadedReady(true);
       setLoadError(null);
       cleanup();
     };
@@ -105,7 +98,7 @@ export function useRecaptcha() {
     const markFailed = () => {
       if (settled) return;
       settled = true;
-      setReady(false);
+      setLoadedReady(false);
       setLoadError(RECAPTCHA_LOAD_ERROR_MESSAGE);
       cleanup();
     };

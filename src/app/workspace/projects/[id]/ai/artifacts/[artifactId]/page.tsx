@@ -41,6 +41,26 @@ export default function ArtifactPage() {
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Acceptance failed. Refresh before retrying.'); }
     finally { submitting.current = false; setBusy(false); }
   }
+  async function openPullRequest() {
+    if (!detail?.acceptance || !detail.review || submitting.current) return;
+    if (!window.confirm('Open a GitHub pull request for this accepted artifact? Requires verified sandbox evidence, a linked repository, and server GitHub App credentials.')) return;
+    submitting.current = true; setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`/api/projects/${id}/ai/reviews/${detail.acceptance.reviewId}/publish`, { method: 'POST' });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'Unable to open pull request.');
+      if (body.pullRequestUrl) {
+        setMessage(`Pull request opened: ${body.pullRequestUrl}`);
+      } else {
+        setMessage(body.error ?? 'Publish did not return a pull request URL.');
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Publish failed. Refresh before retrying.');
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  }
   return <main className="mx-auto max-w-3xl space-y-4 p-6 text-text-primary">
     <Link href={`/workspace/projects/${id}/ai/artifacts`}>← Artifacts</Link>
     <h1 className="text-2xl font-semibold">Artifact review</h1>
@@ -58,6 +78,24 @@ export default function ArtifactPage() {
         <ul className="space-y-2">{detail.review.findings.map((finding, index) => <li key={index} className="rounded border border-border p-3"><p>{finding.severity}: {finding.summary}</p><p className="break-all text-sm">Evidence: {finding.evidenceDigest}</p></li>)}</ul>
       </>}
       {detail.acceptance ? <p>Accepted {detail.acceptance.acceptedAt}</p> : detail.canManage && <button className="rounded border border-border p-2" disabled={busy || !detail.executionVerified || detail.review?.verdict !== 'passed'} onClick={() => void accept()}>Accept exact reviewed result</button>}
+      {detail.acceptance && detail.canManage && (
+        <div className="space-y-2 rounded border border-border p-3">
+          <p className="text-sm text-text-secondary">
+            Open pull request publishes to the linked GitHub repository only after sandbox verification and GitHub App
+            configuration. Local clones stay in sync with git pull after the PR merges.
+          </p>
+          <button
+            className="rounded border border-border p-2"
+            disabled={busy || !detail.executionVerified}
+            onClick={() => void openPullRequest()}
+          >
+            Open pull request
+          </button>
+          {!detail.executionVerified && (
+            <p className="text-sm text-text-secondary">Button stays available for messaging, but the server will reject unverified publish attempts.</p>
+          )}
+        </div>
+      )}
     </>}
   </main>;
 }

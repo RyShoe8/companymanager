@@ -2,7 +2,7 @@
 
 import { useClientReady } from '@/hooks/useClientReady';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
@@ -30,9 +30,11 @@ export default function RecordingNameDialog({
   const busy = saving || processing;
 
 
-  useEffect(() => {
+  const [previous, setPrevious] = useState({ isOpen, defaultName });
+  if (previous.isOpen !== isOpen || previous.defaultName !== defaultName) {
+    setPrevious({ isOpen, defaultName });
     if (isOpen) setName(defaultName);
-  }, [isOpen, defaultName]);
+  }
 
   if (!mounted || !isOpen) return null;
 

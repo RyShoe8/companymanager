@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { PlanDraft } from '@nucleas/ai-contracts';
 import { usePageActivity } from '@/hooks/usePageActivity';
+import ProjectRepositoryBinding from '@/components/ai/ProjectRepositoryBinding';
 
 type Objective = { _id: string; title: string; outcome: string; acceptanceCriteria: string[] };
 type Plan = PlanDraft & { _id: string; digest: string; status: 'draft' | 'approved'; expiresAt: string; source?: string };
@@ -115,6 +116,7 @@ export default function ProjectAiPanel({ projectId, initialObjectiveId }: { proj
   return <main className="mx-auto max-w-5xl space-y-6 p-6 text-text-primary">
     <Link href={`/workspace?project=${encodeURIComponent(projectId)}`} className="text-sm underline">Back to workspace</Link>
     <Link href="/workspace/ai-attention" className="ml-4 text-sm underline">AI needs attention</Link>
+    <Link href={`/workspace/ai-team?projectId=${encodeURIComponent(projectId)}`} className="ml-4 text-sm underline">AI Team &amp; chat</Link>
     <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/runs`} className="ml-4 text-sm underline">AI run history</Link>
     <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/library`} className="ml-4 text-sm underline">All objectives and plans</Link>
     <Link href={`/workspace/projects/${encodeURIComponent(projectId)}/ai/artifacts`} className="ml-4 text-sm underline">Artifacts and reviews</Link>
@@ -130,6 +132,7 @@ export default function ProjectAiPanel({ projectId, initialObjectiveId }: { proj
     </header>
     {error && <p role="alert" className="rounded border border-border p-3">{error}</p>}
     {data && <>
+      <ProjectRepositoryBinding projectId={projectId} />
       {data.canManage && <Link className="underline" href={`/workspace/ai-settings?projectId=${encodeURIComponent(projectId)}`}>AI budget settings</Link>}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Create an objective</h2>

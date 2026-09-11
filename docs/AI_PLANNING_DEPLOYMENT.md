@@ -2,7 +2,7 @@
 
 ## Secrets stay in Vercel
 
-Keep only `NUCLEAS_AI_REMOTE_BEARER_TOKEN` and the existing `CRON_SECRET` as AI-related server environment secrets. The cron secret is shared with other scheduled routes: do not replace it with the model token. Never expose either through `NEXT_PUBLIC_` or source control.
+Keep only `NUCLEAS_AI_REMOTE_BEARER_TOKEN` and the existing `CRON_SECRET` as AI-related server environment secrets for inference and cron. For future GitHub publish (not required to run planning), also set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` on the server—never `NEXT_PUBLIC_` or browser-held tokens. See [`AI_GITHUB_PUBLISH_CONTRACT.md`](./AI_GITHUB_PUBLISH_CONTRACT.md). The cron secret is shared with other scheduled routes: do not replace it with the model token. Never expose either through `NEXT_PUBLIC_` or source control.
 
 The old AI enablement, endpoint, protocol, model, fee and budget environment variables are no longer read. They may be removed after this code is deployed. There is no organization allowlist.
 

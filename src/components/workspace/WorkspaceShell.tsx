@@ -138,7 +138,6 @@ export default function WorkspaceShell({
     } | null>(null);
     const [inspectorInitialTasksExpanded, setInspectorInitialTasksExpanded] = useState(false);
     const [inspectorInitialContentExpanded, setInspectorInitialContentExpanded] = useState(false);
-    const deepLinkHandledRef = useRef(false);
 
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -194,12 +193,17 @@ export default function WorkspaceShell({
 
     const platformGuide = usePlatformGuideOptional();
 
-
-    useEffect(() => {
+    // Consume mobile create handoff once during render (sessionStorage), not in an effect.
+    const [createHandoffDone, setCreateHandoffDone] = useState(false);
+    if (!createHandoffDone) {
+        setCreateHandoffDone(true);
         const pending = consumeCreateAction();
-        if (pending === 'screenshot') setShowScreenshotModal(true);
-        else if (pending === 'record') setShowRecordingModal(true);
-    }, [consumeCreateAction]);
+        if (pending === 'screenshot') {
+            setShowScreenshotModal(true);
+        } else if (pending === 'record') {
+            setShowRecordingModal(true);
+        }
+    }
 
     useEffect(() => {
         const load = async () => {
@@ -219,11 +223,9 @@ export default function WorkspaceShell({
     const closeRecordingModal = useCallback(() => setShowRecordingModal(false), []);
     const createRecording = useRecordingUpload(null, closeRecordingModal, closeRecordingModal);
 
-    useEffect(() => {
-        if (createRecording.isNaming) {
-            setShowRecordingModal(false);
-        }
-    }, [createRecording.isNaming]);
+    if (createRecording.isNaming && showRecordingModal) {
+        setShowRecordingModal(false);
+    }
 
     useGoogleWorkspaceResume(setSchedulePanelMessage);
 
@@ -319,7 +321,7 @@ export default function WorkspaceShell({
         } catch {
             // Ignore background activity polling errors.
         }
-    }, [ws.loadData]);
+    }, [ws]);
 
     useEffect(() => {
         if (!shouldPollProjectActivity) return;
@@ -686,52 +688,74 @@ export default function WorkspaceShell({
         [ws.allProjects, handleViewProjectContent]
     );
 
-    useEffect(() => {
-        if (!initialDeepLinkClientId || ws.filteredClients.length === 0) return;
-        ws.setLens('clients');
-    }, [initialDeepLinkClientId, ws.filteredClients.length, ws.setLens]);
+    const deepLinkKey = initialDeepLinkClientId
+        ? `client:${initialDeepLinkClientId}`
+        : initialDeepLinkProjectId
+          ? `project:${initialDeepLinkProjectId}:${initialDeepLinkTaskId ?? ''}:${initialDeepLinkContentId ?? ''}`
+          : null;
+    const [deepLinkKeyApplied, setDeepLinkKeyApplied] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (deepLinkHandledRef.current || !initialDeepLinkClientId || ws.filteredClients.length === 0) return;
-        const client = ws.filteredClients.find((c) => c._id.toString() === initialDeepLinkClientId);
-        if (!client) return;
-        deepLinkHandledRef.current = true;
-        handleViewClient(client);
-    }, [initialDeepLinkClientId, ws.filteredClients, handleViewClient]);
-
-    useEffect(() => {
-        if (deepLinkHandledRef.current || !initialDeepLinkProjectId || ws.allProjects.length === 0) return;
-
-        const project = ws.allProjects.find((p) => p._id.toString() === initialDeepLinkProjectId);
-        if (!project) return;
-
-        deepLinkHandledRef.current = true;
-
-        if (initialDeepLinkContentId) {
-            handleViewProjectContent(project, initialDeepLinkContentId);
-            return;
-        }
-
-        if (initialDeepLinkTaskId) {
-            const taskIndex = (project.tasks ?? []).findIndex(
-                (task) => (task as { _id?: { toString(): string } })._id?.toString() === initialDeepLinkTaskId
-            );
-            if (taskIndex >= 0) {
-                handleViewProjectTask(project, taskIndex);
-                return;
+    // Apply URL deep links once data is available (adjust state during render, not in effects).
+    if (deepLinkKey && deepLinkKeyApplied !== deepLinkKey) {
+        if (initialDeepLinkClientId && ws.filteredClients.length > 0) {
+            const client = ws.filteredClients.find((c) => c._id.toString() === initialDeepLinkClientId);
+            if (client) {
+                setDeepLinkKeyApplied(deepLinkKey);
+                if (ws.lens !== 'clients') ws.setLens('clients');
+                setInspectorParentFocus(null);
+                setInspectorAutoAddTask(false);
+                setInspectorOpenTaskIndex(null);
+                setInspectorOpenContentId(null);
+                setInspectorInitialAddContentOpen(false);
+                setInspectorAddContentDate(undefined);
+                setInspectorAddContentPrefill(null);
+                setInspectorFocus(`client:${client._id}`);
+            }
+        } else if (initialDeepLinkProjectId && ws.allProjects.length > 0) {
+            const project = ws.allProjects.find((p) => p._id.toString() === initialDeepLinkProjectId);
+            if (project) {
+                setDeepLinkKeyApplied(deepLinkKey);
+                setInspectorParentFocus(null);
+                setInspectorAutoAddTask(false);
+                if (initialDeepLinkContentId) {
+                    markWorkspaceItemSeen([
+                        buildContentItemKey(project._id.toString(), initialDeepLinkContentId),
+                    ]);
+                    setInspectorOpenTaskIndex(null);
+                    setInspectorOpenContentId(initialDeepLinkContentId);
+                    setInspectorFocus(`project:${project._id}`);
+                    applyProjectInspectorExpandFlags(project._id.toString(), { contentExpanded: true });
+                } else if (initialDeepLinkTaskId) {
+                    const taskIndex = (project.tasks ?? []).findIndex(
+                        (task) => (task as { _id?: { toString(): string } })._id?.toString() === initialDeepLinkTaskId
+                    );
+                    if (taskIndex >= 0) {
+                        const task = project.tasks?.[taskIndex];
+                        const taskId = task?._id?.toString() ?? null;
+                        if (taskId) {
+                            markWorkspaceItemSeen([
+                                buildTaskItemKey(project._id.toString(), taskId, taskIndex),
+                            ]);
+                        }
+                        setInspectorOpenContentId(null);
+                        setInspectorFocus(`project:${project._id}`);
+                        setInspectorOpenTaskIndex(taskIndex);
+                        applyProjectInspectorExpandFlags(project._id.toString(), { tasksExpanded: true });
+                    } else {
+                        setInspectorOpenTaskIndex(null);
+                        setInspectorOpenContentId(null);
+                        setInspectorFocus(`project:${project._id}`);
+                        applyProjectInspectorExpandFlags(project._id.toString());
+                    }
+                } else {
+                    setInspectorOpenTaskIndex(null);
+                    setInspectorOpenContentId(null);
+                    setInspectorFocus(`project:${project._id}`);
+                    applyProjectInspectorExpandFlags(project._id.toString());
+                }
             }
         }
-
-        handleViewProject(project);
-    }, [
-        initialDeepLinkProjectId,
-        initialDeepLinkTaskId,
-        initialDeepLinkContentId,
-        ws.allProjects,
-        handleViewProject,
-        handleViewProjectTask,
-        handleViewProjectContent,
-    ]);
+    }
 
     const handleDeleteProject = async (id: string) => {
         try {
@@ -997,21 +1021,25 @@ export default function WorkspaceShell({
     }, [inspectorFocus, completeInspectorClose]);
 
     // Global keyboard shortcuts (command palette â€” platform admins only)
+    const openCommandPalette = useCallback(() => {
+        setPaletteNlError(null);
+        setIsCommandPaletteOpen(true);
+    }, []);
+
     useEffect(() => {
         if (!isPlatformAdmin) return;
         const onKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
-                setIsCommandPaletteOpen(open => !open);
+                setIsCommandPaletteOpen((open) => {
+                    if (!open) setPaletteNlError(null);
+                    return !open;
+                });
             }
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [isPlatformAdmin]);
-
-    useEffect(() => {
-        if (isCommandPaletteOpen) setPaletteNlError(null);
-    }, [isCommandPaletteOpen]);
 
     const isSchedulingPhase = ws.phase === 'Schedule';
     const isAgendaLens = ws.lens === 'agenda';
@@ -1040,7 +1068,11 @@ export default function WorkspaceShell({
         if (!pendingScheduleSyncRef.current) return;
         if (ws.phase !== 'Schedule' || !scheduleCalendar?.connected) return;
         pendingScheduleSyncRef.current = false;
-        void handleScheduleSync();
+        // Defer so this effect only schedules work; state updates happen after the async sync.
+        const timer = window.setTimeout(() => {
+            void handleScheduleSync();
+        }, 0);
+        return () => window.clearTimeout(timer);
     }, [ws.phase, scheduleCalendar?.connected, handleScheduleSync]);
 
     const scheduleHeaderMessage = schedulePanelMessage ?? scheduleCalendarMessage;
@@ -1206,7 +1238,7 @@ export default function WorkspaceShell({
                                 <button
                                     type="button"
                                     data-tour="command-palette-trigger"
-                                    onClick={() => setIsCommandPaletteOpen(true)}
+                                    onClick={openCommandPalette}
                                     className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors"
                                     title="Open command palette (Ctrl+K)"
                                 >

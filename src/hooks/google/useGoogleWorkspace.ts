@@ -60,7 +60,10 @@ export function useGoogleWorkspace(
   }, []);
 
   useEffect(() => {
-    void refreshStatus();
+    const timer = window.setTimeout(() => {
+      void refreshStatus();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [refreshStatus]);
 
   useEffect(() => {
@@ -70,7 +73,10 @@ export function useGoogleWorkspace(
     params.delete('google_drive_connected');
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`;
     window.history.replaceState({}, '', next);
-    void refreshStatus();
+    const timer = window.setTimeout(() => {
+      void refreshStatus();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [refreshStatus]);
 
   const ensureConnected = useCallback(

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { IProject, IProjectTask } from '@/lib/models/Project';
 import { IContentItem } from '@/lib/models/ContentItem';
 import { IEmployee } from '@/lib/models/Employee';
@@ -19,6 +19,8 @@ import {
   readObservedItemsForUser,
 } from '@/lib/workspace/itemSeenState';
 
+const EMPTY_COMMENT_MAP = new Map<string, Date>();
+
 interface UseCalendarActivityTrackingOptions {
   projects: IProject[];
   contentItems: IContentItem[];
@@ -28,6 +30,17 @@ interface UseCalendarActivityTrackingOptions {
   inspectorProjectId?: string | null;
   itemSeenRefreshTrigger?: number;
   projectLocalTouchMs?: Record<string, number>;
+}
+
+function readManuallyCollapsedProjects(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  const saved = localStorage.getItem('calendar-manually-collapsed-projects');
+  if (!saved) return new Set();
+  try {
+    return new Set(JSON.parse(saved) as string[]);
+  } catch {
+    return new Set();
+  }
 }
 
 /** Tracks per-item seen/activity state, employee lookups, and expanded-project persistence for CalendarView. */
@@ -42,11 +55,16 @@ export function useCalendarActivityTracking({
   projectLocalTouchMs = {},
 }: UseCalendarActivityTrackingOptions) {
   const [employees, setEmployees] = useState<IEmployee[]>([]);
-  const [projectLatestComments, setProjectLatestComments] = useState<Map<string, Date>>(new Map());
+  const [fetchedProjectLatestComments, setFetchedProjectLatestComments] = useState<Map<string, Date>>(
+    new Map()
+  );
   const [itemActivityByKey, setItemActivityByKey] = useState<Record<string, number>>({});
   const [itemStatusByKey, setItemStatusByKey] = useState<Record<string, ItemSeenStatus>>({});
-  const prevActivityMsRef = useRef<Map<string, number>>(new Map());
-  const hasInitializedActivityRef = useRef(false);
+  const [prevActivityMs, setPrevActivityMs] = useState<Record<string, number>>({});
+  const [activityInitialized, setActivityInitialized] = useState(false);
+
+  const projectLatestComments =
+    projects.length === 0 ? EMPTY_COMMENT_MAP : fetchedProjectLatestComments;
 
   const contentByProjectId = useMemo(
     () => buildContentItemsByProjectId(contentItems),
@@ -74,51 +92,41 @@ export function useCalendarActivityTracking({
     [projects, contentItems]
   );
 
+  const workspaceKeys = useMemo(
+    () => workspaceItemEntries.map((entry) => entry.key),
+    [workspaceItemEntries]
+  );
+
   useEffect(() => {
     if (!currentUserId) return;
     const observed = observeItemsForUser(currentUserId, workspaceItemEntries, {
       openProjectId: inspectorProjectId ?? undefined,
     });
-    setItemActivityByKey((prev) =>
-      JSON.stringify(prev) === JSON.stringify(observed.activityByKey) ? prev : observed.activityByKey
-    );
-    setItemStatusByKey((prev) =>
-      JSON.stringify(prev) === JSON.stringify(observed.statusByKey) ? prev : observed.statusByKey
-    );
+    const timer = window.setTimeout(() => {
+      setItemActivityByKey((prev) =>
+        JSON.stringify(prev) === JSON.stringify(observed.activityByKey) ? prev : observed.activityByKey
+      );
+      setItemStatusByKey((prev) =>
+        JSON.stringify(prev) === JSON.stringify(observed.statusByKey) ? prev : observed.statusByKey
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [currentUserId, workspaceItemEntries, inspectorProjectId]);
 
-  useEffect(() => {
-    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return;
-    const keys = workspaceItemEntries.map((entry) => entry.key);
-    const observed = readObservedItemsForUser(currentUserId, keys);
-    setItemActivityByKey((prev) =>
-      JSON.stringify(prev) === JSON.stringify(observed.activityByKey) ? prev : observed.activityByKey
-    );
-    setItemStatusByKey((prev) =>
-      JSON.stringify(prev) === JSON.stringify(observed.statusByKey) ? prev : observed.statusByKey
-    );
-  }, [currentUserId, itemSeenRefreshTrigger, workspaceItemEntries]);
+  const refreshedObservation = useMemo(() => {
+    if (!currentUserId || (itemSeenRefreshTrigger ?? 0) <= 0) return null;
+    return readObservedItemsForUser(currentUserId, workspaceKeys);
+  }, [currentUserId, itemSeenRefreshTrigger, workspaceKeys]);
 
-  const taskActivityMs = useCallback(
-    (project: IProject, task: IProjectTask, idx: number) =>
-      itemActivityByKey[taskKeyFor(project, task, idx)] ?? 0,
-    [itemActivityByKey, taskKeyFor]
-  );
+  if (refreshedObservation) {
+    if (JSON.stringify(itemActivityByKey) !== JSON.stringify(refreshedObservation.activityByKey)) {
+      setItemActivityByKey(refreshedObservation.activityByKey);
+    }
+    if (JSON.stringify(itemStatusByKey) !== JSON.stringify(refreshedObservation.statusByKey)) {
+      setItemStatusByKey(refreshedObservation.statusByKey);
+    }
+  }
 
-  const contentActivityMs = useCallback(
-    (item: IContentItem) => itemActivityByKey[contentKeyFor(item)] ?? 0,
-    [itemActivityByKey, contentKeyFor]
-  );
-
-  const projectBadgeEligible = useCallback(
-    (project: IProject): boolean =>
-      !!currentUserEmployeeId &&
-      !!isManagerOrAdmin &&
-      isEmployeeOnProjectTeam(project, currentUserEmployeeId),
-    [currentUserEmployeeId, isManagerOrAdmin]
-  );
-
-  // Load expanded projects from localStorage on mount
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('calendar-expanded-projects');
@@ -126,7 +134,7 @@ export function useCalendarActivityTracking({
         try {
           const projectIds = JSON.parse(saved);
           return new Set(projectIds);
-        } catch (e) {
+        } catch {
           return new Set();
         }
       }
@@ -134,7 +142,6 @@ export function useCalendarActivityTracking({
     return new Set();
   });
 
-  // Save expanded projects to localStorage whenever it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const projectIds = Array.from(expandedProjects);
@@ -142,7 +149,6 @@ export function useCalendarActivityTracking({
     }
   }, [expandedProjects]);
 
-  // Fetch employees to resolve names from IDs
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
@@ -151,11 +157,11 @@ export function useCalendarActivityTracking({
           const data = await response.json();
           setEmployees(data);
         }
-      } catch (error) {
+      } catch {
         // Error fetching employees
       }
     };
-    fetchEmployees();
+    void fetchEmployees();
   }, []);
 
   const getLatestActivityMs = useCallback(
@@ -185,12 +191,8 @@ export function useCalendarActivityTracking({
     [contentByProjectId, projectLatestComments, itemActivityByKey, projectLocalTouchMs]
   );
 
-  // Fetch latest project comment timestamps in one request
   useEffect(() => {
-    if (projects.length === 0) {
-      setProjectLatestComments(new Map());
-      return;
-    }
+    if (projects.length === 0) return;
 
     let cancelled = false;
 
@@ -212,7 +214,7 @@ export function useCalendarActivityTracking({
         }
 
         if (!cancelled) {
-          setProjectLatestComments(commentMap);
+          setFetchedProjectLatestComments(commentMap);
         }
       } catch {
         // Ignore activity fetch errors.
@@ -240,104 +242,81 @@ export function useCalendarActivityTracking({
     [itemStatusByKey]
   );
 
-  // Auto-expand projects when activity increases (unless manually collapsed)
-  useEffect(() => {
-    if (projects.length === 0) return;
+  const manuallyCollapsed = useMemo(() => readManuallyCollapsedProjects(), [
+    // Re-read when expansion changes (collapse tracking writes localStorage in toggle).
+    expandedProjects,
+  ]);
 
-    const manuallyCollapsed = new Set<string>();
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('calendar-manually-collapsed-projects');
-      if (saved) {
-        try {
-          const projectIds = JSON.parse(saved) as string[];
-          projectIds.forEach((id) => manuallyCollapsed.add(id));
-        } catch {
-          // Ignore parse errors
-        }
+  const nextActivityMs: Record<string, number> = {};
+  for (const project of projects) {
+    nextActivityMs[project._id.toString()] = getLatestActivityMs(project);
+  }
+
+  const toExpandFromActivity: string[] = [];
+  if (activityInitialized) {
+    for (const [projectId, activityMs] of Object.entries(nextActivityMs)) {
+      const prevMs = prevActivityMs[projectId];
+      if (prevMs !== undefined && activityMs > prevMs && !manuallyCollapsed.has(projectId)) {
+        toExpandFromActivity.push(projectId);
       }
     }
+  }
 
-    const prev = prevActivityMsRef.current;
-    const next = new Map<string, number>();
-    const toExpand: string[] = [];
-
-    for (const project of projects) {
-      const projectId = project._id.toString();
-      const activityMs = getLatestActivityMs(project);
-      next.set(projectId, activityMs);
-
-      if (hasInitializedActivityRef.current) {
-        const prevMs = prev.get(projectId);
-        if (prevMs !== undefined && activityMs > prevMs && !manuallyCollapsed.has(projectId)) {
-          toExpand.push(projectId);
-        }
-      }
+  const nextActivitySerialized = JSON.stringify(nextActivityMs);
+  const prevActivitySerialized = JSON.stringify(prevActivityMs);
+  if (nextActivitySerialized !== prevActivitySerialized) {
+    setPrevActivityMs(nextActivityMs);
+    if (!activityInitialized && projects.length > 0) {
+      setActivityInitialized(true);
     }
+  }
 
-    prevActivityMsRef.current = next;
-
-    if (!hasInitializedActivityRef.current) {
-      hasInitializedActivityRef.current = true;
-      return;
-    }
-
-    if (toExpand.length > 0) {
-      setExpandedProjects((prevSet) => {
-        const updated = new Set(prevSet);
-        let changed = false;
-        for (const id of toExpand) {
-          if (!updated.has(id)) {
-            updated.add(id);
-            changed = true;
-          }
-        }
-        return changed ? updated : prevSet;
-      });
-    }
-  }, [projects, contentItems, projectLatestComments, getLatestActivityMs]);
-
-  // Auto-expand projects that have unseen task/content items
-  useEffect(() => {
-    if (!currentUserId || projects.length === 0) return;
-
-    const manuallyCollapsed = new Set<string>();
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('calendar-manually-collapsed-projects');
-      if (saved) {
-        try {
-          const projectIds = JSON.parse(saved) as string[];
-          projectIds.forEach((id) => manuallyCollapsed.add(id));
-        } catch {
-          // Ignore parse errors
-        }
-      }
-    }
-
-    const toExpand: string[] = [];
+  const toExpandFromUnseen: string[] = [];
+  if (currentUserId && projects.length > 0) {
     for (const project of projects) {
       const projectId = project._id.toString();
       if (manuallyCollapsed.has(projectId)) continue;
       if (countProjectUnseen(project) > 0) {
-        toExpand.push(projectId);
+        toExpandFromUnseen.push(projectId);
       }
     }
+  }
 
-    if (toExpand.length > 0) {
-      setExpandedProjects((prevSet) => {
-        const updated = new Set(prevSet);
-        let changed = false;
-        for (const id of toExpand) {
-          if (!updated.has(id)) {
-            updated.add(id);
-            changed = true;
-          }
-        }
-        return changed ? updated : prevSet;
-      });
+  const expandIds = [...toExpandFromActivity, ...toExpandFromUnseen];
+  if (expandIds.length > 0) {
+    let needsExpand = false;
+    for (const id of expandIds) {
+      if (!expandedProjects.has(id)) {
+        needsExpand = true;
+        break;
+      }
     }
-  }, [projects, currentUserId, itemStatusByKey, countProjectUnseen]);
+    if (needsExpand) {
+      const updated = new Set(expandedProjects);
+      for (const id of expandIds) updated.add(id);
+      setExpandedProjects(updated);
+    }
+  }
 
-  // Helper function to get employee name from ID or return the name if available
+  const projectBadgeEligible = useCallback(
+    (project: IProject): boolean =>
+      !!currentUserEmployeeId &&
+      !!isManagerOrAdmin &&
+      isEmployeeOnProjectTeam(project, currentUserEmployeeId),
+    [currentUserEmployeeId, isManagerOrAdmin]
+  );
+
+  const taskActivityMs = useCallback(
+    (project: IProject, task: IProjectTask, idx: number) =>
+      itemActivityByKey[taskKeyFor(project, task, idx)] ?? 0,
+    [itemActivityByKey, taskKeyFor]
+  );
+
+  const contentActivityMs = useCallback(
+    (item: IContentItem) => itemActivityByKey[contentKeyFor(item)] ?? 0,
+    [itemActivityByKey, contentKeyFor]
+  );
+
   const getEmployeeName = (assignedToId: string | undefined, assignedToName: string | undefined): string | undefined =>
     resolveEmployeeName(employees, assignedToId, assignedToName);
 
@@ -346,7 +325,6 @@ export function useCalendarActivityTracking({
     [projectLocalTouchMs]
   );
 
-  // Sort projects: locally-touched-by-you first, then unseen, then latest activity
   const sortProjectsByLatestUpdate = (projectList: IProject[]): IProject[] => {
     return [...projectList].sort((a, b) =>
       compareProjectsForWorkspaceSort(
@@ -361,30 +339,28 @@ export function useCalendarActivityTracking({
   };
 
   const toggleProjectExpanded = (projectId: string) => {
-    setExpandedProjects(prev => {
+    setExpandedProjects((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(projectId)) {
         newSet.delete(projectId);
-        // Track manually collapsed projects
         if (typeof window !== 'undefined') {
           const saved = localStorage.getItem('calendar-manually-collapsed-projects');
-          const manuallyCollapsed = saved ? new Set(JSON.parse(saved) as string[]) : new Set<string>();
-          manuallyCollapsed.add(projectId);
-          let ids = Array.from(manuallyCollapsed);
+          const collapsed = saved ? new Set(JSON.parse(saved) as string[]) : new Set<string>();
+          collapsed.add(projectId);
+          let ids = Array.from(collapsed);
           if (ids.length > 200) ids = ids.slice(ids.length - 200);
           localStorage.setItem('calendar-manually-collapsed-projects', JSON.stringify(ids));
         }
       } else {
         newSet.add(projectId);
-        // Remove from manually collapsed if it was there
         if (typeof window !== 'undefined') {
           const saved = localStorage.getItem('calendar-manually-collapsed-projects');
           if (saved) {
-            const manuallyCollapsed = new Set(JSON.parse(saved) as string[]);
-            manuallyCollapsed.delete(projectId);
+            const collapsed = new Set(JSON.parse(saved) as string[]);
+            collapsed.delete(projectId);
             localStorage.setItem(
               'calendar-manually-collapsed-projects',
-              JSON.stringify(Array.from(manuallyCollapsed))
+              JSON.stringify(Array.from(collapsed))
             );
           }
         }

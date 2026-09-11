@@ -154,6 +154,12 @@ export default function CalendarView({
 }: CalendarViewProps) {
   const isMobile = useIsMobile();
   const [viewDate, setViewDate] = useState(currentDate);
+  const [syncedDateKey, setSyncedDateKey] = useState(() => `${currentDate.valueOf()}:${timeframe}`);
+  const nextDateKey = `${currentDate.valueOf()}:${timeframe}`;
+  if (syncedDateKey !== nextDateKey) {
+    setSyncedDateKey(nextDateKey);
+    setViewDate(currentDate);
+  }
 
   const {
     employees,
@@ -178,10 +184,6 @@ export default function CalendarView({
     itemSeenRefreshTrigger,
     projectLocalTouchMs,
   });
-
-  useEffect(() => {
-    setViewDate(currentDate);
-  }, [currentDate, timeframe]);
 
   const [timeframeModalOpen, setTimeframeModalOpen] = useState<{
     project: IProject;

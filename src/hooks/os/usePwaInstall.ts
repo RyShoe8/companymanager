@@ -55,17 +55,29 @@ async function checkManifestReachable(): Promise<boolean> {
 }
 
 export function usePwaInstall() {
-    const [isRunningAsPwa, setIsRunningAsPwa] = useState(false);
+    const [isRunningAsPwa, setIsRunningAsPwa] = useState(
+        () => typeof window !== 'undefined' && isRunningAsInstalledPwa()
+    );
     const [installedRelatedApp, setInstalledRelatedApp] = useState(false);
-    const [isOs, setIsOs] = useState(false);
+    const [isOs, setIsOs] = useState(() => typeof window !== 'undefined' && isOsHost());
     const [installCheckPending, setInstallCheckPending] = useState(true);
     const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-    const [swStatus, setSwStatus] = useState<OsSwStatus>('idle');
-    const [swErrorMessage, setSwErrorMessage] = useState<string | null>(null);
-    const [swControlled, setSwControlled] = useState(false);
+    const [swStatus, setSwStatus] = useState<OsSwStatus>(() =>
+        typeof window !== 'undefined' ? getOsSwState().status : 'idle'
+    );
+    const [swErrorMessage, setSwErrorMessage] = useState<string | null>(() =>
+        typeof window !== 'undefined' ? getOsSwState().errorMessage : null
+    );
+    const [swControlled, setSwControlled] = useState(
+        () => typeof window !== 'undefined' && getOsSwState().controlled
+    );
     const [manifestOk, setManifestOk] = useState<boolean | null>(null);
-    const [manifestLinkHref, setManifestLinkHref] = useState<string | null>(null);
-    const [manifestOriginMismatch, setManifestOriginMismatch] = useState(false);
+    const [manifestLinkHref, setManifestLinkHref] = useState<string | null>(() =>
+        typeof window !== 'undefined' ? getDomManifestHref() : null
+    );
+    const [manifestOriginMismatch, setManifestOriginMismatch] = useState(() =>
+        typeof window !== 'undefined' ? isManifestOriginMismatch(getDomManifestHref()) : false
+    );
 
     const syncManifestDiagnostics = useCallback(() => {
         const href = getDomManifestHref();
@@ -93,13 +105,14 @@ export function usePwaInstall() {
     }, []);
 
     useEffect(() => {
-        setIsOs(isOsHost());
-        setIsRunningAsPwa(isRunningAsInstalledPwa());
-        setInstalledRelatedApp(false);
-        syncSwState();
-        syncManifestDiagnostics();
-
         let cancelled = false;
+        const timer = window.setTimeout(() => {
+            setIsOs(isOsHost());
+            setIsRunningAsPwa(isRunningAsInstalledPwa());
+            syncSwState();
+            syncManifestDiagnostics();
+        }, 0);
+
         (async () => {
             const [manifestReachable] = await Promise.all([
                 isOsHost() ? checkManifestReachable() : Promise.resolve(true),
@@ -155,6 +168,7 @@ export function usePwaInstall() {
 
         return () => {
             cancelled = true;
+            window.clearTimeout(timer);
             unsubSw();
             mediaQueries.forEach((mq) => mq.removeEventListener('change', onDisplayModeChange));
             window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);

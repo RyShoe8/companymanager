@@ -46,7 +46,8 @@ export default function EditableText({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const prevUseMultilineRef = useRef(false);
   const pendingCaretPosRef = useRef<number | null>(null);
-  const autoEditAppliedRef = useRef(false);
+  const [autoEditApplied, setAutoEditApplied] = useState(false);
+  const autoEditNotified = useRef(false);
 
   const useMultiline =
     multiline ||
@@ -66,24 +67,21 @@ export default function EditableText({
     setIsEditing(true);
   }, [value, valueForEdit]);
 
-  useEffect(() => {
-    if (!isEditing) {
-      setEditValue(value);
-    }
-  }, [value, isEditing]);
-
-  useEffect(() => {
-    if (!autoEditOnMount || disabled || autoEditAppliedRef.current) return;
-    autoEditAppliedRef.current = true;
+  if (autoEditOnMount && !disabled && !autoEditApplied) {
+    setAutoEditApplied(true);
     setEditValue(valueForEdit(value));
     setIsEditing(true);
-    onAutoEditMount?.();
-  }, [autoEditOnMount, disabled, value, valueForEdit, onAutoEditMount]);
+  }
+  useEffect(() => {
+    if (autoEditApplied && !autoEditNotified.current) {
+      autoEditNotified.current = true;
+      onAutoEditMount?.();
+    }
+  }, [autoEditApplied, onAutoEditMount]);
 
   useEffect(() => {
     if (!isEditing) {
       prevUseMultilineRef.current = false;
-      setForceMultiline(false);
       pendingCaretPosRef.current = null;
     }
   }, [isEditing]);

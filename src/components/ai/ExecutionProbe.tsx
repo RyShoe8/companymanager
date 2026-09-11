@@ -26,6 +26,15 @@ export default function ExecutionProbe({ kind }: { kind?: 'chat' | 'responses' |
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Result unknown. Reload; do not retry automatically.'); }
     finally { setBusy(false); }
   }
+  const alreadyAttempted = Boolean(result && result.outcome !== 'not_started');
+  const runDisabled = busy || alreadyAttempted || !result;
+  const disabledReason = !result && !error
+    ? 'Loading prior result…'
+    : alreadyAttempted
+      ? 'This one-time probe already ran. Its saved result is kept; Nucleas does not retry the same probe kind automatically. Use a different probe kind only when you intentionally need a new diagnostic.'
+      : busy
+        ? 'Probe in progress…'
+        : null;
   return <section className="space-y-2 rounded border border-border p-3">
     <h2 className="font-semibold">{kind ? `One-time ${kind} connection check` : 'One-time remote execution probe'}</h2>
     {kind === 'chat-recheck' && <p>Fresh authenticated chat check after the network change. Earlier results are preserved; this check can run only once.</p>}
@@ -39,6 +48,7 @@ export default function ExecutionProbe({ kind }: { kind?: 'chat' | 'responses' |
     {result && ['transport_failure', 'transport_or_parse_failure'].includes(result.outcome) && !result.failureCategory && <p>This historical result predates detailed error reporting. Its specific cause cannot be recovered from the saved record.</p>}
     {result?.httpStatus && kind && <p>Server header reports Cloudflare: {result.cloudflareReported ? 'yes' : 'no'}. Authentication challenge header present: {result.authenticationChallengePresent ? 'yes' : 'no'}. These clues do not identify which layer rejected a request. Raw headers and response text are discarded.</p>}
     {error && <p role="alert">{error}</p>}
-    <button className="rounded border border-border p-2" disabled={busy || result?.outcome !== 'not_started'} onClick={() => void run()}>{busy ? 'Probing…' : kind ? `Run one-time ${kind} check` : 'Run one-time calculation probe'}</button>
+    {disabledReason && <p className="text-sm text-text-secondary">{disabledReason}</p>}
+    <button className="rounded border border-border p-2" disabled={runDisabled} onClick={() => void run()} title={disabledReason ?? undefined}>{busy ? 'Probing…' : kind ? `Run one-time ${kind} check` : 'Run one-time calculation probe'}</button>
   </section>;
 }

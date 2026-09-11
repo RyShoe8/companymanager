@@ -160,9 +160,12 @@ export function PlatformGuideProvider({ children }: { children: ReactNode }) {
     if (autoStartAttemptedRef.current) return;
     if (active) return;
 
-    autoStartAttemptedRef.current = true;
     const saved = readGuideStepIndex();
-    startGuide(saved ?? 0);
+    const timer = window.setTimeout(() => {
+      autoStartAttemptedRef.current = true;
+      startGuide(saved ?? 0);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [active, pathname, startGuide, user, userRole]);
 
   const value = useMemo<PlatformGuideContextValue>(

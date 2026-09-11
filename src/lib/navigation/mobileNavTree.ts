@@ -63,6 +63,9 @@ export const MOBILE_NAV_ROOT: MobileNavNode[] = [
         ],
       },
       { id: 'go-workspace', label: 'Go to workspace', icon: '🗂️', href: '/workspace' },
+      { id: 'go-ai-team', label: 'AI Team chat', icon: '🤖', href: '/workspace/ai-team' },
+      { id: 'go-ai-queue', label: 'AI task queue', href: '/workspace/ai-team/queue' },
+      { id: 'go-ai-attention', label: 'AI needs attention', href: '/workspace/ai-attention' },
     ],
   },
   {
@@ -71,6 +74,8 @@ export const MOBILE_NAV_ROOT: MobileNavNode[] = [
     icon: '📱',
     children: [
       { id: 'page-workspace', label: 'Workspace', href: '/workspace' },
+      { id: 'page-ai-team', label: 'AI Team', href: '/workspace/ai-team' },
+      { id: 'page-ai-queue', label: 'AI task queue', href: '/workspace/ai-team/queue' },
       { id: 'page-plan', label: 'Plan', href: '/plan' },
       { id: 'page-build', label: 'Build', href: '/build' },
       { id: 'page-run', label: 'Run', href: '/run' },
