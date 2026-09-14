@@ -5,7 +5,7 @@ import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { encryptModelSecret, secretLast4 } from '@/lib/ai/modelSecrets';
 import { modelProfileCreateSchema } from '@/lib/ai/rolePipeline/schemas';
 import { mapModelProfilePublic } from '@/lib/ai/rolePipeline/profiles';
-import { slugifyModelKey } from '@/lib/ai/rolePipeline/providerCatalog';
+import { getModelProvider, slugifyModelKey } from '@/lib/ai/rolePipeline/providerCatalog';
 import { AiModelProfile } from '@/lib/models/AiRolePipeline';
 import connectDB from '@/lib/db/mongodb';
 
@@ -43,16 +43,25 @@ export async function POST(request: NextRequest) {
     });
     await indexes;
     const input = modelProfileCreateSchema.parse(await readAiBody(request));
-    const key =
-      input.key ?? slugifyModelKey([input.provider ?? 'model', input.model, input.tier]);
+    const provider = input.provider;
+    const catalog = getModelProvider(provider);
+    const endpoint =
+      provider === 'custom'
+        ? input.endpoint
+        : (catalog?.endpoint ?? input.endpoint);
+    if (!endpoint) {
+      throw new AiHttpError(400, 'Endpoint is required for this company credential.');
+    }
+    const label = input.label.trim() || catalog?.label || provider;
+    const key = input.key ?? slugifyModelKey([provider, input.tier, 'credential']);
     const row = await AiModelProfile.create({
       key,
-      label: input.label,
-      provider: input.provider ?? 'custom',
+      label,
+      provider,
       tier: input.tier,
       protocol: input.protocol,
-      endpoint: input.endpoint,
-      model: input.model,
+      endpoint,
+      model: input.model?.trim() ?? '',
       secretCiphertext: encryptModelSecret(input.apiKey),
       secretLast4: secretLast4(input.apiKey),
       enabled: input.enabled,

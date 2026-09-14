@@ -15,17 +15,29 @@ const button = 'min-h-11 rounded-xl border border-border px-4 py-2 text-sm disab
 type Profile = {
   id: string;
   label: string;
+  provider?: string;
   tier: string;
   model: string;
   enabled: boolean;
 };
 
+type CatalogProvider = {
+  id: string;
+  label: string;
+  models: { id: string; label: string }[];
+};
+
+type StageBinding = {
+  modelProfileId: string;
+  model: string;
+};
+
 type Pipeline = {
   id: string;
   employee: AiEmployeeKey;
-  planner: { modelProfileId: string };
-  worker: { modelProfileId: string };
-  reviewer: { modelProfileId: string };
+  planner: StageBinding;
+  worker: StageBinding;
+  reviewer: StageBinding;
   maxSubtasks: number;
   maxWorkerRetries: number;
   enabled: boolean;
@@ -63,6 +75,16 @@ function costLine(event: StageEvent): string | null {
   return null;
 }
 
+function modelsForCredential(
+  profile: Profile | undefined,
+  catalog: CatalogProvider[]
+): { id: string; label: string }[] {
+  if (!profile) return [];
+  const providerId = profile.provider ?? 'custom';
+  if (providerId === 'custom') return [];
+  return catalog.find((item) => item.id === providerId)?.models ?? [];
+}
+
 export default function AiTeamWorkspace({
   initialProjectId = '',
   initialEmployee = 'product',
@@ -78,11 +100,12 @@ export default function AiTeamWorkspace({
   const [selected, setSelected] = useState(initialProjectId);
   const [employee, setEmployee] = useState<AiEmployeeKey>(initialEmployee);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [catalog, setCatalog] = useState<CatalogProvider[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [canManage, setCanManage] = useState(false);
-  const [plannerId, setPlannerId] = useState('');
-  const [workerId, setWorkerId] = useState('');
-  const [reviewerId, setReviewerId] = useState('');
+  const [planner, setPlanner] = useState<StageBinding>({ modelProfileId: '', model: '' });
+  const [worker, setWorker] = useState<StageBinding>({ modelProfileId: '', model: '' });
+  const [reviewer, setReviewer] = useState<StageBinding>({ modelProfileId: '', model: '' });
   const [maxSubtasks, setMaxSubtasks] = useState(5);
   const [maxRetries, setMaxRetries] = useState(1);
   const [enabled, setEnabled] = useState(true);
@@ -111,6 +134,7 @@ export default function AiTeamWorkspace({
     const body = await response.json();
     if (!response.ok) throw new Error(body.error ?? 'Unable to load pipelines.');
     setProfiles(body.profiles ?? []);
+    setCatalog(body.catalog ?? []);
     setPipelines(body.pipelines ?? []);
     setCanManage(Boolean(body.canManage));
   }, []);
@@ -150,24 +174,64 @@ export default function AiTeamWorkspace({
 
   useEffect(() => {
     const current = pipelines.find((item) => item.employee === employee);
+    const defaultCommercial = commercialProfiles[0];
+    const defaultWorker = workerProfiles[0];
+    const defaultReviewer = commercialProfiles[1] ?? commercialProfiles[0];
+    const firstModel = (profile?: Profile) => modelsForCredential(profile, catalog)[0]?.id ?? profile?.model ?? '';
+
     if (!current) {
-      setPlannerId(commercialProfiles[0]?.id ?? '');
-      setWorkerId(workerProfiles[0]?.id ?? '');
-      setReviewerId(commercialProfiles[1]?.id ?? commercialProfiles[0]?.id ?? '');
+      setPlanner({
+        modelProfileId: defaultCommercial?.id ?? '',
+        model: firstModel(defaultCommercial),
+      });
+      setWorker({
+        modelProfileId: defaultWorker?.id ?? '',
+        model: firstModel(defaultWorker),
+      });
+      setReviewer({
+        modelProfileId: defaultReviewer?.id ?? '',
+        model: firstModel(defaultReviewer),
+      });
       setMaxSubtasks(5);
       setMaxRetries(1);
       setEnabled(true);
       return;
     }
-    setPlannerId(current.planner.modelProfileId);
-    setWorkerId(current.worker.modelProfileId);
-    setReviewerId(current.reviewer.modelProfileId);
+    setPlanner({
+      modelProfileId: current.planner.modelProfileId,
+      model: current.planner.model || firstModel(profiles.find((p) => p.id === current.planner.modelProfileId)),
+    });
+    setWorker({
+      modelProfileId: current.worker.modelProfileId,
+      model: current.worker.model || firstModel(profiles.find((p) => p.id === current.worker.modelProfileId)),
+    });
+    setReviewer({
+      modelProfileId: current.reviewer.modelProfileId,
+      model: current.reviewer.model || firstModel(profiles.find((p) => p.id === current.reviewer.modelProfileId)),
+    });
     setMaxSubtasks(current.maxSubtasks);
     setMaxRetries(current.maxWorkerRetries);
     setEnabled(current.enabled);
-  }, [pipelines, employee, commercialProfiles, workerProfiles]);
+  }, [pipelines, employee, commercialProfiles, workerProfiles, catalog, profiles]);
 
-  const labelFor = (id: string) => profiles.find((item) => item.id === id)?.label ?? 'Unassigned';
+  function stageSummary(binding: StageBinding): string {
+    const credential = profiles.find((item) => item.id === binding.modelProfileId);
+    if (!credential) return 'Unassigned';
+    const modelLabel =
+      modelsForCredential(credential, catalog).find((item) => item.id === binding.model)?.label ??
+      binding.model;
+    return modelLabel ? `${credential.label} · ${modelLabel}` : credential.label;
+  }
+
+  function setCredential(
+    setter: (value: StageBinding) => void,
+    nextId: string,
+    credentials: Profile[]
+  ) {
+    const profile = credentials.find((item) => item.id === nextId);
+    const nextModel = modelsForCredential(profile, catalog)[0]?.id ?? profile?.model ?? '';
+    setter({ modelProfileId: nextId, model: nextModel });
+  }
 
   async function savePipeline() {
     if (!projectId || !canManage) return;
@@ -179,9 +243,9 @@ export default function AiTeamWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employee,
-          planner: { modelProfileId: plannerId },
-          worker: { modelProfileId: workerId },
-          reviewer: { modelProfileId: reviewerId },
+          planner,
+          worker,
+          reviewer,
           maxSubtasks,
           maxWorkerRetries: maxRetries,
           enabled,
@@ -222,6 +286,74 @@ export default function AiTeamWorkspace({
     }
   }
 
+  function stageEditor(
+    title: string,
+    binding: StageBinding,
+    setBinding: (value: StageBinding) => void,
+    credentials: Profile[]
+  ) {
+    const credential = profiles.find((item) => item.id === binding.modelProfileId);
+    const models = modelsForCredential(credential, catalog);
+    const isCustom = (credential?.provider ?? 'custom') === 'custom';
+
+    return (
+      <div className="space-y-2 rounded-xl border border-border p-3">
+        <div className="text-sm font-medium">{title}</div>
+        <label className="block text-sm">
+          Company
+          <select
+            className={`${field} mt-1`}
+            value={binding.modelProfileId}
+            onChange={(event) => setCredential(setBinding, event.target.value, credentials)}
+            disabled={busy}
+          >
+            <option value="">Select…</option>
+            {credentials.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.label}
+                {profile.tier === 'local_remote' ? ' (local)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        {isCustom ? (
+          <label className="block text-sm">
+            Model id
+            <input
+              className={`${field} mt-1`}
+              value={binding.model}
+              onChange={(event) => setBinding({ ...binding, model: event.target.value })}
+              placeholder="host model id"
+              disabled={busy || !binding.modelProfileId}
+            />
+          </label>
+        ) : (
+          <label className="block text-sm">
+            Model
+            <select
+              className={`${field} mt-1`}
+              value={binding.model}
+              onChange={(event) => setBinding({ ...binding, model: event.target.value })}
+              disabled={busy || !binding.modelProfileId || models.length === 0}
+            >
+              <option value="">Select…</option>
+              {models.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+    );
+  }
+
+  const canSave =
+    Boolean(planner.modelProfileId && planner.model) &&
+    Boolean(worker.modelProfileId && worker.model) &&
+    Boolean(reviewer.modelProfileId && reviewer.model);
+
   return (
     <main className="mx-auto max-w-7xl p-4 sm:p-6">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -229,8 +361,8 @@ export default function AiTeamWorkspace({
           <p className="text-sm text-text-secondary">Your workspace</p>
           <h1 className="text-3xl font-semibold tracking-tight">AI Team</h1>
           <p className="mt-2 max-w-2xl text-text-secondary">
-            Each role runs Planner → Worker → Reviewer. Assign commercial API models to plan/review and a
-            local-remote model to execute, then start a governed pipeline run.
+            Each role runs Planner → Worker → Reviewer. Pick a company credential and any of its models per stage,
+            then start a governed pipeline run.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -289,14 +421,14 @@ export default function AiTeamWorkspace({
         <h2 className="text-lg font-semibold">Pipeline</h2>
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-stretch">
           {[
-            { key: 'planner', title: 'Planner', hint: 'Commercial API', id: plannerId },
-            { key: 'worker', title: 'Worker', hint: 'Local / remote host', id: workerId },
-            { key: 'reviewer', title: 'Reviewer', hint: 'Commercial API', id: reviewerId },
+            { key: 'planner', title: 'Planner', hint: 'Commercial API', binding: planner },
+            { key: 'worker', title: 'Worker', hint: 'Local / remote host', binding: worker },
+            { key: 'reviewer', title: 'Reviewer', hint: 'Commercial API', binding: reviewer },
           ].map((stage, index) => (
             <div key={stage.key} className="flex flex-1 items-stretch gap-3">
               <div className="flex-1 rounded-xl border border-border bg-background p-3">
                 <div className="text-xs uppercase tracking-wide text-text-secondary">{stage.title}</div>
-                <div className="mt-1 font-medium text-text-primary">{labelFor(stage.id)}</div>
+                <div className="mt-1 font-medium text-text-primary">{stageSummary(stage.binding)}</div>
                 <div className="text-xs text-text-secondary">{stage.hint}</div>
               </div>
               {index < 2 ? (
@@ -309,55 +441,10 @@ export default function AiTeamWorkspace({
         </div>
 
         {canManage ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <label className="text-sm">
-              Planner model
-              <select
-                className={`${field} mt-1`}
-                value={plannerId}
-                onChange={(event) => setPlannerId(event.target.value)}
-                disabled={busy}
-              >
-                <option value="">Select…</option>
-                {commercialProfiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              Worker model
-              <select
-                className={`${field} mt-1`}
-                value={workerId}
-                onChange={(event) => setWorkerId(event.target.value)}
-                disabled={busy}
-              >
-                <option value="">Select…</option>
-                {workerProfiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.label} ({profile.tier})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              Reviewer model
-              <select
-                className={`${field} mt-1`}
-                value={reviewerId}
-                onChange={(event) => setReviewerId(event.target.value)}
-                disabled={busy}
-              >
-                <option value="">Select…</option>
-                {commercialProfiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            {stageEditor('Planner', planner, setPlanner, commercialProfiles)}
+            {stageEditor('Worker', worker, setWorker, workerProfiles)}
+            {stageEditor('Reviewer', reviewer, setReviewer, commercialProfiles)}
             <label className="text-sm">
               Max subtasks
               <input
@@ -393,15 +480,15 @@ export default function AiTeamWorkspace({
             </label>
             <button
               type="button"
-              className={`${button} sm:col-span-3`}
-              disabled={busy || !plannerId || !workerId || !reviewerId}
+              className={`${button} lg:col-span-3`}
+              disabled={busy || !canSave}
               onClick={() => void savePipeline()}
             >
               Save role pipeline
             </button>
             {profiles.length === 0 ? (
-              <p className="text-sm text-text-secondary sm:col-span-3">
-                No model profiles yet. A platform admin must add them under{' '}
+              <p className="text-sm text-text-secondary lg:col-span-3">
+                No company credentials yet. A platform admin must add them under{' '}
                 <Link className="underline" href="/admin/ai/models">
                   Admin → AI model registry
                 </Link>

@@ -20,11 +20,13 @@ flowchart LR
 
 Platform admins register profiles at `/admin/ai/models`:
 
-- Company dropdown (OpenAI, Anthropic via OpenRouter, Google Gemini, Groq, …) autofills the chat-completions endpoint and filters models  
-- Display name is what AI Team shows when picking Planner / Worker / Reviewer  
+- Company dropdown (OpenAI, Anthropic via OpenRouter, Google Gemini, Groq, …) autofills the chat-completions endpoint  
+- One API key per company unlocks that company’s full model catalog  
+- AI Team picks company + model per Planner / Worker / Reviewer stage (not locked at credential create time)  
+- Display name is the company credential label shown on AI Team  
 - Internal profile slug is generated server-side (not an API secret)  
 - API key entered in the UI, encrypted at rest (`AI_MODEL_SECRETS_KEY` or `NEXTAUTH_SECRET`); never returned in full (last4 only)  
-- Custom / self-hosted keeps freeform endpoint + model id for OpenAI-compatible hosts
+- Custom / self-hosted keeps freeform endpoint + per-stage model id for OpenAI-compatible hosts
 
 Role bindings live per organization on `/workspace/ai-team` (managers edit Planner / Worker / Reviewer assignments).
 

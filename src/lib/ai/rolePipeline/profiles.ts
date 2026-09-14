@@ -2,6 +2,7 @@ import 'server-only';
 import type { GatewayConfiguration } from '@nucleas/ai-core/gateway';
 import { GatewayError, validateGatewayConfiguration } from '@nucleas/ai-core/gateway';
 import { decryptModelSecret } from '@/lib/ai/modelSecrets';
+import { isModelAllowedForProvider } from '@/lib/ai/rolePipeline/providerCatalog';
 import { AiModelProfile } from '@/lib/models/AiRolePipeline';
 import { Types } from 'mongoose';
 
@@ -36,17 +37,25 @@ export function mapModelProfilePublic(row: {
   };
 }
 
-/** Resolve an enabled profile into a gateway config. Fail-closed if missing or undecryptable. */
-export async function gatewayFromModelProfile(profileId: string): Promise<{
+/** Resolve an enabled company credential into a gateway config for a chosen model. */
+export async function gatewayFromModelProfile(
+  profileId: string,
+  modelOverride?: string
+): Promise<{
   gateway: GatewayConfiguration;
-  profile: { id: string; label: string; tier: string; model: string };
+  profile: { id: string; label: string; tier: string; model: string; provider: string };
 }> {
   if (!Types.ObjectId.isValid(profileId)) throw new GatewayError('configuration');
   const row = await AiModelProfile.findById(profileId)
-    .select('label tier protocol endpoint model secretCiphertext enabled')
+    .select('label provider tier protocol endpoint model secretCiphertext enabled')
     .maxTimeMS(3000)
     .lean();
   if (!row || !row.enabled) throw new GatewayError('configuration');
+  const model = (modelOverride?.trim() || row.model || '').trim();
+  if (!model) throw new GatewayError('configuration');
+  const provider = row.provider ?? 'custom';
+  if (!isModelAllowedForProvider(provider, model)) throw new GatewayError('configuration');
+
   let bearerToken: string;
   try {
     bearerToken = decryptModelSecret(row.secretCiphertext);
@@ -56,7 +65,7 @@ export async function gatewayFromModelProfile(profileId: string): Promise<{
   if (!bearerToken.trim()) throw new GatewayError('credentials');
   const gateway: GatewayConfiguration = {
     endpoint: row.endpoint,
-    model: row.model,
+    model,
     protocol: 'openai-chat',
     bearerToken,
     timeoutMs: 60000,
@@ -64,6 +73,12 @@ export async function gatewayFromModelProfile(profileId: string): Promise<{
   validateGatewayConfiguration(gateway);
   return {
     gateway,
-    profile: { id: String(row._id), label: row.label, tier: row.tier, model: row.model },
+    profile: {
+      id: String(row._id),
+      label: row.label,
+      tier: row.tier,
+      model,
+      provider,
+    },
   };
 }

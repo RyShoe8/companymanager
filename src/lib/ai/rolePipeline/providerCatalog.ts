@@ -174,6 +174,16 @@ export function getModelProvider(id: string): ModelProviderOption | undefined {
   return MODEL_PROVIDERS.find((item) => item.id === id);
 }
 
+/** True when the model id is allowed for this company credential. */
+export function isModelAllowedForProvider(provider: string, model: string): boolean {
+  const trimmed = model.trim();
+  if (!trimmed) return false;
+  if (provider === 'custom') return true;
+  const catalog = getModelProvider(provider);
+  if (!catalog) return false;
+  return catalog.models.some((item) => item.id === trimmed);
+}
+
 export function slugifyModelKey(parts: string[]): string {
   const base = parts
     .join('-')

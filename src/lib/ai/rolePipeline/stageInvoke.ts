@@ -26,9 +26,10 @@ async function admitStageCall(input: {
   projectId: Types.ObjectId;
   userId: string;
   modelProfileId: string;
+  model: string;
   inputDigestSource: string;
 }): Promise<StageAdmission> {
-  const { gateway, profile } = await gatewayFromModelProfile(input.modelProfileId);
+  const { gateway, profile } = await gatewayFromModelProfile(input.modelProfileId, input.model);
   const lockToken = randomUUID();
   return aiTransaction(async (session) => {
     const policy = await getPipelineInferencePolicy(input.organizationId, String(input.projectId), session);
@@ -167,6 +168,7 @@ export async function invokeProfileStage(input: {
   projectId: Types.ObjectId;
   userId: string;
   modelProfileId: string;
+  model: string;
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
   signal?: AbortSignal;
 }): Promise<{
@@ -182,6 +184,7 @@ export async function invokeProfileStage(input: {
     projectId: input.projectId,
     userId: input.userId,
     modelProfileId: input.modelProfileId,
+    model: input.model,
     inputDigestSource: input.messages.map((item) => item.content).join('\n'),
   });
 

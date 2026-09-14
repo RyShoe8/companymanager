@@ -120,6 +120,7 @@ export async function runRolePipeline(input: {
       projectId: input.projectId,
       userId: input.userId,
       modelProfileId: String(pipeline.planner.modelProfileId),
+      model: String((pipeline.planner as { model?: string }).model ?? ''),
       signal: input.signal,
       messages: [
         {
@@ -148,7 +149,7 @@ export async function runRolePipeline(input: {
       stage: 'planner',
       status: 'completed',
       modelProfileId: planner.profile.id,
-      modelLabel: planner.profile.label,
+      modelLabel: `${planner.profile.label} · ${planner.profile.model}`,
       summary: plan.summary.slice(0, 4000),
       costMicros: planner.costMicros,
       reservedMicros: planner.reservedMicros,
@@ -180,6 +181,7 @@ export async function runRolePipeline(input: {
           projectId: input.projectId,
           userId: input.userId,
           modelProfileId: String(pipeline.worker.modelProfileId),
+          model: String((pipeline.worker as { model?: string }).model ?? ''),
           signal: input.signal,
           messages: [
             {
@@ -212,7 +214,7 @@ export async function runRolePipeline(input: {
           stage: 'worker',
           status: 'completed',
           modelProfileId: worker.profile.id,
-          modelLabel: worker.profile.label,
+          modelLabel: `${worker.profile.label} · ${worker.profile.model}`,
           subtaskId: subtask.id,
           summary: worker.content.slice(0, 4000),
           costMicros: worker.costMicros,
@@ -239,6 +241,7 @@ export async function runRolePipeline(input: {
           projectId: input.projectId,
           userId: input.userId,
           modelProfileId: String(pipeline.reviewer.modelProfileId),
+          model: String((pipeline.reviewer as { model?: string }).model ?? ''),
           signal: input.signal,
           messages: [
             {
@@ -271,7 +274,7 @@ export async function runRolePipeline(input: {
           stage: 'reviewer',
           status: review.decision === 'fail' ? 'blocked' : 'completed',
           modelProfileId: reviewer.profile.id,
-          modelLabel: reviewer.profile.label,
+          modelLabel: `${reviewer.profile.label} · ${reviewer.profile.model}`,
           subtaskId: subtask.id,
           summary: `${review.decision}: ${review.notes}`.slice(0, 4000),
           failureCode: review.decision === 'fail' ? 'review_failed' : null,

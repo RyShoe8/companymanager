@@ -26,7 +26,8 @@ const profileSchema = new Schema(
     tier: { type: String, enum: ['commercial', 'local_remote'] as const, required: true },
     protocol: { type: String, enum: ['openai-chat'] as const, required: true, default: 'openai-chat' },
     endpoint: { type: String, required: true, maxlength: 2048 },
-    model: { type: String, required: true, maxlength: 200 },
+    /** Optional legacy default; live model is chosen per pipeline stage. */
+    model: { type: String, required: true, maxlength: 200, default: '' },
     secretCiphertext: { type: String, required: true, maxlength: 16000 },
     secretLast4: { type: String, required: true, maxlength: 8 },
     enabled: { type: Boolean, required: true, default: true },
@@ -43,6 +44,8 @@ export const AiModelProfile = modelFor<AiModelProfileDoc>('AiModelProfile', prof
 const stageSchema = new Schema(
   {
     modelProfileId: { type: Schema.Types.ObjectId, required: true, ref: 'AiModelProfile' },
+    /** Catalog or custom model id used at invoke time for this stage. */
+    model: { type: String, required: true, maxlength: 200, default: '' },
   },
   { _id: false }
 );

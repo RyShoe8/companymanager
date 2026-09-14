@@ -40,15 +40,23 @@ export const modelProfileCreateSchema = z
       .regex(/^[a-z][a-z0-9_-]*$/, 'Use a lowercase key starting with a letter.')
       .optional(),
     label: z.string().trim().min(1).max(120),
-    provider: modelProviderSchema.optional(),
+    /** Company credential; unlocks that provider’s catalog models on AI Team. */
+    provider: modelProviderSchema.default('custom'),
     tier: modelTierSchema,
     protocol: z.literal('openai-chat').default('openai-chat'),
-    endpoint: httpsEndpoint,
-    model: z.string().trim().min(1).max(200),
+    /** Required for custom; catalog companies use the provider’s default endpoint. */
+    endpoint: httpsEndpoint.optional(),
+    /** Unused for catalog companies (model is chosen per pipeline stage). */
+    model: z.string().trim().max(200).optional(),
     apiKey: z.string().trim().min(1).max(4096),
     enabled: z.boolean().default(true),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.provider === 'custom' && !value.endpoint) {
+      ctx.addIssue({ code: 'custom', message: 'Custom credentials require an HTTPS endpoint.', path: ['endpoint'] });
+    }
+  });
 
 export const modelProfilePatchSchema = z
   .object({
@@ -56,7 +64,7 @@ export const modelProfilePatchSchema = z
     provider: modelProviderSchema.optional(),
     tier: modelTierSchema.optional(),
     endpoint: httpsEndpoint.optional(),
-    model: z.string().trim().min(1).max(200).optional(),
+    model: z.string().trim().max(200).optional(),
     apiKey: z.string().trim().min(1).max(4096).optional(),
     enabled: z.boolean().optional(),
   })
@@ -67,6 +75,7 @@ export const modelProfilePatchSchema = z
 export const rolePipelineStageSchema = z
   .object({
     modelProfileId: z.string().regex(/^[a-fA-F0-9]{24}$/),
+    model: z.string().trim().min(1).max(200),
   })
   .strict();
 

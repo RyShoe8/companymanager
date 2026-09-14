@@ -3,7 +3,9 @@ import {
   plannerOutputSchema,
   reviewerOutputSchema,
   modelProfileCreateSchema,
+  rolePipelineUpsertSchema,
 } from '@/lib/ai/rolePipeline/schemas';
+import { isModelAllowedForProvider } from '@/lib/ai/rolePipeline/providerCatalog';
 
 describe('role pipeline schemas', () => {
   it('accepts planner JSON', () => {
@@ -26,28 +28,44 @@ describe('role pipeline schemas', () => {
     expect(reviewerOutputSchema.parse({ decision: 'retry', notes: 'Too long.' }).decision).toBe('retry');
   });
 
-  it('requires https endpoint for model profiles', () => {
+  it('requires endpoint for custom company credentials', () => {
     expect(() =>
       modelProfileCreateSchema.parse({
-        label: 'Bad',
-        tier: 'commercial',
-        endpoint: 'http://api.openai.com/v1/chat/completions',
-        model: 'gpt',
-        apiKey: 'sk-test',
+        label: 'Custom host',
+        provider: 'custom',
+        tier: 'local_remote',
+        apiKey: 'secret',
       })
     ).toThrow();
   });
 
-  it('allows omitting key so the server can generate one', () => {
+  it('allows company credentials without a fixed model', () => {
     const parsed = modelProfileCreateSchema.parse({
-      label: 'OpenAI · GPT-4o mini',
+      label: 'OpenAI',
       provider: 'openai',
       tier: 'commercial',
-      endpoint: 'https://api.openai.com/v1/chat/completions',
-      model: 'gpt-4o-mini',
       apiKey: 'sk-test',
     });
-    expect(parsed.key).toBeUndefined();
     expect(parsed.provider).toBe('openai');
+    expect(parsed.model).toBeUndefined();
+  });
+
+  it('requires a model id on each pipeline stage', () => {
+    const parsed = rolePipelineUpsertSchema.parse({
+      employee: 'product',
+      planner: { modelProfileId: '507f1f77bcf86cd799439011', model: 'gpt-5.6-sol' },
+      worker: { modelProfileId: '507f1f77bcf86cd799439012', model: 'gpt-5.6-luna' },
+      reviewer: { modelProfileId: '507f1f77bcf86cd799439011', model: 'gpt-5.6-terra' },
+    });
+    expect(parsed.planner.model).toBe('gpt-5.6-sol');
+    expect(parsed.reviewer.model).toBe('gpt-5.6-terra');
+  });
+});
+
+describe('isModelAllowedForProvider', () => {
+  it('allows catalog models for a company and freeform for custom', () => {
+    expect(isModelAllowedForProvider('openai', 'gpt-5.6-sol')).toBe(true);
+    expect(isModelAllowedForProvider('openai', 'not-a-real-model')).toBe(false);
+    expect(isModelAllowedForProvider('custom', 'Qwen/local-model')).toBe(true);
   });
 });
