@@ -359,6 +359,14 @@ export default function Navigation() {
                               ? 'nav-team'
                               : undefined
                     }
+                    onClick={
+                      link.href === '/ide'
+                        ? (event) => {
+                            event.preventDefault();
+                            window.location.assign('/ide');
+                          }
+                        : undefined
+                    }
                     className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
                       ? 'border-primary text-text-primary'
                       : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
@@ -526,7 +534,13 @@ export default function Navigation() {
                               ? 'nav-team'
                               : undefined
                     }
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={(event) => {
+                      setMobileMenuOpen(false);
+                      if (link.href === '/ide') {
+                        event.preventDefault();
+                        window.location.assign('/ide');
+                      }
+                    }}
                     className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
                       ? 'bg-background-elevated text-text-primary'
                       : 'text-text-secondary hover:bg-background-elevated hover:text-text-primary'
