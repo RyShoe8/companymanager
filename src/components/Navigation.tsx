@@ -288,6 +288,7 @@ export default function Navigation() {
   ];
 
   const appNavLinks = [
+    { href: '/ide', label: 'IDE' },
     { href: '/workspace', label: 'Workspace' },
     { href: '/assets', label: 'Assets' },
     { href: '/employees', label: 'Team' },
@@ -348,13 +349,15 @@ export default function Navigation() {
                     key={link.href}
                     href={link.href}
                     data-tour={
-                      link.href === '/workspace'
-                        ? 'nav-workspace'
-                        : link.href === '/assets'
-                          ? 'nav-assets'
-                          : link.href === '/employees'
-                            ? 'nav-team'
-                            : undefined
+                      link.href === '/ide'
+                        ? 'nav-ide'
+                        : link.href === '/workspace'
+                          ? 'nav-workspace'
+                          : link.href === '/assets'
+                            ? 'nav-assets'
+                            : link.href === '/employees'
+                              ? 'nav-team'
+                              : undefined
                     }
                     className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
                       ? 'border-primary text-text-primary'
@@ -513,13 +516,15 @@ export default function Navigation() {
                     key={link.href}
                     href={link.href}
                     data-tour={
-                      link.href === '/workspace'
-                        ? 'nav-workspace'
-                        : link.href === '/assets'
-                          ? 'nav-assets'
-                          : link.href === '/employees'
-                            ? 'nav-team'
-                            : undefined
+                      link.href === '/ide'
+                        ? 'nav-ide'
+                        : link.href === '/workspace'
+                          ? 'nav-workspace'
+                          : link.href === '/assets'
+                            ? 'nav-assets'
+                            : link.href === '/employees'
+                              ? 'nav-team'
+                              : undefined
                     }
                     onClick={() => setMobileMenuOpen(false)}
                     className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')

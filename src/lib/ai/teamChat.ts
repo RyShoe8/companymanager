@@ -24,6 +24,11 @@ export type TeamChatTurn = {
   text: string;
   failureCategory?: string;
   runId?: string;
+  /** Settled cost when known; null when usage unknown after a paid run. */
+  costMicros?: number | null;
+  /** Admission reservation amount for honest reserved-cost UI. */
+  reservedMicros?: number | null;
+  noProviderFee?: boolean;
 };
 
 const CHAT_LOCK_MS = 60000;
@@ -63,13 +68,21 @@ function unavailableContext(
   };
 }
 
-function statusTurn(text: string, failureCategory: string, runId?: string): TeamChatTurn {
+function statusTurn(
+  text: string,
+  failureCategory: string,
+  runId?: string,
+  cost?: { costMicros?: number | null; reservedMicros?: number | null; noProviderFee?: boolean }
+): TeamChatTurn {
   return {
     requestId: randomUUID(),
     role: 'status',
     text,
     failureCategory,
     ...(runId ? { runId } : {}),
+    ...(cost?.costMicros !== undefined ? { costMicros: cost.costMicros } : {}),
+    ...(cost?.reservedMicros !== undefined ? { reservedMicros: cost.reservedMicros } : {}),
+    ...(cost?.noProviderFee !== undefined ? { noProviderFee: cost.noProviderFee } : {}),
   };
 }
 
@@ -324,6 +337,14 @@ async function finishTeamChatRun(input: {
   await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: input.lockToken }).catch(() => undefined);
 }
 
+function costFields(policy: { reservationMicros: number; noProviderFee: boolean }, settled: number | null) {
+  return {
+    costMicros: settled,
+    reservedMicros: policy.reservationMicros,
+    noProviderFee: policy.noProviderFee,
+  };
+}
+
 /** Attempt a real gateway chat reply after shared admission. Never invents assistant content on failure. */
 export async function attemptTeamChatReply(input: {
   employee: AiEmployeeKey;
@@ -333,6 +354,8 @@ export async function attemptTeamChatReply(input: {
   userId: string;
   userText: string;
   priorTurns: { role: TeamMessageRole; text: string }[];
+  /** Optional project task rules injected into the system prompt (IDE). */
+  ruleTexts?: string[];
 }): Promise<TeamChatTurn> {
   const context = await buildTeamContextSummary(input.projectName, input.organizationId, input.projectId);
   if (!context.inferenceReady) {
@@ -353,6 +376,12 @@ export async function attemptTeamChatReply(input: {
     .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
     .slice(-8)
     .map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.text.slice(0, 2000) }));
+  const ruleBlock =
+    input.ruleTexts && input.ruleTexts.length > 0
+      ? ['Project task rules you must follow:', ...input.ruleTexts.map((rule, index) => `${index + 1}. ${rule}`)].join(
+          '\n'
+        )
+      : null;
   const messages = [
     {
       role: 'system' as const,
@@ -362,6 +391,7 @@ export async function attemptTeamChatReply(input: {
         `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
         'Reply helpfully and briefly. Do not claim to have changed project data, run code, browsed the live web, or completed tasks outside this chat.',
         'If you lack information or tools, say what is missing instead of inventing project or web facts.',
+        ...(ruleBlock ? [ruleBlock] : []),
       ].join(' '),
     },
     ...history,
@@ -391,7 +421,8 @@ export async function attemptTeamChatReply(input: {
         return statusTurn(
           'AI settings changed during the reply. No assistant content was stored. Refresh and try again.',
           'unavailable',
-          String(runId)
+          String(runId),
+          costFields(policy, policy.noProviderFee ? 0 : null)
         );
       }
     } catch {
@@ -409,7 +440,8 @@ export async function attemptTeamChatReply(input: {
       return statusTurn(
         'Chat authorization changed before the reply could be saved. No assistant content was stored.',
         'unavailable',
-        String(runId)
+        String(runId),
+        costFields(policy, policy.noProviderFee ? 0 : null)
       );
     }
 
@@ -429,21 +461,29 @@ export async function attemptTeamChatReply(input: {
       return statusTurn(
         'The model returned an empty reply. No assistant content was stored.',
         'invalid_response',
-        String(runId)
+        String(runId),
+        costFields(policy, policy.noProviderFee ? 0 : null)
       );
     }
 
+    const settled = policy.noProviderFee ? 0 : null;
     await finishTeamChatRun({
       organizationId: input.organizationId,
       projectId: input.projectId,
       runId,
       lockToken,
-      actualMicros: policy.noProviderFee ? 0 : null,
+      actualMicros: settled,
       status: 'completed',
       summary: 'Team chat reply stored after governed admission.',
       result,
     });
-    return { requestId: randomUUID(), role: 'assistant', text: content, runId: String(runId) };
+    return {
+      requestId: randomUUID(),
+      role: 'assistant',
+      text: content,
+      runId: String(runId),
+      ...costFields(policy, settled),
+    };
   } catch (error) {
     const failureCode = error instanceof GatewayError ? error.code : classifyProbeFailure(error);
     await finishTeamChatRun({
@@ -466,12 +506,18 @@ export async function attemptTeamChatReply(input: {
         invalid_response: 'The remote response could not be validated.',
         cancelled: 'The chat request was cancelled before completion.',
       };
-      return statusTurn(messagesByCode[error.code], error.code, String(runId));
+      return statusTurn(
+        messagesByCode[error.code],
+        error.code,
+        String(runId),
+        costFields(policy, policy.noProviderFee ? 0 : null)
+      );
     }
     return statusTurn(
       'The chat request failed before a model reply was received.',
       failureCode,
-      String(runId)
+      String(runId),
+      costFields(policy, policy.noProviderFee ? 0 : null)
     );
   }
 }

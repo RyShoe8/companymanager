@@ -32,6 +32,7 @@ export default function ProjectRepositoryBinding({ projectId }: { projectId: str
   const [owner, setOwner] = useState('');
   const [repo, setRepo] = useState('');
   const [defaultBranch, setDefaultBranch] = useState('main');
+  const [installationId, setInstallationId] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const endpoint = `/api/projects/${encodeURIComponent(projectId)}/ai/repository`;
@@ -45,6 +46,7 @@ export default function ProjectRepositoryBinding({ projectId }: { projectId: str
       setOwner(body.repository.owner);
       setRepo(body.repository.repo);
       setDefaultBranch(body.repository.defaultBranch);
+      setInstallationId(body.repository.installationId ?? '');
     }
   }, [endpoint]);
 
@@ -69,6 +71,7 @@ export default function ProjectRepositoryBinding({ projectId }: { projectId: str
           repo,
           defaultBranch,
           publishMode: 'pull_request',
+          installationId: installationId.trim() || null,
         }),
       });
       const body = await response.json();
@@ -83,7 +86,12 @@ export default function ProjectRepositoryBinding({ projectId }: { projectId: str
             }
           : current
       );
-      setMessage('Repository binding saved. Publish remains fail-closed until verification and GitHub App setup are complete.');
+      setInstallationId(body.repository?.installationId ?? '');
+      setMessage(
+        body.repository?.installationId
+          ? 'Repository binding saved.'
+          : 'Repository path saved. Add the GitHub App Installation ID to finish connecting.'
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Save failed.');
     } finally {
@@ -105,7 +113,7 @@ export default function ProjectRepositoryBinding({ projectId }: { projectId: str
         </p>
       )}
       {message && <p role="status">{message}</p>}
-      <form className="grid gap-3 sm:grid-cols-3" onSubmit={(event) => void save(event)}>
+      <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={(event) => void save(event)}>
         <label className="text-sm">
           Owner
           <input
@@ -141,12 +149,32 @@ export default function ProjectRepositoryBinding({ projectId }: { projectId: str
             disabled={busy || data?.canManage === false}
           />
         </label>
+        <label className="text-sm">
+          Installation ID
+          <input
+            className={`${field} mt-1`}
+            value={installationId}
+            onChange={(event) => setInstallationId(event.target.value)}
+            maxLength={64}
+            disabled={busy || data?.canManage === false}
+            placeholder="e.g. 12345678"
+            inputMode="numeric"
+            autoComplete="off"
+          />
+        </label>
+        <p className="text-xs text-text-secondary sm:col-span-2 lg:col-span-4">
+          Installation ID is the number in the GitHub App install URL
+          (<code className="text-[11px]">…/settings/installations/12345678</code>), after you install the App on
+          this repository&apos;s account.
+        </p>
         {data?.canManage ? (
-          <button className={`${button} sm:col-span-3`} disabled={busy}>
+          <button className={`${button} sm:col-span-2 lg:col-span-4`} disabled={busy}>
             {busy ? 'Saving…' : 'Save repository binding'}
           </button>
         ) : (
-          <p className="text-sm text-text-secondary sm:col-span-3">Only managers can edit the repository binding.</p>
+          <p className="text-sm text-text-secondary sm:col-span-2 lg:col-span-4">
+            Only managers can edit the repository binding.
+          </p>
         )}
       </form>
       <p className="text-xs text-text-secondary">

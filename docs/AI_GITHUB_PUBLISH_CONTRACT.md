@@ -40,6 +40,17 @@ Otherwise the handler returns **blocked** with a sanitized reason and **`pullReq
 
 When all gates pass but Octokit create-ref / create-PR is not wired yet, status remains blocked with `publish_unavailable`.
 
+## IDE direct push (Phase 1)
+
+Separately from artifact PR publish, the Nucleas IDE can **commit and push to `defaultBranch`** after one human confirmation:
+
+- `POST /api/projects/[id]/ai/ide/publish` with `{ confirm: true, message, files[] }`
+- Requires project manager, repository binding, `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY`, and `installationId`
+- Fail-closed: never invents commit SHAs or URLs
+- See [`docs/IDE_UI.md`](./IDE_UI.md)
+
+Artifact **Open pull request** remains gated by acceptance + `executionVerified` as above.
+
 ## Server secrets (env)
 
 Documented for deployment; never sent to the browser:
@@ -51,4 +62,5 @@ Documented for deployment; never sent to the browser:
 ## UI
 
 - Project AI panel: repository owner/repo/default branch + connection status (`configured` / `awaiting_app_install` / `github_not_configured`).
-- Artifact detail: **Open pull request** after acceptance; surfaces the blocked reason when publish cannot proceed.
+- Artifact detail: **Open pull request** after acceptance; surfaces the blocked reason when publish cannot succeed.
+- IDE: review diff → **Approve commit & push** to default branch (see IDE direct push above).
