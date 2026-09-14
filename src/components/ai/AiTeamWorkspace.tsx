@@ -34,6 +34,12 @@ type DiscoveredModelsState = {
   loading: boolean;
 };
 
+type CreditHint = {
+  hint: string;
+  kind: string;
+  error: string | null;
+};
+
 type StageBinding = {
   modelProfileId: string;
   model: string;
@@ -135,6 +141,9 @@ export default function AiTeamWorkspace({
   );
   const discoveredRef = useRef(discoveredByProfile);
   discoveredRef.current = discoveredByProfile;
+  const [creditHints, setCreditHints] = useState<Record<string, CreditHint>>({});
+  const [freePoolHint, setFreePoolHint] = useState<string | null>(null);
+  const [creditsLoading, setCreditsLoading] = useState(false);
 
   const projectId = selected || data?.projects[0]?.id || '';
 
@@ -157,6 +166,26 @@ export default function AiTeamWorkspace({
     setCatalog(body.catalog ?? []);
     setPipelines(body.pipelines ?? []);
     setCanManage(Boolean(body.canManage));
+  }, []);
+
+  const loadCredits = useCallback(async (id: string, refresh = false) => {
+    setCreditsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(id)}/ai/pipeline/balances${refresh ? '?refresh=1' : ''}`,
+        { cache: 'no-store' }
+      );
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'Unable to load credits.');
+      setFreePoolHint(body.freePool?.hint ?? null);
+      const next: Record<string, CreditHint> = {};
+      for (const row of body.credentials ?? []) {
+        next[row.profileId] = { hint: row.hint, kind: row.kind, error: row.error };
+      }
+      setCreditHints(next);
+    } finally {
+      setCreditsLoading(false);
+    }
   }, []);
 
   const loadRuns = useCallback(async (id: string, role: AiEmployeeKey) => {
@@ -186,6 +215,11 @@ export default function AiTeamWorkspace({
       setMessage(err instanceof Error ? err.message : 'Unable to load pipelines.')
     );
   }, [projectId, loadPipelineConfig]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    void loadCredits(projectId).catch(() => undefined);
+  }, [projectId, loadCredits]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -330,7 +364,9 @@ export default function AiTeamWorkspace({
       catalogModels.find((item) => item.id === binding.model)?.label ??
       discovered.find((item) => item.id === binding.model)?.label ??
       binding.model;
-    return modelLabel ? `${company} · ${modelLabel}` : company;
+    const credit = creditHints[credential.id]?.hint;
+    const base = modelLabel ? `${company} · ${modelLabel}` : company;
+    return credit ? `${base} · ${credit}` : base;
   }
 
   function setCredential(
@@ -433,6 +469,7 @@ export default function AiTeamWorkspace({
               <option key={profile.id} value={profile.id}>
                 {companyName(profile)}
                 {profile.tier === 'local_remote' ? ' (local)' : ''}
+                {creditHints[profile.id]?.hint ? ` · ${creditHints[profile.id]!.hint}` : ''}
               </option>
             ))}
           </select>
@@ -600,7 +637,27 @@ export default function AiTeamWorkspace({
         </div>
 
         {canManage ? (
-          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-secondary">
+              <p>
+                Nucleas free pool:{' '}
+                <span className="font-medium text-text-primary">{freePoolHint ?? '…'}</span>
+              </p>
+              <button
+                type="button"
+                className={button}
+                disabled={busy || creditsLoading || !projectId}
+                onClick={() =>
+                  projectId &&
+                  void loadCredits(projectId, true).catch((err) =>
+                    setMessage(err instanceof Error ? err.message : 'Unable to refresh credits.')
+                  )
+                }
+              >
+                {creditsLoading ? 'Refreshing credits…' : 'Refresh credits'}
+              </button>
+            </div>
+          <div className="grid gap-3 lg:grid-cols-3">
             {stageEditor('Planner', planner, setPlanner, commercialProfiles)}
             {stageEditor('Worker', worker, setWorker, workerProfiles)}
             {stageEditor('Reviewer', reviewer, setReviewer, commercialProfiles)}
@@ -654,6 +711,7 @@ export default function AiTeamWorkspace({
                 .
               </p>
             ) : null}
+          </div>
           </div>
         ) : (
           <p className="mt-3 text-sm text-text-secondary">Only managers can edit model bindings for this role.</p>

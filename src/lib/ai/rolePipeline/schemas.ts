@@ -67,6 +67,8 @@ export const modelProfilePatchSchema = z
     model: z.string().trim().max(200).optional(),
     apiKey: z.string().trim().min(1).max(4096).optional(),
     enabled: z.boolean().optional(),
+    /** null clears a previously entered manual balance. */
+    manualBalanceMicros: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'Provide at least one field to update.');

@@ -21,6 +21,8 @@ export function mapModelProfilePublic(row: {
   model?: string | null;
   secretLast4: string;
   enabled: boolean;
+  manualBalanceMicros?: number | null;
+  manualBalanceUpdatedAt?: Date | null;
   updatedAt?: Date;
   createdAt?: Date;
 }) {
@@ -37,6 +39,10 @@ export function mapModelProfilePublic(row: {
     secretConfigured: true,
     secretLast4: row.secretLast4,
     enabled: row.enabled,
+    manualBalanceMicros: row.manualBalanceMicros ?? null,
+    manualBalanceUpdatedAt: row.manualBalanceUpdatedAt
+      ? new Date(row.manualBalanceUpdatedAt).toISOString()
+      : null,
     updatedAt: row.updatedAt?.toISOString?.() ?? null,
     createdAt: row.createdAt?.toISOString?.() ?? null,
   };

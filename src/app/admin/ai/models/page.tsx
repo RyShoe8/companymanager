@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   MODEL_PROVIDERS,
   getModelProvider,
   type ModelProviderId,
 } from '@/lib/ai/rolePipeline/providerCatalog';
+import { dollarsToMicros, microsToDollars } from '@/lib/ai/settingsSchema';
 
 const field = 'block w-full rounded border border-border bg-background p-2 text-text-primary';
 const button = 'rounded border border-border px-3 py-2 text-sm disabled:opacity-50';
@@ -21,6 +23,16 @@ type Profile = {
   model: string;
   secretLast4: string;
   enabled: boolean;
+  manualBalanceMicros?: number | null;
+};
+
+type BalanceRow = {
+  profileId: string;
+  hint: string;
+  kind: string;
+  source: string;
+  error: string | null;
+  remainingMicros: number | null;
 };
 
 type FormState = {
@@ -53,11 +65,37 @@ export default function AdminAiModelsPage() {
   const [rotateKey, setRotateKey] = useState('');
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameLabel, setRenameLabel] = useState('');
+  const [balanceId, setBalanceId] = useState<string | null>(null);
+  const [balanceDollars, setBalanceDollars] = useState('');
+  const [balancesById, setBalancesById] = useState<Record<string, BalanceRow>>({});
+  const [freePoolHint, setFreePoolHint] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
   const provider = useMemo(() => getModelProvider(form.provider), [form.provider]);
   const isCustom = form.provider === 'custom';
+
+  const loadBalances = useCallback(async (refresh = false) => {
+    const response = await fetch(
+      `/api/admin/ai/models/balances${refresh ? '?refresh=1' : ''}`,
+      { cache: 'no-store' }
+    );
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error ?? 'Unable to load balances.');
+    setFreePoolHint(body.freePool?.hint ?? null);
+    const next: Record<string, BalanceRow> = {};
+    for (const row of body.credentials ?? []) {
+      next[row.profileId] = {
+        profileId: row.profileId,
+        hint: row.hint,
+        kind: row.kind,
+        source: row.source,
+        error: row.error,
+        remainingMicros: row.remainingMicros,
+      };
+    }
+    setBalancesById(next);
+  }, []);
 
   const load = useCallback(async () => {
     const response = await fetch('/api/admin/ai/models', { cache: 'no-store' });
@@ -67,8 +105,10 @@ export default function AdminAiModelsPage() {
   }, []);
 
   useEffect(() => {
-    void load().catch((error) => setMessage(error instanceof Error ? error.message : 'Load failed.'));
-  }, [load]);
+    void load()
+      .then(() => loadBalances())
+      .catch((error) => setMessage(error instanceof Error ? error.message : 'Load failed.'));
+  }, [load, loadBalances]);
 
   function selectProvider(providerId: ModelProviderId) {
     setForm(formFromProvider(providerId));
@@ -96,6 +136,7 @@ export default function AdminAiModelsPage() {
       if (!response.ok) throw new Error(body.error ?? 'Unable to save credential.');
       setForm(formFromProvider(form.provider));
       await load();
+      await loadBalances(true);
       setMessage(
         'Company credential saved. AI Team can now pick any model from this company without creating another key.'
       );
@@ -153,6 +194,30 @@ export default function AdminAiModelsPage() {
     }
   }
 
+  async function saveManualBalance(id: string) {
+    setBusy(true);
+    setMessage('');
+    try {
+      const manualBalanceMicros = balanceDollars.trim() === '' ? null : dollarsToMicros(balanceDollars.trim());
+      const response = await fetch(`/api/admin/ai/models/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manualBalanceMicros }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'Unable to save available balance.');
+      setBalanceId(null);
+      setBalanceDollars('');
+      await load();
+      await loadBalances(true);
+      setMessage('Available balance updated.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Balance save failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleEnabled(profile: Profile) {
     setBusy(true);
     setMessage('');
@@ -205,11 +270,43 @@ export default function AdminAiModelsPage() {
       </div>
       {message ? <p role="status" className="rounded border border-border p-3">{message}</p> : null}
 
+      <section className="space-y-2 rounded border border-border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">Credits</h2>
+            <p className="text-sm text-text-secondary">
+              Nucleas free pool:{' '}
+              <span className="font-medium text-text-primary">{freePoolHint ?? '…'}</span>
+              {' · '}
+              <Link className="underline" href="/admin/ai">
+                Edit in AI Settings
+              </Link>
+            </p>
+          </div>
+          <button
+            type="button"
+            className={button}
+            disabled={busy}
+            onClick={() =>
+              void loadBalances(true)
+                .then(() => setMessage('Balances refreshed.'))
+                .catch((error) =>
+                  setMessage(error instanceof Error ? error.message : 'Balance refresh failed.')
+                )
+            }
+          >
+            Refresh balances
+          </button>
+        </div>
+      </section>
+
       <section className="space-y-3 rounded border border-border p-4">
         <h2 className="text-lg font-semibold">Company credentials</h2>
         {profiles.length === 0 ? <p className="text-sm text-text-secondary">No credentials yet.</p> : null}
         <ul className="space-y-3">
-          {profiles.map((profile) => (
+          {profiles.map((profile) => {
+            const balance = balancesById[profile.id];
+            return (
             <li key={profile.id} className="rounded border border-border p-3 text-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
@@ -220,6 +317,12 @@ export default function AdminAiModelsPage() {
                   </div>
                   <div className="text-xs text-text-secondary break-all">{profile.endpoint}</div>
                   <div className="text-xs text-text-secondary">API key …{profile.secretLast4}</div>
+                  <div className="mt-1 text-xs text-text-secondary">
+                    Available:{' '}
+                    <span className="font-medium text-text-primary">{balance?.hint ?? '…'}</span>
+                    {balance?.source ? ` · ${balance.source}` : ''}
+                    {balance?.error ? ` · ${balance.error}` : ''}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className={button} disabled={busy} onClick={() => void toggleEnabled(profile)}>
@@ -233,10 +336,40 @@ export default function AdminAiModelsPage() {
                       setRenameId(profile.id);
                       setRenameLabel(profile.label);
                       setRotateId(null);
+                      setBalanceId(null);
                     }}
                   >
                     Rename
                   </button>
+                  {(profile.provider ?? 'custom') !== 'custom' &&
+                  (profile.provider === 'openai' ||
+                    profile.provider === 'anthropic' ||
+                    profile.provider === 'google' ||
+                    profile.provider === 'groq' ||
+                    profile.provider === 'together' ||
+                    profile.provider === 'fireworks' ||
+                    balance?.kind === 'unsupported' ||
+                    balance?.kind === 'manual') ? (
+                    <button
+                      type="button"
+                      className={button}
+                      disabled={busy}
+                      onClick={() => {
+                        setBalanceId(profile.id);
+                        setBalanceDollars(
+                          profile.manualBalanceMicros != null
+                            ? microsToDollars(profile.manualBalanceMicros)
+                            : balance?.remainingMicros != null
+                              ? microsToDollars(balance.remainingMicros)
+                              : ''
+                        );
+                        setRenameId(null);
+                        setRotateId(null);
+                      }}
+                    >
+                      Set available
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={button}
@@ -245,6 +378,7 @@ export default function AdminAiModelsPage() {
                       setRotateId(profile.id);
                       setRotateKey('');
                       setRenameId(null);
+                      setBalanceId(null);
                     }}
                   >
                     Rotate API key
@@ -254,6 +388,37 @@ export default function AdminAiModelsPage() {
                   </button>
                 </div>
               </div>
+              {balanceId === profile.id ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input
+                    className={`${field} max-w-md`}
+                    inputMode="decimal"
+                    placeholder="Available USD"
+                    value={balanceDollars}
+                    onChange={(event) => setBalanceDollars(event.target.value)}
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={busy}
+                    onClick={() => void saveManualBalance(profile.id)}
+                  >
+                    Save available
+                  </button>
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={busy}
+                    onClick={() => {
+                      setBalanceId(null);
+                      setBalanceDollars('');
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
               {renameId === profile.id ? (
                 <div className="mt-2 flex flex-wrap gap-2">
                   <input
@@ -308,7 +473,8 @@ export default function AdminAiModelsPage() {
                 </div>
               ) : null}
             </li>
-          ))}
+          );
+          })}
         </ul>
       </section>
 

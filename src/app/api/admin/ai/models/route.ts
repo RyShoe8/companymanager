@@ -18,7 +18,9 @@ export async function GET() {
   try {
     await connectDB();
     const rows = await AiModelProfile.find()
-      .select('key label provider tier protocol endpoint model secretLast4 enabled updatedAt createdAt')
+      .select(
+        'key label provider tier protocol endpoint model secretLast4 enabled manualBalanceMicros manualBalanceUpdatedAt updatedAt createdAt'
+      )
       .sort({ tier: 1, label: 1 })
       .limit(100)
       .maxTimeMS(3000)

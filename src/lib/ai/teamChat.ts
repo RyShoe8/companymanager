@@ -5,6 +5,7 @@ import { GatewayError, invokeModel, validateGatewayConfiguration } from '@nuclea
 import { digestValue } from '@nucleas/ai-core/planning';
 import { getChatInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
+import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
 import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { readSettings, platformSettingsId } from '@/lib/ai/control/settings';
@@ -298,10 +299,15 @@ async function finishTeamChatRun(input: {
   status: 'completed' | 'blocked';
   summary: string;
   failureCode?: string;
+  noProviderFee?: boolean;
+  reservationMicros?: number;
   result?: { inputTokens?: number | null; outputTokens?: number | null; latencyMs?: number | null };
 }) {
   await aiTransaction(async (session) => {
     await settleRunBudget(input.organizationId, input.runId, input.actualMicros, session);
+    if (input.noProviderFee && (input.reservationMicros ?? 0) > 0) {
+      await decrementFreePoolRemaining(input.reservationMicros!, session);
+    }
     const run = await AiRun.findOneAndUpdate(
       { _id: input.runId, organizationId: input.organizationId, projectId: input.projectId },
       {
@@ -383,6 +389,8 @@ export async function attemptTeamChatReply(input: {
       status: 'blocked',
       summary: 'Team chat cancelled after admission before the model call.',
       failureCode: 'cancelled',
+      noProviderFee: policy.noProviderFee,
+      reservationMicros: policy.reservationMicros,
     }).catch(() => undefined);
     return statusTurn(
       'The chat request was cancelled before completion.',
@@ -441,6 +449,8 @@ export async function attemptTeamChatReply(input: {
           status: 'blocked',
           summary: 'Policy changed during chat inference; assistant text was discarded.',
           failureCode: 'stale_policy',
+          noProviderFee: policy.noProviderFee,
+          reservationMicros: policy.reservationMicros,
           result,
         });
         return statusTurn(
@@ -460,6 +470,8 @@ export async function attemptTeamChatReply(input: {
         status: 'blocked',
         summary: 'Authorization fence failed after chat inference.',
         failureCode: 'stale_policy',
+        noProviderFee: policy.noProviderFee,
+        reservationMicros: policy.reservationMicros,
         result,
       });
       return statusTurn(
@@ -481,6 +493,8 @@ export async function attemptTeamChatReply(input: {
         status: 'blocked',
         summary: 'Model returned empty chat content.',
         failureCode: 'invalid_response',
+        noProviderFee: policy.noProviderFee,
+        reservationMicros: policy.reservationMicros,
         result,
       });
       return statusTurn(
@@ -500,6 +514,8 @@ export async function attemptTeamChatReply(input: {
       actualMicros: settled,
       status: 'completed',
       summary: 'Team chat reply stored after governed admission.',
+      noProviderFee: policy.noProviderFee,
+      reservationMicros: policy.reservationMicros,
       result,
     });
     return {
@@ -520,6 +536,8 @@ export async function attemptTeamChatReply(input: {
       status: 'blocked',
       summary: 'Team chat model call failed after admission.',
       failureCode,
+      noProviderFee: policy.noProviderFee,
+      reservationMicros: policy.reservationMicros,
     }).catch(() => undefined);
 
     if (error instanceof GatewayError) {

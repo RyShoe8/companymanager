@@ -30,6 +30,9 @@ const profileSchema = new Schema(
     model: { type: String, required: false, maxlength: 200, default: '' },
     secretCiphertext: { type: String, required: true, maxlength: 16000 },
     secretLast4: { type: String, required: true, maxlength: 8 },
+    /** Admin-entered available balance when the provider has no live balance API. */
+    manualBalanceMicros: { type: Number, required: false, min: 0, default: null },
+    manualBalanceUpdatedAt: { type: Date, required: false, default: null },
     enabled: { type: Boolean, required: true, default: true },
     updatedByUserId: { type: Schema.Types.ObjectId },
   },

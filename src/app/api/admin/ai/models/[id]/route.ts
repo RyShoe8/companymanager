@@ -6,6 +6,7 @@ import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { encryptModelSecret, secretLast4 } from '@/lib/ai/modelSecrets';
 import { modelProfilePatchSchema } from '@/lib/ai/rolePipeline/schemas';
 import { mapModelProfilePublic } from '@/lib/ai/rolePipeline/profiles';
+import { clearProviderBalanceCache } from '@/lib/ai/rolePipeline/providerBalance';
 import { AiModelProfile } from '@/lib/models/AiRolePipeline';
 import connectDB from '@/lib/db/mongodb';
 
@@ -29,12 +30,17 @@ export async function PATCH(request: NextRequest, context: Context) {
     if (input.endpoint !== undefined) $set.endpoint = input.endpoint;
     if (input.model !== undefined) $set.model = input.model;
     if (input.enabled !== undefined) $set.enabled = input.enabled;
+    if (input.manualBalanceMicros !== undefined) {
+      $set.manualBalanceMicros = input.manualBalanceMicros;
+      $set.manualBalanceUpdatedAt = input.manualBalanceMicros == null ? null : new Date();
+    }
     if (input.apiKey !== undefined) {
       $set.secretCiphertext = encryptModelSecret(input.apiKey);
       $set.secretLast4 = secretLast4(input.apiKey);
     }
     const row = await AiModelProfile.findByIdAndUpdate(id, { $set }, { new: true, runValidators: true });
     if (!row) throw new AiHttpError(404, 'Model profile not found.');
+    if (input.manualBalanceMicros !== undefined) clearProviderBalanceCache(id);
     return aiResponse({ profile: mapModelProfilePublic(row) });
   } catch (error) {
     return aiError(error);

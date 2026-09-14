@@ -6,6 +6,7 @@ import { GatewayError, invokeModel } from '@nucleas/ai-core/gateway';
 import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
+import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
 import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
@@ -116,6 +117,8 @@ async function finishStageCall(input: {
   status: 'completed' | 'blocked';
   summary: string;
   failureCode?: string;
+  noProviderFee?: boolean;
+  reservationMicros?: number;
   result?: {
     model?: string;
     inputTokens?: number | null;
@@ -125,6 +128,9 @@ async function finishStageCall(input: {
 }) {
   await aiTransaction(async (session) => {
     await settleRunBudget(input.organizationId, input.runId, input.actualMicros, session);
+    if (input.noProviderFee && (input.reservationMicros ?? 0) > 0) {
+      await decrementFreePoolRemaining(input.reservationMicros!, session);
+    }
     const run = await AiRun.findOneAndUpdate(
       { _id: input.runId, organizationId: input.organizationId, projectId: input.projectId },
       {
@@ -210,6 +216,8 @@ export async function invokeProfileStage(input: {
         status: 'blocked',
         summary: 'Stage model returned empty content.',
         failureCode: 'invalid_response',
+        noProviderFee: admitted.policy.noProviderFee,
+        reservationMicros: admitted.policy.reservationMicros,
         result,
       });
       throw new GatewayError('invalid_response');
@@ -223,6 +231,8 @@ export async function invokeProfileStage(input: {
       actualMicros: settled,
       status: 'completed',
       summary: 'Role pipeline stage completed.',
+      noProviderFee: admitted.policy.noProviderFee,
+      reservationMicros: admitted.policy.reservationMicros,
       result,
     });
     return {
@@ -244,6 +254,8 @@ export async function invokeProfileStage(input: {
       status: 'blocked',
       summary: 'Role pipeline stage failed.',
       failureCode: code,
+      noProviderFee: admitted.policy.noProviderFee,
+      reservationMicros: admitted.policy.reservationMicros,
     }).catch(() => undefined);
     throw error;
   }

@@ -10,6 +10,7 @@ import ExecutionProbe from '@/components/ai/ExecutionProbe';
 const field = 'block w-full rounded border border-border bg-background p-2 text-text-primary';
 const budgetFields = [['reservationMicros', 'Reservation per request'], ['organizationLimitMicros', 'Monthly ceiling per organization'],
   ['projectLimitMicros', 'Monthly ceiling per project']] as const;
+const freePoolFields = [['freePoolLimitMicros', 'Nucleas free pool limit'], ['freePoolRemainingMicros', 'Nucleas free pool remaining']] as const;
 type Snapshot = { settings: { revision: number; value: PlatformAiSettings }; secrets: { bearerTokenConfigured: boolean; cronSecretConfigured: boolean } };
 
 export default function AiSettingsPage() {
@@ -26,7 +27,9 @@ export default function AiSettingsPage() {
       if (!response.ok) throw new Error(body.error ?? 'Unable to load settings.');
       if (!controller.signal.aborted) {
         setSnapshot(body); setValues(body.settings.value);
-        setAmounts(Object.fromEntries(budgetFields.map(([key]) => [key, microsToDollars(body.settings.value[key])])));
+        setAmounts(Object.fromEntries(
+          [...budgetFields, ...freePoolFields].map(([key]) => [key, microsToDollars(body.settings.value[key] ?? 0)])
+        ));
       }
     }).catch(error => { if (!controller.signal.aborted) setMessage(error.message); });
     return () => controller.abort();
@@ -37,12 +40,20 @@ export default function AiSettingsPage() {
     if (!snapshot || !values || busy) return;
     setBusy(true); setMessage('');
     try {
-      const value = { ...values, ...Object.fromEntries(budgetFields.map(([key]) => [key, dollarsToMicros(amounts[key])])) };
+      const value = {
+        ...values,
+        ...Object.fromEntries(
+          [...budgetFields, ...freePoolFields].map(([key]) => [key, dollarsToMicros(amounts[key] ?? '0')])
+        ),
+      };
       const response = await fetch('/api/admin/ai', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ revision: snapshot.settings.revision, value, confirmEndpoint }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? 'Unable to save settings.');
       setSnapshot({ ...snapshot, settings: body.settings }); setValues(body.settings.value); setConfirmEndpoint(false);
+      setAmounts(Object.fromEntries(
+        [...budgetFields, ...freePoolFields].map(([key]) => [key, microsToDollars(body.settings.value[key] ?? 0)])
+      ));
       setMessage('Saved. Settings apply to subsequent checks without a redeploy. Changed policy invalidates previously queued drafts in progress.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Save failed.'); }
     finally { setBusy(false); }
@@ -90,6 +101,10 @@ export default function AiSettingsPage() {
           <p className="text-sm text-text-secondary">Zero blocks new requests. The project ceiling cannot exceed the organization ceiling. Processing requires a positive reservation within both ceilings. Organization managers may set lower limits. Limits use UTC calendar months; existing usage and reservations are never reset by editing settings.</p>
           <label className="flex gap-2"><input type="checkbox" checked={values.noProviderFee} onChange={event => setValues({ ...values, noProviderFee: event.target.checked })} />The endpoint owner confirms there is no provider inference fee.</label>
           <p className="text-sm text-text-secondary">A reservation is not a measured charge or provider invoice guarantee. Unknown charges retain reservations. Even with no provider fee, a positive reservation bounds concurrent admission and is released on completion.</p>
+        </section>
+        <section className="space-y-3"><h2 className="text-lg font-semibold">Nucleas free pool (USD)</h2>
+          {freePoolFields.map(([key, label]) => <label className="block" key={key}>{label}<input className={field} inputMode="decimal" required value={amounts[key] ?? '0'} onChange={event => setAmounts({ ...amounts, [key]: event.target.value })} /></label>)}
+          <p className="text-sm text-text-secondary">Complimentary credits shown on AI API keys and AI Team. When “no provider fee” settles, remaining is reduced by the request reservation (not inventing a $0 charge against company wallets). Set limit to 0 to leave remaining unconstrained by ceiling checks.</p>
         </section>
         <button className="rounded border border-border px-4 py-2" type="submit">{busy ? 'Saving…' : 'Save AI settings'}</button>
       </fieldset>
