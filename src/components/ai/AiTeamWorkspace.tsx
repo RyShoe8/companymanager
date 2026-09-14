@@ -9,6 +9,7 @@ import {
 import { microsToDollars } from '@/lib/ai/settingsSchema';
 import { companyDisplayName } from '@/lib/ai/rolePipeline/providerCatalog';
 import { useAiSnapshot } from './useAiSnapshot';
+import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 
 const field = 'w-full rounded-xl border border-border bg-background p-3 text-text-primary';
 const button = 'min-h-11 rounded-xl border border-border px-4 py-2 text-sm disabled:opacity-50';
@@ -22,14 +23,23 @@ type Profile = {
   enabled: boolean;
 };
 
+type CatalogModel = {
+  id: string;
+  label: string;
+  bestAt?: string;
+  strengths?: string[];
+  contextTokens?: number | null;
+  pricing?: { label: string };
+};
+
 type CatalogProvider = {
   id: string;
   label: string;
-  models: { id: string; label: string }[];
+  models: CatalogModel[];
 };
 
 type DiscoveredModelsState = {
-  models: { id: string; label: string }[];
+  models: CatalogModel[];
   error: string | null;
   loading: boolean;
 };
@@ -91,7 +101,7 @@ function costLine(event: StageEvent): string | null {
 function modelsForCredential(
   profile: Profile | undefined,
   catalog: CatalogProvider[]
-): { id: string; label: string }[] {
+): CatalogModel[] {
   if (!profile) return [];
   const providerId = profile.provider ?? 'custom';
   if (providerId === 'custom') return [];
@@ -304,7 +314,7 @@ export default function AiTeamWorkspace({
         );
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? 'Unable to list local models.');
-        const models = (body.models ?? []) as { id: string; label: string }[];
+        const models = (body.models ?? []) as CatalogModel[];
         setDiscoveredByProfile((current) => ({
           ...current,
           [profileId]: { models, error: body.error ?? null, loading: false },
@@ -452,6 +462,11 @@ export default function AiTeamWorkspace({
     const localModels = discovered?.models ?? [];
     const models = isCustom ? localModels : catalogModels;
     const showFreeformFallback = isCustom && !discovered?.loading && localModels.length === 0;
+    const selectedMeta = models.find((item) => item.id === binding.model) ?? null;
+    const freeLocal =
+      isCustom || credential?.tier === 'local_remote'
+        ? { ...selectedMeta, pricing: selectedMeta?.pricing ?? { label: 'Free' } }
+        : selectedMeta;
 
     return (
       <div className="space-y-2 rounded-xl border border-border p-3">
@@ -488,10 +503,12 @@ export default function AiTeamWorkspace({
                 {localModels.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label}
+                    {item.bestAt ? ` — ${item.bestAt}` : ''}
                   </option>
                 ))}
               </select>
             </label>
+            <ModelMetaStrip meta={binding.model ? freeLocal : null} />
             <button
               type="button"
               className={button}
@@ -524,22 +541,34 @@ export default function AiTeamWorkspace({
             ) : null}
           </div>
         ) : (
-          <label className="block text-sm">
-            Model
-            <select
-              className={`${field} mt-1`}
-              value={binding.model}
-              onChange={(event) => setBinding({ ...binding, model: event.target.value })}
-              disabled={busy || !binding.modelProfileId || models.length === 0}
-            >
-              <option value="">Select…</option>
-              {models.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="space-y-1">
+            <label className="block text-sm">
+              Model
+              <select
+                className={`${field} mt-1`}
+                value={binding.model}
+                onChange={(event) => setBinding({ ...binding, model: event.target.value })}
+                disabled={busy || !binding.modelProfileId || models.length === 0}
+              >
+                <option value="">Select…</option>
+                {models.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                    {item.bestAt ? ` — ${item.bestAt}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <ModelMetaStrip
+              meta={
+                binding.model
+                  ? credential?.tier === 'local_remote'
+                    ? { ...selectedMeta, pricing: { label: 'Free' } }
+                    : selectedMeta
+                  : null
+              }
+            />
+          </div>
         )}
       </div>
     );

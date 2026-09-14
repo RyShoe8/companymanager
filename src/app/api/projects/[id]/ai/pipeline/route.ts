@@ -4,6 +4,7 @@ import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { rolePipelineUpsertSchema } from '@/lib/ai/rolePipeline/schemas';
 import { mapModelProfilePublic, normalizeLegacyCredentialLabels } from '@/lib/ai/rolePipeline/profiles';
 import { isModelAllowedForProvider, MODEL_PROVIDERS } from '@/lib/ai/rolePipeline/providerCatalog';
+import { enrichCatalogModelsForApi } from '@/lib/ai/rolePipeline/modelMeta';
 import { AiModelProfile, AiRolePipeline } from '@/lib/models/AiRolePipeline';
 import { aiEmployees } from '@/lib/ai/teamWorkspace';
 
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest, context: Context) {
       catalog: MODEL_PROVIDERS.map((provider) => ({
         id: provider.id,
         label: provider.label,
-        models: provider.models,
+        models: enrichCatalogModelsForApi(provider.models, { free: provider.id === 'custom' }),
       })),
       canManage: access.canManage,
     });

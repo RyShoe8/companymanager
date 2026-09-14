@@ -1,8 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { formatIdeCostUsd } from '@/lib/ide/costDisplay';
-import { ideChatModes, type IdeChatMode } from '@/lib/ide/modes';
+import {
+  employeeForIdeMode,
+  ideChatModes,
+  isIdeDirectMode,
+  isIdeWorkerMode,
+  type IdeChatMode,
+} from '@/lib/ide/modes';
+import { companyDisplayName } from '@/lib/ai/rolePipeline/providerCatalog';
+import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
+import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
 
 type ChatTurn = {
   requestId: string;
@@ -11,6 +21,30 @@ type ChatTurn = {
   costMicros?: number | null;
   reservedMicros?: number | null;
   noProviderFee?: boolean;
+};
+
+type CatalogModel = {
+  id: string;
+  label: string;
+  bestAt?: string;
+  strengths?: string[];
+  contextTokens?: number | null;
+  pricing?: { label: string };
+};
+
+type Profile = {
+  id: string;
+  label: string;
+  provider?: string;
+  tier: string;
+  enabled: boolean;
+};
+
+type Pipeline = {
+  employee: AiEmployeeKey;
+  planner: { modelProfileId: string; model: string };
+  worker: { modelProfileId: string; model: string };
+  reviewer: { modelProfileId: string; model: string };
 };
 
 type Props = {
@@ -24,6 +58,7 @@ type Props = {
 
 const CHAT_MIN_WIDTH = 280;
 const CHAT_MAX_WIDTH = 720;
+const field = 'w-full rounded border border-border bg-background p-2 text-sm text-text-primary';
 
 export default function IdeChatPane({
   projectId,
@@ -38,10 +73,39 @@ export default function IdeChatPane({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [resizing, setResizing] = useState(false);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [catalog, setCatalog] = useState<{ id: string; label: string; models: CatalogModel[] }[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [directProfileId, setDirectProfileId] = useState('');
+  const [directModel, setDirectModel] = useState('');
+  const [discovered, setDiscovered] = useState<CatalogModel[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sendGenerationRef = useRef(0);
+
+  const loadPipeline = useCallback(async (id: string) => {
+    const response = await fetch(`/api/projects/${encodeURIComponent(id)}/ai/pipeline`, {
+      cache: 'no-store',
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error ?? 'Unable to load models.');
+    setProfiles(body.profiles ?? []);
+    setCatalog(body.catalog ?? []);
+    setPipelines(body.pipelines ?? []);
+  }, []);
+
+  useEffect(() => {
+    if (!projectId) {
+      setProfiles([]);
+      setCatalog([]);
+      setPipelines([]);
+      return;
+    }
+    void loadPipeline(projectId).catch(() => undefined);
+  }, [projectId, loadPipeline]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -50,7 +114,7 @@ export default function IdeChatPane({
     setBusy(false);
     setTurns([]);
     setError('');
-  }, [projectId, mode]);
+  }, [projectId, mode, directProfileId, directModel]);
 
   useEffect(() => {
     return () => {
@@ -63,6 +127,85 @@ export default function IdeChatPane({
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [turns]);
 
+  const directCredential = profiles.find((item) => item.id === directProfileId);
+  const isCustomDirect = (directCredential?.provider ?? 'custom') === 'custom';
+
+  const catalogModelsForDirect = useMemo(() => {
+    if (!directCredential || isCustomDirect) return [];
+    return catalog.find((item) => item.id === (directCredential.provider ?? ''))?.models ?? [];
+  }, [catalog, directCredential, isCustomDirect]);
+
+  const directModels = isCustomDirect ? discovered : catalogModelsForDirect;
+  const directMeta = directModels.find((item) => item.id === directModel) ?? null;
+
+  const loadDiscovered = useCallback(
+    async (id: string, profileId: string) => {
+      setDiscoverLoading(true);
+      setDiscoverError(null);
+      try {
+        const response = await fetch(
+          `/api/projects/${encodeURIComponent(id)}/ai/pipeline/models?profileId=${encodeURIComponent(profileId)}`,
+          { cache: 'no-store' }
+        );
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error ?? 'Unable to list models.');
+        const models = (body.models ?? []) as CatalogModel[];
+        setDiscovered(models);
+        setDiscoverError(body.error ?? null);
+        if (models[0] && !models.some((item) => item.id === directModel)) {
+          setDirectModel(models[0].id);
+        }
+      } catch (err) {
+        setDiscovered([]);
+        setDiscoverError(err instanceof Error ? err.message : 'Unable to list models.');
+      } finally {
+        setDiscoverLoading(false);
+      }
+    },
+    [directModel]
+  );
+
+  useEffect(() => {
+    if (!projectId || !isIdeDirectMode(mode) || !directProfileId || !isCustomDirect) {
+      if (!isCustomDirect) setDiscovered([]);
+      return;
+    }
+    void loadDiscovered(projectId, directProfileId);
+  }, [projectId, mode, directProfileId, isCustomDirect, loadDiscovered]);
+
+  useEffect(() => {
+    if (!isIdeDirectMode(mode) || !directProfileId || isCustomDirect) return;
+    const models = catalogModelsForDirect;
+    if (models[0] && !models.some((item) => item.id === directModel)) {
+      setDirectModel(models[0].id);
+    }
+  }, [mode, directProfileId, isCustomDirect, catalogModelsForDirect, directModel]);
+
+  const workerPipeline = useMemo(() => {
+    if (!isIdeWorkerMode(mode)) return null;
+    const employee = employeeForIdeMode(mode);
+    return pipelines.find((item) => item.employee === employee) ?? null;
+  }, [mode, pipelines]);
+
+  function stageMeta(binding: { modelProfileId: string; model: string } | undefined) {
+    if (!binding?.modelProfileId || !binding.model) return null;
+    const profile = profiles.find((item) => item.id === binding.modelProfileId);
+    if (!profile) return { label: binding.model, bestAt: undefined, pricing: { label: '—' } };
+    const free = profile.provider === 'custom' || profile.tier === 'local_remote';
+    const catalogModels =
+      profile.provider === 'custom'
+        ? []
+        : catalog.find((item) => item.id === profile.provider)?.models ?? [];
+    const hit = catalogModels.find((item) => item.id === binding.model);
+    return {
+      company: companyDisplayName({ label: profile.label, provider: profile.provider }),
+      label: hit?.label ?? binding.model,
+      bestAt: hit?.bestAt,
+      contextTokens: hit?.contextTokens ?? null,
+      pricing: free ? { label: 'Free' } : hit?.pricing ?? { label: 'Pricing unknown' },
+    };
+  }
+
   useEffect(() => {
     if (!resizing) return;
 
@@ -74,7 +217,6 @@ export default function IdeChatPane({
     const onMove = (event: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
-      // Dragging the left edge leftward widens the pane.
       onWidthChange(clampWidth(drag.startWidth + (drag.startX - event.clientX)));
     };
 
@@ -113,6 +255,10 @@ export default function IdeChatPane({
 
   async function send() {
     if (!projectId || !draft.trim() || busy) return;
+    if (isIdeDirectMode(mode) && (!directProfileId || !directModel.trim())) {
+      setError('Pick a company and model for Direct chat.');
+      return;
+    }
     const text = draft.trim();
     setDraft('');
     setBusy(true);
@@ -137,7 +283,14 @@ export default function IdeChatPane({
       const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/ai/ide/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, text, history }),
+        body: JSON.stringify({
+          mode,
+          text,
+          history,
+          ...(isIdeDirectMode(mode)
+            ? { modelProfileId: directProfileId, model: directModel }
+            : {}),
+        }),
         signal: controller.signal,
       });
       if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
@@ -169,6 +322,8 @@ export default function IdeChatPane({
   function stop() {
     abortRef.current?.abort();
   }
+
+  const canSendDirect = !isIdeDirectMode(mode) || Boolean(directProfileId && directModel.trim());
 
   return (
     <aside
@@ -220,10 +375,107 @@ export default function IdeChatPane({
           Rules
         </button>
       </div>
+
+      {isIdeDirectMode(mode) ? (
+        <div className="space-y-2 border-b border-border px-2 py-2">
+          <label className="block text-xs text-text-secondary">
+            Company
+            <select
+              className={`${field} mt-1`}
+              value={directProfileId}
+              disabled={!projectId || busy}
+              onChange={(event) => {
+                setDirectProfileId(event.target.value);
+                setDirectModel('');
+              }}
+            >
+              <option value="">Select…</option>
+              {profiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {companyDisplayName({ label: profile.label, provider: profile.provider })}
+                  {profile.tier === 'local_remote' ? ' (local)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs text-text-secondary">
+            Model
+            <select
+              className={`${field} mt-1`}
+              value={directModels.some((item) => item.id === directModel) ? directModel : ''}
+              disabled={!projectId || busy || !directProfileId || discoverLoading || directModels.length === 0}
+              onChange={(event) => setDirectModel(event.target.value)}
+            >
+              <option value="">{discoverLoading ? 'Loading…' : 'Select…'}</option>
+              {directModels.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                  {item.bestAt ? ` — ${item.bestAt}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ModelMetaStrip
+            meta={
+              directModel
+                ? isCustomDirect || directCredential?.tier === 'local_remote'
+                  ? { ...directMeta, pricing: { label: 'Free' } }
+                  : directMeta
+                : null
+            }
+          />
+          {isCustomDirect && directProfileId ? (
+            <button
+              type="button"
+              className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
+              disabled={busy || discoverLoading || !projectId}
+              onClick={() => projectId && void loadDiscovered(projectId, directProfileId)}
+            >
+              {discoverLoading ? 'Refreshing…' : 'Refresh models'}
+            </button>
+          ) : null}
+          {discoverError ? <p className="text-[11px] text-text-secondary">{discoverError}</p> : null}
+        </div>
+      ) : (
+        <div className="space-y-1 border-b border-border px-2 py-2 text-[11px] text-text-secondary">
+          <div className="flex flex-wrap items-center justify-between gap-1">
+            <span className="font-medium text-text-primary">Models for this worker</span>
+            {projectId ? (
+              <Link
+                className="underline"
+                href={`/workspace/ai-team?projectId=${encodeURIComponent(projectId)}&employee=${encodeURIComponent(
+                  isIdeWorkerMode(mode) ? employeeForIdeMode(mode) : 'product'
+                )}`}
+              >
+                Edit on AI Team
+              </Link>
+            ) : null}
+          </div>
+          {!workerPipeline ? (
+            <p>No pipeline configured yet. Set Planner / Worker / Reviewer on AI Team.</p>
+          ) : (
+            (['planner', 'worker', 'reviewer'] as const).map((stage) => {
+              const meta = stageMeta(workerPipeline[stage]);
+              return (
+                <p key={stage}>
+                  <span className="capitalize text-text-primary">{stage}</span>
+                  {': '}
+                  {meta
+                    ? `${meta.company} · ${meta.label}${meta.bestAt ? ` — ${meta.bestAt}` : ''} · ${meta.pricing.label}`
+                    : 'Unassigned'}
+                </p>
+              );
+            })
+          )}
+        </div>
+      )}
+
       <div className="flex-1 space-y-3 overflow-auto p-3 text-sm">
         {turns.length === 0 ? (
           <p className="text-xs text-text-secondary">
-            Chat with Plan, Build, Research, or Marketing. Costs show in dollars per reply.
+            {isIdeDirectMode(mode)
+              ? 'Direct mode chats with one company model (great for free/local low-level tasks).'
+              : 'Chat with Plan, Build, Research, or Marketing. Costs show in dollars per reply.'}
           </p>
         ) : null}
         {turns.map((turn) => {
@@ -277,18 +529,14 @@ export default function IdeChatPane({
           }}
         />
         {busy ? (
-          <button
-            type="button"
-            className="w-full rounded border border-border px-3 py-2 text-sm"
-            onClick={stop}
-          >
+          <button type="button" className="w-full rounded border border-border px-3 py-2 text-sm" onClick={stop}>
             Stop
           </button>
         ) : (
           <button
             type="button"
             className="w-full rounded border border-border px-3 py-2 text-sm disabled:opacity-50"
-            disabled={!projectId || !draft.trim()}
+            disabled={!projectId || !draft.trim() || !canSendDirect}
             onClick={() => void send()}
           >
             Send

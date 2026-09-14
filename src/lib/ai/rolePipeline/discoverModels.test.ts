@@ -34,14 +34,13 @@ describe('modelsUrlFromChatEndpoint', () => {
 
 describe('mapOpenAiModelsResponse', () => {
   it('maps and sorts OpenAI-style data ids', () => {
-    expect(
-      mapOpenAiModelsResponse({
-        data: [{ id: 'zeta' }, { id: 'alpha' }, { id: 'alpha' }, { id: '' }, null],
-      })
-    ).toEqual([
-      { id: 'alpha', label: 'alpha' },
-      { id: 'zeta', label: 'zeta' },
-    ]);
+    const mapped = mapOpenAiModelsResponse({
+      data: [{ id: 'zeta' }, { id: 'alpha' }, { id: 'alpha' }, { id: '' }, null],
+    });
+    expect(mapped.map((item) => item.id)).toEqual(['alpha', 'zeta']);
+    expect(mapped[0]?.label).toBe('alpha');
+    expect(mapped[0]?.bestAt).toBeTruthy();
+    expect(mapped[0]?.strengths.length).toBeGreaterThan(0);
   });
 
   it('returns empty for invalid bodies', () => {

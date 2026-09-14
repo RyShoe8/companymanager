@@ -3,7 +3,16 @@
  * Fail closed: never throw provider bodies or secrets.
  */
 
-export type DiscoveredModel = { id: string; label: string };
+import { localModelMetaOverlay } from '@/lib/ai/rolePipeline/modelMeta';
+import type { ModelStrength } from '@/lib/ai/rolePipeline/providerCatalog';
+
+export type DiscoveredModel = {
+  id: string;
+  label: string;
+  bestAt: string;
+  strengths: ModelStrength[];
+  contextTokens: number | null;
+};
 
 export type DiscoverModelsResult = {
   models: DiscoveredModel[];
@@ -35,6 +44,20 @@ export function modelsUrlFromChatEndpoint(endpoint: string): URL {
   return url;
 }
 
+function readContextTokens(item: object): number | null {
+  const candidates = [
+    (item as { max_model_len?: unknown }).max_model_len,
+    (item as { context_length?: unknown }).context_length,
+    (item as { max_context_length?: unknown }).max_context_length,
+  ];
+  for (const value of candidates) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return Math.floor(value);
+    }
+  }
+  return null;
+}
+
 export function mapOpenAiModelsResponse(body: unknown): DiscoveredModel[] {
   if (!body || typeof body !== 'object') return [];
   const data = (body as { data?: unknown }).data;
@@ -46,7 +69,14 @@ export function mapOpenAiModelsResponse(body: unknown): DiscoveredModel[] {
     const id = typeof (item as { id?: unknown }).id === 'string' ? (item as { id: string }).id.trim() : '';
     if (!id || id.length > 200 || seen.has(id)) continue;
     seen.add(id);
-    models.push({ id, label: id });
+    const overlay = localModelMetaOverlay(id);
+    models.push({
+      id,
+      label: id,
+      bestAt: overlay.bestAt,
+      strengths: overlay.strengths,
+      contextTokens: readContextTokens(item),
+    });
   }
   return models.sort((a, b) => a.id.localeCompare(b.id));
 }

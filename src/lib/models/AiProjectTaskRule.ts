@@ -1,6 +1,6 @@
 import mongoose, { Schema, type InferSchemaType, type Model } from 'mongoose';
 
-const modes = ['plan', 'build', 'research', 'marketing', 'all'] as const;
+const modes = ['plan', 'build', 'research', 'marketing', 'direct', 'all'] as const;
 
 const schema = new Schema(
   {

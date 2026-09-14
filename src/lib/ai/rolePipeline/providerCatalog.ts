@@ -11,18 +11,47 @@ export type ModelProviderId =
   | 'openrouter'
   | 'custom';
 
+export type ModelStrength =
+  | 'coding'
+  | 'reasoning'
+  | 'chat'
+  | 'vision'
+  | 'image_gen'
+  | 'embeddings'
+  | 'speed'
+  | 'long_context';
+
+export type CatalogModel = {
+  id: string;
+  label: string;
+  /** Short “best at” line for UI */
+  bestAt: string;
+  strengths: ModelStrength[];
+  /** Context window in tokens; null when unknown */
+  contextTokens: number | null;
+};
+
 export type ModelProviderOption = {
   id: ModelProviderId;
   label: string;
   /** Default chat-completions endpoint (OpenAI-compatible). */
   endpoint: string;
-  /** Model id → display name */
-  models: { id: string; label: string }[];
+  models: CatalogModel[];
   /** Shown under the company field */
   hint: string;
   /** Suggested tier when this company is selected */
   defaultTier: 'commercial' | 'local_remote';
 };
+
+function m(
+  id: string,
+  label: string,
+  bestAt: string,
+  strengths: ModelStrength[],
+  contextTokens: number | null
+): CatalogModel {
+  return { id, label, bestAt, strengths, contextTokens };
+}
 
 /**
  * Phase 1 gateway speaks OpenAI chat completions only.
@@ -37,20 +66,20 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your OpenAI API key (sk-…).',
     models: [
-      { id: 'gpt-6-astra', label: 'GPT-6 Astra' },
-      { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
-      { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
-      { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
-      { id: 'gpt-5.4', label: 'GPT-5.4' },
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 mini' },
-      { id: 'gpt-5', label: 'GPT-5' },
-      { id: 'gpt-5-mini', label: 'GPT-5 mini' },
-      { id: 'o3', label: 'o3' },
-      { id: 'o4-mini', label: 'o4-mini' },
-      { id: 'gpt-4.1', label: 'GPT-4.1' },
-      { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
-      { id: 'gpt-4o', label: 'GPT-4o' },
-      { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
+      m('gpt-6-astra', 'GPT-6 Astra', 'Hardest reasoning and agentic work', ['reasoning', 'coding', 'long_context'], 1_000_000),
+      m('gpt-5.6-sol', 'GPT-5.6 Sol', 'Balanced flagship for coding and analysis', ['coding', 'reasoning', 'chat'], 256_000),
+      m('gpt-5.6-terra', 'GPT-5.6 Terra', 'Strong general work at mid cost', ['chat', 'coding', 'reasoning'], 256_000),
+      m('gpt-5.6-luna', 'GPT-5.6 Luna', 'Fast cheap drafts and simple tasks', ['chat', 'speed'], 128_000),
+      m('gpt-5.4', 'GPT-5.4', 'High-quality coding and multi-step work', ['coding', 'reasoning', 'chat'], 256_000),
+      m('gpt-5.4-mini', 'GPT-5.4 mini', 'Affordable coding assistant', ['coding', 'chat', 'speed'], 128_000),
+      m('gpt-5', 'GPT-5', 'General high-capability assistant', ['chat', 'reasoning', 'coding'], 128_000),
+      m('gpt-5-mini', 'GPT-5 mini', 'Lightweight everyday chat and edits', ['chat', 'speed'], 128_000),
+      m('o3', 'o3', 'Deep reasoning and hard problems', ['reasoning', 'coding'], 200_000),
+      m('o4-mini', 'o4-mini', 'Faster reasoning on a budget', ['reasoning', 'speed'], 200_000),
+      m('gpt-4.1', 'GPT-4.1', 'Reliable coding and long instructions', ['coding', 'chat', 'long_context'], 1_000_000),
+      m('gpt-4.1-mini', 'GPT-4.1 mini', 'Cheap coding and summarization', ['coding', 'chat', 'speed'], 1_000_000),
+      m('gpt-4o', 'GPT-4o', 'Multimodal chat and vision Q&A', ['chat', 'vision', 'coding'], 128_000),
+      m('gpt-4o-mini', 'GPT-4o mini', 'Fast cheap multimodal helper', ['chat', 'vision', 'speed'], 128_000),
     ],
   },
   {
@@ -60,14 +89,14 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Claude through OpenRouter’s OpenAI-compatible API. Use an OpenRouter API key (not a raw Anthropic key) until native Anthropic support ships.',
     models: [
-      { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5' },
-      { id: 'anthropic/claude-opus-4.8', label: 'Claude Opus 4.8' },
-      { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5' },
-      { id: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
-      { id: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet 4' },
-      { id: 'anthropic/claude-haiku-4.5', label: 'Claude Haiku 4.5' },
-      { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-      { id: 'anthropic/claude-3.5-haiku', label: 'Claude 3.5 Haiku' },
+      m('anthropic/claude-opus-5', 'Claude Opus 5', 'Highest-quality writing and complex reasoning', ['reasoning', 'chat', 'coding'], 200_000),
+      m('anthropic/claude-opus-4.8', 'Claude Opus 4.8', 'Top-tier analysis and long documents', ['reasoning', 'chat', 'long_context'], 200_000),
+      m('anthropic/claude-sonnet-5', 'Claude Sonnet 5', 'Strong everyday coding and writing', ['coding', 'chat', 'reasoning'], 200_000),
+      m('anthropic/claude-sonnet-4.6', 'Claude Sonnet 4.6', 'Balanced Sonnet for production work', ['coding', 'chat'], 200_000),
+      m('anthropic/claude-sonnet-4', 'Claude Sonnet 4', 'Solid coding and instruction following', ['coding', 'chat'], 200_000),
+      m('anthropic/claude-haiku-4.5', 'Claude Haiku 4.5', 'Fast cheap Claude replies', ['chat', 'speed'], 200_000),
+      m('anthropic/claude-3.5-sonnet', 'Claude 3.5 Sonnet', 'Proven coding and editing pair', ['coding', 'chat'], 200_000),
+      m('anthropic/claude-3.5-haiku', 'Claude 3.5 Haiku', 'Quick cheap Claude drafts', ['chat', 'speed'], 200_000),
     ],
   },
   {
@@ -77,15 +106,15 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your Gemini API key from Google AI Studio. Uses Google’s OpenAI-compatible chat endpoint.',
     models: [
-      { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
-      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
-      { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
-      { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
-      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
-      { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite' },
-      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-      { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite' },
+      m('gemini-3.1-pro-preview', 'Gemini 3.1 Pro', 'Long-context reasoning and analysis', ['reasoning', 'long_context', 'chat'], 1_000_000),
+      m('gemini-3.8-flash', 'Gemini 3.8 Flash', 'Fast multimodal assistant', ['chat', 'vision', 'speed'], 1_000_000),
+      m('gemini-3.7-flash', 'Gemini 3.7 Flash', 'Fast general Gemini work', ['chat', 'speed'], 1_000_000),
+      m('gemini-3.6-flash', 'Gemini 3.6 Flash', 'Speed-focused Gemini replies', ['chat', 'speed'], 1_000_000),
+      m('gemini-3.5-flash', 'Gemini 3.5 Flash', 'Balanced Flash for chat and vision', ['chat', 'vision', 'speed'], 1_000_000),
+      m('gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite', 'Cheapest Gemini drafts', ['chat', 'speed'], 1_000_000),
+      m('gemini-2.5-pro', 'Gemini 2.5 Pro', 'Strong reasoning with huge context', ['reasoning', 'long_context', 'chat'], 1_000_000),
+      m('gemini-2.5-flash', 'Gemini 2.5 Flash', 'Fast multimodal Gemini', ['chat', 'vision', 'speed'], 1_000_000),
+      m('gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite', 'Ultra-cheap quick answers', ['chat', 'speed'], 1_000_000),
     ],
   },
   {
@@ -95,10 +124,10 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your Groq API key.',
     models: [
-      { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
-      { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B' },
-      { id: 'qwen/qwen3.8-27b', label: 'Qwen3.8 27B' },
-      { id: 'qwen/qwen3.6-27b', label: 'Qwen3.6 27B' },
+      m('openai/gpt-oss-120b', 'GPT-OSS 120B', 'Large open model at Groq speed', ['chat', 'reasoning', 'speed'], 128_000),
+      m('openai/gpt-oss-20b', 'GPT-OSS 20B', 'Smaller open model, very fast', ['chat', 'speed'], 128_000),
+      m('qwen/qwen3.8-27b', 'Qwen3.8 27B', 'Qwen chat and light coding on Groq', ['chat', 'coding', 'speed'], 128_000),
+      m('qwen/qwen3.6-27b', 'Qwen3.6 27B', 'Fast Qwen assistant', ['chat', 'speed'], 128_000),
     ],
   },
   {
@@ -108,8 +137,8 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your DeepSeek API key.',
     models: [
-      { id: 'deepseek-chat', label: 'DeepSeek Chat (V3)' },
-      { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
+      m('deepseek-chat', 'DeepSeek Chat (V3)', 'Cheap strong chat and coding', ['chat', 'coding'], 128_000),
+      m('deepseek-reasoner', 'DeepSeek Reasoner (R1)', 'DeepSeek chain-of-thought reasoning', ['reasoning', 'coding'], 128_000),
     ],
   },
   {
@@ -119,12 +148,12 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your Together API key.',
     models: [
-      { id: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', label: 'Llama 4 Maverick' },
-      { id: 'meta-llama/Llama-4-Scout-17B-16E-Instruct', label: 'Llama 4 Scout' },
-      { id: 'deepseek-ai/DeepSeek-R1', label: 'DeepSeek R1' },
-      { id: 'Qwen/Qwen3-235B-A22B-fp8-tput', label: 'Qwen3 235B' },
-      { id: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', label: 'Llama 3.1 70B Turbo' },
-      { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', label: 'Llama 3.1 8B Turbo' },
+      m('meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', 'Llama 4 Maverick', 'Llama 4 instruct for chat and code', ['chat', 'coding'], 128_000),
+      m('meta-llama/Llama-4-Scout-17B-16E-Instruct', 'Llama 4 Scout', 'Faster Llama 4 instruct', ['chat', 'speed'], 128_000),
+      m('deepseek-ai/DeepSeek-R1', 'DeepSeek R1', 'Open DeepSeek reasoning', ['reasoning', 'coding'], 128_000),
+      m('Qwen/Qwen3-235B-A22B-fp8-tput', 'Qwen3 235B', 'Large Qwen for hard tasks', ['reasoning', 'chat', 'coding'], 128_000),
+      m('meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', 'Llama 3.1 70B Turbo', 'Strong open chat model', ['chat', 'coding'], 128_000),
+      m('meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', 'Llama 3.1 8B Turbo', 'Small fast Llama', ['chat', 'speed'], 128_000),
     ],
   },
   {
@@ -134,13 +163,13 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your Fireworks API key.',
     models: [
-      { id: 'accounts/fireworks/models/llama4-maverick-instruct-basic', label: 'Llama 4 Maverick' },
-      { id: 'accounts/fireworks/models/llama4-scout-instruct-basic', label: 'Llama 4 Scout' },
-      { id: 'accounts/fireworks/models/deepseek-r1-0528', label: 'DeepSeek R1 (0528)' },
-      { id: 'accounts/fireworks/models/deepseek-r1', label: 'DeepSeek R1 (Fast)' },
-      { id: 'accounts/fireworks/models/qwen3-235b-a22b', label: 'Qwen3 235B' },
-      { id: 'accounts/fireworks/models/llama-v3p3-70b-instruct', label: 'Llama 3.3 70B' },
-      { id: 'accounts/fireworks/models/llama-v3p1-8b-instruct', label: 'Llama 3.1 8B' },
+      m('accounts/fireworks/models/llama4-maverick-instruct-basic', 'Llama 4 Maverick', 'Llama 4 on Fireworks', ['chat', 'coding'], 128_000),
+      m('accounts/fireworks/models/llama4-scout-instruct-basic', 'Llama 4 Scout', 'Faster Llama 4 on Fireworks', ['chat', 'speed'], 128_000),
+      m('accounts/fireworks/models/deepseek-r1-0528', 'DeepSeek R1 (0528)', 'Reasoning checkpoint on Fireworks', ['reasoning', 'coding'], 128_000),
+      m('accounts/fireworks/models/deepseek-r1', 'DeepSeek R1 (Fast)', 'Fast DeepSeek reasoning', ['reasoning', 'speed'], 128_000),
+      m('accounts/fireworks/models/qwen3-235b-a22b', 'Qwen3 235B', 'Large Qwen on Fireworks', ['reasoning', 'chat'], 128_000),
+      m('accounts/fireworks/models/llama-v3p3-70b-instruct', 'Llama 3.3 70B', 'Capable open chat', ['chat', 'coding'], 128_000),
+      m('accounts/fireworks/models/llama-v3p1-8b-instruct', 'Llama 3.1 8B', 'Small fast Llama', ['chat', 'speed'], 128_000),
     ],
   },
   {
@@ -150,14 +179,14 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'One key for many providers. Paste your OpenRouter API key.',
     models: [
-      { id: 'openai/gpt-5.6-sol', label: 'OpenAI GPT-5.6 Sol' },
-      { id: 'openai/gpt-5.6-terra', label: 'OpenAI GPT-5.6 Terra' },
-      { id: 'anthropic/claude-opus-5', label: 'Anthropic Claude Opus 5' },
-      { id: 'anthropic/claude-sonnet-5', label: 'Anthropic Claude Sonnet 5' },
-      { id: 'google/gemini-2.5-pro', label: 'Google Gemini 2.5 Pro' },
-      { id: 'google/gemini-2.5-flash', label: 'Google Gemini 2.5 Flash' },
-      { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
-      { id: 'meta-llama/llama-4-maverick', label: 'Meta Llama 4 Maverick' },
+      m('openai/gpt-5.6-sol', 'OpenAI GPT-5.6 Sol', 'OpenAI Sol via OpenRouter', ['coding', 'reasoning', 'chat'], 256_000),
+      m('openai/gpt-5.6-terra', 'OpenAI GPT-5.6 Terra', 'OpenAI Terra via OpenRouter', ['chat', 'coding'], 256_000),
+      m('anthropic/claude-opus-5', 'Anthropic Claude Opus 5', 'Opus-quality via OpenRouter', ['reasoning', 'chat', 'coding'], 200_000),
+      m('anthropic/claude-sonnet-5', 'Anthropic Claude Sonnet 5', 'Sonnet coding via OpenRouter', ['coding', 'chat'], 200_000),
+      m('google/gemini-2.5-pro', 'Google Gemini 2.5 Pro', 'Long-context Gemini via OpenRouter', ['reasoning', 'long_context'], 1_000_000),
+      m('google/gemini-2.5-flash', 'Google Gemini 2.5 Flash', 'Fast Gemini via OpenRouter', ['chat', 'vision', 'speed'], 1_000_000),
+      m('deepseek/deepseek-r1', 'DeepSeek R1', 'DeepSeek reasoning via OpenRouter', ['reasoning', 'coding'], 128_000),
+      m('meta-llama/llama-4-maverick', 'Meta Llama 4 Maverick', 'Llama 4 via OpenRouter', ['chat', 'coding'], 128_000),
     ],
   },
   {
@@ -172,6 +201,16 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
 
 export function getModelProvider(id: string): ModelProviderOption | undefined {
   return MODEL_PROVIDERS.find((item) => item.id === id);
+}
+
+export function findCatalogModel(modelId: string): CatalogModel | undefined {
+  const trimmed = modelId.trim();
+  if (!trimmed) return undefined;
+  for (const provider of MODEL_PROVIDERS) {
+    const hit = provider.models.find((item) => item.id === trimmed);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 /** True when the model id is allowed for this company credential. */
@@ -220,4 +259,17 @@ export function cleanedCompanyLabel(input: { label: string; provider?: string | 
   if (!label.includes(' · ')) return null;
   const next = companyDisplayName(input);
   return next && next !== label ? next : null;
+}
+
+export function formatContextTokens(tokens: number | null | undefined): string {
+  if (tokens == null || !Number.isFinite(tokens) || tokens <= 0) return 'Unknown';
+  if (tokens >= 1_000_000) {
+    const m = tokens / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  if (tokens >= 1000) {
+    const k = tokens / 1000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1)}K`;
+  }
+  return String(tokens);
 }

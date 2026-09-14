@@ -4,6 +4,7 @@ import { requireAiProject, AiHttpError } from '@/lib/ai/control/access';
 import { aiError, aiResponse } from '@/lib/ai/control/http';
 import { decryptModelSecret } from '@/lib/ai/modelSecrets';
 import { discoverOpenAiCompatibleModels } from '@/lib/ai/rolePipeline/discoverModels';
+import { buildModelMetaView, isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
 import { AiModelProfile } from '@/lib/models/AiRolePipeline';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest, context: Context) {
       throw new AiHttpError(400, 'Provide a valid company credential id.');
     }
     const row = await AiModelProfile.findById(profileId)
-      .select('provider endpoint secretCiphertext enabled')
+      .select('provider tier endpoint secretCiphertext enabled')
       .maxTimeMS(3000)
       .lean();
     if (!row || !row.enabled) throw new AiHttpError(404, 'Company credential not found.');
@@ -34,10 +35,20 @@ export async function GET(request: NextRequest, context: Context) {
       endpoint: row.endpoint,
       bearerToken,
     });
+    const free = isFreeCredential({ provider: row.provider, tier: row.tier });
     return aiResponse({
       profileId,
       provider: row.provider ?? 'custom',
-      models: discovered.models,
+      models: discovered.models.map((model) =>
+        buildModelMetaView({
+          id: model.id,
+          label: model.label,
+          bestAt: model.bestAt,
+          strengths: model.strengths,
+          contextTokens: model.contextTokens,
+          free,
+        })
+      ),
       error: discovered.error,
     });
   } catch (error) {
