@@ -18,23 +18,98 @@ type Props = {
   mode: IdeChatMode;
   onModeChange: (mode: IdeChatMode) => void;
   onOpenRules: () => void;
+  width: number;
+  onWidthChange: (width: number) => void;
 };
 
-export default function IdeChatPane({ projectId, mode, onModeChange, onOpenRules }: Props) {
+const CHAT_MIN_WIDTH = 280;
+const CHAT_MAX_WIDTH = 720;
+
+export default function IdeChatPane({
+  projectId,
+  mode,
+  onModeChange,
+  onOpenRules,
+  width,
+  onWidthChange,
+}: Props) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [resizing, setResizing] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const sendGenerationRef = useRef(0);
 
   useEffect(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    sendGenerationRef.current += 1;
+    setBusy(false);
     setTurns([]);
     setError('');
   }, [projectId, mode]);
 
   useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [turns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+
+    const clampWidth = (next: number) => {
+      const max = Math.min(CHAT_MAX_WIDTH, Math.floor(window.innerWidth * 0.7));
+      return Math.min(max, Math.max(CHAT_MIN_WIDTH, next));
+    };
+
+    const onMove = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      // Dragging the left edge leftward widens the pane.
+      onWidthChange(clampWidth(drag.startWidth + (drag.startX - event.clientX)));
+    };
+
+    const finish = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      dragRef.current = null;
+      setResizing(false);
+      document.body.style.removeProperty('cursor');
+      document.body.style.removeProperty('user-select');
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+    };
+  }, [resizing, onWidthChange]);
+
+  function onResizePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: width,
+    };
+    setResizing(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }
 
   async function send() {
     if (!projectId || !draft.trim() || busy) return;
@@ -48,6 +123,12 @@ export default function IdeChatPane({ projectId, mode, onModeChange, onOpenRules
       text,
     };
     setTurns((current) => [...current, userTurn]);
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const generation = ++sendGenerationRef.current;
+
     try {
       const history = [...turns, userTurn]
         .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
@@ -57,20 +138,65 @@ export default function IdeChatPane({ projectId, mode, onModeChange, onOpenRules
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode, text, history }),
+        signal: controller.signal,
       });
+      if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
       const body = await response.json();
+      if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
       if (!response.ok) throw new Error(body.error ?? 'Chat request failed.');
       const turn = body.turn as ChatTurn;
       setTurns((current) => [...current, turn]);
     } catch (err) {
+      if (generation !== sendGenerationRef.current) return;
+      if (controller.signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+        setTurns((current) => [
+          ...current,
+          {
+            requestId: crypto.randomUUID(),
+            role: 'status',
+            text: 'Stopped.',
+          },
+        ]);
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Chat request failed.');
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) abortRef.current = null;
+      if (generation === sendGenerationRef.current) setBusy(false);
     }
   }
 
+  function stop() {
+    abortRef.current?.abort();
+  }
+
   return (
-    <aside className="flex h-full w-full max-w-md shrink-0 flex-col border-l border-border bg-background-card md:w-[22rem]">
+    <aside
+      className="relative flex h-full shrink-0 flex-col border-l border-border bg-background-card"
+      style={{ width }}
+    >
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize chat pane"
+        aria-valuenow={Math.round(width)}
+        aria-valuemin={CHAT_MIN_WIDTH}
+        aria-valuemax={CHAT_MAX_WIDTH}
+        tabIndex={0}
+        className={`absolute inset-y-0 left-0 z-10 w-1.5 -translate-x-1/2 cursor-col-resize touch-none ${
+          resizing ? 'bg-primary/50' : 'bg-transparent hover:bg-primary/30'
+        }`}
+        onPointerDown={onResizePointerDown}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            onWidthChange(Math.min(CHAT_MAX_WIDTH, width + 16));
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            onWidthChange(Math.max(CHAT_MIN_WIDTH, width - 16));
+          }
+        }}
+      />
       <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-2">
         {ideChatModes.map((item) => (
           <button
@@ -150,14 +276,24 @@ export default function IdeChatPane({ projectId, mode, onModeChange, onOpenRules
             }
           }}
         />
-        <button
-          type="button"
-          className="w-full rounded border border-border px-3 py-2 text-sm disabled:opacity-50"
-          disabled={!projectId || busy || !draft.trim()}
-          onClick={() => void send()}
-        >
-          {busy ? 'Sending…' : 'Send'}
-        </button>
+        {busy ? (
+          <button
+            type="button"
+            className="w-full rounded border border-border px-3 py-2 text-sm"
+            onClick={stop}
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="w-full rounded border border-border px-3 py-2 text-sm disabled:opacity-50"
+            disabled={!projectId || !draft.trim()}
+            onClick={() => void send()}
+          >
+            Send
+          </button>
+        )}
       </div>
     </aside>
   );

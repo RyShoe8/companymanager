@@ -37,6 +37,29 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [originalContent, setOriginalContent] = useState('');
   const [mode, setMode] = useState<IdeChatMode>('build');
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [chatWidth, setChatWidth] = useState(352);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('nucleas.ide.chatWidth');
+      if (!stored) return;
+      const parsed = Number(stored);
+      if (Number.isFinite(parsed) && parsed >= 280 && parsed <= 720) {
+        setChatWidth(parsed);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const onChatWidthChange = useCallback((next: number) => {
+    setChatWidth(next);
+    try {
+      window.localStorage.setItem('nucleas.ide.chatWidth', String(Math.round(next)));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const dirty = activePath != null && fileContent !== originalContent;
   const hasBinding = Boolean(repository?.repository);
@@ -175,6 +198,8 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           mode={mode}
           onModeChange={setMode}
           onOpenRules={() => setRulesOpen(true)}
+          width={chatWidth}
+          onWidthChange={onChatWidthChange}
         />
       </div>
       <IdeTaskRulesPanel projectId={projectId} open={rulesOpen} onClose={() => setRulesOpen(false)} />

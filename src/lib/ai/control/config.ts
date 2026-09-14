@@ -90,6 +90,49 @@ export async function getChatInferencePolicy(organizationId: string, projectId: 
   return { gateway, ...policy, digest: digestValue(policy) };
 }
 
+/** Role-pipeline stages: budget/dispatch gates without requiring the legacy env bearer. */
+export async function getPipelineInferencePolicy(
+  organizationId: string,
+  projectId: string,
+  session?: ClientSession
+) {
+  const platform = await readPlatformSettings(session);
+  const organization = await readBudgetSettings(organizationId, undefined, session);
+  const project = await readBudgetSettings(organizationId, projectId, session);
+  const settings = platform.value;
+  if (organization.value.paused || project.value.paused) throw new GatewayError('configuration');
+  if (!settings.remoteEnabled) throw new GatewayError('configuration');
+  if (!settings.dispatchEnabled) throw new GatewayError('configuration');
+  const organizationLimitMicros = Math.min(
+    settings.organizationLimitMicros,
+    organization.value.limitMicros ?? settings.organizationLimitMicros
+  );
+  const projectLimitMicros = Math.min(
+    settings.projectLimitMicros,
+    organizationLimitMicros,
+    project.value.limitMicros ?? settings.projectLimitMicros
+  );
+  if (settings.reservationMicros <= 0 || settings.reservationMicros > projectLimitMicros) {
+    throw new GatewayError('configuration');
+  }
+  if (session) {
+    await fenceSettings(platformSettingsId, platform.revision, session);
+    await fenceSettings(budgetSettingsId(organizationId), organization.revision, session);
+    await fenceSettings(budgetSettingsId(organizationId, projectId), project.revision, session);
+  }
+  const policy = {
+    reservationMicros: settings.reservationMicros,
+    organizationLimitMicros,
+    projectLimitMicros,
+    noProviderFee: settings.noProviderFee,
+    dailyRequestLimit: settings.dailyRequestLimit,
+    minimumIntervalSeconds: settings.minimumIntervalSeconds,
+    maxOutputTokens: settings.maxOutputTokens,
+    revisions: [platform.revision, organization.revision, project.revision],
+  };
+  return { ...policy, digest: digestValue(policy) };
+}
+
 export async function planningAvailability(organizationId: string, projectId: string) {
   try { const policy = await getPlanningPolicy(organizationId, projectId); return { enabled: true, model: policy.model, reservationMicros: policy.reservationMicros }; }
   catch { return { enabled: false, model: null, reservationMicros: null }; }

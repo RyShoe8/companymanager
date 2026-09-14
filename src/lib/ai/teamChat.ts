@@ -356,6 +356,8 @@ export async function attemptTeamChatReply(input: {
   priorTurns: { role: TeamMessageRole; text: string }[];
   /** Optional project task rules injected into the system prompt (IDE). */
   ruleTexts?: string[];
+  /** When aborted (e.g. client Stop), cancels the gateway fetch and releases the dispatch lock. */
+  signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
   const context = await buildTeamContextSummary(input.projectName, input.organizationId, input.projectId);
   if (!context.inferenceReady) {
@@ -371,6 +373,25 @@ export async function attemptTeamChatReply(input: {
   if (!admission.ok) return admission.turn;
 
   const { runId, lockToken, policy } = admission.admitted;
+  if (input.signal?.aborted) {
+    await finishTeamChatRun({
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      runId,
+      lockToken,
+      actualMicros: policy.noProviderFee ? 0 : null,
+      status: 'blocked',
+      summary: 'Team chat cancelled after admission before the model call.',
+      failureCode: 'cancelled',
+    }).catch(() => undefined);
+    return statusTurn(
+      'The chat request was cancelled before completion.',
+      'cancelled',
+      String(runId),
+      costFields(policy, policy.noProviderFee ? 0 : null)
+    );
+  }
+
   const role = aiEmployees.find((item) => item.id === input.employee)!;
   const history = input.priorTurns
     .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
@@ -399,11 +420,15 @@ export async function attemptTeamChatReply(input: {
   ];
 
   try {
-    const result = await invokeModel(policy.gateway, {
-      role: 'architect',
-      messages,
-      maxOutputTokens: Math.min(512, policy.maxOutputTokens),
-    });
+    const result = await invokeModel(
+      policy.gateway,
+      {
+        role: 'architect',
+        messages,
+        maxOutputTokens: Math.min(512, policy.maxOutputTokens),
+      },
+      { signal: input.signal }
+    );
     try {
       const latest = await getChatInferencePolicy(input.organizationId, String(input.projectId));
       if (latest.digest !== policy.digest) {

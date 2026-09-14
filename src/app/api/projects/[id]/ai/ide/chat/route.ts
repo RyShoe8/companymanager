@@ -44,6 +44,7 @@ export async function POST(request: NextRequest, context: Context) {
       userText: input.text,
       priorTurns: input.history,
       ruleTexts,
+      signal: request.signal,
     });
     return aiResponse({
       turn: {
