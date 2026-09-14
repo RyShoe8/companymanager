@@ -36,5 +36,9 @@ export function aiError(error: unknown) {
   if (typeof error === 'object' && error && 'code' in error && error.code === 11000) {
     return aiResponse({ error: 'Request already exists. Refresh before retrying.' }, 409);
   }
+  // Mongoose document validation (e.g. required fields) — keep message generic, no schema dump.
+  if (typeof error === 'object' && error && 'name' in error && error.name === 'ValidationError') {
+    return aiResponse({ error: 'Unable to save this AI credential. Check required fields and try again.' }, 400);
+  }
   return aiResponse({ error: 'AI operation unavailable. Check server configuration and transaction support.' }, 503);
 }

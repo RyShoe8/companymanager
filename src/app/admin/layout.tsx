@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
-import { AdminAiSubnav } from '@/components/admin/AdminAiSubnav';
 
 const navItems: { href: string; label: string; exact?: boolean }[] = [
   { href: '/admin', label: 'Users', exact: true },
@@ -25,7 +24,6 @@ function isNavActive(pathname: string, href: string, exact?: boolean): boolean {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const showAiSubnav = pathname === '/admin/ai' || pathname.startsWith('/admin/ai/');
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,11 +49,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </div>
       </nav>
-      {showAiSubnav ? (
-        <div className={`max-w-7xl mx-auto ${PAGE_GUTTER_WIDE_CLASS} pt-4`}>
-          <AdminAiSubnav />
-        </div>
-      ) : null}
       {children}
     </div>
   );
