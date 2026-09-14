@@ -21,6 +21,7 @@ export const modelTierSchema = z.enum(['commercial', 'local_remote']);
 export const modelProviderSchema = z.enum([
   'openai',
   'anthropic',
+  'google',
   'groq',
   'deepseek',
   'together',

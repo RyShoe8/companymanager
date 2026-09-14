@@ -20,7 +20,7 @@ flowchart LR
 
 Platform admins register profiles at `/admin/ai/models`:
 
-- Company dropdown (OpenAI, Anthropic via OpenRouter, Groq, …) autofills the chat-completions endpoint and filters models  
+- Company dropdown (OpenAI, Anthropic via OpenRouter, Google Gemini, Groq, …) autofills the chat-completions endpoint and filters models  
 - Display name is what AI Team shows when picking Planner / Worker / Reviewer  
 - Internal profile slug is generated server-side (not an API secret)  
 - API key entered in the UI, encrypted at rest (`AI_MODEL_SECRETS_KEY` or `NEXTAUTH_SECRET`); never returned in full (last4 only)  

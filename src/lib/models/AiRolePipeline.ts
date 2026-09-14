@@ -10,7 +10,17 @@ const profileSchema = new Schema(
     label: { type: String, required: true, maxlength: 120 },
     provider: {
       type: String,
-      enum: ['openai', 'anthropic', 'groq', 'deepseek', 'together', 'fireworks', 'openrouter', 'custom'] as const,
+      enum: [
+        'openai',
+        'anthropic',
+        'google',
+        'groq',
+        'deepseek',
+        'together',
+        'fireworks',
+        'openrouter',
+        'custom',
+      ] as const,
       default: 'custom',
     },
     tier: { type: String, enum: ['commercial', 'local_remote'] as const, required: true },
