@@ -490,7 +490,7 @@ export default function AiTeamWorkspace({
               <p className="text-sm text-text-secondary lg:col-span-3">
                 No company credentials yet. A platform admin must add them under{' '}
                 <Link className="underline" href="/admin/ai/models">
-                  Admin → AI model registry
+                  Admin → AI API keys
                 </Link>
                 .
               </p>

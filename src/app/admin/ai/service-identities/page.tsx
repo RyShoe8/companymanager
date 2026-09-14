@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import ServiceGrants from '@/components/ai/ServiceGrants';
 
@@ -48,7 +47,6 @@ export default function ServiceIdentitiesPage() {
   }
 
   return <main className="mx-auto max-w-3xl space-y-5 p-6 text-text-primary">
-    <Link href="/admin/ai">← AI Settings</Link>
     <h1 className="text-2xl font-semibold">Service identities</h1>
     <p>Administrator controls for your current organization. New identities are disabled. Issue a credential, then explicitly activate. These credentials are separate from the model provider token and do not enable code execution.</p>
     <form className="flex flex-wrap gap-3" onSubmit={event => { event.preventDefault(); void mutate({ name, role }, 'POST'); }}>

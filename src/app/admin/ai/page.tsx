@@ -50,7 +50,7 @@ export default function AiSettingsPage() {
 
   return <main className="mx-auto max-w-3xl space-y-5 p-6 text-text-primary">
     <h1 className="text-2xl font-semibold">AI Settings</h1>
-    <p>Platform-wide connection and safeguards. All organizations can use planning. Models run remotely; code execution remains disabled.</p>
+    <p>Platform-wide connection and safeguards. Enter company API keys under <Link className="underline" href="/admin/ai/models">AI API keys</Link>.</p>
     <AiDispatchUsage />
     <AiDiagnostics />
     <ExecutionProbe />
@@ -60,8 +60,6 @@ export default function AiSettingsPage() {
     <ExecutionProbe kind="chat-detailed" />
     <ExecutionProbe kind="chat-recovery" />
     <ExecutionProbe kind="chat-recovery-2" />
-    <Link className="inline-block underline" href="/admin/ai/service-identities">Manage scoped service identities</Link>
-    <Link className="inline-block underline ml-4" href="/admin/ai/models">Manage model registry (role pipelines)</Link>
     {message && <p role="status" className="rounded border border-border p-3">{message}</p>}
     {!values || !snapshot ? <p>{message ? 'Reload this page to retry.' : 'Loading settings…'}</p> : <form onSubmit={save}>
       <fieldset disabled={busy} className="space-y-6 disabled:opacity-60">

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   MODEL_PROVIDERS,
   getModelProvider,
@@ -171,17 +170,12 @@ export default function AdminAiModelsPage() {
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 p-6 text-text-primary">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">AI model registry</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            Add one API key per company. That unlocks every catalog model for that company on AI Team — pick the
-            model there, not here.
-          </p>
-        </div>
-        <Link className="underline text-sm" href="/admin/ai">
-          Back to AI Settings
-        </Link>
+      <div>
+        <h1 className="text-2xl font-semibold">AI API keys</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Add one API key per company. That unlocks every catalog model for that company on AI Team — pick the
+          model there, not here.
+        </p>
       </div>
       {message ? <p role="status" className="rounded border border-border p-3">{message}</p> : null}
 
