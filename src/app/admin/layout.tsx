@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { PAGE_GUTTER_WIDE_CLASS } from '@/lib/ui/mobileLayout';
 import { AdminAiSubnav } from '@/components/admin/AdminAiSubnav';
 
-const navItems = [
+const navItems: { href: string; label: string; exact?: boolean }[] = [
   { href: '/admin', label: 'Users', exact: true },
   { href: '/admin/plans', label: 'Plans' },
   { href: '/admin/ai', label: 'AI Settings', exact: true },
@@ -16,7 +16,7 @@ const navItems = [
   { href: '/admin/feedback', label: 'Feedback' },
   { href: '/admin/insights', label: 'Insights' },
   { href: '/admin/platform-catalog', label: 'Platform catalog' },
-] as const;
+];
 
 function isNavActive(pathname: string, href: string, exact?: boolean): boolean {
   if (exact || href === '/admin') return pathname === href;
@@ -32,8 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <nav className="border-b border-border bg-background-card">
         <div className={`max-w-7xl mx-auto ${PAGE_GUTTER_WIDE_CLASS}`}>
           <div className="flex flex-wrap gap-x-5 gap-y-1">
-            {navItems.map(({ href, label, ...rest }) => {
-              const exact = 'exact' in rest ? rest.exact : false;
+            {navItems.map(({ href, label, exact }) => {
               const isActive = isNavActive(pathname, href, exact);
               return (
                 <Link

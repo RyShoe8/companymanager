@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 /** Secondary links shown on every /admin/ai* page. */
-export const ADMIN_AI_NAV = [
+export const ADMIN_AI_NAV: { href: string; label: string; exact?: boolean }[] = [
   { href: '/admin/ai', label: 'Settings', exact: true },
   { href: '/admin/ai/models', label: 'API keys' },
   { href: '/admin/ai/service-identities', label: 'Service identities' },
-] as const;
+];
 
 export function AdminAiSubnav() {
   const pathname = usePathname();
