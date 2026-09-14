@@ -46,6 +46,7 @@ export async function GET(request: NextRequest, context: Context) {
           bestAt: model.bestAt,
           strengths: model.strengths,
           contextTokens: model.contextTokens,
+          flagship: model.flagship,
           free,
         })
       ),

@@ -1,6 +1,7 @@
 import 'server-only';
 import { Types } from 'mongoose';
 import type { IdeChatMode } from '@/lib/ide/modes';
+import { taskRuleModeQueryValues } from '@/lib/ide/modes';
 import { AiProjectTaskRule } from '@/lib/models/AiProjectTaskRule';
 
 const MAX_RULES = 24;
@@ -16,7 +17,7 @@ export async function loadIdeTaskRuleTexts(
     organizationId,
     projectId,
     enabled: true,
-    mode: { $in: ['all', mode] },
+    mode: { $in: taskRuleModeQueryValues(mode) },
   })
     .select('title body sortOrder')
     .sort({ sortOrder: 1, _id: 1 })

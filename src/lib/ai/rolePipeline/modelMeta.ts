@@ -19,6 +19,7 @@ export type ModelMetaView = {
   bestAt: string;
   strengths: ModelStrength[];
   contextTokens: number | null;
+  flagship?: boolean;
   pricing: ModelPricingDisplay;
 };
 
@@ -77,16 +78,19 @@ export function buildModelMetaView(input: {
   contextTokens?: number | null;
   bestAt?: string;
   strengths?: ModelStrength[];
+  flagship?: boolean;
   free: boolean;
 }): ModelMetaView {
   const catalog = findCatalogModel(input.id);
   const local = !catalog ? localModelMetaOverlay(input.id) : null;
+  const flagship = input.flagship ?? catalog?.flagship ?? false;
   return {
     id: input.id,
     label: input.label ?? catalog?.label ?? input.id,
     bestAt: input.bestAt ?? catalog?.bestAt ?? local?.bestAt ?? 'General assistant',
     strengths: input.strengths ?? catalog?.strengths ?? local?.strengths ?? ['chat'],
     contextTokens: input.contextTokens ?? catalog?.contextTokens ?? null,
+    ...(flagship ? { flagship: true } : {}),
     pricing: getModelPricingDisplay(input.id, { free: input.free }),
   };
 }
@@ -102,7 +106,38 @@ export function enrichCatalogModelsForApi(
       bestAt: model.bestAt,
       strengths: model.strengths,
       contextTokens: model.contextTokens,
+      flagship: model.flagship,
       free: opts.free,
     })
+  );
+}
+
+/** Score local/discovered model ids so the strongest host model can be flagged. */
+export function localModelPowerScore(modelId: string): number {
+  const id = modelId.toLowerCase();
+  let score = 0;
+  const params = id.match(/(\d+(?:\.\d+)?)[_\s-]*b(?:illion)?\b/);
+  if (params) score += Number(params[1]) * 1000;
+  if (/(?:^|[^a-z])(?:r1|reason|thinking|opus|ultra|max)(?:[^a-z]|$)/.test(id)) score += 800;
+  if (/\bpro\b/.test(id)) score += 200;
+  if (/coder|code/.test(id)) score += 80;
+  if (/mini|lite|tiny|nano|embed|bge|instruct-turbo/.test(id)) score -= 2500;
+  return score;
+}
+
+/** Mark exactly one highest-scoring model as flagship in a discovered list. */
+export function markFlagshipAmongModels<T extends { id: string; flagship?: boolean }>(models: T[]): T[] {
+  if (models.length === 0) return models;
+  let bestIndex = 0;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < models.length; i += 1) {
+    const score = localModelPowerScore(models[i]!.id);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+  return models.map((model, index) =>
+    index === bestIndex ? { ...model, flagship: true } : { ...model, flagship: false }
   );
 }

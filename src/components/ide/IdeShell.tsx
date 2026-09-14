@@ -35,7 +35,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [activePath, setActivePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
-  const [mode, setMode] = useState<IdeChatMode>('build');
+  const [mode, setMode] = useState<IdeChatMode>('engineering');
   const [rulesOpen, setRulesOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(352);
 

@@ -1,6 +1,18 @@
 import mongoose, { Schema, type InferSchemaType, type Model } from 'mongoose';
 
-const modes = ['plan', 'build', 'research', 'marketing', 'direct', 'all'] as const;
+/** Current = AI Team role ids; plan/build/research kept for legacy stored rules. */
+const modes = [
+  'marketing',
+  'product',
+  'support',
+  'engineering',
+  'researcher',
+  'direct',
+  'all',
+  'plan',
+  'build',
+  'research',
+] as const;
 
 const schema = new Schema(
   {

@@ -1,11 +1,18 @@
 import { z } from 'zod';
-import { isIdeChatMode, isIdeDirectMode } from '@/lib/ide/modes';
+import { isIdeDirectMode, normalizeIdeChatMode } from '@/lib/ide/modes';
 import { teamMessageRoleSchema } from '@/lib/ai/teamWorkspace';
 
 /** Request body for IDE chat (worker modes + Direct). */
 export const ideChatSchema = z
   .object({
-    mode: z.string().refine(isIdeChatMode, 'Invalid IDE chat mode.'),
+    mode: z.string().transform((value, ctx) => {
+      const normalized = normalizeIdeChatMode(value);
+      if (!normalized) {
+        ctx.addIssue({ code: 'custom', message: 'Invalid IDE chat mode.' });
+        return z.NEVER;
+      }
+      return normalized;
+    }),
     text: z.string().trim().min(1).max(6000),
     history: z
       .array(

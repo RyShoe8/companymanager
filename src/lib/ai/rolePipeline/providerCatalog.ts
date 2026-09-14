@@ -29,6 +29,8 @@ export type CatalogModel = {
   strengths: ModelStrength[];
   /** Context window in tokens; null when unknown */
   contextTokens: number | null;
+  /** Company’s strongest / flagship model (highlighted in pickers). */
+  flagship?: boolean;
 };
 
 export type ModelProviderOption = {
@@ -48,9 +50,10 @@ function m(
   label: string,
   bestAt: string,
   strengths: ModelStrength[],
-  contextTokens: number | null
+  contextTokens: number | null,
+  flagship = false
 ): CatalogModel {
-  return { id, label, bestAt, strengths, contextTokens };
+  return { id, label, bestAt, strengths, contextTokens, ...(flagship ? { flagship: true } : {}) };
 }
 
 /**
@@ -66,7 +69,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your OpenAI API key (sk-…).',
     models: [
-      m('gpt-6-astra', 'GPT-6 Astra', 'Hardest reasoning and agentic work', ['reasoning', 'coding', 'long_context'], 1_000_000),
+      m('gpt-6-astra', 'GPT-6 Astra', 'Hardest reasoning and agentic work', ['reasoning', 'coding', 'long_context'], 1_000_000, true),
       m('gpt-5.6-sol', 'GPT-5.6 Sol', 'Balanced flagship for coding and analysis', ['coding', 'reasoning', 'chat'], 256_000),
       m('gpt-5.6-terra', 'GPT-5.6 Terra', 'Strong general work at mid cost', ['chat', 'coding', 'reasoning'], 256_000),
       m('gpt-5.6-luna', 'GPT-5.6 Luna', 'Fast cheap drafts and simple tasks', ['chat', 'speed'], 128_000),
@@ -89,7 +92,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Claude through OpenRouter’s OpenAI-compatible API. Use an OpenRouter API key (not a raw Anthropic key) until native Anthropic support ships.',
     models: [
-      m('anthropic/claude-opus-5', 'Claude Opus 5', 'Highest-quality writing and complex reasoning', ['reasoning', 'chat', 'coding'], 200_000),
+      m('anthropic/claude-opus-5', 'Claude Opus 5', 'Highest-quality writing and complex reasoning', ['reasoning', 'chat', 'coding'], 200_000, true),
       m('anthropic/claude-opus-4.8', 'Claude Opus 4.8', 'Top-tier analysis and long documents', ['reasoning', 'chat', 'long_context'], 200_000),
       m('anthropic/claude-sonnet-5', 'Claude Sonnet 5', 'Strong everyday coding and writing', ['coding', 'chat', 'reasoning'], 200_000),
       m('anthropic/claude-sonnet-4.6', 'Claude Sonnet 4.6', 'Balanced Sonnet for production work', ['coding', 'chat'], 200_000),
@@ -106,7 +109,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your Gemini API key from Google AI Studio. Uses Google’s OpenAI-compatible chat endpoint.',
     models: [
-      m('gemini-3.1-pro-preview', 'Gemini 3.1 Pro', 'Long-context reasoning and analysis', ['reasoning', 'long_context', 'chat'], 1_000_000),
+      m('gemini-3.1-pro-preview', 'Gemini 3.1 Pro', 'Long-context reasoning and analysis', ['reasoning', 'long_context', 'chat'], 1_000_000, true),
       m('gemini-3.8-flash', 'Gemini 3.8 Flash', 'Fast multimodal assistant', ['chat', 'vision', 'speed'], 1_000_000),
       m('gemini-3.7-flash', 'Gemini 3.7 Flash', 'Fast general Gemini work', ['chat', 'speed'], 1_000_000),
       m('gemini-3.6-flash', 'Gemini 3.6 Flash', 'Speed-focused Gemini replies', ['chat', 'speed'], 1_000_000),
@@ -124,7 +127,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     defaultTier: 'commercial',
     hint: 'Paste your Groq API key.',
     models: [
-      m('openai/gpt-oss-120b', 'GPT-OSS 120B', 'Large open model at Groq speed', ['chat', 'reasoning', 'speed'], 128_000),
+      m('openai/gpt-oss-120b', 'GPT-OSS 120B', 'Large open model at Groq speed', ['chat', 'reasoning', 'speed'], 128_000, true),
       m('openai/gpt-oss-20b', 'GPT-OSS 20B', 'Smaller open model, very fast', ['chat', 'speed'], 128_000),
       m('qwen/qwen3.8-27b', 'Qwen3.8 27B', 'Qwen chat and light coding on Groq', ['chat', 'coding', 'speed'], 128_000),
       m('qwen/qwen3.6-27b', 'Qwen3.6 27B', 'Fast Qwen assistant', ['chat', 'speed'], 128_000),
@@ -138,7 +141,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     hint: 'Paste your DeepSeek API key.',
     models: [
       m('deepseek-chat', 'DeepSeek Chat (V3)', 'Cheap strong chat and coding', ['chat', 'coding'], 128_000),
-      m('deepseek-reasoner', 'DeepSeek Reasoner (R1)', 'DeepSeek chain-of-thought reasoning', ['reasoning', 'coding'], 128_000),
+      m('deepseek-reasoner', 'DeepSeek Reasoner (R1)', 'DeepSeek chain-of-thought reasoning', ['reasoning', 'coding'], 128_000, true),
     ],
   },
   {
@@ -151,7 +154,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
       m('meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', 'Llama 4 Maverick', 'Llama 4 instruct for chat and code', ['chat', 'coding'], 128_000),
       m('meta-llama/Llama-4-Scout-17B-16E-Instruct', 'Llama 4 Scout', 'Faster Llama 4 instruct', ['chat', 'speed'], 128_000),
       m('deepseek-ai/DeepSeek-R1', 'DeepSeek R1', 'Open DeepSeek reasoning', ['reasoning', 'coding'], 128_000),
-      m('Qwen/Qwen3-235B-A22B-fp8-tput', 'Qwen3 235B', 'Large Qwen for hard tasks', ['reasoning', 'chat', 'coding'], 128_000),
+      m('Qwen/Qwen3-235B-A22B-fp8-tput', 'Qwen3 235B', 'Large Qwen for hard tasks', ['reasoning', 'chat', 'coding'], 128_000, true),
       m('meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', 'Llama 3.1 70B Turbo', 'Strong open chat model', ['chat', 'coding'], 128_000),
       m('meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', 'Llama 3.1 8B Turbo', 'Small fast Llama', ['chat', 'speed'], 128_000),
     ],
@@ -167,7 +170,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
       m('accounts/fireworks/models/llama4-scout-instruct-basic', 'Llama 4 Scout', 'Faster Llama 4 on Fireworks', ['chat', 'speed'], 128_000),
       m('accounts/fireworks/models/deepseek-r1-0528', 'DeepSeek R1 (0528)', 'Reasoning checkpoint on Fireworks', ['reasoning', 'coding'], 128_000),
       m('accounts/fireworks/models/deepseek-r1', 'DeepSeek R1 (Fast)', 'Fast DeepSeek reasoning', ['reasoning', 'speed'], 128_000),
-      m('accounts/fireworks/models/qwen3-235b-a22b', 'Qwen3 235B', 'Large Qwen on Fireworks', ['reasoning', 'chat'], 128_000),
+      m('accounts/fireworks/models/qwen3-235b-a22b', 'Qwen3 235B', 'Large Qwen on Fireworks', ['reasoning', 'chat'], 128_000, true),
       m('accounts/fireworks/models/llama-v3p3-70b-instruct', 'Llama 3.3 70B', 'Capable open chat', ['chat', 'coding'], 128_000),
       m('accounts/fireworks/models/llama-v3p1-8b-instruct', 'Llama 3.1 8B', 'Small fast Llama', ['chat', 'speed'], 128_000),
     ],
@@ -181,7 +184,7 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
     models: [
       m('openai/gpt-5.6-sol', 'OpenAI GPT-5.6 Sol', 'OpenAI Sol via OpenRouter', ['coding', 'reasoning', 'chat'], 256_000),
       m('openai/gpt-5.6-terra', 'OpenAI GPT-5.6 Terra', 'OpenAI Terra via OpenRouter', ['chat', 'coding'], 256_000),
-      m('anthropic/claude-opus-5', 'Anthropic Claude Opus 5', 'Opus-quality via OpenRouter', ['reasoning', 'chat', 'coding'], 200_000),
+      m('anthropic/claude-opus-5', 'Anthropic Claude Opus 5', 'Opus-quality via OpenRouter', ['reasoning', 'chat', 'coding'], 200_000, true),
       m('anthropic/claude-sonnet-5', 'Anthropic Claude Sonnet 5', 'Sonnet coding via OpenRouter', ['coding', 'chat'], 200_000),
       m('google/gemini-2.5-pro', 'Google Gemini 2.5 Pro', 'Long-context Gemini via OpenRouter', ['reasoning', 'long_context'], 1_000_000),
       m('google/gemini-2.5-flash', 'Google Gemini 2.5 Flash', 'Fast Gemini via OpenRouter', ['chat', 'vision', 'speed'], 1_000_000),
@@ -264,12 +267,24 @@ export function cleanedCompanyLabel(input: { label: string; provider?: string | 
 export function formatContextTokens(tokens: number | null | undefined): string {
   if (tokens == null || !Number.isFinite(tokens) || tokens <= 0) return 'Unknown';
   if (tokens >= 1_000_000) {
-    const m = tokens / 1_000_000;
-    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+    const millions = tokens / 1_000_000;
+    return `${Number.isInteger(millions) ? millions : millions.toFixed(1)}M`;
   }
   if (tokens >= 1000) {
     const k = tokens / 1000;
     return `${Number.isInteger(k) ? k : k.toFixed(1)}K`;
   }
   return String(tokens);
+}
+
+/** Amber highlight for the company’s strongest model in native `<select>` options. */
+export const FLAGSHIP_MODEL_OPTION_STYLE = { color: '#b45309', fontWeight: 600 } as const;
+
+export function modelOptionLabel(input: {
+  label: string;
+  bestAt?: string;
+  flagship?: boolean;
+}): string {
+  const base = input.bestAt ? `${input.label} — ${input.bestAt}` : input.label;
+  return input.flagship ? `★ ${base}` : base;
 }

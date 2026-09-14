@@ -3,7 +3,7 @@
  * Fail closed: never throw provider bodies or secrets.
  */
 
-import { localModelMetaOverlay } from '@/lib/ai/rolePipeline/modelMeta';
+import { localModelMetaOverlay, markFlagshipAmongModels } from '@/lib/ai/rolePipeline/modelMeta';
 import type { ModelStrength } from '@/lib/ai/rolePipeline/providerCatalog';
 
 export type DiscoveredModel = {
@@ -12,6 +12,7 @@ export type DiscoveredModel = {
   bestAt: string;
   strengths: ModelStrength[];
   contextTokens: number | null;
+  flagship?: boolean;
 };
 
 export type DiscoverModelsResult = {
@@ -78,7 +79,7 @@ export function mapOpenAiModelsResponse(body: unknown): DiscoveredModel[] {
       contextTokens: readContextTokens(item),
     });
   }
-  return models.sort((a, b) => a.id.localeCompare(b.id));
+  return markFlagshipAmongModels(models.sort((a, b) => a.id.localeCompare(b.id)));
 }
 
 export async function discoverOpenAiCompatibleModels(input: {

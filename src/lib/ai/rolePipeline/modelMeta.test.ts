@@ -17,6 +17,13 @@ describe('catalog model metadata', () => {
       }
     }
   });
+
+  it('marks exactly one flagship model per non-custom provider', () => {
+    for (const provider of MODEL_PROVIDERS) {
+      if (provider.id === 'custom') continue;
+      expect(provider.models.filter((model) => model.flagship).map((model) => model.id)).toHaveLength(1);
+    }
+  });
 });
 
 describe('getModelPricingDisplay', () => {
@@ -57,6 +64,15 @@ describe('local overlays and discovery mapping', () => {
     });
     expect(models[0]?.strengths).toContain('coding');
   });
+
+  it('flags the strongest discovered local model', () => {
+    const models = mapOpenAiModelsResponse({
+      data: [{ id: 'Qwen/Qwen2.5-7B' }, { id: 'Qwen/Qwen2.5-72B' }, { id: 'BAAI/bge-m3' }],
+    });
+    const flagships = models.filter((model) => model.flagship);
+    expect(flagships).toHaveLength(1);
+    expect(flagships[0]?.id).toBe('Qwen/Qwen2.5-72B');
+  });
 });
 
 describe('ide modes include Direct', () => {
@@ -64,7 +80,7 @@ describe('ide modes include Direct', () => {
     expect(isIdeChatMode('direct')).toBe(true);
     expect(isIdeDirectMode('direct')).toBe(true);
     expect(isIdeWorkerMode('direct')).toBe(false);
-    expect(isIdeWorkerMode('build')).toBe(true);
-    expect(employeeForIdeMode('build')).toBe('engineering');
+    expect(isIdeWorkerMode('engineering')).toBe(true);
+    expect(employeeForIdeMode('engineering')).toBe('engineering');
   });
 });

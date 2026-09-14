@@ -7,7 +7,7 @@ import {
   type AiEmployeeKey,
 } from '@/lib/ai/teamWorkspace';
 import { microsToDollars } from '@/lib/ai/settingsSchema';
-import { companyDisplayName } from '@/lib/ai/rolePipeline/providerCatalog';
+import { companyDisplayName, FLAGSHIP_MODEL_OPTION_STYLE, modelOptionLabel } from '@/lib/ai/rolePipeline/providerCatalog';
 import { useAiSnapshot } from './useAiSnapshot';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 
@@ -29,6 +29,7 @@ type CatalogModel = {
   bestAt?: string;
   strengths?: string[];
   contextTokens?: number | null;
+  flagship?: boolean;
   pricing?: { label: string };
 };
 
@@ -501,9 +502,12 @@ export default function AiTeamWorkspace({
               >
                 <option value="">{discovered?.loading ? 'Loading models…' : 'Select…'}</option>
                 {localModels.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                    {item.bestAt ? ` — ${item.bestAt}` : ''}
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    style={item.flagship ? FLAGSHIP_MODEL_OPTION_STYLE : undefined}
+                  >
+                    {modelOptionLabel(item)}
                   </option>
                 ))}
               </select>
@@ -552,9 +556,12 @@ export default function AiTeamWorkspace({
               >
                 <option value="">Select…</option>
                 {models.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                    {item.bestAt ? ` — ${item.bestAt}` : ''}
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    style={item.flagship ? FLAGSHIP_MODEL_OPTION_STYLE : undefined}
+                  >
+                    {modelOptionLabel(item)}
                   </option>
                 ))}
               </select>

@@ -3,13 +3,15 @@ import { formatIdeCostUsd } from '@/lib/ide/costDisplay';
 import { employeeForIdeMode, isIdeChatMode } from '@/lib/ide/modes';
 
 describe('ide modes', () => {
-  it('maps modes to employees', () => {
-    expect(employeeForIdeMode('plan')).toBe('product');
-    expect(employeeForIdeMode('build')).toBe('engineering');
-    expect(employeeForIdeMode('research')).toBe('researcher');
+  it('uses AI Team employee ids as worker modes', () => {
+    expect(employeeForIdeMode('product')).toBe('product');
+    expect(employeeForIdeMode('engineering')).toBe('engineering');
+    expect(employeeForIdeMode('researcher')).toBe('researcher');
     expect(employeeForIdeMode('marketing')).toBe('marketing');
-    expect(isIdeChatMode('build')).toBe(true);
-    expect(isIdeChatMode('support')).toBe(false);
+    expect(employeeForIdeMode('support')).toBe('support');
+    expect(isIdeChatMode('engineering')).toBe(true);
+    expect(isIdeChatMode('support')).toBe(true);
+    expect(isIdeChatMode('build')).toBe(false);
   });
 });
 

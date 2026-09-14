@@ -10,7 +10,7 @@ import {
   isIdeWorkerMode,
   type IdeChatMode,
 } from '@/lib/ide/modes';
-import { companyDisplayName } from '@/lib/ai/rolePipeline/providerCatalog';
+import { companyDisplayName, FLAGSHIP_MODEL_OPTION_STYLE, modelOptionLabel } from '@/lib/ai/rolePipeline/providerCatalog';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
 
@@ -29,6 +29,7 @@ type CatalogModel = {
   bestAt?: string;
   strengths?: string[];
   contextTokens?: number | null;
+  flagship?: boolean;
   pricing?: { label: string };
 };
 
@@ -408,9 +409,12 @@ export default function IdeChatPane({
             >
               <option value="">{discoverLoading ? 'Loading…' : 'Select…'}</option>
               {directModels.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                  {item.bestAt ? ` — ${item.bestAt}` : ''}
+                <option
+                  key={item.id}
+                  value={item.id}
+                  style={item.flagship ? FLAGSHIP_MODEL_OPTION_STYLE : undefined}
+                >
+                  {modelOptionLabel(item)}
                 </option>
               ))}
             </select>
@@ -475,7 +479,7 @@ export default function IdeChatPane({
           <p className="text-xs text-text-secondary">
             {isIdeDirectMode(mode)
               ? 'Direct mode chats with one company model (great for free/local low-level tasks).'
-              : 'Chat with Plan, Build, Research, or Marketing. Costs show in dollars per reply.'}
+              : 'Pick an AI Team role to chat with that worker pipeline. Costs show in dollars per reply.'}
           </p>
         ) : null}
         {turns.map((turn) => {
