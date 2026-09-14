@@ -9,6 +9,7 @@ export function mapModelProfilePublic(row: {
   _id: { toString(): string };
   key: string;
   label: string;
+  provider?: string;
   tier: string;
   protocol: string;
   endpoint: string;
@@ -22,6 +23,7 @@ export function mapModelProfilePublic(row: {
     id: String(row._id),
     key: row.key,
     label: row.label,
+    provider: row.provider ?? 'custom',
     tier: row.tier,
     protocol: row.protocol,
     endpoint: row.endpoint,

@@ -5,6 +5,7 @@ import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { encryptModelSecret, secretLast4 } from '@/lib/ai/modelSecrets';
 import { modelProfileCreateSchema } from '@/lib/ai/rolePipeline/schemas';
 import { mapModelProfilePublic } from '@/lib/ai/rolePipeline/profiles';
+import { slugifyModelKey } from '@/lib/ai/rolePipeline/providerCatalog';
 import { AiModelProfile } from '@/lib/models/AiRolePipeline';
 import connectDB from '@/lib/db/mongodb';
 
@@ -17,7 +18,7 @@ export async function GET() {
   try {
     await connectDB();
     const rows = await AiModelProfile.find()
-      .select('key label tier protocol endpoint model secretLast4 enabled updatedAt createdAt')
+      .select('key label provider tier protocol endpoint model secretLast4 enabled updatedAt createdAt')
       .sort({ tier: 1, label: 1 })
       .limit(100)
       .maxTimeMS(3000)
@@ -42,9 +43,12 @@ export async function POST(request: NextRequest) {
     });
     await indexes;
     const input = modelProfileCreateSchema.parse(await readAiBody(request));
+    const key =
+      input.key ?? slugifyModelKey([input.provider ?? 'model', input.model, input.tier]);
     const row = await AiModelProfile.create({
-      key: input.key,
+      key,
       label: input.label,
+      provider: input.provider ?? 'custom',
       tier: input.tier,
       protocol: input.protocol,
       endpoint: input.endpoint,

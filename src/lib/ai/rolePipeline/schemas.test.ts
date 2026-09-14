@@ -29,7 +29,6 @@ describe('role pipeline schemas', () => {
   it('requires https endpoint for model profiles', () => {
     expect(() =>
       modelProfileCreateSchema.parse({
-        key: 'bad',
         label: 'Bad',
         tier: 'commercial',
         endpoint: 'http://api.openai.com/v1/chat/completions',
@@ -37,5 +36,18 @@ describe('role pipeline schemas', () => {
         apiKey: 'sk-test',
       })
     ).toThrow();
+  });
+
+  it('allows omitting key so the server can generate one', () => {
+    const parsed = modelProfileCreateSchema.parse({
+      label: 'OpenAI · GPT-4o mini',
+      provider: 'openai',
+      tier: 'commercial',
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      model: 'gpt-4o-mini',
+      apiKey: 'sk-test',
+    });
+    expect(parsed.key).toBeUndefined();
+    expect(parsed.provider).toBe('openai');
   });
 });

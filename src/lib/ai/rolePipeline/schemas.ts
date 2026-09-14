@@ -18,15 +18,28 @@ const httpsEndpoint = z.string().max(2048).refine((value) => {
 }, 'Use a public HTTPS hostname without credentials, query parameters or fragments.');
 
 export const modelTierSchema = z.enum(['commercial', 'local_remote']);
+export const modelProviderSchema = z.enum([
+  'openai',
+  'anthropic',
+  'groq',
+  'deepseek',
+  'together',
+  'fireworks',
+  'openrouter',
+  'custom',
+]);
 export const modelProfileCreateSchema = z
   .object({
+    /** Optional; server generates a unique slug when omitted. */
     key: z
       .string()
       .trim()
       .min(1)
       .max(64)
-      .regex(/^[a-z][a-z0-9_-]*$/, 'Use a lowercase key starting with a letter.'),
+      .regex(/^[a-z][a-z0-9_-]*$/, 'Use a lowercase key starting with a letter.')
+      .optional(),
     label: z.string().trim().min(1).max(120),
+    provider: modelProviderSchema.optional(),
     tier: modelTierSchema,
     protocol: z.literal('openai-chat').default('openai-chat'),
     endpoint: httpsEndpoint,
@@ -39,6 +52,7 @@ export const modelProfileCreateSchema = z
 export const modelProfilePatchSchema = z
   .object({
     label: z.string().trim().min(1).max(120).optional(),
+    provider: modelProviderSchema.optional(),
     tier: modelTierSchema.optional(),
     endpoint: httpsEndpoint.optional(),
     model: z.string().trim().min(1).max(200).optional(),
@@ -47,6 +61,7 @@ export const modelProfilePatchSchema = z
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'Provide at least one field to update.');
+
 
 export const rolePipelineStageSchema = z
   .object({

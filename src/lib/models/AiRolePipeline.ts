@@ -8,6 +8,11 @@ const profileSchema = new Schema(
   {
     key: { type: String, required: true, maxlength: 64 },
     label: { type: String, required: true, maxlength: 120 },
+    provider: {
+      type: String,
+      enum: ['openai', 'anthropic', 'groq', 'deepseek', 'together', 'fireworks', 'openrouter', 'custom'] as const,
+      default: 'custom',
+    },
     tier: { type: String, enum: ['commercial', 'local_remote'] as const, required: true },
     protocol: { type: String, enum: ['openai-chat'] as const, required: true, default: 'openai-chat' },
     endpoint: { type: String, required: true, maxlength: 2048 },

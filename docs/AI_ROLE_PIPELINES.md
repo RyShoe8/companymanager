@@ -20,9 +20,11 @@ flowchart LR
 
 Platform admins register profiles at `/admin/ai/models`:
 
-- Endpoint + model id (OpenAI-compatible chat)  
-- API key / bearer entered in the UI, encrypted at rest (`AI_MODEL_SECRETS_KEY` or `NEXTAUTH_SECRET`)  
-- Never returned in full after save (last4 only)
+- Company dropdown (OpenAI, Anthropic via OpenRouter, Groq, …) autofills the chat-completions endpoint and filters models  
+- Display name is what AI Team shows when picking Planner / Worker / Reviewer  
+- Internal profile slug is generated server-side (not an API secret)  
+- API key entered in the UI, encrypted at rest (`AI_MODEL_SECRETS_KEY` or `NEXTAUTH_SECRET`); never returned in full (last4 only)  
+- Custom / self-hosted keeps freeform endpoint + model id for OpenAI-compatible hosts
 
 Role bindings live per organization on `/workspace/ai-team` (managers edit Planner / Worker / Reviewer assignments).
 
