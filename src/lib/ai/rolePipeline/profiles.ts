@@ -2,7 +2,11 @@ import 'server-only';
 import type { GatewayConfiguration } from '@nucleas/ai-core/gateway';
 import { GatewayError, validateGatewayConfiguration } from '@nucleas/ai-core/gateway';
 import { decryptModelSecret } from '@/lib/ai/modelSecrets';
-import { isModelAllowedForProvider } from '@/lib/ai/rolePipeline/providerCatalog';
+import {
+  cleanedCompanyLabel,
+  companyDisplayName,
+  isModelAllowedForProvider,
+} from '@/lib/ai/rolePipeline/providerCatalog';
 import { AiModelProfile } from '@/lib/models/AiRolePipeline';
 import { Types } from 'mongoose';
 
@@ -20,11 +24,12 @@ export function mapModelProfilePublic(row: {
   updatedAt?: Date;
   createdAt?: Date;
 }) {
+  const provider = row.provider ?? 'custom';
   return {
     id: String(row._id),
     key: row.key,
-    label: row.label,
-    provider: row.provider ?? 'custom',
+    label: companyDisplayName({ label: row.label, provider }),
+    provider,
     tier: row.tier,
     protocol: row.protocol,
     endpoint: row.endpoint,
@@ -35,6 +40,21 @@ export function mapModelProfilePublic(row: {
     updatedAt: row.updatedAt?.toISOString?.() ?? null,
     createdAt: row.createdAt?.toISOString?.() ?? null,
   };
+}
+
+/** Persist company-only labels for legacy "Company · Model" rows (idempotent). */
+export async function normalizeLegacyCredentialLabels(
+  rows: Array<{ _id: { toString(): string }; label: string; provider?: string | null }>
+): Promise<void> {
+  const ops = rows.flatMap((row) => {
+    const next = cleanedCompanyLabel(row);
+    if (!next) return [];
+    row.label = next;
+    return [
+      AiModelProfile.updateOne({ _id: row._id }, { $set: { label: next } }).catch(() => undefined),
+    ];
+  });
+  if (ops.length) await Promise.all(ops);
 }
 
 /** Resolve an enabled company credential into a gateway config for a chosen model. */
@@ -75,7 +95,7 @@ export async function gatewayFromModelProfile(
     gateway,
     profile: {
       id: String(row._id),
-      label: row.label,
+      label: companyDisplayName({ label: row.label, provider }),
       tier: row.tier,
       model,
       provider,

@@ -51,6 +51,8 @@ export default function AdminAiModelsPage() {
   const [form, setForm] = useState<FormState>(() => formFromProvider('openai'));
   const [rotateId, setRotateId] = useState<string | null>(null);
   const [rotateKey, setRotateKey] = useState('');
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [renameLabel, setRenameLabel] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -122,6 +124,30 @@ export default function AdminAiModelsPage() {
       setMessage('API key rotated.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Rotate failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rename(id: string) {
+    const label = renameLabel.trim();
+    if (!label) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/admin/ai/models/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'Unable to rename credential.');
+      setRenameId(null);
+      setRenameLabel('');
+      await load();
+      setMessage('Credential renamed.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Rename failed.');
     } finally {
       setBusy(false);
     }
@@ -204,8 +230,21 @@ export default function AdminAiModelsPage() {
                     className={button}
                     disabled={busy}
                     onClick={() => {
+                      setRenameId(profile.id);
+                      setRenameLabel(profile.label);
+                      setRotateId(null);
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={busy}
+                    onClick={() => {
                       setRotateId(profile.id);
                       setRotateKey('');
+                      setRenameId(null);
                     }}
                   >
                     Rotate API key
@@ -215,6 +254,36 @@ export default function AdminAiModelsPage() {
                   </button>
                 </div>
               </div>
+              {renameId === profile.id ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input
+                    className={`${field} max-w-md`}
+                    placeholder="Display name"
+                    value={renameLabel}
+                    onChange={(event) => setRenameLabel(event.target.value)}
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={busy || !renameLabel.trim()}
+                    onClick={() => void rename(profile.id)}
+                  >
+                    Save name
+                  </button>
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={busy}
+                    onClick={() => {
+                      setRenameId(null);
+                      setRenameLabel('');
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
               {rotateId === profile.id ? (
                 <div className="mt-2 flex flex-wrap gap-2">
                   <input

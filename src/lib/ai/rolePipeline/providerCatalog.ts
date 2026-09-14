@@ -197,6 +197,27 @@ export function slugifyModelKey(parts: string[]): string {
   return /^[a-z]/.test(key) ? key : `m-${key}`.slice(0, 64);
 }
 
-export function defaultLabelFor(providerLabel: string, modelLabel: string): string {
-  return `${providerLabel} · ${modelLabel}`.slice(0, 120);
+/** Company-only name for UI (never includes a model suffix). */
+export function companyDisplayName(input: { label: string; provider?: string | null }): string {
+  const provider = input.provider ?? 'custom';
+  const catalog = getModelProvider(provider);
+  if (catalog && provider !== 'custom') return catalog.label;
+  const label = input.label.trim();
+  const sep = label.indexOf(' · ');
+  if (sep > 0) {
+    const head = label.slice(0, sep).trim();
+    if (head) return head;
+  }
+  return label || catalog?.label || provider;
+}
+
+/**
+ * If a stored credential label still looks like legacy "Company · Model",
+ * return the cleaned company-only label; otherwise null.
+ */
+export function cleanedCompanyLabel(input: { label: string; provider?: string | null }): string | null {
+  const label = input.label.trim();
+  if (!label.includes(' · ')) return null;
+  const next = companyDisplayName(input);
+  return next && next !== label ? next : null;
 }

@@ -4,7 +4,7 @@ import { AiHttpError } from '@/lib/ai/control/access';
 import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { encryptModelSecret, secretLast4 } from '@/lib/ai/modelSecrets';
 import { modelProfileCreateSchema } from '@/lib/ai/rolePipeline/schemas';
-import { mapModelProfilePublic } from '@/lib/ai/rolePipeline/profiles';
+import { mapModelProfilePublic, normalizeLegacyCredentialLabels } from '@/lib/ai/rolePipeline/profiles';
 import { getModelProvider, slugifyModelKey } from '@/lib/ai/rolePipeline/providerCatalog';
 import { AiModelProfile } from '@/lib/models/AiRolePipeline';
 import connectDB from '@/lib/db/mongodb';
@@ -23,6 +23,7 @@ export async function GET() {
       .limit(100)
       .maxTimeMS(3000)
       .lean();
+    await normalizeLegacyCredentialLabels(rows);
     return aiResponse({ profiles: rows.map(mapModelProfilePublic) });
   } catch (error) {
     return aiError(error);

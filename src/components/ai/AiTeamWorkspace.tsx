@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   aiEmployees,
   type AiEmployeeKey,
 } from '@/lib/ai/teamWorkspace';
 import { microsToDollars } from '@/lib/ai/settingsSchema';
+import { companyDisplayName } from '@/lib/ai/rolePipeline/providerCatalog';
 import { useAiSnapshot } from './useAiSnapshot';
 
 const field = 'w-full rounded-xl border border-border bg-background p-3 text-text-primary';
@@ -25,6 +26,12 @@ type CatalogProvider = {
   id: string;
   label: string;
   models: { id: string; label: string }[];
+};
+
+type DiscoveredModelsState = {
+  models: { id: string; label: string }[];
+  error: string | null;
+  loading: boolean;
 };
 
 type StageBinding = {
@@ -85,6 +92,14 @@ function modelsForCredential(
   return catalog.find((item) => item.id === providerId)?.models ?? [];
 }
 
+function isCustomCredential(profile: Profile | undefined): boolean {
+  return (profile?.provider ?? 'custom') === 'custom';
+}
+
+function companyName(profile: Profile): string {
+  return companyDisplayName({ label: profile.label, provider: profile.provider });
+}
+
 export default function AiTeamWorkspace({
   initialProjectId = '',
   initialEmployee = 'product',
@@ -115,6 +130,11 @@ export default function AiTeamWorkspace({
   const [events, setEvents] = useState<StageEvent[]>([]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [discoveredByProfile, setDiscoveredByProfile] = useState<Record<string, DiscoveredModelsState>>(
+    {}
+  );
+  const discoveredRef = useRef(discoveredByProfile);
+  discoveredRef.current = discoveredByProfile;
 
   const projectId = selected || data?.projects[0]?.id || '';
 
@@ -214,13 +234,103 @@ export default function AiTeamWorkspace({
     setEnabled(current.enabled);
   }, [pipelines, employee, commercialProfiles, workerProfiles, catalog, profiles]);
 
+  const loadDiscoveredModels = useCallback(
+    async (
+      id: string,
+      profileId: string,
+      opts?: { force?: boolean; selectFirstFor?: 'planner' | 'worker' | 'reviewer' | 'all' }
+    ) => {
+      if (!profileId) return;
+      const existing = discoveredRef.current[profileId];
+      if (!opts?.force && existing?.loading) return;
+      if (!opts?.force && existing && (existing.models.length > 0 || existing.error)) {
+        if (opts?.selectFirstFor && existing.models[0]) {
+          const firstId = existing.models[0].id;
+          const models = existing.models;
+          const patch = (binding: StageBinding) => {
+            if (binding.modelProfileId !== profileId) return binding;
+            if (binding.model && models.some((item) => item.id === binding.model)) return binding;
+            return { ...binding, model: firstId };
+          };
+          if (opts.selectFirstFor === 'all' || opts.selectFirstFor === 'planner') setPlanner(patch);
+          if (opts.selectFirstFor === 'all' || opts.selectFirstFor === 'worker') setWorker(patch);
+          if (opts.selectFirstFor === 'all' || opts.selectFirstFor === 'reviewer') setReviewer(patch);
+        }
+        return;
+      }
+
+      setDiscoveredByProfile((current) => ({
+        ...current,
+        [profileId]: { models: current[profileId]?.models ?? [], error: null, loading: true },
+      }));
+      try {
+        const response = await fetch(
+          `/api/projects/${encodeURIComponent(id)}/ai/pipeline/models?profileId=${encodeURIComponent(profileId)}`,
+          { cache: 'no-store' }
+        );
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error ?? 'Unable to list local models.');
+        const models = (body.models ?? []) as { id: string; label: string }[];
+        setDiscoveredByProfile((current) => ({
+          ...current,
+          [profileId]: { models, error: body.error ?? null, loading: false },
+        }));
+        if (opts?.selectFirstFor && models[0]) {
+          const firstId = models[0].id;
+          const patch = (binding: StageBinding) => {
+            if (binding.modelProfileId !== profileId) return binding;
+            if (binding.model && models.some((item) => item.id === binding.model)) return binding;
+            return { ...binding, model: firstId };
+          };
+          if (opts.selectFirstFor === 'all' || opts.selectFirstFor === 'planner') setPlanner(patch);
+          if (opts.selectFirstFor === 'all' || opts.selectFirstFor === 'worker') setWorker(patch);
+          if (opts.selectFirstFor === 'all' || opts.selectFirstFor === 'reviewer') setReviewer(patch);
+        }
+      } catch (err) {
+        setDiscoveredByProfile((current) => ({
+          ...current,
+          [profileId]: {
+            models: [],
+            error: err instanceof Error ? err.message : 'Unable to list local models.',
+            loading: false,
+          },
+        }));
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!projectId) return;
+    const customIds = [planner.modelProfileId, worker.modelProfileId, reviewer.modelProfileId].filter(
+      (profileId) => {
+        const profile = profiles.find((item) => item.id === profileId);
+        return Boolean(profileId && isCustomCredential(profile));
+      }
+    );
+    for (const profileId of new Set(customIds)) {
+      void loadDiscoveredModels(projectId, profileId, { selectFirstFor: 'all' });
+    }
+  }, [
+    projectId,
+    planner.modelProfileId,
+    worker.modelProfileId,
+    reviewer.modelProfileId,
+    profiles,
+    loadDiscoveredModels,
+  ]);
+
   function stageSummary(binding: StageBinding): string {
     const credential = profiles.find((item) => item.id === binding.modelProfileId);
     if (!credential) return 'Unassigned';
+    const company = companyName(credential);
+    const catalogModels = modelsForCredential(credential, catalog);
+    const discovered = discoveredByProfile[credential.id]?.models ?? [];
     const modelLabel =
-      modelsForCredential(credential, catalog).find((item) => item.id === binding.model)?.label ??
+      catalogModels.find((item) => item.id === binding.model)?.label ??
+      discovered.find((item) => item.id === binding.model)?.label ??
       binding.model;
-    return modelLabel ? `${credential.label} · ${modelLabel}` : credential.label;
+    return modelLabel ? `${company} · ${modelLabel}` : company;
   }
 
   function setCredential(
@@ -229,6 +339,13 @@ export default function AiTeamWorkspace({
     credentials: Profile[]
   ) {
     const profile = credentials.find((item) => item.id === nextId);
+    if (isCustomCredential(profile)) {
+      setter({ modelProfileId: nextId, model: '' });
+      if (projectId && nextId) {
+        void loadDiscoveredModels(projectId, nextId, { force: true, selectFirstFor: 'all' });
+      }
+      return;
+    }
     const nextModel = modelsForCredential(profile, catalog)[0]?.id ?? profile?.model ?? '';
     setter({ modelProfileId: nextId, model: nextModel });
   }
@@ -293,8 +410,12 @@ export default function AiTeamWorkspace({
     credentials: Profile[]
   ) {
     const credential = profiles.find((item) => item.id === binding.modelProfileId);
-    const models = modelsForCredential(credential, catalog);
-    const isCustom = (credential?.provider ?? 'custom') === 'custom';
+    const catalogModels = modelsForCredential(credential, catalog);
+    const isCustom = isCustomCredential(credential);
+    const discovered = binding.modelProfileId ? discoveredByProfile[binding.modelProfileId] : undefined;
+    const localModels = discovered?.models ?? [];
+    const models = isCustom ? localModels : catalogModels;
+    const showFreeformFallback = isCustom && !discovered?.loading && localModels.length === 0;
 
     return (
       <div className="space-y-2 rounded-xl border border-border p-3">
@@ -310,23 +431,61 @@ export default function AiTeamWorkspace({
             <option value="">Select…</option>
             {credentials.map((profile) => (
               <option key={profile.id} value={profile.id}>
-                {profile.label}
+                {companyName(profile)}
                 {profile.tier === 'local_remote' ? ' (local)' : ''}
               </option>
             ))}
           </select>
         </label>
         {isCustom ? (
-          <label className="block text-sm">
-            Model id
-            <input
-              className={`${field} mt-1`}
-              value={binding.model}
-              onChange={(event) => setBinding({ ...binding, model: event.target.value })}
-              placeholder="host model id"
-              disabled={busy || !binding.modelProfileId}
-            />
-          </label>
+          <div className="space-y-2">
+            <label className="block text-sm">
+              Model
+              <select
+                className={`${field} mt-1`}
+                value={localModels.some((item) => item.id === binding.model) ? binding.model : ''}
+                onChange={(event) => setBinding({ ...binding, model: event.target.value })}
+                disabled={busy || !binding.modelProfileId || discovered?.loading || localModels.length === 0}
+              >
+                <option value="">{discovered?.loading ? 'Loading models…' : 'Select…'}</option>
+                {localModels.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className={button}
+              disabled={busy || !projectId || !binding.modelProfileId || discovered?.loading}
+              onClick={() =>
+                projectId &&
+                binding.modelProfileId &&
+                void loadDiscoveredModels(projectId, binding.modelProfileId, {
+                  force: true,
+                  selectFirstFor: 'all',
+                })
+              }
+            >
+              {discovered?.loading ? 'Refreshing…' : 'Refresh models'}
+            </button>
+            {discovered?.error ? (
+              <p className="text-xs text-text-secondary">{discovered.error}</p>
+            ) : null}
+            {showFreeformFallback ? (
+              <label className="block text-sm">
+                Model id (manual)
+                <input
+                  className={`${field} mt-1`}
+                  value={binding.model}
+                  onChange={(event) => setBinding({ ...binding, model: event.target.value })}
+                  placeholder="host model id"
+                  disabled={busy || !binding.modelProfileId}
+                />
+              </label>
+            ) : null}
+          </div>
         ) : (
           <label className="block text-sm">
             Model

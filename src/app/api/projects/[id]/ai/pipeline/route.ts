@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { requireAiProject, AiHttpError } from '@/lib/ai/control/access';
 import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { rolePipelineUpsertSchema } from '@/lib/ai/rolePipeline/schemas';
-import { mapModelProfilePublic } from '@/lib/ai/rolePipeline/profiles';
+import { mapModelProfilePublic, normalizeLegacyCredentialLabels } from '@/lib/ai/rolePipeline/profiles';
 import { isModelAllowedForProvider, MODEL_PROVIDERS } from '@/lib/ai/rolePipeline/providerCatalog';
 import { AiModelProfile, AiRolePipeline } from '@/lib/models/AiRolePipeline';
 import { aiEmployees } from '@/lib/ai/teamWorkspace';
@@ -71,6 +71,7 @@ export async function GET(request: NextRequest, context: Context) {
         .maxTimeMS(3000)
         .lean(),
     ]);
+    await normalizeLegacyCredentialLabels(profiles);
     const profilesById = new Map(profiles.map((item) => [String(item._id), item]));
     return aiResponse({
       roles: aiEmployees,
