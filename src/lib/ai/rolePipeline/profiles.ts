@@ -18,7 +18,7 @@ export function mapModelProfilePublic(row: {
   tier: string;
   protocol: string;
   endpoint: string;
-  model: string;
+  model?: string | null;
   secretLast4: string;
   enabled: boolean;
   updatedAt?: Date;
@@ -33,7 +33,7 @@ export function mapModelProfilePublic(row: {
     tier: row.tier,
     protocol: row.protocol,
     endpoint: row.endpoint,
-    model: row.model,
+    model: row.model ?? '',
     secretConfigured: true,
     secretLast4: row.secretLast4,
     enabled: row.enabled,
