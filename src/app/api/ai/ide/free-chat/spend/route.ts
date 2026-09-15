@@ -1,20 +1,21 @@
 import { NextRequest } from 'next/server';
-import { requireAiProject } from '@/lib/ai/control/access';
+import { requireAttentionAccess } from '@/lib/ai/control/attention';
 import { aiError, aiResponse } from '@/lib/ai/control/http';
+import { freeChatLedgerProjectId } from '@/lib/ide/freeChat';
 import { loadIdeSpendBundle } from '@/lib/ide/ideSpend';
 
 export const dynamic = 'force-dynamic';
-type Context = { params: Promise<{ id: string }> };
 
-export async function GET(request: NextRequest, context: Context) {
+export async function GET(request: NextRequest) {
   try {
-    const projectId = (await context.params).id;
-    const access = await requireAiProject(request, projectId, false, true);
+    const access = await requireAttentionAccess(request);
+    const freeChatProjectId = freeChatLedgerProjectId(access.organizationId).toString();
     const spend = await loadIdeSpendBundle({
       organizationId: access.organizationId,
-      projectId,
+      projectId: freeChatProjectId,
     });
     return aiResponse({
+      freeChat: true,
       dailyEstimatedMicros: spend.project?.dailyEstimatedMicros ?? 0,
       monthlyEstimatedMicros: spend.project?.monthlyEstimatedMicros ?? 0,
       orgDailyEstimatedMicros: spend.organization.dailyEstimatedMicros,

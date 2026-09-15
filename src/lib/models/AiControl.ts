@@ -135,3 +135,17 @@ export const AiBudgetReservation = modelFor<InferSchemaType<typeof reservationSc
 export const AiPlanningJob = modelFor<InferSchemaType<typeof jobSchema>>('AiPlanningJob', jobSchema);
 export const AiDispatchLock = modelFor<InferSchemaType<typeof dispatchLockSchema>>('AiDispatchLock', dispatchLockSchema);
 export const AiDispatchUsage = modelFor<InferSchemaType<typeof dispatchUsageSchema>>('AiDispatchUsage', dispatchUsageSchema);
+
+const searchApiUsageSchema = new Schema({
+  organizationId: { type: String, required: true },
+  periodMonth: { type: String, required: true },
+  braveQueries: { type: Number, default: 0, required: true, min: 0 },
+  googleCseWebQueries: { type: Number, default: 0, required: true, min: 0 },
+  googleCseImageQueries: { type: Number, default: 0, required: true, min: 0 },
+}, { timestamps: true });
+searchApiUsageSchema.index({ organizationId: 1, periodMonth: 1 }, { unique: true });
+
+export const AiSearchApiUsage = modelFor<InferSchemaType<typeof searchApiUsageSchema>>(
+  'AiSearchApiUsage',
+  searchApiUsageSchema
+);

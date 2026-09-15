@@ -46,13 +46,20 @@ export async function executeIdeTool(input: {
     const query = typeof args.query === 'string' ? args.query : '';
     const depthRaw = typeof args.depth === 'string' ? args.depth.trim() : 'lite';
     const depth = depthRaw === 'standard' ? 'standard' : 'lite';
-    const result = await webSearch(query, { signal: input.signal, depth });
+    const result = await webSearch(query, {
+      signal: input.signal,
+      depth,
+      organizationId: input.organizationId,
+    });
     return { content: JSON.stringify(result).slice(0, 12000), artifacts };
   }
 
   if (input.name === 'image_search') {
     const query = typeof args.query === 'string' ? args.query : '';
-    const result = await imageSearch(query, { signal: input.signal });
+    const result = await imageSearch(query, {
+      signal: input.signal,
+      organizationId: input.organizationId,
+    });
     return { content: JSON.stringify(result).slice(0, 12000), artifacts };
   }
 

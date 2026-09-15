@@ -26,6 +26,7 @@ describe('looksLikeImageSearchQuery', () => {
     expect(looksLikeImageSearchQuery('find images of Emirates Stadium')).toBe(true);
     expect(looksLikeImageSearchQuery('show me photos of the Eiffel Tower')).toBe(true);
     expect(looksLikeImageSearchQuery('pictures of red foxes')).toBe(true);
+    expect(looksLikeImageSearchQuery('find me a picture of mikel arteta')).toBe(true);
   });
 
   it('rejects AI generate requests', () => {

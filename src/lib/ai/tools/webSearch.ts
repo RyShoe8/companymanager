@@ -2,6 +2,7 @@ import { assertSafePublicHttpsUrl } from '@/lib/ai/tools/ssrf';
 import { browserNavigate } from '@/lib/ai/tools/browserClient';
 import { isBrowserWorkerConfigured } from '@/lib/ai/tools/browseRouter';
 import { webFetch } from '@/lib/ai/tools/webFetch';
+import { recordSearchApiQuery } from '@/lib/ai/tools/searchApiMeter';
 
 export type WebSearchHit = {
   title: string;
@@ -86,7 +87,19 @@ export function buildResearchQueries(raw: string): { primary: string; wikipedia:
   );
   if (clubScorers?.[1]) {
     const club = clubScorers[1].replace(/'s$/i, '').replace(/\.$/, '').trim();
-    if (club.length >= 3) {
+    if (club.length >= 3 && !/^(goal|top|all)$/i.test(club)) {
+      return {
+        primary: `${club} all-time top goalscorers`,
+        wikipedia: `List of ${club} F.C. records and statistics`,
+      };
+    }
+  }
+  const shortClubScorers = trimmed.match(
+    /\b([A-Za-z][A-Za-z0-9.&'-]{2,40})\b[\s\S]{0,40}\b(?:goal\s*)?scorers?\b/i
+  );
+  if (shortClubScorers?.[1]) {
+    const club = shortClubScorers[1].replace(/'s$/i, '').replace(/\.$/, '').trim();
+    if (club.length >= 3 && !/^(goal|top|all|who|what|the)$/i.test(club)) {
       return {
         primary: `${club} all-time top goalscorers`,
         wikipedia: `List of ${club} F.C. records and statistics`,
@@ -127,12 +140,14 @@ export function scoreResearchHit(hit: WebSearchHit, originalQuery: string): numb
   }
   if (/records and statistics/i.test(hit.title) || /records_and_statistics/i.test(hit.url)) score += 12;
   if (/goalscorer|top scorers|all[- ]?time/i.test(hay)) score += 4;
+  if (/transfermarkt/i.test(hay)) score += 8;
   if (/list of uefa|champions league top scorers|europa league top scorers/i.test(hay)) score -= 18;
   if (/\/\d{4}[–-]\d{2,4}[ _]/.test(hit.url) || /\b20\d{2}[–-]\d{2}\b.*season/i.test(hit.title)) {
     score -= 10;
   }
   if (hit.provider === 'brave' || hit.provider === 'google_cse') score += 2;
   if (hit.provider === 'wikipedia' && /records and statistics/i.test(hit.title)) score += 4;
+  if (hit.extract && /goalscorer|goals\b/i.test(hit.extract)) score += 6;
   score += Math.min((hit.snippet?.length ?? 0) / 80, 3);
   return score;
 }
@@ -292,6 +307,95 @@ async function wikipediaSearch(q: string, limit: number, opts: FetchOpts): Promi
   return hits.slice(0, limit);
 }
 
+function stripWikiHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#039;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const SCORER_SECTION =
+  /goal.?scor|player records|appearances and goals|top scorers|leading goalscorers|club records/i;
+
+/** Pull goalscorer / player-records section text from a Wikipedia page. */
+export async function wikipediaSectionExtract(
+  pageTitle: string,
+  opts: FetchOpts
+): Promise<string | null> {
+  const sectionsUrl = assertSafePublicHttpsUrl(
+    `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageTitle)}&prop=sections&format=json&origin=*`
+  );
+  const sectionsRes = await opts.fetcher(sectionsUrl, {
+    method: 'GET',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: opts.signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!sectionsRes.ok) {
+    await sectionsRes.body?.cancel();
+    return null;
+  }
+  let sectionsBody: {
+    parse?: { sections?: Array<{ index?: string; line?: string; anchor?: string }> };
+  };
+  try {
+    sectionsBody = (await sectionsRes.json()) as typeof sectionsBody;
+  } catch {
+    return null;
+  }
+  const sections = sectionsBody.parse?.sections ?? [];
+  const match =
+    sections.find((s) => SCORER_SECTION.test(`${s.line ?? ''} ${s.anchor ?? ''}`)) ??
+    sections.find((s) => /records/i.test(s.line ?? ''));
+  if (!match?.index) return null;
+  const parseUrl = assertSafePublicHttpsUrl(
+    `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageTitle)}&section=${encodeURIComponent(match.index)}&prop=text&format=json&origin=*`
+  );
+  const parseRes = await opts.fetcher(parseUrl, {
+    method: 'GET',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: opts.signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!parseRes.ok) {
+    await parseRes.body?.cancel();
+    return null;
+  }
+  let parseBody: { parse?: { text?: { '*'?: string } } };
+  try {
+    parseBody = (await parseRes.json()) as typeof parseBody;
+  } catch {
+    return null;
+  }
+  const html = parseBody.parse?.text?.['*'] ?? '';
+  const text = stripWikiHtml(html);
+  return text.length >= 40 ? text.slice(0, 3200) : null;
+}
+
+async function enrichWikipediaRecordsExtract(hit: WebSearchHit, opts: FetchOpts): Promise<boolean> {
+  if (hit.provider !== 'wikipedia') return false;
+  if (!/records and statistics|goalscorer|top scorers/i.test(`${hit.title} ${hit.url}`)) return false;
+  try {
+    const section = await wikipediaSectionExtract(hit.title, opts);
+    if (!section) return false;
+    hit.extract = section;
+    if (section.length > (hit.snippet?.length ?? 0)) {
+      hit.snippet = section.slice(0, 400);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function isBraveSearchConfigured(): boolean {
   return Boolean(process.env.BRAVE_SEARCH_API_KEY?.trim());
 }
@@ -305,7 +409,12 @@ export function isSearxngConfigured(): boolean {
   return /^https:\/\//i.test(base);
 }
 
-async function braveWebSearch(q: string, limit: number, opts: FetchOpts): Promise<WebSearchHit[]> {
+async function braveWebSearch(
+  q: string,
+  limit: number,
+  opts: FetchOpts,
+  organizationId?: string
+): Promise<WebSearchHit[]> {
   const key = process.env.BRAVE_SEARCH_API_KEY?.trim();
   if (!key) return [];
   const endpoint = assertSafePublicHttpsUrl(
@@ -321,9 +430,10 @@ async function braveWebSearch(q: string, limit: number, opts: FetchOpts): Promis
       'X-Subscription-Token': key,
     },
   });
+  if (organizationId) void recordSearchApiQuery({ organizationId, provider: 'brave' });
   if (!response.ok) {
     await response.body?.cancel();
-    return [];
+    throw new Error(`brave_http_${response.status}`);
   }
   let body: {
     web?: { results?: Array<{ title?: string; url?: string; description?: string }> };
@@ -331,7 +441,7 @@ async function braveWebSearch(q: string, limit: number, opts: FetchOpts): Promis
   try {
     body = (await response.json()) as typeof body;
   } catch {
-    return [];
+    throw new Error('brave_invalid_json');
   }
   const hits: WebSearchHit[] = [];
   for (const row of body.web?.results ?? []) {
@@ -351,7 +461,8 @@ async function googleCseRequest(
   q: string,
   limit: number,
   opts: FetchOpts,
-  searchType?: 'image'
+  searchType?: 'image',
+  organizationId?: string
 ): Promise<{
   items?: Array<{
     title?: string;
@@ -381,9 +492,15 @@ async function googleCseRequest(
     signal: opts.signal,
     headers: { Accept: 'application/json' },
   });
+  if (organizationId) {
+    void recordSearchApiQuery({
+      organizationId,
+      provider: searchType === 'image' ? 'google_cse_image' : 'google_cse_web',
+    });
+  }
   if (!response.ok) {
     await response.body?.cancel();
-    return null;
+    throw new Error(`google_cse_http_${response.status}`);
   }
   try {
     return (await response.json()) as {
@@ -396,12 +513,17 @@ async function googleCseRequest(
       }>;
     };
   } catch {
-    return null;
+    throw new Error('google_cse_invalid_json');
   }
 }
 
-async function googleCseSearch(q: string, limit: number, opts: FetchOpts): Promise<WebSearchHit[]> {
-  const body = await googleCseRequest(q, limit, opts);
+async function googleCseSearch(
+  q: string,
+  limit: number,
+  opts: FetchOpts,
+  organizationId?: string
+): Promise<WebSearchHit[]> {
+  const body = await googleCseRequest(q, limit, opts, undefined, organizationId);
   if (!body) return [];
   const hits: WebSearchHit[] = [];
   for (const row of body.items ?? []) {
@@ -420,9 +542,10 @@ async function googleCseSearch(q: string, limit: number, opts: FetchOpts): Promi
 async function googleCseImageSearch(
   q: string,
   limit: number,
-  opts: FetchOpts
+  opts: FetchOpts,
+  organizationId?: string
 ): Promise<ImageSearchHit[]> {
-  const body = await googleCseRequest(q, limit, opts, 'image');
+  const body = await googleCseRequest(q, limit, opts, 'image', organizationId);
   if (!body) return [];
   const hits: ImageSearchHit[] = [];
   for (const row of body.items ?? []) {
@@ -485,20 +608,28 @@ async function runProvider(
   name: string,
   work: () => Promise<WebSearchHit[]>,
   signal: AbortSignal
-): Promise<WebSearchHit[]> {
+): Promise<{ hits: WebSearchHit[]; error?: string }> {
   try {
-    return await work();
+    return { hits: await work() };
   } catch (error) {
     if (signal.aborted) throw error;
-    return [];
+    const message = error instanceof Error ? error.message : 'provider_error';
+    return { hits: [], error: `${name}:${message}` };
   }
 }
 
-function buildNote(providersTried: string[], providersWithHits: string[], hitCount: number): string {
+function buildNote(
+  providersTried: string[],
+  providersWithHits: string[],
+  hitCount: number,
+  providerErrors: string[]
+): string {
+  const err =
+    providerErrors.length > 0 ? ` Provider issues: ${providerErrors.join('; ')}.` : '';
   if (!hitCount) {
-    return `No hits from: ${providersTried.join(', ') || 'none'}. Ask for a concrete URL or try a more specific query.`;
+    return `No hits from: ${providersTried.join(', ') || 'none'}.${err} Ask for a concrete URL or try a more specific query.`;
   }
-  return `Results from ${providersWithHits.join(', ')} (tried ${providersTried.join(', ')}). Prefer web_fetch on concrete URLs for more detail.`;
+  return `Results from ${providersWithHits.join(', ')} (tried ${providersTried.join(', ')}). Prefer web_fetch on concrete URLs for more detail.${err}`;
 }
 
 /**
@@ -512,6 +643,7 @@ export async function researchSearch(
     signal?: AbortSignal;
     limit?: number;
     depth?: ResearchDepth;
+    organizationId?: string;
   } = {}
 ): Promise<ResearchSearchResult> {
   const q = query.trim().slice(0, 200);
@@ -538,9 +670,11 @@ export async function researchSearch(
   const opts: FetchOpts = { fetcher, signal: controller.signal };
   const providersTried: string[] = [];
   const providersWithHits: string[] = [];
+  const providerErrors: string[] = [];
   const toolsUsed: string[] = ['web_search'];
   const pool: WebSearchHit[] = [];
   const poolCap = Math.max(limit * 3, 12);
+  const organizationId = options.organizationId?.trim() || undefined;
 
   try {
     const floorCap = Math.min(2, limit);
@@ -562,12 +696,12 @@ export async function researchSearch(
       {
         name: 'brave',
         enabled: isBraveSearchConfigured(),
-        run: () => braveWebSearch(queries.primary, limit, opts),
+        run: () => braveWebSearch(queries.primary, limit, opts, organizationId),
       },
       {
         name: 'google_cse',
         enabled: isGoogleCseConfigured(),
-        run: () => googleCseSearch(queries.primary, limit, opts),
+        run: () => googleCseSearch(queries.primary, limit, opts, organizationId),
       },
       {
         name: 'searxng',
@@ -579,43 +713,41 @@ export async function researchSearch(
     for (const provider of providers) {
       if (!provider.enabled) continue;
       providersTried.push(provider.name);
-      const found = await runProvider(provider.name, provider.run, controller.signal);
+      const result = await runProvider(provider.name, provider.run, controller.signal);
+      if (result.error) providerErrors.push(result.error);
       const before = pool.length;
-      mergeHits(pool, found, poolCap);
+      mergeHits(pool, result.hits, poolCap);
       if (pool.length > before) providersWithHits.push(provider.name);
     }
 
-    const hits = rankResearchHits(pool, q, limit);
+    let hits = rankResearchHits(pool, q, limit);
+
+    for (const hit of hits) {
+      const enriched = await enrichWikipediaRecordsExtract(hit, opts);
+      if (enriched && !toolsUsed.includes('wikipedia_section')) toolsUsed.push('wikipedia_section');
+    }
+    hits = rankResearchHits(hits, q, limit);
 
     let fetchCount = 0;
     if (depth === 'standard' && hits.length) {
       const fetchTargets = hits.slice(0, Math.min(3, hits.length));
       for (const hit of fetchTargets) {
+        if (hit.extract && /goalscorer|goals\b|\d{2,3}\s+goals/i.test(hit.extract)) {
+          continue;
+        }
         try {
           const page = await webFetch(hit.url, { fetcher, signal: controller.signal });
           fetchCount += 1;
           if (!toolsUsed.includes('web_fetch')) toolsUsed.push('web_fetch');
-          hit.extract = page.text.slice(0, 2500);
+          const text = page.text.slice(0, 3500);
+          if (!hit.extract || text.length > hit.extract.length) hit.extract = text;
           if (page.title && (!hit.title || hit.title.length < 8)) hit.title = page.title.slice(0, 200);
-          if ((page.thin || page.escalateHint) && isBrowserWorkerConfigured() && !hit.extract?.trim()) {
-            try {
-              const rendered = await browserNavigate(hit.url, { fetcher, signal: controller.signal });
-              if (!toolsUsed.includes('browser_navigate')) toolsUsed.push('browser_navigate');
-              hit.extract = rendered.text.slice(0, 2500);
-              if (rendered.title) hit.title = rendered.title.slice(0, 200);
-            } catch {
-              /* keep fetch extract if any */
-            }
-          } else if (
-            (page.thin || page.escalateHint) &&
-            isBrowserWorkerConfigured() &&
-            (hit.extract?.length ?? 0) < 280
-          ) {
+          if ((page.thin || page.escalateHint) && isBrowserWorkerConfigured() && (hit.extract?.length ?? 0) < 280) {
             try {
               const rendered = await browserNavigate(hit.url, { fetcher, signal: controller.signal });
               if (rendered.text.trim().length > (hit.extract?.length ?? 0)) {
                 if (!toolsUsed.includes('browser_navigate')) toolsUsed.push('browser_navigate');
-                hit.extract = rendered.text.slice(0, 2500);
+                hit.extract = rendered.text.slice(0, 3500);
                 if (rendered.title) hit.title = rendered.title.slice(0, 200);
               }
             } catch {
@@ -629,7 +761,7 @@ export async function researchSearch(
     }
 
     const noteParts = [
-      buildNote(providersTried, providersWithHits, hits.length),
+      buildNote(providersTried, providersWithHits, hits.length, providerErrors),
       queries.wikipedia !== q ? `Wiki query: ${queries.wikipedia}.` : '',
       queries.primary !== q ? `Web query: ${queries.primary}.` : '',
     ].filter(Boolean);
@@ -672,14 +804,167 @@ export async function webSearch(
     signal?: AbortSignal;
     limit?: number;
     depth?: ResearchDepth;
+    organizationId?: string;
   } = {}
 ): Promise<ResearchSearchResult> {
   return researchSearch(query, { ...options, depth: options.depth ?? 'lite' });
 }
 
+/** Strip chatty wrappers before image backends. */
+export function rewriteImageSearchQuery(raw: string): string {
+  const trimmed = raw.trim().slice(0, 200);
+  const stripped = trimmed
+    .replace(
+      /^(please\s+)?(find|show|get|search\s+for|look\s+up|look\s+for)\s+(me\s+)?(an?\s+)?(images?|photos?|pictures?|pics?|photo|picture)\s+(of|for)\s+/i,
+      ''
+    )
+    .replace(/^(images?|photos?|pictures?|pics?)\s+(of|for)\s+/i, '')
+    .replace(/[?¿!]+$/g, '')
+    .trim();
+  return stripped || trimmed;
+}
+
+async function wikipediaSummaryImage(q: string, opts: FetchOpts): Promise<ImageSearchHit[]> {
+  const searchUrl = assertSafePublicHttpsUrl(
+    `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&srlimit=3&format=json&origin=*`
+  );
+  const searchRes = await opts.fetcher(searchUrl, {
+    method: 'GET',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: opts.signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!searchRes.ok) {
+    await searchRes.body?.cancel();
+    return [];
+  }
+  let searchBody: { query?: { search?: Array<{ title?: string }> } };
+  try {
+    searchBody = (await searchRes.json()) as typeof searchBody;
+  } catch {
+    return [];
+  }
+  const hits: ImageSearchHit[] = [];
+  for (const row of searchBody.query?.search ?? []) {
+    const title = row.title?.trim();
+    if (!title) continue;
+    const summaryUrl = assertSafePublicHttpsUrl(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`
+    );
+    try {
+      const summaryRes = await opts.fetcher(summaryUrl, {
+        method: 'GET',
+        redirect: 'error',
+        cache: 'no-store',
+        signal: opts.signal,
+        headers: { Accept: 'application/json' },
+      });
+      if (!summaryRes.ok) {
+        await summaryRes.body?.cancel();
+        continue;
+      }
+      const body = (await summaryRes.json()) as {
+        title?: string;
+        extract?: string;
+        thumbnail?: { source?: string };
+        originalimage?: { source?: string };
+        content_urls?: { desktop?: { page?: string } };
+      };
+      const imageUrl = body.originalimage?.source?.trim() || body.thumbnail?.source?.trim();
+      if (!imageUrl || !/^https:\/\//i.test(imageUrl)) continue;
+      hits.push({
+        title: (body.title || title).slice(0, 200),
+        imageUrl: imageUrl.slice(0, 4000),
+        thumbnailUrl: body.thumbnail?.source?.slice(0, 4000),
+        contextUrl: body.content_urls?.desktop?.page?.slice(0, 4000),
+        snippet: (body.extract ?? title).slice(0, 400),
+        provider: 'wikipedia',
+      });
+    } catch {
+      /* next */
+    }
+    if (hits.length >= 4) break;
+  }
+  return hits;
+}
+
+async function commonsImageSearch(q: string, limit: number, opts: FetchOpts): Promise<ImageSearchHit[]> {
+  const searchUrl = assertSafePublicHttpsUrl(
+    `https://commons.wikimedia.org/w/api.php?action=query&list=search&srnamespace=6&srsearch=${encodeURIComponent(q)}&srlimit=${limit}&format=json&origin=*`
+  );
+  const searchRes = await opts.fetcher(searchUrl, {
+    method: 'GET',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: opts.signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!searchRes.ok) {
+    await searchRes.body?.cancel();
+    return [];
+  }
+  let searchBody: { query?: { search?: Array<{ title?: string }> } };
+  try {
+    searchBody = (await searchRes.json()) as typeof searchBody;
+  } catch {
+    return [];
+  }
+  const titles = (searchBody.query?.search ?? [])
+    .map((row) => row.title?.trim())
+    .filter((t): t is string => Boolean(t))
+    .slice(0, limit);
+  if (!titles.length) return [];
+  const infoUrl = assertSafePublicHttpsUrl(
+    `https://commons.wikimedia.org/w/api.php?action=query&titles=${titles.map(encodeURIComponent).join('|')}&prop=imageinfo&iiprop=url|extmetadata&format=json&origin=*`
+  );
+  const infoRes = await opts.fetcher(infoUrl, {
+    method: 'GET',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: opts.signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!infoRes.ok) {
+    await infoRes.body?.cancel();
+    return [];
+  }
+  let infoBody: {
+    query?: {
+      pages?: Record<
+        string,
+        {
+          title?: string;
+          imageinfo?: Array<{ url?: string; descriptionurl?: string; thumburl?: string }>;
+        }
+      >;
+    };
+  };
+  try {
+    infoBody = (await infoRes.json()) as typeof infoBody;
+  } catch {
+    return [];
+  }
+  const hits: ImageSearchHit[] = [];
+  for (const page of Object.values(infoBody.query?.pages ?? {})) {
+    const info = page.imageinfo?.[0];
+    const imageUrl = info?.url?.trim();
+    if (!imageUrl || !/^https:\/\//i.test(imageUrl)) continue;
+    hits.push({
+      title: (page.title ?? 'Commons image').replace(/^File:/i, '').slice(0, 200),
+      imageUrl: imageUrl.slice(0, 4000),
+      thumbnailUrl: info.thumburl?.slice(0, 4000),
+      contextUrl: info.descriptionurl?.slice(0, 4000),
+      snippet: page.title ?? '',
+      provider: 'wikimedia_commons',
+    });
+    if (hits.length >= limit) break;
+  }
+  return hits;
+}
+
 /**
- * Image discovery via Google Programmable Search (`searchType=image`).
- * Requires GOOGLE_CSE_* and Image search enabled on the engine.
+ * Image discovery: Google CSE when configured, then Wikipedia/Commons floor.
  */
 export async function imageSearch(
   query: string,
@@ -687,10 +972,11 @@ export async function imageSearch(
     fetcher?: typeof fetch;
     signal?: AbortSignal;
     limit?: number;
+    organizationId?: string;
   } = {}
 ): Promise<ImageSearchResult> {
-  const q = query.trim().slice(0, 200);
-  if (!q) {
+  const raw = query.trim().slice(0, 200);
+  if (!raw) {
     return {
       query: '',
       hits: [],
@@ -700,6 +986,7 @@ export async function imageSearch(
       hitCount: 0,
     };
   }
+  const q = rewriteImageSearchQuery(raw);
   const limit = Math.min(Math.max(options.limit ?? 6, 1), 10);
   const controller = new AbortController();
   const cancel = () => controller.abort();
@@ -710,26 +997,48 @@ export async function imageSearch(
   const opts: FetchOpts = { fetcher, signal: controller.signal };
   const providersTried: string[] = [];
   const toolsUsed: string[] = ['image_search'];
+  const organizationId = options.organizationId?.trim() || undefined;
+  const notes: string[] = [];
+  if (q !== raw) notes.push(`Image query: ${q}.`);
 
   try {
-    if (!isGoogleCseConfigured()) {
-      return {
-        query: q,
-        hits: [],
-        note: 'Image search needs GOOGLE_CSE_API_KEY + GOOGLE_CSE_ID, with Image search enabled on the Programmable Search Engine.',
-        providersTried,
-        toolsUsed,
-        hitCount: 0,
-      };
+    let hits: ImageSearchHit[] = [];
+    if (isGoogleCseConfigured()) {
+      providersTried.push('google_cse');
+      try {
+        hits = await googleCseImageSearch(q, limit, opts, organizationId);
+      } catch (error) {
+        notes.push(
+          `google_cse: ${error instanceof Error ? error.message : 'failed'}. Confirm Image search is enabled on the CSE engine.`
+        );
+      }
+    } else {
+      notes.push('GOOGLE_CSE not configured; using Wikipedia/Commons fallback.');
     }
-    providersTried.push('google_cse');
-    const hits = await googleCseImageSearch(q, limit, opts);
+
+    if (!hits.length) {
+      providersTried.push('wikipedia');
+      try {
+        hits = await wikipediaSummaryImage(q, opts);
+      } catch {
+        notes.push('wikipedia image fallback failed.');
+      }
+    }
+    if (!hits.length) {
+      providersTried.push('wikimedia_commons');
+      try {
+        hits = await commonsImageSearch(q, limit, opts);
+      } catch {
+        notes.push('commons image fallback failed.');
+      }
+    }
+
     return {
-      query: q,
+      query: raw,
       hits,
       note: hits.length
-        ? `Found ${hits.length} image(s) via google_cse.`
-        : 'No image hits from google_cse. Confirm Image search is enabled on the CSE engine and the query is specific.',
+        ? `Found ${hits.length} image(s) via ${hits[0]?.provider}.${notes.length ? ` ${notes.join(' ')}` : ''}`
+        : `No image hits.${notes.length ? ` ${notes.join(' ')}` : ' Try a more specific person/place name.'}`,
       providersTried,
       toolsUsed,
       hitCount: hits.length,
@@ -739,7 +1048,7 @@ export async function imageSearch(
       throw error instanceof Error ? error : new Error('Search cancelled.');
     }
     return {
-      query: q,
+      query: raw,
       hits: [],
       note: 'Image search unavailable.',
       providersTried,

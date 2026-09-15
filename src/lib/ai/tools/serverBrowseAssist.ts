@@ -7,7 +7,7 @@ const CODE_HEAVY =
 const IMAGE_GENERATE =
   /\b(generate|draw|create|make)\b.*\b(image|picture|photo|illustration|art)\b|\b(image|picture|photo)\b.*\b(generate|draw|create|make)\b/i;
 const IMAGE_FIND =
-  /\b((find|show|search|get|look\s*up|look\s*for)\s+(me\s+)?(an?\s+)?(images?|photos?|pictures?|pics?|thumbnails?)|(images?|photos?|pictures?|pics?)\s+(of|for)|visual\s+examples?\s+of)\b/i;
+  /\b((find|show|search|get|look\s*up|look\s*for)\s+(me\s+)?(an?\s+)?(images?|photos?|pictures?|pics?|thumbnails?)|(images?|photos?|pictures?|pics?)\s+(of|for)|(?:a\s+)?(?:picture|photo)\s+of|visual\s+examples?\s+of)\b/i;
 
 /** Lightweight heuristic: open-ended factual / research asks that benefit from web_search. */
 export function looksLikeWebLookupQuery(text: string): boolean {

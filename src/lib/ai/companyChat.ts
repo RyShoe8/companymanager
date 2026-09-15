@@ -331,7 +331,11 @@ export async function attemptCompanyCredentialChat(input: {
       latencyMs: number;
     } | null> {
       if (!freeCredential || !isLookup) return null;
-      const search = await webSearch(input.userText, { signal: input.signal, depth: 'standard' });
+      const search = await webSearch(input.userText, {
+        signal: input.signal,
+        depth: 'standard',
+        organizationId: input.organizationId,
+      });
       browseAssisted = true;
       const toolsUsed = search.toolsUsed?.length ? search.toolsUsed : ['web_search'];
       const block = formatResearchResultContext(search);
@@ -358,7 +362,10 @@ export async function attemptCompanyCredentialChat(input: {
       latencyMs: number;
     } | null> {
       if (!freeCredential || !isImageLookup) return null;
-      const search = await imageSearch(input.userText, { signal: input.signal });
+      const search = await imageSearch(input.userText, {
+        signal: input.signal,
+        organizationId: input.organizationId,
+      });
       browseAssisted = true;
       const toolsUsed = search.toolsUsed?.length ? search.toolsUsed : ['image_search'];
       const block = formatImageSearchContext(search);

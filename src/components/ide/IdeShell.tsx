@@ -36,6 +36,9 @@ type RepositorySnapshot = {
 type SpendSnapshot = {
   dailyEstimatedMicros: number;
   monthlyEstimatedMicros: number;
+  orgMonthlyEstimatedMicros: number;
+  searchApiEstimatedMicros: number;
+  freeChat?: boolean;
 };
 
 function formatSpend(micros: number): string {
@@ -236,16 +239,20 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     [childrenByPath, fetchTreePath]
   );
 
-  const loadSpend = useCallback(async (id: string) => {
+  const loadSpend = useCallback(async (id: string | null, asFreeChat: boolean) => {
     try {
-      const response = await fetch(`/api/projects/${encodeURIComponent(id)}/ai/ide/spend`, {
-        cache: 'no-store',
-      });
+      const url = asFreeChat
+        ? '/api/ai/ide/free-chat/spend'
+        : `/api/projects/${encodeURIComponent(id!)}/ai/ide/spend`;
+      const response = await fetch(url, { cache: 'no-store' });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? 'Unable to load spend.');
       setSpend({
         dailyEstimatedMicros: Number(body.dailyEstimatedMicros) || 0,
         monthlyEstimatedMicros: Number(body.monthlyEstimatedMicros) || 0,
+        orgMonthlyEstimatedMicros: Number(body.orgMonthlyEstimatedMicros) || 0,
+        searchApiEstimatedMicros: Number(body.searchApiEstimatedMicros) || 0,
+        freeChat: asFreeChat,
       });
     } catch {
       setSpend(null);
@@ -265,18 +272,18 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   }, [projectId, hasBinding, loadRoot]);
 
   useEffect(() => {
-    if (!projectId || freeChat) {
+    if (!projectId) {
       setSpend(null);
       return;
     }
-    void loadSpend(projectId);
+    void loadSpend(freeChat ? null : projectId, freeChat);
   }, [projectId, freeChat, loadSpend]);
 
   useEffect(() => {
     const wasBusy = prevBusyRef.current;
     prevBusyRef.current = runActivity.busy;
-    if (wasBusy && !runActivity.busy && projectId && !freeChat) {
-      void loadSpend(projectId);
+    if (wasBusy && !runActivity.busy && projectId) {
+      void loadSpend(freeChat ? null : projectId, freeChat);
     }
   }, [runActivity.busy, projectId, freeChat, loadSpend]);
 
@@ -324,8 +331,24 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           </button>
         ) : null}
         {spend ? (
-          <p className="font-mono text-[11px] text-text-secondary" title="Estimated project AI spend (UTC)">
-            Today {formatSpend(spend.dailyEstimatedMicros)} · Month {formatSpend(spend.monthlyEstimatedMicros)}
+          <p
+            className="font-mono text-[11px] text-text-secondary"
+            title="Estimated AI spend (UTC). Org is the organization ledger, not a sum of projects. Search APIs are Brave/CSE estimates after free tiers."
+          >
+            {spend.freeChat ? (
+              <>
+                Free Chat month {formatSpend(spend.monthlyEstimatedMicros)} · Org month{' '}
+                {formatSpend(spend.orgMonthlyEstimatedMicros)}
+              </>
+            ) : (
+              <>
+                Today {formatSpend(spend.dailyEstimatedMicros)} · Project month{' '}
+                {formatSpend(spend.monthlyEstimatedMicros)} · Org month{' '}
+                {formatSpend(spend.orgMonthlyEstimatedMicros)}
+              </>
+            )}
+            {' · '}
+            Search APIs {formatSpend(spend.searchApiEstimatedMicros)}
           </p>
         ) : null}
       </div>

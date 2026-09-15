@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/ai/tools/searchApiMeter', () => ({
+  recordSearchApiQuery: vi.fn(async () => undefined),
+}));
+
 import {
   buildResearchQueries,
   imageSearch,
   researchSearch,
+  rewriteImageSearchQuery,
   scoreResearchHit,
   webSearch,
 } from '@/lib/ai/tools/webSearch';
@@ -24,6 +30,19 @@ describe('buildResearchQueries', () => {
       primary: 'Arsenal all-time top goalscorers',
       wikipedia: 'List of Arsenal F.C. records and statistics',
     });
+  });
+
+  it('rewrites short club scorers queries', () => {
+    expect(buildResearchQueries('arsenal scorers')).toEqual({
+      primary: 'arsenal all-time top goalscorers',
+      wikipedia: 'List of arsenal F.C. records and statistics',
+    });
+  });
+});
+
+describe('rewriteImageSearchQuery', () => {
+  it('strips find-me-a-picture wrappers', () => {
+    expect(rewriteImageSearchQuery('find me a picture of mikel arteta')).toBe('mikel arteta');
   });
 });
 
@@ -63,7 +82,7 @@ describe('webSearch / researchSearch', () => {
         })
       )
       .mockRejectedValueOnce(new Error('wiki down'));
-    const result = await webSearch('arsenal scorers', { fetcher });
+    const result = await webSearch('hello world news today', { fetcher });
     expect(result.hits).toEqual([]);
     expect(result.providersTried).toEqual(['duckduckgo_ia', 'wikipedia']);
     expect(result.note).toMatch(/No hits/);
@@ -71,7 +90,7 @@ describe('webSearch / researchSearch', () => {
 
   it('returns empty hits on network failure instead of throwing', async () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error('ECONNRESET'));
-    await expect(webSearch('arsenal scorers', { fetcher })).resolves.toMatchObject({
+    await expect(webSearch('hello world news today', { fetcher })).resolves.toMatchObject({
       hits: [],
       providersTried: ['duckduckgo_ia', 'wikipedia'],
     });
@@ -125,11 +144,30 @@ describe('webSearch / researchSearch', () => {
             },
           },
         })
-      );
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          parse: {
+            sections: [{ index: '7', line: 'Goalscorers', anchor: 'Goalscorers' }],
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          parse: {
+            text: {
+              '*': '<p>Thierry Henry is the club record goalscorer with 228 goals. Ian Wright scored 185 goals.</p>',
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(Response.json({ parse: { sections: [] } }));
 
     const result = await webSearch("who are Arsenal's all time top scorers?", { fetcher });
     expect(result.hits[0]?.url).toMatch(/List_of_Arsenal_F\.C\._records_and_statistics/i);
-    expect(result.hits[0]?.snippet).toMatch(/Thierry Henry/i);
+    expect(result.hits[0]?.extract).toMatch(/Thierry Henry/i);
+    expect(result.hits[0]?.extract).toMatch(/228/);
+    expect(result.toolsUsed).toEqual(expect.arrayContaining(['wikipedia_section']));
     expect(result.providersTried).toContain('wikipedia');
     const wikiSearchCall = fetcher.mock.calls.find((call) =>
       String(call[0]).includes('action=query&list=search')
@@ -247,11 +285,28 @@ describe('webSearch / researchSearch', () => {
 });
 
 describe('imageSearch', () => {
-  it('explains when Google CSE is not configured', async () => {
-    const result = await imageSearch('Emirates Stadium');
-    expect(result.hits).toEqual([]);
-    expect(result.note).toMatch(/GOOGLE_CSE/i);
-    expect(result.toolsUsed).toEqual(['image_search']);
+  it('falls back to Wikipedia summary image when CSE is not configured', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          query: { search: [{ title: 'Mikel Arteta' }] },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          title: 'Mikel Arteta',
+          extract: 'Spanish football manager',
+          thumbnail: { source: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a.jpg' },
+          originalimage: { source: 'https://upload.wikimedia.org/wikipedia/commons/a.jpg' },
+          content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Mikel_Arteta' } },
+        })
+      );
+
+    const result = await imageSearch('find me a picture of mikel arteta', { fetcher });
+    expect(result.hits[0]?.imageUrl).toMatch(/upload\.wikimedia\.org/);
+    expect(result.providersTried).toContain('wikipedia');
+    expect(result.note).toMatch(/Image query: mikel arteta/i);
   });
 
   it('calls Google CSE with searchType=image', async () => {
