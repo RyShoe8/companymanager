@@ -6,7 +6,12 @@ import {
   aiEmployees,
   type AiEmployeeKey,
 } from '@/lib/ai/teamWorkspace';
-import { companyDisplayName, FLAGSHIP_MODEL_OPTION_STYLE, modelOptionLabel } from '@/lib/ai/rolePipeline/providerCatalog';
+import {
+  companyDisplayName,
+  FLAGSHIP_MODEL_OPTION_STYLE,
+  modelOptionLabel,
+  shortModelDisplayName,
+} from '@/lib/ai/rolePipeline/providerCatalog';
 import { useAiSnapshot } from './useAiSnapshot';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 
@@ -308,10 +313,11 @@ export default function AiTeamWorkspace({
     const company = companyName(credential);
     const catalogModels = modelsForCredential(credential, catalog);
     const discovered = discoveredByProfile[credential.id]?.models ?? [];
-    const modelLabel =
+    const modelLabel = shortModelDisplayName(
       catalogModels.find((item) => item.id === binding.model)?.label ??
-      discovered.find((item) => item.id === binding.model)?.label ??
-      binding.model;
+        discovered.find((item) => item.id === binding.model)?.label ??
+        binding.model
+    );
     const credit = creditHints[credential.id]?.hint;
     const base = modelLabel ? `${company} · ${modelLabel}` : company;
     return credit ? `${base} · ${credit}` : base;

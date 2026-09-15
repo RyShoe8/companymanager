@@ -282,11 +282,74 @@ export function formatContextTokens(tokens: number | null | undefined): string {
 /** Amber highlight for the company’s strongest model in native `<select>` options. */
 export const FLAGSHIP_MODEL_OPTION_STYLE = { color: '#b45309', fontWeight: 600 } as const;
 
+/**
+ * Compact model name for pickers, diorama, and summaries — e.g. "Qwen 3", "GPT 5.6", "Astra 6".
+ * Full API ids are unchanged elsewhere.
+ */
+export function shortModelDisplayName(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+
+  const gptLabel = trimmed.match(/^GPT[-\s]?([\d]+(?:\.[\d]+)?)\s*(.*)$/i);
+  if (gptLabel) {
+    const version = gptLabel[1]!;
+    const rest = (gptLabel[2] ?? '').trim();
+    if (/^astra$/i.test(rest)) return `Astra ${version}`;
+    return `GPT ${version}`;
+  }
+
+  const segment = (trimmed.includes('/') ? trimmed.split('/').pop()! : trimmed).trim();
+  const slug = segment.toLowerCase();
+
+  const qwen = slug.match(/^qwen([0-9]+(?:\.[0-9]+)?)/);
+  if (qwen) return `Qwen ${qwen[1]}`;
+
+  const gptSlug = slug.match(/^gpt[-_.]?([\d]+(?:\.[\d]+)?)/);
+  if (gptSlug) {
+    if (/astra/.test(slug)) return `Astra ${gptSlug[1]}`;
+    return `GPT ${gptSlug[1]}`;
+  }
+
+  const oSeries = slug.match(/^(o\d+(?:\.\d+)?)(?:[-_]|$)/);
+  if (oSeries) {
+    return slug.includes('mini') ? `${oSeries[1]!.toUpperCase()} mini` : oSeries[1]!.toUpperCase();
+  }
+
+  const claude = slug.match(/claude[-_](opus|sonnet|haiku)[-_]?([\d]+(?:\.[\d]+)?)?/);
+  if (claude) {
+    const tier = claude[1]!.charAt(0).toUpperCase() + claude[1]!.slice(1);
+    return claude[2] ? `Claude ${tier} ${claude[2]}` : `Claude ${tier}`;
+  }
+
+  const gemini = slug.match(/gemini[-_.]?([\d]+(?:\.[\d]+)?)/);
+  if (gemini) return `Gemini ${gemini[1]}`;
+
+  const astraOnly = trimmed.match(/\bastra\s*([\d]+(?:\.[\d]+)?)\b/i);
+  if (astraOnly) return `Astra ${astraOnly[1]}`;
+
+  if (
+    !trimmed.includes('/') &&
+    trimmed.length <= 32 &&
+    !/instruct|awq|coder-\d|\/|_/i.test(trimmed)
+  ) {
+    return trimmed;
+  }
+
+  const generic = slug.match(/^([a-z][a-z0-9]*)[-_.]?([\d]+(?:\.[\d]+)?)/);
+  if (generic && generic[1]!.length >= 2) {
+    const brand = generic[1]!.charAt(0).toUpperCase() + generic[1]!.slice(1);
+    return `${brand} ${generic[2]}`;
+  }
+
+  return segment.length > 36 ? `${segment.slice(0, 36)}…` : segment;
+}
+
 export function modelOptionLabel(input: {
   label: string;
   bestAt?: string;
   flagship?: boolean;
 }): string {
-  const base = input.bestAt ? `${input.label} — ${input.bestAt}` : input.label;
+  const short = shortModelDisplayName(input.label);
+  const base = input.bestAt ? `${short} — ${input.bestAt}` : short;
   return input.flagship ? `★ ${base}` : base;
 }

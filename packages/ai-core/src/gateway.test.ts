@@ -63,13 +63,28 @@ describe('remote inference gateway', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(512001)));
     await expect(invokeModel(config, request, { fetcher })).rejects.toMatchObject({ code: 'invalid_response' });
   });
-  it('rejects unexpected tools and truncated output', async () => {
+  it('accepts truncated or unexpected tool_calls when content is present', async () => {
     for (const choice of [
       { message: { content: 'run shell', tool_calls: [{}] }, finish_reason: 'tool_calls' },
       { message: { content: 'partial' }, finish_reason: 'length' },
     ]) {
-      await expect(invokeModel(config, request, { fetcher: vi.fn<typeof fetch>().mockResolvedValue(Response.json({ choices: [choice] })) })).rejects.toMatchObject({ code: 'invalid_response' });
+      const result = await invokeModel(config, request, {
+        fetcher: vi.fn<typeof fetch>().mockResolvedValue(Response.json({ choices: [choice] })),
+      });
+      expect(result.content.trim().length).toBeGreaterThan(0);
     }
+  });
+
+  it('rejects empty plain content even with tool_calls', async () => {
+    await expect(
+      invokeModel(config, request, {
+        fetcher: vi
+          .fn<typeof fetch>()
+          .mockResolvedValue(
+            Response.json({ choices: [{ message: { content: '', tool_calls: [{}] }, finish_reason: 'tool_calls' }] })
+          ),
+      })
+    ).rejects.toMatchObject({ code: 'invalid_response' });
   });
   it('does not dispatch an already cancelled request', async () => {
     const controller = new AbortController(); controller.abort(); const fetcher = vi.fn<typeof fetch>();

@@ -16,13 +16,19 @@ import {
   writeStoredIdeDirectSelection,
   writeStoredIdeInteractionMode,
 } from '@/lib/ide/chatSelectionStorage';
-import { companyDisplayName, FLAGSHIP_MODEL_OPTION_STYLE, modelOptionLabel } from '@/lib/ai/rolePipeline/providerCatalog';
+import {
+  companyDisplayName,
+  FLAGSHIP_MODEL_OPTION_STYLE,
+  modelOptionLabel,
+  shortModelDisplayName,
+} from '@/lib/ai/rolePipeline/providerCatalog';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
 import type { IdeInteractionMode, IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
 import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThreadCache';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
+import { userFirstNameFromProfile } from '@/lib/utils/userDisplayName';
 import type { MutableRefObject } from 'react';
 
 type ChatTurn = {
@@ -112,6 +118,7 @@ export default function IdeChatPane({
   const [planReadyFlag, setPlanReadyFlag] = useState(false);
   const [activityFailed, setActivityFailed] = useState(false);
   const [directSelectorsExpanded, setDirectSelectorsExpanded] = useState(false);
+  const [userFirstName, setUserFirstName] = useState('You');
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -120,6 +127,19 @@ export default function IdeChatPane({
   const turnsRef = useRef<ChatTurn[]>([]);
   const threadCacheRef = useRef<Map<string, ChatTurn[]>>(new Map());
   turnsRef.current = turns;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/auth/me', { signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = (await response.json()) as { name?: string | null; email?: string | null } | null;
+        if (!data || controller.signal.aborted) return;
+        setUserFirstName(userFirstNameFromProfile(data.name, data.email));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   const loadPipeline = useCallback(async (id: string) => {
     const response = await fetch(`/api/projects/${encodeURIComponent(id)}/ai/pipeline`, {
@@ -184,7 +204,9 @@ export default function IdeChatPane({
   }, [busy]);
 
   const targetLabel = useMemo(() => {
-    if (isIdeDirectMode(mode)) return directModel || 'Direct model';
+    if (isIdeDirectMode(mode)) {
+      return directModel ? shortModelDisplayName(directModel) : 'Direct model';
+    }
     return ideChatModes.find((item) => item.id === mode)?.label ?? mode;
   }, [mode, directModel]);
 
@@ -346,15 +368,21 @@ export default function IdeChatPane({
     if (isIdeDirectMode(mode)) {
       return buildDioramaDesks({
         direct: true,
-        directModelLabel: directModel || 'Direct',
+        directModelLabel: directModel ? shortModelDisplayName(directModel) : 'Direct',
         busy,
       });
     }
     return buildDioramaDesks({
       stages: {
-        planner: workerPipeline?.planner?.model,
-        worker: workerPipeline?.worker?.model,
-        reviewer: workerPipeline?.reviewer?.model,
+        planner: workerPipeline?.planner?.model
+          ? shortModelDisplayName(workerPipeline.planner.model)
+          : undefined,
+        worker: workerPipeline?.worker?.model
+          ? shortModelDisplayName(workerPipeline.worker.model)
+          : undefined,
+        reviewer: workerPipeline?.reviewer?.model
+          ? shortModelDisplayName(workerPipeline.reviewer.model)
+          : undefined,
       },
       busy,
     });
@@ -388,7 +416,13 @@ export default function IdeChatPane({
   function stageMeta(binding: { modelProfileId: string; model: string } | undefined) {
     if (!binding?.modelProfileId || !binding.model) return null;
     const profile = profiles.find((item) => item.id === binding.modelProfileId);
-    if (!profile) return { label: binding.model, bestAt: undefined, pricing: { label: '—' } };
+    if (!profile) {
+      return {
+        label: shortModelDisplayName(binding.model),
+        bestAt: undefined,
+        pricing: { label: '—' },
+      };
+    }
     const free = profile.provider === 'custom' || profile.tier === 'local_remote';
     const catalogModels =
       profile.provider === 'custom'
@@ -397,7 +431,7 @@ export default function IdeChatPane({
     const hit = catalogModels.find((item) => item.id === binding.model);
     return {
       company: companyDisplayName({ label: profile.label, provider: profile.provider }),
-      label: hit?.label ?? binding.model,
+      label: shortModelDisplayName(hit?.label ?? binding.model),
       bestAt: hit?.bestAt,
       contextTokens: hit?.contextTokens ?? null,
       pricing: free ? { label: 'Free' } : hit?.pricing ?? { label: 'Pricing unknown' },
@@ -749,7 +783,7 @@ export default function IdeChatPane({
                     })
                   : 'Company'}
                 <span className="text-text-secondary"> · </span>
-                {directModel || 'model'}
+                {directModel ? shortModelDisplayName(directModel) : 'model'}
               </p>
               <button
                 type="button"
@@ -822,7 +856,13 @@ export default function IdeChatPane({
                     : 'border-border'
               }`}
             >
-              <div className="mb-1 text-[10px] uppercase tracking-wide text-text-secondary">{turn.role}</div>
+              <div className="mb-1 text-[10px] tracking-wide text-text-secondary">
+                {turn.role === 'user'
+                  ? userFirstName
+                  : turn.role === 'status'
+                    ? 'Status'
+                    : 'Assistant'}
+              </div>
               <div className="whitespace-pre-wrap text-text-primary">{turn.text}</div>
               {turn.toolsUsed?.length ? (
                 <div className="mt-1 text-[11px] text-text-secondary">

@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   findUpdateRun: vi.fn(),
   createEvent: vi.fn(),
   findBudget: vi.fn(),
+  webSearch: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -36,6 +37,7 @@ vi.mock('@/lib/ai/control/dispatchLimits', () => ({
   DISPATCH_USAGE_ID: 'dispatch',
 }));
 vi.mock('@/lib/ai/tools/runToolLoop', () => ({ runIdeToolLoop: mocks.toolLoop }));
+vi.mock('@/lib/ai/tools/webSearch', () => ({ webSearch: mocks.webSearch }));
 vi.mock('@nucleas/ai-core/gateway', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@nucleas/ai-core/gateway')>();
   return { ...actual, invokeModel: mocks.invokeModel };
@@ -150,9 +152,53 @@ describe('attemptCompanyCredentialChat free tools', () => {
 
     expect(mocks.toolLoop).toHaveBeenCalled();
     expect(mocks.invokeModel).toHaveBeenCalled();
+    expect(mocks.webSearch).not.toHaveBeenCalled();
     expect(turn).toMatchObject({
       role: 'assistant',
       text: 'plain local reply',
+      noProviderFee: true,
+    });
+  });
+
+  it('runs Nucleas web_search assist when tools fail on a factual lookup', async () => {
+    mocks.toolLoop.mockRejectedValue(new GatewayError('invalid_response'));
+    mocks.webSearch.mockResolvedValue({
+      query: 'who are the top 5 scorers for Arsenal all time?',
+      note: 'Sparse.',
+      hits: [{ title: 'Thierry Henry', url: 'https://example.com/h', snippet: '226 goals' }],
+    });
+    mocks.invokeModel.mockResolvedValue({
+      content: 'Thierry Henry is Arsenal’s all-time top scorer.',
+      model: 'local',
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'who are the top 5 scorers for Arsenal all time?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(mocks.webSearch).toHaveBeenCalled();
+    expect(mocks.invokeModel).toHaveBeenCalled();
+    const invokeArg = mocks.invokeModel.mock.calls[0]?.[1] as {
+      messages: { role: string; content: string }[];
+    };
+    const userMsg = invokeArg.messages.find((m) => m.role === 'user')?.content ?? '';
+    expect(userMsg).toMatch(/Web search results/);
+    expect(userMsg).toMatch(/Thierry Henry/);
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'Thierry Henry is Arsenal’s all-time top scorer.',
+      toolsUsed: ['web_search'],
       noProviderFee: true,
     });
   });

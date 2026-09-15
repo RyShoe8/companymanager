@@ -12,6 +12,12 @@ import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
 import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
 import { runIdeToolLoop } from '@/lib/ai/tools/runToolLoop';
+import { webSearch } from '@/lib/ai/tools/webSearch';
+import {
+  formatWebSearchContext,
+  looksLikeWebLookupQuery,
+  userTextWithBrowseContext,
+} from '@/lib/ai/tools/serverBrowseAssist';
 import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
 import type { ToolArtifact } from '@/lib/ai/tools/executeTool';
@@ -234,33 +240,81 @@ export async function attemptCompanyCredentialChat(input: {
 
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>>;
+    let browseAssisted = false;
     const usePlain = Boolean(input.forcePlain);
-    if (usePlain) {
-      const plainHint = 'Tools are disabled for this turn; answer from knowledge only.';
-      const plain = await invokeModel(
+
+    async function plainInvoke(args: {
+      systemExtra: string;
+      userContent: string;
+    }) {
+      return invokeModel(
         gateway,
         {
           role: 'architect',
           messages: [
             {
               role: 'system',
-              content: `${input.systemPrompt} ${plainHint}`,
+              content: `${input.systemPrompt} ${args.systemExtra}`,
             },
             ...history,
-            { role: 'user', content: input.userText.slice(0, 6000) },
+            { role: 'user', content: args.userContent.slice(0, 6000) },
           ],
           maxOutputTokens,
         },
         { signal: input.signal }
       );
-      loop = {
+    }
+
+    async function tryBrowseAssistPlain(systemExtra: string): Promise<{
+      content: string;
+      toolCallsMade: string[];
+      artifacts: ToolArtifact[];
+      inputTokens: number | null;
+      outputTokens: number | null;
+      latencyMs: number;
+    } | null> {
+      if (!freeCredential || !looksLikeWebLookupQuery(input.userText)) return null;
+      const search = await webSearch(input.userText, { signal: input.signal });
+      browseAssisted = true;
+      const block = formatWebSearchContext(search);
+      const plain = await plainInvoke({
+        systemExtra: `${systemExtra} Nucleas already ran web_search; ground your answer in the provided results.`,
+        userContent: userTextWithBrowseContext(input.userText, block),
+      });
+      return {
         content: plain.content,
-        toolCallsMade: [],
+        toolCallsMade: ['web_search'],
         artifacts: [],
         inputTokens: plain.inputTokens,
         outputTokens: plain.outputTokens,
         latencyMs: plain.latencyMs,
       };
+    }
+
+    if (usePlain) {
+      try {
+        const plain = await plainInvoke({
+          systemExtra: 'Tools are disabled for this turn; answer from knowledge only.',
+          userContent: input.userText,
+        });
+        loop = {
+          content: plain.content,
+          toolCallsMade: [],
+          artifacts: [],
+          inputTokens: plain.inputTokens,
+          outputTokens: plain.outputTokens,
+          latencyMs: plain.latencyMs,
+        };
+      } catch (plainError) {
+        const retryBrowse =
+          freeCredential &&
+          plainError instanceof GatewayError &&
+          (plainError.code === 'unavailable' || plainError.code === 'invalid_response');
+        if (!retryBrowse) throw plainError;
+        const assisted = await tryBrowseAssistPlain('Tools are disabled for this turn.');
+        if (!assisted) throw plainError;
+        loop = assisted;
+      }
     } else {
       try {
         loop = await runIdeToolLoop({
@@ -284,30 +338,28 @@ export async function attemptCompanyCredentialChat(input: {
           (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
         if (!retryPlain) throw toolError;
 
-        const plain = await invokeModel(
-          gateway,
-          {
-            role: 'architect',
-            messages: [
-              {
-                role: 'system',
-                content: `${input.systemPrompt} Tools failed on this host; answer from knowledge only.`,
-              },
-              ...history,
-              { role: 'user', content: input.userText.slice(0, 6000) },
-            ],
-            maxOutputTokens,
-          },
-          { signal: input.signal }
-        );
-        loop = {
-          content: plain.content,
-          toolCallsMade: [],
-          artifacts: [],
-          inputTokens: plain.inputTokens,
-          outputTokens: plain.outputTokens,
-          latencyMs: plain.latencyMs,
-        };
+        let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
+        try {
+          assisted = await tryBrowseAssistPlain('Tools failed on this host.');
+        } catch {
+          assisted = null;
+        }
+        if (assisted) {
+          loop = assisted;
+        } else {
+          const plain = await plainInvoke({
+            systemExtra: 'Tools failed on this host; answer from knowledge only.',
+            userContent: input.userText,
+          });
+          loop = {
+            content: plain.content,
+            toolCallsMade: [],
+            artifacts: [],
+            inputTokens: plain.inputTokens,
+            outputTokens: plain.outputTokens,
+            latencyMs: plain.latencyMs,
+          };
+        }
       }
     }
 
@@ -321,7 +373,9 @@ export async function attemptCompanyCredentialChat(input: {
         result: loop,
       });
       return statusTurn(
-        'The model returned an empty reply. No assistant content was stored.',
+        browseAssisted
+          ? 'Browse ran on Nucleas but the model returned no usable text. Check that the model id is loaded and the endpoint accepts plain chat requests.'
+          : 'The model returned an empty reply. No assistant content was stored.',
         'invalid_response',
         String(runId),
         { costMicros: noProviderFee ? 0 : null, reservedMicros: reservationMicros, noProviderFee }
@@ -332,7 +386,7 @@ export async function attemptCompanyCredentialChat(input: {
     await finish({
       actualMicros: settled,
       status: 'completed',
-      summary: `Chat completed${loop.toolCallsMade.length ? ` with tools: ${loop.toolCallsMade.join(',')}` : ''}.`,
+      summary: `Chat completed${loop.toolCallsMade.length ? ` with tools: ${loop.toolCallsMade.join(',')}` : ''}${browseAssisted ? ' (Nucleas browse assist)' : ''}.`,
       result: loop,
     });
     return {
@@ -364,7 +418,7 @@ export async function attemptCompanyCredentialChat(input: {
           ? 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
           : 'The remote model endpoint was unreachable or returned an error.',
         invalid_response: freeCredential
-          ? 'This free/local host returned an invalid response. Check that the model id is loaded and the endpoint accepts the request (including tools if used).'
+          ? 'This free/local host returned an invalid response. Check that the model id is loaded and the endpoint accepts the request (including tools if used). Browse may have run on Nucleas without usable model text.'
           : 'The remote response could not be validated.',
         cancelled: 'The chat request was cancelled before completion.',
       };

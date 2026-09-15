@@ -4,7 +4,7 @@
  */
 
 import { localModelMetaOverlay, markFlagshipAmongModels } from '@/lib/ai/rolePipeline/modelMeta';
-import type { ModelStrength } from '@/lib/ai/rolePipeline/providerCatalog';
+import { shortModelDisplayName, type ModelStrength } from '@/lib/ai/rolePipeline/providerCatalog';
 
 export type DiscoveredModel = {
   id: string;
@@ -73,7 +73,7 @@ export function mapOpenAiModelsResponse(body: unknown): DiscoveredModel[] {
     const overlay = localModelMetaOverlay(id);
     models.push({
       id,
-      label: id,
+      label: shortModelDisplayName(id),
       bestAt: overlay.bestAt,
       strengths: overlay.strengths,
       contextTokens: readContextTokens(item),

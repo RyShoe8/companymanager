@@ -2,6 +2,7 @@ import { microsToDollars } from '@/lib/ai/settingsSchema';
 import { lookupModelTokenRate } from '@/lib/ai/pricing/modelRates';
 import {
   findCatalogModel,
+  shortModelDisplayName,
   type CatalogModel,
   type ModelStrength,
 } from '@/lib/ai/rolePipeline/providerCatalog';
@@ -89,7 +90,7 @@ export function buildModelMetaView(input: {
   const flagship = input.flagship ?? catalog?.flagship ?? false;
   return {
     id: input.id,
-    label: input.label ?? catalog?.label ?? input.id,
+    label: shortModelDisplayName(input.label ?? catalog?.label ?? input.id),
     bestAt: input.bestAt ?? catalog?.bestAt ?? local?.bestAt ?? 'General assistant',
     strengths: input.strengths ?? catalog?.strengths ?? local?.strengths ?? ['chat'],
     contextTokens: input.contextTokens ?? catalog?.contextTokens ?? null,
@@ -119,6 +120,10 @@ export function enrichCatalogModelsForApi(
 export function localModelPowerScore(modelId: string): number {
   const id = modelId.toLowerCase();
   let score = 0;
+  // Prefer newer Qwen generations over larger Qwen 2.5 weights (Rogly frontier is Qwen 3, not 2.5 Coder).
+  if (/qwen3(?:[.\-_/]|$)/.test(id)) score += 20_000;
+  else if (/qwen2\.5/.test(id)) score += 8_000;
+  else if (/qwen2(?:[.\-_/]|$)/.test(id)) score += 4_000;
   const params = id.match(/(\d+(?:\.\d+)?)[_\s-]*b(?:illion)?\b/);
   if (params) score += Number(params[1]) * 1000;
   if (/(?:^|[^a-z])(?:r1|reason|thinking|opus|ultra|max)(?:[^a-z]|$)/.test(id)) score += 800;

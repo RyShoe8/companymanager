@@ -217,15 +217,14 @@ export async function invokeModel(
     }
     const parsed = responseSchema.parse(await readBoundedJson(response, 512000));
     const choice = parsed.choices[0]!;
-    if (
-      choice.message.tool_calls?.length ||
-      choice.finish_reason === 'length' ||
-      !choice.message.content?.trim()
-    ) {
+    const content = choice.message.content?.trim() ?? '';
+    // Plain chat: accept truncated replies when there is visible text. Ignore unexpected
+    // tool_calls when content exists (local hosts often emit them without a tools request).
+    if (!content) {
       throw new GatewayError('invalid_response');
     }
     return {
-      content: choice.message.content,
+      content: choice.message.content!,
       model: config.model,
       inputTokens: parsed.usage?.prompt_tokens ?? null,
       outputTokens: parsed.usage?.completion_tokens ?? null,
