@@ -152,7 +152,9 @@ export async function attemptCompanyCredentialChat(input: {
     );
   }
 
-  const noProviderFee = policy.noProviderFee || freeCredential;
+  // Company credentials: only free/local are truly no-fee. Platform Admin "no provider fee"
+  // applies to the shared remote endpoint, not org OpenAI/Anthropic keys.
+  const noProviderFee = freeCredential;
 
   async function finish(args: {
     actualMicros: number | null;
@@ -226,29 +228,7 @@ export async function attemptCompanyCredentialChat(input: {
 
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>>;
-    try {
-      loop = await runIdeToolLoop({
-        gateway,
-        messages: [
-          { role: 'system', content: input.systemPrompt },
-          ...history,
-          { role: 'user', content: input.userText.slice(0, 6000) },
-        ],
-        maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
-        includeImageTool: input.includeImageTool !== false,
-        organizationId: input.organizationId,
-        projectId: input.projectId,
-        userId: input.userId,
-        runId,
-        signal: input.signal,
-      });
-    } catch (toolError) {
-      const retryPlain =
-        freeCredential &&
-        toolError instanceof GatewayError &&
-        (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
-      if (!retryPlain) throw toolError;
-
+    if (freeCredential) {
       const plain = await invokeModel(
         gateway,
         {
@@ -256,7 +236,7 @@ export async function attemptCompanyCredentialChat(input: {
           messages: [
             {
               role: 'system',
-              content: `${input.systemPrompt} Tools are unavailable on this host; answer from knowledge only.`,
+              content: `${input.systemPrompt} Tools are not available on this free/local host; answer from knowledge only.`,
             },
             ...history,
             { role: 'user', content: input.userText.slice(0, 6000) },
@@ -273,6 +253,54 @@ export async function attemptCompanyCredentialChat(input: {
         outputTokens: plain.outputTokens,
         latencyMs: plain.latencyMs,
       };
+    } else {
+      try {
+        loop = await runIdeToolLoop({
+          gateway,
+          messages: [
+            { role: 'system', content: input.systemPrompt },
+            ...history,
+            { role: 'user', content: input.userText.slice(0, 6000) },
+          ],
+          maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
+          includeImageTool: input.includeImageTool !== false,
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          userId: input.userId,
+          runId,
+          signal: input.signal,
+        });
+      } catch (toolError) {
+        const retryPlain =
+          toolError instanceof GatewayError &&
+          (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
+        if (!retryPlain) throw toolError;
+
+        const plain = await invokeModel(
+          gateway,
+          {
+            role: 'architect',
+            messages: [
+              {
+                role: 'system',
+                content: `${input.systemPrompt} Tools failed on this host; answer from knowledge only.`,
+              },
+              ...history,
+              { role: 'user', content: input.userText.slice(0, 6000) },
+            ],
+            maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
+          },
+          { signal: input.signal }
+        );
+        loop = {
+          content: plain.content,
+          toolCallsMade: [],
+          artifacts: [],
+          inputTokens: plain.inputTokens,
+          outputTokens: plain.outputTokens,
+          latencyMs: plain.latencyMs,
+        };
+      }
     }
 
     const content = appendArtifacts(loop.content, loop.artifacts).trim();
@@ -324,7 +352,9 @@ export async function attemptCompanyCredentialChat(input: {
         configuration: 'Inference is not configured for this chat.',
         credentials: 'Remote authentication was rejected.',
         rate_limit: 'The remote provider rate-limited this request.',
-        unavailable: 'The remote model endpoint was unreachable or returned an error.',
+        unavailable: freeCredential
+          ? 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
+          : 'The remote model endpoint was unreachable or returned an error.',
         invalid_response: 'The remote response could not be validated.',
         cancelled: 'The chat request was cancelled before completion.',
       };

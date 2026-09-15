@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   invokeModel: vi.fn(),
   settle: vi.fn(),
   decrementFree: vi.fn(),
-  reserveDispatch: vi.fn(),
   reserveBudget: vi.fn(),
   findLock: vi.fn(),
   updateLock: vi.fn(),
@@ -35,7 +34,6 @@ vi.mock('@/lib/ai/control/budgets', () => ({
 vi.mock('@/lib/ai/control/freePool', () => ({ decrementFreePoolRemaining: mocks.decrementFree }));
 vi.mock('@/lib/ai/control/dispatchLimits', () => ({
   DISPATCH_USAGE_ID: 'dispatch',
-  reserveDispatch: mocks.reserveDispatch,
 }));
 vi.mock('@/lib/ai/tools/runToolLoop', () => ({ runIdeToolLoop: mocks.toolLoop }));
 vi.mock('@nucleas/ai-core/gateway', async (importOriginal) => {
@@ -61,7 +59,6 @@ import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.reserveDispatch.mockResolvedValue(true);
   mocks.reserveBudget.mockResolvedValue(undefined);
   mocks.settle.mockResolvedValue(undefined);
   mocks.decrementFree.mockResolvedValue(undefined);
@@ -82,6 +79,7 @@ beforeEach(() => {
       bearerToken: 'tok',
       model: 'local',
       protocol: 'openai-chat',
+      timeoutMs: 120000,
     },
     profile: { provider: 'custom', tier: 'local_remote' },
   });
@@ -100,9 +98,8 @@ beforeEach(() => {
   );
 });
 
-describe('attemptCompanyCredentialChat free plain fallback', () => {
-  it('retries plain invokeModel when tools fail on a free credential', async () => {
-    mocks.toolLoop.mockRejectedValue(new GatewayError('unavailable'));
+describe('attemptCompanyCredentialChat free plain-first', () => {
+  it('skips the tool loop and uses plain invokeModel for free credentials', async () => {
     mocks.invokeModel.mockResolvedValue({
       content: 'plain reply',
       model: 'local',
@@ -123,18 +120,43 @@ describe('attemptCompanyCredentialChat free plain fallback', () => {
       model: 'local',
     });
 
-    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
     expect(mocks.invokeModel).toHaveBeenCalled();
     expect(turn).toMatchObject({ role: 'assistant', text: 'plain reply', noProviderFee: true });
   });
 
-  it('does not plain-retry for paid credentials', async () => {
+  it('uses clearer unavailable copy when the free host fails', async () => {
+    mocks.invokeModel.mockRejectedValue(new GatewayError('unavailable'));
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'hello',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(turn).toMatchObject({
+      role: 'status',
+      failureCategory: 'unavailable',
+    });
+    expect(turn.text).toMatch(/Local\/free model host/);
+    expect(turn.text).toMatch(/HTTPS/);
+  });
+});
+
+describe('attemptCompanyCredentialChat commercial', () => {
+  beforeEach(() => {
     mocks.gatewayFromProfile.mockResolvedValue({
       gateway: {
         endpoint: 'https://api.openai.com/v1/chat/completions',
         bearerToken: 'tok',
         model: 'gpt',
         protocol: 'openai-chat',
+        timeoutMs: 60000,
       },
       profile: { provider: 'openai', tier: 'commercial' },
     });
@@ -142,13 +164,53 @@ describe('attemptCompanyCredentialChat free plain fallback', () => {
       reservationMicros: 25,
       organizationLimitMicros: 100,
       projectLimitMicros: 75,
-      noProviderFee: false,
+      noProviderFee: true,
       dailyRequestLimit: 100,
       minimumIntervalSeconds: 1,
       maxOutputTokens: 1024,
       digest: 'd',
     });
+  });
+
+  it('ignores platform noProviderFee for commercial credentials', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'paid reply',
+      toolCallsMade: [],
+      artifacts: [],
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'hello',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'gpt',
+    });
+
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'paid reply',
+      noProviderFee: false,
+      reservedMicros: 25,
+    });
+  });
+
+  it('retries plain invokeModel when the tool loop fails', async () => {
     mocks.toolLoop.mockRejectedValue(new GatewayError('unavailable'));
+    mocks.invokeModel.mockResolvedValue({
+      content: 'plain paid reply',
+      model: 'gpt',
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
 
     const turn = await attemptCompanyCredentialChat({
       systemPrompt: 'You are helpful.',
@@ -162,10 +224,34 @@ describe('attemptCompanyCredentialChat free plain fallback', () => {
     });
 
     expect(mocks.toolLoop).toHaveBeenCalled();
-    expect(mocks.invokeModel).not.toHaveBeenCalled();
+    expect(mocks.invokeModel).toHaveBeenCalled();
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'plain paid reply',
+      noProviderFee: false,
+    });
+  });
+
+  it('surfaces unavailable when tools and plain both fail', async () => {
+    mocks.toolLoop.mockRejectedValue(new GatewayError('unavailable'));
+    mocks.invokeModel.mockRejectedValue(new GatewayError('unavailable'));
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'hello',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'gpt',
+    });
+
     expect(turn).toMatchObject({
       role: 'status',
       failureCategory: 'unavailable',
+      text: 'The remote model endpoint was unreachable or returned an error.',
+      noProviderFee: false,
     });
   });
 });

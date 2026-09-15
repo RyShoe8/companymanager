@@ -2,6 +2,7 @@ import 'server-only';
 import type { GatewayConfiguration } from '@nucleas/ai-core/gateway';
 import { GatewayError, validateGatewayConfiguration } from '@nucleas/ai-core/gateway';
 import { decryptModelSecret } from '@/lib/ai/modelSecrets';
+import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
 import {
   cleanedCompanyLabel,
   companyDisplayName,
@@ -89,12 +90,14 @@ export async function gatewayFromModelProfile(
     throw new GatewayError('credentials');
   }
   if (!bearerToken.trim()) throw new GatewayError('credentials');
+  const free = isFreeCredential({ provider, tier: row.tier });
   const gateway: GatewayConfiguration = {
     endpoint: row.endpoint,
     model,
     protocol: 'openai-chat',
     bearerToken,
-    timeoutMs: 60000,
+    // Cold local hosts often exceed 60s; schema allows up to 120s.
+    timeoutMs: free ? 120000 : 60000,
   };
   validateGatewayConfiguration(gateway);
   return {
