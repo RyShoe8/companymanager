@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  extractChatHeuristicText,
   formatImageSearchContext,
   formatWebSearchContext,
   looksLikeImageSearchQuery,
@@ -30,7 +31,25 @@ describe('looksLikeProjectInternalQuery', () => {
     expect(looksLikeProjectInternalQuery('what does our rules system do and how exactly does it work?')).toBe(
       true
     );
+    expect(looksLikeProjectInternalQuery('what does our rules system actually do and how does it work?')).toBe(
+      true
+    );
     expect(looksLikeProjectInternalQuery('Explain the codebase architecture')).toBe(true);
+  });
+
+  it('matches orchestra-wrapped Worker text even when the briefing exceeds 500 chars', () => {
+    const briefing = 'x'.repeat(600);
+    const wrapped = [
+      'User request:',
+      'what does our rules system actually do and how does it work?',
+      '',
+      'Planner briefing / jobs:',
+      briefing,
+    ].join('\n');
+    expect(wrapped.length).toBeGreaterThan(500);
+    expect(extractChatHeuristicText(wrapped)).toMatch(/rules system actually/);
+    expect(looksLikeProjectInternalQuery(wrapped)).toBe(true);
+    expect(looksLikeWebLookupQuery(wrapped)).toBe(false);
   });
 
   it('rejects unrelated factual asks', () => {

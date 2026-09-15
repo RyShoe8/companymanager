@@ -33,19 +33,19 @@ function IsoDesk({
   return (
     <div className="absolute flex flex-col items-center" style={style}>
       <p
-        className="mb-0.5 max-w-[6.5rem] truncate rounded bg-white/90 px-1 font-mono text-[9px] font-semibold leading-tight text-[#2a2040] shadow-sm"
+        className="mb-0.5 max-w-[9rem] truncate rounded bg-white/90 px-1.5 font-mono text-[11px] font-semibold leading-tight text-[#2a2040] shadow-sm"
         title={desk.modelLabel}
       >
         {desk.modelLabel}
       </p>
       {desk.activityLabel ? (
         <p
-          className={`mb-0.5 max-w-[6.5rem] truncate rounded px-1 font-mono text-[8px] leading-tight shadow-sm ${
+          className={`mb-1 max-w-[9rem] line-clamp-2 rounded px-1.5 py-0.5 font-mono text-sm font-semibold leading-snug shadow-sm ${
             typing
-              ? 'bg-[#1a1428]/85 text-[#a8e8f0]'
+              ? 'bg-[#1a1428]/90 text-[#a8e8f0]'
               : done
-                ? 'bg-[#1a1428]/70 text-[#8fd4a8]'
-                : 'bg-[#1a1428]/60 text-[#c8b8e0]'
+                ? 'bg-[#1a1428]/80 text-[#8fd4a8]'
+                : 'bg-[#1a1428]/75 text-[#e8dcf8]'
           }`}
           title={desk.activityLabel}
         >

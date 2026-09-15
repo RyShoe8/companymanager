@@ -12,17 +12,28 @@ const IMAGE_GENERATE =
 const IMAGE_FIND =
   /\b((find|show|search|get|look\s*up|look\s*for)\s+(me\s+)?(an?\s+)?(images?|photos?|pictures?|pics?|thumbnails?)|(images?|photos?|pictures?|pics?)\s+(of|for)|(?:a\s+)?(?:picture|photo)\s+of|visual\s+examples?\s+of)\b/i;
 
+/**
+ * Orchestra Worker/Reviewer wraps the real ask under "User request:" plus a long briefing.
+ * Heuristics must score the ask, not the whole blob (which often exceeds 500 chars).
+ */
+export function extractChatHeuristicText(text: string): string {
+  const raw = text.trim();
+  const userBlock = /^User request:\s*\r?\n([\s\S]*?)(?:\r?\n\r?\n(?:Planner|Worker)\b|$)/i.exec(raw);
+  const focus = (userBlock?.[1] ?? raw).trim();
+  return focus.slice(0, 500);
+}
+
 /** Nucleas/project-internal asks that should use repo_tree/repo_read, not plain-first or web assist. */
 export function looksLikeProjectInternalQuery(text: string): boolean {
-  const q = text.trim();
-  if (q.length < 8 || q.length > 500) return false;
+  const q = extractChatHeuristicText(text);
+  if (q.length < 8) return false;
   return PROJECT_INTERNAL.test(q);
 }
 
 /** Lightweight heuristic: open-ended factual / research asks that benefit from web_search. */
 export function looksLikeWebLookupQuery(text: string): boolean {
-  const q = text.trim();
-  if (q.length < 8 || q.length > 500) return false;
+  const q = extractChatHeuristicText(text);
+  if (q.length < 8) return false;
   if (looksLikeImageSearchQuery(q) || IMAGE_GENERATE.test(q)) return false;
   if (looksLikeProjectInternalQuery(q)) return false;
   if (CODE_HEAVY.test(q) && !LOOKUP_HINT.test(q)) return false;
@@ -31,8 +42,8 @@ export function looksLikeWebLookupQuery(text: string): boolean {
 
 /** Find existing web images (not AI image generation). */
 export function looksLikeImageSearchQuery(text: string): boolean {
-  const q = text.trim();
-  if (q.length < 6 || q.length > 500) return false;
+  const q = extractChatHeuristicText(text);
+  if (q.length < 6) return false;
   if (IMAGE_GENERATE.test(q)) return false;
   return IMAGE_FIND.test(q);
 }

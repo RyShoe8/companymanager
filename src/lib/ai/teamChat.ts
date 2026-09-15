@@ -501,6 +501,7 @@ export async function attemptTeamChatReply(input: {
         includeRepoTools: toolProfile !== 'none',
         toolProfile,
         forcePlain: toolProfile === 'none' || shouldForcePlainChat(interactionMode),
+        forceToolLoop: toolProfile !== 'none',
         signal: input.signal,
       })
     );

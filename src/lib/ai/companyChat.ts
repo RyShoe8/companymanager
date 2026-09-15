@@ -139,6 +139,8 @@ export async function attemptCompanyCredentialChat(input: {
   toolProfile?: IdeToolProfile;
   /** Skip tools (e.g. forced plain completion). */
   forcePlain?: boolean;
+  /** Free credentials: skip plain_first and run the tool loop (orchestra dig stages). */
+  forceToolLoop?: boolean;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
   let gateway: GatewayConfiguration;
@@ -323,7 +325,10 @@ export async function attemptCompanyCredentialChat(input: {
     const repoToolsOn = input.includeRepoTools !== false;
     const projectInternal = looksLikeProjectInternalQuery(input.userText);
     /** Project IDE: prefer the tool loop (repo_*) over plain answers for lookups and in-repo asks. */
-    const preferToolLoop = toolNeedy || (repoToolsOn && (isLookup || projectInternal));
+    const preferToolLoop =
+      Boolean(input.forceToolLoop) ||
+      toolNeedy ||
+      (repoToolsOn && (isLookup || projectInternal));
 
     async function plainInvoke(args: {
       systemExtra: string;

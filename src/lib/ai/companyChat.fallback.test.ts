@@ -296,6 +296,74 @@ describe('attemptCompanyCredentialChat free tools', () => {
     });
   });
 
+  it('forces the tool loop for orchestra-wrapped Worker text over 500 chars', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'Rules are stored as project task rules and injected into prompts.',
+      toolCallsMade: ['repo_tree', 'repo_read'],
+      artifacts: [],
+      inputTokens: 10,
+      outputTokens: 20,
+      latencyMs: 5,
+    });
+
+    const wrapped = [
+      'User request:',
+      'what does our rules system actually do and how does it work?',
+      '',
+      'Planner briefing / jobs:',
+      'Dig the repo thoroughly. '.repeat(40),
+    ].join('\n');
+    expect(wrapped.length).toBeGreaterThan(500);
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: wrapped,
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: true,
+    });
+
+    expect(mocks.invokeModel).not.toHaveBeenCalled();
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      toolsUsed: ['repo_tree', 'repo_read'],
+      noProviderFee: true,
+    });
+  });
+
+  it('forces the tool loop when forceToolLoop is set even for short non-lookup asks', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'Noted.',
+      toolCallsMade: ['repo_tree'],
+      artifacts: [],
+      inputTokens: 5,
+      outputTokens: 5,
+      latencyMs: 3,
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'thanks',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: true,
+      forceToolLoop: true,
+    });
+
+    expect(mocks.invokeModel).not.toHaveBeenCalled();
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(turn).toMatchObject({ role: 'assistant', toolsUsed: ['repo_tree'] });
+  });
+
   it('retries assist when tools fail with a non-GatewayError on a factual lookup', async () => {
     mocks.webSearch
       .mockRejectedValueOnce(new Error('search briefly unavailable'))
