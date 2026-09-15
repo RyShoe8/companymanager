@@ -75,38 +75,39 @@ async function navigate(url: string, maxChars: number) {
       }>;
     };
   };
-  const browser = await playwright.chromium.launch({ headless: true });
+  const browser = await playwright.chromium.launch({
+    headless: true,
+    // VPS / container-friendly; harmless for non-root service users too.
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  } as { headless: boolean });
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     const title = await page.title();
-    const scraped = await page.evaluate(() => {
+    // Must be a string: tsx/esbuild injects __name into arrow functions, which breaks page.evaluate.
+    const scraped = await page.evaluate(`(() => {
       const text = document.body?.innerText ?? '';
-      const images: string[] = [];
-      const push = (raw: string | null | undefined) => {
+      const images = [];
+      const push = (raw) => {
         const value = (raw ?? '').trim();
         if (!value || value.startsWith('data:')) return;
         try {
           const abs = new URL(value, location.href);
           if (abs.protocol !== 'https:') return;
           images.push(abs.toString());
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       };
       for (const sel of ['meta[property="og:image"]', 'meta[name="twitter:image"]']) {
         push(document.querySelector(sel)?.getAttribute('content'));
       }
       for (const img of Array.from(document.querySelectorAll('img[src]'))) {
-        const el = img as HTMLImageElement;
-        const w = el.naturalWidth || el.width || Number(el.getAttribute('width')) || 0;
-        const h = el.naturalHeight || el.height || Number(el.getAttribute('height')) || 0;
+        const w = img.naturalWidth || img.width || Number(img.getAttribute('width')) || 0;
+        const h = img.naturalHeight || img.height || Number(img.getAttribute('height')) || 0;
         if ((w > 0 && w < 64) || (h > 0 && h < 64)) continue;
-        const src = el.currentSrc || el.src || el.getAttribute('src');
-        push(src);
+        push(img.currentSrc || img.src || img.getAttribute('src'));
       }
       return { text, images };
-    });
+    })()`) as { text?: string; images?: string[] };
     const seen = new Set<string>();
     const images: string[] = [];
     for (const src of scraped.images ?? []) {
@@ -165,7 +166,8 @@ export function startBrowserWorkerServer() {
       const result = await navigate(url, maxChars);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
-    } catch {
+    } catch (err) {
+      console.error('navigate error', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'navigate_failed' }));
     }
