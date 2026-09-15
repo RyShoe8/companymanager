@@ -1,2 +1,4 @@
-# Static CSS/SVG diorama assets may live here.
-# Do not generate assets via model APIs — keep this folder client-only.
+# IDE run-scene assets
+
+Pixel office diorama is rendered with CSS/SVG in `IdeRunScene.tsx` (client-only).
+Do not generate assets via model APIs.

@@ -2,15 +2,105 @@
 
 import { useEffect, useState } from 'react';
 import type { IdeRunActivity } from '@/lib/ide/idePlan';
+import type { IdeDioramaDesk } from '@/lib/ide/ideChatThreadCache';
 
 type Props = {
   activity: IdeRunActivity;
 };
 
-/** Light office diorama — CSS-only motion, zero model usage. */
+function PixelDesk({
+  desk,
+  busy,
+  reducedMotion,
+}: {
+  desk: IdeDioramaDesk;
+  busy: boolean;
+  reducedMotion: boolean;
+}) {
+  const typing = busy && desk.active && !reducedMotion;
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center">
+      <p
+        className="mb-1 max-w-full truncate px-0.5 font-mono text-[9px] leading-tight text-[#3f3a32]"
+        title={desk.modelLabel}
+      >
+        {desk.modelLabel}
+      </p>
+      <div
+        className="relative h-[4.5rem] w-full max-w-[7.5rem] overflow-hidden rounded-sm border-2 border-[#2a2a2a]"
+        style={{
+          imageRendering: 'pixelated',
+          background:
+            'repeating-linear-gradient(0deg, #c4b59a 0 8px, #b8a88c 8px 16px), repeating-linear-gradient(90deg, #d2c4a8 0 8px, #cbb99a 8px 16px)',
+        }}
+      >
+        <div className="absolute inset-x-0 top-0 h-8 bg-[#e8dcc8]" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-[#d2c2a6]" />
+        <div className="absolute inset-x-0 bottom-0 h-5 bg-[#8f7352]" />
+        <div
+          className="absolute inset-x-0 bottom-0 h-5 opacity-40"
+          style={{
+            backgroundImage:
+              'linear-gradient(#0000 50%, #0002 50%), linear-gradient(90deg, #0000 50%, #0002 50%)',
+            backgroundSize: '8px 8px',
+          }}
+        />
+        <div className="absolute bottom-5 left-1 h-3 w-2 bg-[#2f6b3a]" />
+        <div className="absolute bottom-4 left-1.5 h-1.5 w-1 bg-[#1f4d28]" />
+        <div className="absolute bottom-4 right-1 h-3 w-2.5 rounded-t-sm bg-[#4b5563]" />
+        <div className="absolute bottom-4 left-3 right-3 h-1.5 bg-[#6b4423]" />
+        <div className="absolute bottom-2.5 left-4 h-1.5 w-1 bg-[#4a2f18]" />
+        <div className="absolute bottom-2.5 right-4 h-1.5 w-1 bg-[#4a2f18]" />
+        <div className="absolute bottom-5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-sm bg-[#f0c7a0]" />
+        <div
+          className={`absolute bottom-3.5 left-1/2 h-2.5 w-3 -translate-x-1/2 bg-[#3b82f6] ${
+            typing ? 'animate-pulse' : ''
+          }`}
+        />
+        {typing ? (
+          <>
+            <div className="absolute bottom-[1.15rem] left-[42%] h-0.5 w-2 origin-left animate-bounce bg-[#f0c7a0]" />
+            <div className="absolute bottom-[1.15rem] right-[42%] h-0.5 w-2 origin-right animate-bounce bg-[#f0c7a0] [animation-delay:120ms]" />
+          </>
+        ) : (
+          <div className="absolute bottom-[1.15rem] left-1/2 h-0.5 w-3 -translate-x-1/2 bg-[#f0c7a0]" />
+        )}
+        <div className="absolute bottom-5 left-1/2 w-8 -translate-x-1/2 border border-[#111] bg-[#1f2937] p-px">
+          <div
+            className={`relative h-4 overflow-hidden ${
+              typing ? 'bg-[#0ea5e9]' : desk.active ? 'bg-[#0369a1]' : 'bg-[#334155]'
+            }`}
+          >
+            {typing ? (
+              <div className="absolute inset-x-0.5 top-0.5 space-y-0.5">
+                <div className="h-0.5 animate-pulse bg-white/80" />
+                <div className="h-0.5 w-3/4 animate-pulse bg-white/60 [animation-delay:100ms]" />
+                <div className="h-0.5 w-1/2 animate-pulse bg-white/50 [animation-delay:200ms]" />
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center font-mono text-[7px] text-white/70">
+                {desk.active ? '…' : 'z'}
+              </div>
+            )}
+          </div>
+        </div>
+        <div
+          className={`absolute right-1 top-1 h-1.5 w-1.5 ${
+            busy && desk.active ? 'bg-[#fde047]' : 'bg-[#fef3c7]'
+          }`}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Pixel-art office diorama — client-only, zero model usage. */
 export default function IdeRunScene({ activity }: Props) {
-  const active = activity.busy || activity.phase === 'plan_ready' || activity.phase === 'building';
   const [reducedMotion, setReducedMotion] = useState(false);
+  const desks =
+    activity.desks && activity.desks.length > 0
+      ? activity.desks
+      : [{ role: 'direct' as const, modelLabel: 'Model', active: activity.busy }];
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -20,65 +110,30 @@ export default function IdeRunScene({ activity }: Props) {
     return () => media.removeEventListener('change', sync);
   }, []);
 
-  const screenClass =
-    activity.phase === 'error'
-      ? 'bg-red-100'
-      : activity.phase === 'plan_ready'
-        ? 'bg-emerald-100'
-        : activity.busy
-          ? 'bg-sky-100'
-          : 'bg-amber-50';
-
   return (
     <div
-      className="flex h-[7.5rem] shrink-0 items-stretch gap-3 border-t border-border px-3 py-2"
-      style={{ background: 'linear-gradient(180deg, #f7f4ef 0%, #efe8dc 100%)' }}
+      className="flex h-36 shrink-0 flex-col border-t-2 border-[#2a2a2a] px-2 py-1.5"
+      style={{
+        imageRendering: 'pixelated',
+        background: 'linear-gradient(180deg, #efe6d6 0%, #e4d7c2 55%, #d9cbb3 100%)',
+      }}
       aria-live="polite"
     >
-      <div className="relative w-[11rem] shrink-0 overflow-hidden rounded-md border border-[#d6cbb8] bg-[#ebe3d4] shadow-sm">
-        <div className="absolute inset-x-0 top-0 h-10 bg-[#e7ddd0]" />
-        <div className="absolute inset-x-0 bottom-0 h-8 bg-[#d9cbb6]" />
-        <div className="absolute bottom-7 left-2 h-5 w-3 rounded-t-full bg-emerald-600/80" />
-        <div className="absolute bottom-6 left-2.5 h-2 w-2 rounded-full bg-emerald-700/70" />
-        <div className="absolute bottom-5 left-6 right-3 h-2 rounded-sm bg-[#b08968]" />
-        <div className="absolute bottom-3 left-7 h-2 w-1 bg-[#8b6b4a]" />
-        <div className="absolute bottom-3 right-4 h-2 w-1 bg-[#8b6b4a]" />
-        <div className="absolute bottom-4 right-1 h-4 w-3 rounded-t bg-[#6b7280]/80" />
-        <div className="absolute bottom-7 left-1/2 w-14 -translate-x-1/2 rounded-sm border border-[#4b5563] bg-[#374151] p-0.5 shadow">
-          <div className={`relative h-7 overflow-hidden rounded-[2px] ${screenClass}`}>
-            {!reducedMotion && activity.busy ? (
-              <div className="absolute inset-x-1 top-1 space-y-0.5">
-                <div className="h-0.5 animate-pulse rounded bg-sky-500/70" />
-                <div className="h-0.5 w-3/4 animate-pulse rounded bg-sky-400/60 [animation-delay:150ms]" />
-                <div className="h-0.5 w-1/2 animate-pulse rounded bg-sky-400/50 [animation-delay:300ms]" />
-              </div>
-            ) : null}
-            {!reducedMotion && activity.phase === 'plan_ready' ? (
-              <div className="flex h-full items-center justify-center text-[10px] font-bold text-emerald-700">
-                ✓
-              </div>
-            ) : null}
-            {activity.phase === 'idle' && !activity.busy ? (
-              <div className="flex h-full items-center justify-center text-[8px] text-amber-700/70">
-                zzz
-              </div>
-            ) : null}
-          </div>
-        </div>
-        <div
-          className={`absolute right-2 top-1 h-2 w-2 rounded-full ${active ? 'bg-amber-300' : 'bg-amber-200/70'}`}
-        />
-        <div className="absolute right-2.5 top-3 h-4 w-0.5 bg-[#9ca3af]" />
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-[#8a7a63]">Office</p>
-        <p className="truncate text-sm text-text-primary">{activity.label}</p>
-        <p className="truncate text-[11px] text-text-secondary">
-          {activity.busy
-            ? 'Live request — no extra model usage for this scene'
-            : 'Client-only diorama'}
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-wide text-[#3f3a32]">
+          {desks.length > 1 ? 'Team floor' : desks[0]?.modelLabel ?? 'Desk'}
         </p>
+        <p className="truncate font-mono text-[10px] text-[#5c5346]">{activity.label}</p>
+      </div>
+      <div className="flex min-h-0 flex-1 items-end gap-2 overflow-hidden">
+        {desks.map((desk) => (
+          <PixelDesk
+            key={`${desk.role}-${desk.modelLabel}`}
+            desk={desk}
+            busy={activity.busy}
+            reducedMotion={reducedMotion}
+          />
+        ))}
       </div>
     </div>
   );

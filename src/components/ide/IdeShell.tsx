@@ -187,7 +187,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
+    <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-background">
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2">
         <h1 className="text-sm font-semibold text-text-primary">IDE</h1>
         <IdeProjectRepoSwitcher

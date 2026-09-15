@@ -18,4 +18,5 @@ export type IdeRunActivity = {
   label: string;
   interactionMode: IdeInteractionMode;
   busy: boolean;
+  desks?: import('@/lib/ide/ideChatThreadCache').IdeDioramaDesk[];
 };

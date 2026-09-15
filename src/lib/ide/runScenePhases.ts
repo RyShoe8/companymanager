@@ -1,4 +1,5 @@
 import type { IdeInteractionMode, IdeRunActivity } from '@/lib/ide/idePlan';
+import type { IdeDioramaDesk } from '@/lib/ide/ideChatThreadCache';
 
 export type RunSceneInput = {
   busy: boolean;
@@ -9,13 +10,15 @@ export type RunSceneInput = {
   failed?: boolean;
   /** Cosmetic sub-step while busy (0 = just sent, higher = later pacing). */
   busyTick?: number;
+  desks?: IdeDioramaDesk[];
 };
 
 /** Map client busy/mode signals to diorama phase + label. Zero network / model usage. */
 export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
   const mode = input.interactionMode;
+  const desks = input.desks;
   if (input.failed) {
-    return { phase: 'error', label: 'Hit a snag', interactionMode: mode, busy: false };
+    return { phase: 'error', label: 'Hit a snag', interactionMode: mode, busy: false, desks };
   }
   if (input.planReady && !input.busy) {
     return {
@@ -23,6 +26,7 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
       label: 'Plan ready — review on the board',
       interactionMode: mode,
       busy: false,
+      desks,
     };
   }
   if (!input.busy) {
@@ -32,9 +36,16 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
         label: `Used tools: ${input.toolsUsed.slice(0, 4).join(', ')}`,
         interactionMode: mode,
         busy: false,
+        desks,
       };
     }
-    return { phase: 'idle', label: 'Office is quiet', interactionMode: mode, busy: false };
+    const quiet =
+      desks && desks.length > 1
+        ? `${desks.map((d) => d.modelLabel).join(' · ')} standing by`
+        : desks?.[0]?.modelLabel
+          ? `${desks[0].modelLabel} is quiet`
+          : 'Standing by';
+    return { phase: 'idle', label: quiet, interactionMode: mode, busy: false, desks };
   }
 
   const target = input.targetLabel?.trim();
@@ -45,6 +56,7 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
       label: target ? `Sending to ${target}…` : 'Sending…',
       interactionMode: mode,
       busy: true,
+      desks,
     };
   }
   if (mode === 'plan') {
@@ -53,6 +65,7 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
       label: 'Drafting plan at the desk…',
       interactionMode: mode,
       busy: true,
+      desks,
     };
   }
   if (mode === 'build') {
@@ -61,12 +74,15 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
       label: 'Building the approved plan…',
       interactionMode: mode,
       busy: true,
+      desks,
     };
   }
+  const workingLabel = desks?.find((d) => d.active)?.modelLabel ?? (target ? target : 'model');
   return {
     phase: 'working',
-    label: 'Working with the model…',
+    label: `${workingLabel} typing…`,
     interactionMode: mode,
     busy: true,
+    desks,
   };
 }

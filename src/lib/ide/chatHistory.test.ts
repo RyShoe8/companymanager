@@ -108,7 +108,7 @@ describe('loadIdeChatHistory', () => {
     expect(turns.map((item) => item.requestId)).toEqual(['r1', 'r2']);
   });
 
-  it('soft-fails to an empty thread when the query throws', async () => {
+  it('propagates query failures so the client can keep cached turns', async () => {
     mocks.find.mockReturnValue({
       sort: () => ({
         limit: () => ({
@@ -125,7 +125,7 @@ describe('loadIdeChatHistory', () => {
         userId,
         mode: 'product',
       })
-    ).resolves.toEqual([]);
+    ).rejects.toMatchObject({ name: 'MongoPoolClearedError' });
   });
 });
 

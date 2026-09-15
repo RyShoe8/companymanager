@@ -21,6 +21,7 @@ import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
 import type { IdeInteractionMode, IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
+import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThreadCache';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
 import type { MutableRefObject } from 'react';
 
@@ -108,12 +109,14 @@ export default function IdeChatPane({
   const [lastToolsUsed, setLastToolsUsed] = useState<string[]>([]);
   const [planReadyFlag, setPlanReadyFlag] = useState(false);
   const [activityFailed, setActivityFailed] = useState(false);
+  const [directSelectorsExpanded, setDirectSelectorsExpanded] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sendGenerationRef = useRef(0);
   const historyGenerationRef = useRef(0);
   const turnsRef = useRef<ChatTurn[]>([]);
+  const threadCacheRef = useRef<Map<string, ChatTurn[]>>(new Map());
   turnsRef.current = turns;
 
   const loadPipeline = useCallback(async (id: string) => {
@@ -184,40 +187,36 @@ export default function IdeChatPane({
   }, [mode, directModel]);
 
   useEffect(() => {
-    onRunActivity?.(
-      runSceneFromState({
-        busy,
-        interactionMode,
-        targetLabel,
-        toolsUsed: lastToolsUsed,
-        planReady: planReadyFlag,
-        failed: activityFailed,
-        busyTick,
-      })
-    );
-  }, [
-    busy,
-    interactionMode,
-    targetLabel,
-    lastToolsUsed,
-    planReadyFlag,
-    activityFailed,
-    busyTick,
-    onRunActivity,
-  ]);
-
-  useEffect(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     sendGenerationRef.current += 1;
     const generation = ++historyGenerationRef.current;
     setBusy(false);
-    setTurns([]);
     setError('');
     setPlanReadyFlag(false);
     setActivityFailed(false);
     setLastToolsUsed([]);
-    onPlanReady?.(null);
+    setDirectSelectorsExpanded(false);
+
+    const cacheKey = ideChatThreadCacheKey({
+      mode,
+      modelProfileId: isIdeDirectMode(mode) ? directProfileId : undefined,
+      model: isIdeDirectMode(mode) ? directModel : undefined,
+    });
+    const cached = threadCacheRef.current.get(cacheKey);
+    if (cached?.length) {
+      setTurns(cached);
+      const latestPlan = [...cached].reverse().find((turn) => turn.plan)?.plan ?? null;
+      if (latestPlan) {
+        setPlanReadyFlag(latestPlan.status === 'ready_for_review');
+        onPlanReady?.(latestPlan);
+      } else {
+        onPlanReady?.(null);
+      }
+    } else {
+      setTurns([]);
+      onPlanReady?.(null);
+    }
 
     if (!projectId) {
       setHistoryLoading(false);
@@ -247,6 +246,7 @@ export default function IdeChatPane({
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
         if (!response.ok) throw new Error(body.error ?? 'Unable to load chat history.');
         const loaded = (body.turns ?? []) as ChatTurn[];
+        threadCacheRef.current.set(cacheKey, loaded);
         setTurns(loaded);
         const latestPlan = [...loaded].reverse().find((turn) => turn.plan)?.plan ?? null;
         if (latestPlan) {
@@ -259,6 +259,7 @@ export default function IdeChatPane({
       } catch (err) {
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === 'AbortError') return;
+        // Keep cached turns; only surface the error.
         setError(err instanceof Error ? err.message : 'Unable to load chat history.');
       } finally {
         if (generation === historyGenerationRef.current) setHistoryLoading(false);
@@ -338,6 +339,49 @@ export default function IdeChatPane({
     const employee = employeeForIdeMode(mode);
     return pipelines.find((item) => item.employee === employee) ?? null;
   }, [mode, pipelines]);
+
+  const dioramaDesks = useMemo(() => {
+    if (isIdeDirectMode(mode)) {
+      return buildDioramaDesks({
+        direct: true,
+        directModelLabel: directModel || 'Direct',
+        busy,
+      });
+    }
+    return buildDioramaDesks({
+      stages: {
+        planner: workerPipeline?.planner?.model,
+        worker: workerPipeline?.worker?.model,
+        reviewer: workerPipeline?.reviewer?.model,
+      },
+      busy,
+    });
+  }, [mode, directModel, busy, workerPipeline]);
+
+  useEffect(() => {
+    onRunActivity?.(
+      runSceneFromState({
+        busy,
+        interactionMode,
+        targetLabel,
+        toolsUsed: lastToolsUsed,
+        planReady: planReadyFlag,
+        failed: activityFailed,
+        busyTick,
+        desks: dioramaDesks,
+      })
+    );
+  }, [
+    busy,
+    interactionMode,
+    targetLabel,
+    lastToolsUsed,
+    planReadyFlag,
+    activityFailed,
+    busyTick,
+    dioramaDesks,
+    onRunActivity,
+  ]);
 
   function stageMeta(binding: { modelProfileId: string; model: string } | undefined) {
     if (!binding?.modelProfileId || !binding.model) return null;
@@ -462,7 +506,14 @@ export default function IdeChatPane({
       if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
       if (!response.ok) throw new Error(body.error ?? 'Chat request failed.');
       const turn = body.turn as ChatTurn;
-      setTurns((current) => [...current, turn]);
+      const nextTurns = [...historyBase, turn];
+      const cacheKey = ideChatThreadCacheKey({
+        mode,
+        modelProfileId: isIdeDirectMode(mode) ? directProfileId : undefined,
+        model: isIdeDirectMode(mode) ? directModel : undefined,
+      });
+      threadCacheRef.current.set(cacheKey, nextTurns);
+      setTurns(nextTurns);
       setLastToolsUsed(turn.toolsUsed ?? []);
       if (turn.role === 'status') setActivityFailed(true);
       if (turn.plan) {
@@ -577,68 +628,102 @@ export default function IdeChatPane({
 
       {isIdeDirectMode(mode) ? (
         <div className="space-y-2 border-b border-border px-2 py-2">
-          <label className="block text-xs text-text-secondary">
-            Company
-            <select
-              className={`${field} mt-1`}
-              value={directProfileId}
-              disabled={!projectId || busy}
-              onChange={(event) => {
-                setDirectProfileId(event.target.value);
-                setDirectModel('');
-              }}
-            >
-              <option value="">Select…</option>
-              {profiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {companyDisplayName({ label: profile.label, provider: profile.provider })}
-                  {profile.tier === 'local_remote' ? ' (local)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-xs text-text-secondary">
-            Model
-            <select
-              className={`${field} mt-1`}
-              value={directModels.some((item) => item.id === directModel) ? directModel : ''}
-              disabled={!projectId || busy || !directProfileId || discoverLoading || directModels.length === 0}
-              onChange={(event) => setDirectModel(event.target.value)}
-            >
-              <option value="">{discoverLoading ? 'Loading…' : 'Select…'}</option>
-              {directModels.map((item) => (
-                <option
-                  key={item.id}
-                  value={item.id}
-                  style={item.flagship ? FLAGSHIP_MODEL_OPTION_STYLE : undefined}
+          {turns.length === 0 || directSelectorsExpanded ? (
+            <>
+              <label className="block text-xs text-text-secondary">
+                Company
+                <select
+                  className={`${field} mt-1`}
+                  value={directProfileId}
+                  disabled={!projectId || busy}
+                  onChange={(event) => {
+                    setDirectProfileId(event.target.value);
+                    setDirectModel('');
+                  }}
                 >
-                  {modelOptionLabel(item)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {turns.length === 0 ? (
-            <ModelMetaStrip
-              meta={
-                directModel
-                  ? isCustomDirect || directCredential?.tier === 'local_remote'
-                    ? { ...directMeta, pricing: { label: 'Free' } }
-                    : directMeta
-                  : null
-              }
-            />
-          ) : null}
-          {isCustomDirect && directProfileId ? (
-            <button
-              type="button"
-              className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
-              disabled={busy || discoverLoading || !projectId}
-              onClick={() => projectId && void loadDiscovered(projectId, directProfileId)}
-            >
-              {discoverLoading ? 'Refreshing…' : 'Refresh models'}
-            </button>
-          ) : null}
-          {discoverError ? <p className="text-[11px] text-text-secondary">{discoverError}</p> : null}
+                  <option value="">Select…</option>
+                  {profiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {companyDisplayName({ label: profile.label, provider: profile.provider })}
+                      {profile.tier === 'local_remote' ? ' (local)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs text-text-secondary">
+                Model
+                <select
+                  className={`${field} mt-1`}
+                  value={directModels.some((item) => item.id === directModel) ? directModel : ''}
+                  disabled={!projectId || busy || !directProfileId || discoverLoading || directModels.length === 0}
+                  onChange={(event) => setDirectModel(event.target.value)}
+                >
+                  <option value="">{discoverLoading ? 'Loading…' : 'Select…'}</option>
+                  {directModels.map((item) => (
+                    <option
+                      key={item.id}
+                      value={item.id}
+                      style={item.flagship ? FLAGSHIP_MODEL_OPTION_STYLE : undefined}
+                    >
+                      {modelOptionLabel(item)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {turns.length === 0 ? (
+                <ModelMetaStrip
+                  meta={
+                    directModel
+                      ? isCustomDirect || directCredential?.tier === 'local_remote'
+                        ? { ...directMeta, pricing: { label: 'Free' } }
+                        : directMeta
+                      : null
+                  }
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="text-[11px] text-text-secondary underline"
+                  onClick={() => setDirectSelectorsExpanded(false)}
+                >
+                  Done
+                </button>
+              )}
+              {isCustomDirect && directProfileId ? (
+                <button
+                  type="button"
+                  className="rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
+                  disabled={busy || discoverLoading || !projectId}
+                  onClick={() => projectId && void loadDiscovered(projectId, directProfileId)}
+                >
+                  {discoverLoading ? 'Refreshing…' : 'Refresh models'}
+                </button>
+              ) : null}
+              {discoverError ? <p className="text-[11px] text-text-secondary">{discoverError}</p> : null}
+            </>
+          ) : (
+            <div className="flex items-center justify-between gap-2 text-xs text-text-secondary">
+              <p className="min-w-0 truncate text-text-primary">
+                <span className="text-text-secondary">Using </span>
+                {directCredential
+                  ? companyDisplayName({
+                      label: directCredential.label,
+                      provider: directCredential.provider,
+                    })
+                  : 'Company'}
+                <span className="text-text-secondary"> · </span>
+                {directModel || 'model'}
+              </p>
+              <button
+                type="button"
+                className="shrink-0 rounded border border-border px-2 py-0.5 text-[11px]"
+                disabled={busy}
+                onClick={() => setDirectSelectorsExpanded(true)}
+              >
+                Change
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-1 border-b border-border px-2 py-2 text-[11px] text-text-secondary">

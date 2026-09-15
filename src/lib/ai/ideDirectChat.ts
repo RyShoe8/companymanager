@@ -1,6 +1,8 @@
 import 'server-only';
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
+import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
+import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
 import type { IdeInteractionMode } from '@/lib/ide/idePlan';
 import { appendInteractionModePrompt, shouldForcePlainChat } from '@/lib/ide/planModePrompt';
 import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
@@ -24,6 +26,16 @@ export async function attemptDirectModelChat(input: {
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
   const interactionMode = input.interactionMode ?? 'chat';
+  let allowTools = interactionMode !== 'plan';
+  try {
+    const { profile } = await gatewayFromModelProfile(input.modelProfileId, input.model);
+    if (isFreeCredential({ provider: profile.provider, tier: profile.tier })) {
+      allowTools = false;
+    }
+  } catch {
+    /* companyChat will surface credential errors */
+  }
+
   const ruleBlock =
     input.ruleTexts && input.ruleTexts.length > 0
       ? ['Project task rules you must follow:', ...input.ruleTexts.map((rule, index) => `${index + 1}. ${rule}`)].join(
@@ -33,12 +45,14 @@ export async function attemptDirectModelChat(input: {
   const basePrompt = [
     `You are a helpful assistant on the Nucleas project "${input.projectName}".`,
     'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
-    interactionMode === 'plan'
-      ? 'Do not call tools in this turn.'
-      : 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.',
-    interactionMode === 'plan'
-      ? ''
-      : 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.',
+    allowTools
+      ? 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.'
+      : interactionMode === 'plan'
+        ? 'Do not call tools in this turn.'
+        : 'Tools (including image generation) are not available on this free/local credential. Say so clearly if the user asks for images or browsing; suggest a commercial OpenAI-style Direct credential for image tools.',
+    allowTools
+      ? 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.'
+      : '',
     'If you lack information or tools, say what is missing instead of inventing facts.',
     ...(ruleBlock ? [ruleBlock] : []),
   ]
@@ -54,8 +68,8 @@ export async function attemptDirectModelChat(input: {
     priorTurns: input.priorTurns,
     modelProfileId: input.modelProfileId,
     model: input.model,
-    includeImageTool: interactionMode !== 'plan',
-    forcePlain: shouldForcePlainChat(interactionMode),
+    includeImageTool: allowTools,
+    forcePlain: shouldForcePlainChat(interactionMode) || !allowTools,
     signal: input.signal,
   });
 

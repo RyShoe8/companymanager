@@ -52,7 +52,7 @@ describe('ide plan mode helpers', () => {
   });
 
   it('maps run-scene phases without network', () => {
-    expect(runSceneFromState({ busy: false, interactionMode: 'chat' }).label).toMatch(/quiet/i);
+    expect(runSceneFromState({ busy: false, interactionMode: 'chat' }).label).toMatch(/Standing by|quiet/i);
     expect(
       runSceneFromState({ busy: true, interactionMode: 'plan', busyTick: 1 }).label
     ).toMatch(/Drafting plan/);

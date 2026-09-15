@@ -77,46 +77,42 @@ export async function loadIdeChatHistory(input: {
   if (isIdeDirectMode(keys.mode) && (!keys.directProfileId || !keys.directModel)) {
     return [];
   }
-  try {
-    await ensureIdeChatIndexes();
-    const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
-    const rows = await AiIdeChatTurn.find({
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      createdByUserId: new Types.ObjectId(input.userId),
-      mode: keys.mode,
-      directProfileId: keys.directProfileId,
-      directModel: keys.directModel,
-    })
-      .sort({ _id: -1 })
-      .limit(limit)
-      .maxTimeMS(3000)
-      .lean();
+  await ensureIdeChatIndexes();
+  const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
+  const rows = await AiIdeChatTurn.find({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    createdByUserId: new Types.ObjectId(input.userId),
+    mode: keys.mode,
+    directProfileId: keys.directProfileId,
+    directModel: keys.directModel,
+  })
+    .sort({ _id: -1 })
+    .limit(limit)
+    .maxTimeMS(3000)
+    .lean();
 
-    return rows
-      .reverse()
-      .map((row) => ({
-        requestId: row.requestId,
-        role: row.role as IdePersistedTurn['role'],
-        text: row.text,
-        failureCategory: row.failureCategory ?? null,
-        runId: row.runId ?? null,
-        costMicros: row.costMicros ?? null,
-        reservedMicros: row.reservedMicros ?? null,
-        noProviderFee: row.noProviderFee ?? false,
-        toolsUsed: row.toolsUsed ?? [],
-        artifacts: (row.artifacts ?? []).map((item) => ({
-          kind: 'image' as const,
-          assetId: item.assetId,
-          name: item.name,
-          url: item.url,
-        })),
-        plan: mapPlan(row.plan),
-        createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
-      }));
-  } catch {
-    return [];
-  }
+  return rows
+    .reverse()
+    .map((row) => ({
+      requestId: row.requestId,
+      role: row.role as IdePersistedTurn['role'],
+      text: row.text,
+      failureCategory: row.failureCategory ?? null,
+      runId: row.runId ?? null,
+      costMicros: row.costMicros ?? null,
+      reservedMicros: row.reservedMicros ?? null,
+      noProviderFee: row.noProviderFee ?? false,
+      toolsUsed: row.toolsUsed ?? [],
+      artifacts: (row.artifacts ?? []).map((item) => ({
+        kind: 'image' as const,
+        assetId: item.assetId,
+        name: item.name,
+        url: item.url,
+      })),
+      plan: mapPlan(row.plan),
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+    }));
 }
 
 export async function appendIdeChatTurns(input: {

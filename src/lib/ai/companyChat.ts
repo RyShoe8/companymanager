@@ -365,7 +365,9 @@ export async function attemptCompanyCredentialChat(input: {
         unavailable: freeCredential
           ? 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
           : 'The remote model endpoint was unreachable or returned an error.',
-        invalid_response: 'The remote response could not be validated.',
+        invalid_response: freeCredential
+          ? 'This free/local host does not support tools like image generation. Use a commercial Direct credential (for example OpenAI) for image tools.'
+          : 'The remote response could not be validated.',
         cancelled: 'The chat request was cancelled before completion.',
       };
       return statusTurn(messagesByCode[error.code], error.code, String(runId), {

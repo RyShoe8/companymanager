@@ -96,12 +96,13 @@ export default async function RootLayout({
   const shellHeader = (await headers()).get('x-nucleas-shell');
   const isOsShell = shellHeader === 'os';
   const isMinimalShell = shellHeader === 'minimal';
+  const isIdeShell = shellHeader === 'ide';
   const isBareShell = isOsShell || isMinimalShell;
   const baseUrl = process.env.NEXTAUTH_URL || 'https://nucleas.app';
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen${isOsShell ? ' nucleas-os' : ''}${isMinimalShell ? ' nucleas-minimal' : ''}`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen${isOsShell ? ' nucleas-os' : ''}${isMinimalShell ? ' nucleas-minimal' : ''}${isIdeShell ? ' nucleas-ide overflow-hidden' : ''}`}
         suppressHydrationWarning
       >
         <StructuredData
@@ -135,10 +136,10 @@ export default async function RootLayout({
               <>
                 <Navigation />
                 <AppMobileShell>
-                  <main className="flex-1 pb-16 md:pb-0">
+                  <main className={`flex-1 ${isIdeShell ? 'min-h-0 overflow-hidden pb-0' : 'pb-16 md:pb-0'}`}>
                     {children}
                   </main>
-                  <Footer />
+                  {!isIdeShell ? <Footer /> : null}
                 </AppMobileShell>
               </>
             )}

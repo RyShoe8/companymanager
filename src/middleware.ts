@@ -113,6 +113,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // IDE: keep Navigation, drop marketing Footer (single viewport, no double scroll).
+  if (pathname === '/ide' || pathname.startsWith('/ide/')) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-nucleas-shell', 'ide');
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // Recording controls popout: minimal chrome-free shell (authenticated)
   if (pathname.startsWith('/recording/controls')) {
     const requestHeaders = new Headers(request.headers);
