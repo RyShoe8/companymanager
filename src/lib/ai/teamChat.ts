@@ -12,6 +12,9 @@ import { readSettings, platformSettingsId } from '@/lib/ai/control/settings';
 import { defaultPlatformAiSettings, platformAiSettingsSchema } from '@/lib/ai/settingsSchema';
 import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
+import type { IdeInteractionMode, IdePlanDocument } from '@/lib/ide/idePlan';
+import { appendInteractionModePrompt, shouldForcePlainChat } from '@/lib/ide/planModePrompt';
+import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
 import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { AiRolePipeline } from '@/lib/models/AiRolePipeline';
 import {
@@ -34,6 +37,7 @@ export type TeamChatTurn = {
   noProviderFee?: boolean;
   artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
   toolsUsed?: string[];
+  plan?: IdePlanDocument;
 };
 
 const CHAT_LOCK_MS = 60000;
@@ -352,6 +356,7 @@ export async function attemptTeamChatReply(input: {
   priorTurns: { role: TeamMessageRole; text: string }[];
   /** Optional project task rules injected into the system prompt (IDE). */
   ruleTexts?: string[];
+  interactionMode?: IdeInteractionMode;
   /** When aborted (e.g. client Stop), cancels the gateway fetch and releases the dispatch lock. */
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
@@ -379,6 +384,8 @@ export async function attemptTeamChatReply(input: {
     );
   }
 
+  const interactionMode = input.interactionMode ?? 'chat';
+
   const role = aiEmployees.find((item) => item.id === input.employee)!;
   const ruleBlock =
     input.ruleTexts && input.ruleTexts.length > 0
@@ -386,19 +393,25 @@ export async function attemptTeamChatReply(input: {
           '\n'
         )
       : null;
-  const systemPrompt = [
+  const basePrompt = [
     `You are ${role.name} assisting on the Nucleas project "${input.projectName}".`,
     role.description,
     `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
     'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
-    'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.',
-    'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.',
+    interactionMode === 'plan'
+      ? 'Do not call tools in this turn.'
+      : 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.',
+    interactionMode === 'plan'
+      ? ''
+      : 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.',
     'If you lack information or tools, say what is missing instead of inventing project or web facts.',
     ...(ruleBlock ? [ruleBlock] : []),
-  ].join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  return attemptCompanyCredentialChat({
-    systemPrompt,
+  const turn = await attemptCompanyCredentialChat({
+    systemPrompt: appendInteractionModePrompt(basePrompt, interactionMode),
     organizationId: input.organizationId,
     projectId: input.projectId,
     userId: input.userId,
@@ -406,7 +419,16 @@ export async function attemptTeamChatReply(input: {
     priorTurns: input.priorTurns,
     modelProfileId: workerProfileId,
     model: workerModel,
-    includeImageTool: true,
+    includeImageTool: interactionMode !== 'plan',
+    forcePlain: shouldForcePlainChat(interactionMode),
     signal: input.signal,
   });
+
+  if (interactionMode === 'plan' && turn.role === 'assistant') {
+    const parsed = parseNucleasPlan(turn.text);
+    if (parsed) {
+      return { ...turn, text: parsed.displayText, plan: parsed.plan };
+    }
+  }
+  return turn;
 }

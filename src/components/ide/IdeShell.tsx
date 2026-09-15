@@ -1,17 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import IdeChatPane from '@/components/ide/IdeChatPane';
 import IdeEditor from '@/components/ide/IdeEditor';
 import IdeFileTree from '@/components/ide/IdeFileTree';
+import IdePlanPane from '@/components/ide/IdePlanPane';
 import IdeProjectRepoSwitcher from '@/components/ide/IdeProjectRepoSwitcher';
 import IdePublishApproval from '@/components/ide/IdePublishApproval';
+import IdeRunScene from '@/components/ide/IdeRunScene';
 import IdeTaskRulesPanel from '@/components/ide/IdeTaskRulesPanel';
 import type { IdeChatMode } from '@/lib/ide/modes';
+import type { IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
 import {
   readStoredIdeChatMode,
   writeStoredIdeChatMode,
 } from '@/lib/ide/chatSelectionStorage';
+import { runSceneFromState } from '@/lib/ide/runScenePhases';
 
 type TreeEntry = { name: string; path: string; type: 'file' | 'dir'; sha: string };
 
@@ -42,6 +46,12 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [mode, setMode] = useState<IdeChatMode>('engineering');
   const [rulesOpen, setRulesOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(352);
+  const [centerView, setCenterView] = useState<'file' | 'plan'>('file');
+  const [activePlan, setActivePlan] = useState<IdePlanDocument | null>(null);
+  const [runActivity, setRunActivity] = useState<IdeRunActivity>(() =>
+    runSceneFromState({ busy: false, interactionMode: 'chat' })
+  );
+  const approvePlanRef = useRef<((plan: IdePlanDocument) => void) | null>(null);
 
   useEffect(() => {
     try {
@@ -77,6 +87,15 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     } catch {
       /* ignore */
     }
+  }, []);
+
+  const onPlanReady = useCallback((plan: IdePlanDocument | null) => {
+    setActivePlan(plan);
+    if (plan) setCenterView('plan');
+  }, []);
+
+  const onRunActivity = useCallback((activity: IdeRunActivity) => {
+    setRunActivity(activity);
   }, []);
 
   const dirty = activePath != null && fileContent !== originalContent;
@@ -127,6 +146,8 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     setActivePath(null);
     setFileContent('');
     setOriginalContent('');
+    setActivePlan(null);
+    setCenterView('file');
     void loadTree('');
   }, [projectId, hasBinding, loadTree]);
 
@@ -145,6 +166,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
       setActivePath(body.path);
       setFileContent(body.content ?? '');
       setOriginalContent(body.content ?? '');
+      setCenterView('file');
     } catch (error) {
       setTreeReason(error instanceof Error ? error.message : 'Unable to open file.');
     }
@@ -173,6 +195,15 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           onProjectChange={setProjectId}
           onRepositoryChange={setRepository}
         />
+        {activePlan ? (
+          <button
+            type="button"
+            className="rounded border border-border px-2 py-1 text-xs text-text-secondary hover:text-text-primary"
+            onClick={() => setCenterView((current) => (current === 'plan' ? 'file' : 'plan'))}
+          >
+            {centerView === 'plan' ? 'Show file' : 'Show plan'}
+          </button>
+        ) : null}
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <IdeFileTree
@@ -189,27 +220,43 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           onGoUp={goUp}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <IdeEditor
-            path={activePath}
-            content={fileContent}
-            dirty={dirty}
-            readOnlyReason={null}
-            onChange={setFileContent}
-          />
-          <IdePublishApproval
-            projectId={projectId}
-            canPublish={Boolean(repository?.canManage)}
-            path={activePath}
-            originalContent={originalContent}
-            content={fileContent}
-            dirty={dirty}
-            onPublished={() => {
-              if (activePath) {
-                setOriginalContent(fileContent);
-                void loadTree(dirPath);
-              }
-            }}
-          />
+          <div className="flex min-h-0 flex-1 flex-col">
+            {centerView === 'plan' && activePlan ? (
+              <IdePlanPane
+                plan={activePlan}
+                approveDisabled={runActivity.busy}
+                onApprove={() => {
+                  if (!activePlan) return;
+                  approvePlanRef.current?.(activePlan);
+                }}
+              />
+            ) : (
+              <>
+                <IdeEditor
+                  path={activePath}
+                  content={fileContent}
+                  dirty={dirty}
+                  readOnlyReason={null}
+                  onChange={setFileContent}
+                />
+                <IdePublishApproval
+                  projectId={projectId}
+                  canPublish={Boolean(repository?.canManage)}
+                  path={activePath}
+                  originalContent={originalContent}
+                  content={fileContent}
+                  dirty={dirty}
+                  onPublished={() => {
+                    if (activePath) {
+                      setOriginalContent(fileContent);
+                      void loadTree(dirPath);
+                    }
+                  }}
+                />
+              </>
+            )}
+          </div>
+          <IdeRunScene activity={runActivity} />
         </div>
         <IdeChatPane
           projectId={projectId}
@@ -218,6 +265,9 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           onOpenRules={() => setRulesOpen(true)}
           width={chatWidth}
           onWidthChange={onChatWidthChange}
+          onPlanReady={onPlanReady}
+          onRunActivity={onRunActivity}
+          approvePlanRef={approvePlanRef}
         />
       </div>
       <IdeTaskRulesPanel projectId={projectId} open={rulesOpen} onClose={() => setRulesOpen(false)} />

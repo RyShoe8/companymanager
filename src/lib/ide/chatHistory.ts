@@ -2,6 +2,7 @@ import 'server-only';
 import { Types } from 'mongoose';
 import type { IdeChatMode } from '@/lib/ide/modes';
 import { isIdeDirectMode } from '@/lib/ide/modes';
+import type { IdePlanDocument } from '@/lib/ide/idePlan';
 import { AiIdeChatTurn } from '@/lib/models/AiIdeChatTurn';
 
 const HISTORY_LIMIT = 50;
@@ -29,6 +30,7 @@ export type IdePersistedTurn = {
   noProviderFee?: boolean;
   toolsUsed?: string[];
   artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
+  plan?: IdePlanDocument | null;
   createdAt?: string | null;
 };
 
@@ -45,6 +47,21 @@ export function ideThreadKeys(input: {
     directProfileId: input.modelProfileId?.trim() ?? '',
     directModel: input.model?.trim() ?? '',
   };
+}
+
+function mapPlan(plan: unknown): IdePlanDocument | null {
+  if (!plan || typeof plan !== 'object') return null;
+  const row = plan as Record<string, unknown>;
+  const title = typeof row.title === 'string' ? row.title : '';
+  const summary = typeof row.summary === 'string' ? row.summary : '';
+  const markdown = typeof row.markdown === 'string' ? row.markdown : '';
+  const status = row.status;
+  if (!title || !markdown) return null;
+  if (status !== 'ready_for_review' && status !== 'approved' && status !== 'building') return null;
+  const steps = Array.isArray(row.steps)
+    ? row.steps.filter((item): item is string => typeof item === 'string')
+    : [];
+  return { title, summary, steps, markdown, status };
 }
 
 export async function loadIdeChatHistory(input: {
@@ -94,6 +111,7 @@ export async function loadIdeChatHistory(input: {
           name: item.name,
           url: item.url,
         })),
+        plan: mapPlan(row.plan),
         createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
       }));
   } catch {
@@ -138,6 +156,17 @@ export async function appendIdeChatTurns(input: {
             name: item.name.slice(0, 200),
             url: item.url.slice(0, 4000),
           })),
+        }
+      : {}),
+    ...(turn.plan
+      ? {
+          plan: {
+            title: turn.plan.title.slice(0, 200),
+            summary: turn.plan.summary.slice(0, 2000),
+            steps: turn.plan.steps.slice(0, 40).map((step) => step.slice(0, 500)),
+            markdown: turn.plan.markdown.slice(0, 8000),
+            status: turn.plan.status,
+          },
         }
       : {}),
   }));

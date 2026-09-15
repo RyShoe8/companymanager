@@ -1,7 +1,9 @@
 import { isIdeChatMode, normalizeIdeChatMode, type IdeChatMode } from '@/lib/ide/modes';
+import { isIdeInteractionMode, type IdeInteractionMode } from '@/lib/ide/idePlan';
 
 const MODE_KEY_PREFIX = 'nucleas.ide.chatMode.';
 const DIRECT_KEY_PREFIX = 'nucleas.ide.directSelection.';
+const INTERACTION_KEY_PREFIX = 'nucleas.ide.interactionMode.';
 
 export type IdeDirectSelection = {
   profileId: string;
@@ -34,6 +36,22 @@ export function readStoredIdeChatMode(projectId: string): IdeChatMode | null {
 export function writeStoredIdeChatMode(projectId: string, mode: IdeChatMode): void {
   if (!projectId) return;
   storageSet(`${MODE_KEY_PREFIX}${projectId}`, mode);
+}
+
+export function readStoredIdeInteractionMode(projectId: string): IdeInteractionMode | null {
+  if (!projectId) return null;
+  const raw = storageGet(`${INTERACTION_KEY_PREFIX}${projectId}`);
+  if (!raw || !isIdeInteractionMode(raw)) return null;
+  // Persist only chat|plan; build is ephemeral per Approve.
+  return raw === 'build' ? 'chat' : raw;
+}
+
+export function writeStoredIdeInteractionMode(
+  projectId: string,
+  mode: Exclude<IdeInteractionMode, 'build'>
+): void {
+  if (!projectId) return;
+  storageSet(`${INTERACTION_KEY_PREFIX}${projectId}`, mode);
 }
 
 export function readStoredIdeDirectSelection(projectId: string): IdeDirectSelection | null {

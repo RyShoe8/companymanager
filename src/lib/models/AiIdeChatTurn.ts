@@ -19,6 +19,21 @@ const artifactSchema = new Schema(
   { _id: false }
 );
 
+const planSchema = new Schema(
+  {
+    title: { type: String, required: true, maxlength: 200 },
+    summary: { type: String, required: true, maxlength: 2000 },
+    steps: { type: [String], default: undefined },
+    markdown: { type: String, required: true, maxlength: 8000 },
+    status: {
+      type: String,
+      enum: ['ready_for_review', 'approved', 'building'] as const,
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
 const schema = new Schema(
   {
     organizationId: { type: String, required: true, immutable: true },
@@ -39,6 +54,7 @@ const schema = new Schema(
     noProviderFee: { type: Boolean },
     toolsUsed: { type: [String], default: undefined },
     artifacts: { type: [artifactSchema], default: undefined },
+    plan: { type: planSchema, default: undefined },
   },
   { timestamps: true }
 );

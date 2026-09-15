@@ -1,6 +1,9 @@
 import 'server-only';
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
+import type { IdeInteractionMode } from '@/lib/ide/idePlan';
+import { appendInteractionModePrompt, shouldForcePlainChat } from '@/lib/ide/planModePrompt';
+import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
 import { Types } from 'mongoose';
 
 /**
@@ -17,25 +20,33 @@ export async function attemptDirectModelChat(input: {
   modelProfileId: string;
   model: string;
   ruleTexts?: string[];
+  interactionMode?: IdeInteractionMode;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
+  const interactionMode = input.interactionMode ?? 'chat';
   const ruleBlock =
     input.ruleTexts && input.ruleTexts.length > 0
       ? ['Project task rules you must follow:', ...input.ruleTexts.map((rule, index) => `${index + 1}. ${rule}`)].join(
           '\n'
         )
       : null;
-  const systemPrompt = [
+  const basePrompt = [
     `You are a helpful assistant on the Nucleas project "${input.projectName}".`,
     'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
-    'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.',
-    'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.',
+    interactionMode === 'plan'
+      ? 'Do not call tools in this turn.'
+      : 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.',
+    interactionMode === 'plan'
+      ? ''
+      : 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.',
     'If you lack information or tools, say what is missing instead of inventing facts.',
     ...(ruleBlock ? [ruleBlock] : []),
-  ].join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  return attemptCompanyCredentialChat({
-    systemPrompt,
+  const turn = await attemptCompanyCredentialChat({
+    systemPrompt: appendInteractionModePrompt(basePrompt, interactionMode),
     organizationId: input.organizationId,
     projectId: input.projectId,
     userId: input.userId,
@@ -43,7 +54,16 @@ export async function attemptDirectModelChat(input: {
     priorTurns: input.priorTurns,
     modelProfileId: input.modelProfileId,
     model: input.model,
-    includeImageTool: true,
+    includeImageTool: interactionMode !== 'plan',
+    forcePlain: shouldForcePlainChat(interactionMode),
     signal: input.signal,
   });
+
+  if (interactionMode === 'plan' && turn.role === 'assistant') {
+    const parsed = parseNucleasPlan(turn.text);
+    if (parsed) {
+      return { ...turn, text: parsed.displayText, plan: parsed.plan };
+    }
+  }
+  return turn;
 }

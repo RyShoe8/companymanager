@@ -30,6 +30,7 @@ export const ideChatSchema = z
       .regex(/^[a-fA-F0-9]{24}$/)
       .optional(),
     model: z.string().trim().min(1).max(200).optional(),
+    interactionMode: z.enum(['chat', 'plan', 'build']).default('chat'),
   })
   .strict()
   .superRefine((value, ctx) => {

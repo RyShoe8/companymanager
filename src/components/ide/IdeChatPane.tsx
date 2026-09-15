@@ -12,12 +12,17 @@ import {
 } from '@/lib/ide/modes';
 import {
   readStoredIdeDirectSelection,
+  readStoredIdeInteractionMode,
   writeStoredIdeDirectSelection,
+  writeStoredIdeInteractionMode,
 } from '@/lib/ide/chatSelectionStorage';
 import { companyDisplayName, FLAGSHIP_MODEL_OPTION_STYLE, modelOptionLabel } from '@/lib/ai/rolePipeline/providerCatalog';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
+import type { IdeInteractionMode, IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
+import { runSceneFromState } from '@/lib/ide/runScenePhases';
+import type { MutableRefObject } from 'react';
 
 type ChatTurn = {
   requestId: string;
@@ -28,6 +33,7 @@ type ChatTurn = {
   noProviderFee?: boolean;
   artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
   toolsUsed?: string[];
+  plan?: IdePlanDocument;
 };
 
 type CatalogModel = {
@@ -62,6 +68,9 @@ type Props = {
   onOpenRules: () => void;
   width: number;
   onWidthChange: (width: number) => void;
+  onPlanReady?: (plan: IdePlanDocument | null) => void;
+  onRunActivity?: (activity: IdeRunActivity) => void;
+  approvePlanRef?: MutableRefObject<((plan: IdePlanDocument) => void) | null>;
 };
 
 const CHAT_MIN_WIDTH = 280;
@@ -75,6 +84,9 @@ export default function IdeChatPane({
   onOpenRules,
   width,
   onWidthChange,
+  onPlanReady,
+  onRunActivity,
+  approvePlanRef,
 }: Props) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState('');
@@ -91,11 +103,18 @@ export default function IdeChatPane({
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<Exclude<IdeInteractionMode, 'build'>>('chat');
+  const [busyTick, setBusyTick] = useState(0);
+  const [lastToolsUsed, setLastToolsUsed] = useState<string[]>([]);
+  const [planReadyFlag, setPlanReadyFlag] = useState(false);
+  const [activityFailed, setActivityFailed] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sendGenerationRef = useRef(0);
   const historyGenerationRef = useRef(0);
+  const turnsRef = useRef<ChatTurn[]>([]);
+  turnsRef.current = turns;
 
   const loadPipeline = useCallback(async (id: string) => {
     const response = await fetch(`/api/projects/${encodeURIComponent(id)}/ai/pipeline`, {
@@ -132,6 +151,62 @@ export default function IdeChatPane({
   }, [projectId, directProfileId, directModel]);
 
   useEffect(() => {
+    if (!projectId) {
+      setInteractionMode('chat');
+      return;
+    }
+    const stored = readStoredIdeInteractionMode(projectId);
+    setInteractionMode(stored === 'plan' ? 'plan' : 'chat');
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    writeStoredIdeInteractionMode(projectId, interactionMode);
+  }, [projectId, interactionMode]);
+
+  useEffect(() => {
+    if (!busy) {
+      setBusyTick(0);
+      return;
+    }
+    setBusyTick(0);
+    const first = window.setTimeout(() => setBusyTick(1), 700);
+    const second = window.setTimeout(() => setBusyTick(2), 1800);
+    return () => {
+      window.clearTimeout(first);
+      window.clearTimeout(second);
+    };
+  }, [busy]);
+
+  const targetLabel = useMemo(() => {
+    if (isIdeDirectMode(mode)) return directModel || 'Direct model';
+    return ideChatModes.find((item) => item.id === mode)?.label ?? mode;
+  }, [mode, directModel]);
+
+  useEffect(() => {
+    onRunActivity?.(
+      runSceneFromState({
+        busy,
+        interactionMode,
+        targetLabel,
+        toolsUsed: lastToolsUsed,
+        planReady: planReadyFlag,
+        failed: activityFailed,
+        busyTick,
+      })
+    );
+  }, [
+    busy,
+    interactionMode,
+    targetLabel,
+    lastToolsUsed,
+    planReadyFlag,
+    activityFailed,
+    busyTick,
+    onRunActivity,
+  ]);
+
+  useEffect(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     sendGenerationRef.current += 1;
@@ -139,6 +214,10 @@ export default function IdeChatPane({
     setBusy(false);
     setTurns([]);
     setError('');
+    setPlanReadyFlag(false);
+    setActivityFailed(false);
+    setLastToolsUsed([]);
+    onPlanReady?.(null);
 
     if (!projectId) {
       setHistoryLoading(false);
@@ -167,7 +246,16 @@ export default function IdeChatPane({
         const body = await response.json();
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
         if (!response.ok) throw new Error(body.error ?? 'Unable to load chat history.');
-        setTurns((body.turns ?? []) as ChatTurn[]);
+        const loaded = (body.turns ?? []) as ChatTurn[];
+        setTurns(loaded);
+        const latestPlan = [...loaded].reverse().find((turn) => turn.plan)?.plan ?? null;
+        if (latestPlan) {
+          setPlanReadyFlag(latestPlan.status === 'ready_for_review');
+          onPlanReady?.(latestPlan);
+        } else {
+          setPlanReadyFlag(false);
+          onPlanReady?.(null);
+        }
       } catch (err) {
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -317,22 +405,33 @@ export default function IdeChatPane({
     document.body.style.userSelect = 'none';
   }
 
-  async function send() {
-    if (!projectId || !draft.trim() || busy || historyLoading) return;
+  async function postChat(args: {
+    text: string;
+    modeForRequest: IdeInteractionMode;
+    appendUserTurn: boolean;
+  }) {
+    if (!projectId || busy || historyLoading) return;
     if (isIdeDirectMode(mode) && (!directProfileId || !directModel.trim())) {
       setError('Pick a company and model for Direct chat.');
       return;
     }
-    const text = draft.trim();
-    setDraft('');
+
     setBusy(true);
     setError('');
-    const userTurn: ChatTurn = {
-      requestId: crypto.randomUUID(),
-      role: 'user',
-      text,
-    };
-    setTurns((current) => [...current, userTurn]);
+    setActivityFailed(false);
+    if (args.modeForRequest === 'plan') setPlanReadyFlag(false);
+    if (args.modeForRequest === 'build') setPlanReadyFlag(false);
+
+    let historyBase = turnsRef.current;
+    if (args.appendUserTurn) {
+      const userTurn: ChatTurn = {
+        requestId: crypto.randomUUID(),
+        role: 'user',
+        text: args.text,
+      };
+      historyBase = [...turnsRef.current, userTurn];
+      setTurns(historyBase);
+    }
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -340,7 +439,7 @@ export default function IdeChatPane({
     const generation = ++sendGenerationRef.current;
 
     try {
-      const history = [...turns, userTurn]
+      const history = historyBase
         .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
         .slice(-8)
         .map((turn) => ({ role: turn.role, text: turn.text }));
@@ -349,8 +448,9 @@ export default function IdeChatPane({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode,
-          text,
+          text: args.text,
           history,
+          interactionMode: args.modeForRequest,
           ...(isIdeDirectMode(mode)
             ? { modelProfileId: directProfileId, model: directModel }
             : {}),
@@ -363,6 +463,12 @@ export default function IdeChatPane({
       if (!response.ok) throw new Error(body.error ?? 'Chat request failed.');
       const turn = body.turn as ChatTurn;
       setTurns((current) => [...current, turn]);
+      setLastToolsUsed(turn.toolsUsed ?? []);
+      if (turn.role === 'status') setActivityFailed(true);
+      if (turn.plan) {
+        setPlanReadyFlag(turn.plan.status === 'ready_for_review');
+        onPlanReady?.(turn.plan);
+      }
     } catch (err) {
       if (generation !== sendGenerationRef.current) return;
       if (controller.signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
@@ -376,12 +482,41 @@ export default function IdeChatPane({
         ]);
         return;
       }
+      setActivityFailed(true);
       setError(err instanceof Error ? err.message : 'Chat request failed.');
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       if (generation === sendGenerationRef.current) setBusy(false);
     }
   }
+
+  async function send() {
+    if (!draft.trim()) return;
+    const text = draft.trim();
+    setDraft('');
+    await postChat({ text, modeForRequest: interactionMode, appendUserTurn: true });
+  }
+
+  function approveAndBuild(plan: IdePlanDocument) {
+    if (busy) return;
+    const building: IdePlanDocument = { ...plan, status: 'building' };
+    onPlanReady?.(building);
+    setPlanReadyFlag(false);
+    const text = [
+      'Approved — please build this plan now.',
+      '',
+      plan.markdown,
+    ].join('\n');
+    void postChat({ text, modeForRequest: 'build', appendUserTurn: true });
+  }
+
+  useEffect(() => {
+    if (!approvePlanRef) return;
+    approvePlanRef.current = approveAndBuild;
+    return () => {
+      approvePlanRef.current = null;
+    };
+  });
 
   function stop() {
     abortRef.current?.abort();
@@ -610,9 +745,36 @@ export default function IdeChatPane({
       </div>
       {error ? <p className="px-3 text-xs text-red-500">{error}</p> : null}
       <div className="border-t border-border p-2">
+        <div
+          className="mb-2 inline-flex rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium"
+          role="group"
+          aria-label="Chat or Plan mode"
+        >
+          {(['chat', 'plan'] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              disabled={busy}
+              onClick={() => setInteractionMode(item)}
+              className={`rounded-md px-3 py-1.5 transition-colors ${
+                interactionMode === item
+                  ? 'bg-background-card text-text-primary shadow-sm'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              {item === 'chat' ? 'Chat' : 'Plan'}
+            </button>
+          ))}
+        </div>
         <textarea
           className="mb-2 h-20 w-full resize-none rounded border border-border bg-background p-2 text-sm text-text-primary"
-          placeholder={projectId ? 'Message…' : 'Select a project first'}
+          placeholder={
+            !projectId
+              ? 'Select a project first'
+              : interactionMode === 'plan'
+                ? 'Describe what to plan…'
+                : 'Message…'
+          }
           value={draft}
           disabled={!projectId || busy || historyLoading}
           onChange={(event) => setDraft(event.target.value)}

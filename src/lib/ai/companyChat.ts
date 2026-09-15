@@ -58,6 +58,8 @@ export async function attemptCompanyCredentialChat(input: {
   modelProfileId: string;
   model: string;
   includeImageTool?: boolean;
+  /** Skip tools (e.g. Plan mode before Approve). */
+  forcePlain?: boolean;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
   let gateway;
@@ -232,7 +234,11 @@ export async function attemptCompanyCredentialChat(input: {
 
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>>;
-    if (freeCredential) {
+    const usePlain = freeCredential || input.forcePlain;
+    if (usePlain) {
+      const plainHint = freeCredential
+        ? 'Tools are not available on this free/local host; answer from knowledge only.'
+        : 'Tools are disabled for this turn; answer from knowledge only.';
       const plain = await invokeModel(
         gateway,
         {
@@ -240,7 +246,7 @@ export async function attemptCompanyCredentialChat(input: {
           messages: [
             {
               role: 'system',
-              content: `${input.systemPrompt} Tools are not available on this free/local host; answer from knowledge only.`,
+              content: `${input.systemPrompt} ${plainHint}`,
             },
             ...history,
             { role: 'user', content: input.userText.slice(0, 6000) },

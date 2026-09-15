@@ -18,6 +18,40 @@ import { appendIdeChatTurns, loadIdeChatHistory } from '@/lib/ide/chatHistory';
 export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
 
+function turnPayload(turn: {
+  requestId: string;
+  role: 'user' | 'assistant' | 'status';
+  text: string;
+  failureCategory?: string;
+  runId?: string;
+  costMicros?: number | null;
+  reservedMicros?: number | null;
+  noProviderFee?: boolean;
+  toolsUsed?: string[];
+  artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
+  plan?: {
+    title: string;
+    summary: string;
+    steps: string[];
+    markdown: string;
+    status: 'ready_for_review' | 'approved' | 'building';
+  };
+}) {
+  return {
+    requestId: turn.requestId,
+    role: turn.role,
+    text: turn.text,
+    failureCategory: turn.failureCategory ?? null,
+    runId: turn.runId ?? null,
+    costMicros: turn.costMicros ?? null,
+    reservedMicros: turn.reservedMicros ?? null,
+    noProviderFee: turn.noProviderFee ?? false,
+    artifacts: turn.artifacts ?? [],
+    toolsUsed: turn.toolsUsed ?? [],
+    ...(turn.plan ? { plan: turn.plan } : {}),
+  };
+}
+
 export async function GET(request: NextRequest, context: Context) {
   try {
     const access = await requireAiProject(request, (await context.params).id, false, true);
@@ -50,18 +84,7 @@ export async function POST(request: NextRequest, context: Context) {
     const ruleTexts = await loadIdeTaskRuleTexts(access.organizationId, access.project._id, mode);
     const userRequestId = randomUUID();
 
-    const persistPair = async (reply: {
-      requestId: string;
-      role: 'user' | 'assistant' | 'status';
-      text: string;
-      failureCategory?: string;
-      runId?: string;
-      costMicros?: number | null;
-      reservedMicros?: number | null;
-      noProviderFee?: boolean;
-      toolsUsed?: string[];
-      artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
-    }) => {
+    const persistPair = async (reply: ReturnType<typeof turnPayload>) => {
       await appendIdeChatTurns({
         organizationId: access.organizationId,
         projectId: access.project._id,
@@ -86,6 +109,7 @@ export async function POST(request: NextRequest, context: Context) {
             noProviderFee: reply.noProviderFee ?? false,
             toolsUsed: reply.toolsUsed ?? [],
             artifacts: reply.artifacts ?? [],
+            plan: reply.plan ?? null,
           },
         ],
       });
@@ -102,22 +126,13 @@ export async function POST(request: NextRequest, context: Context) {
         modelProfileId: input.modelProfileId!,
         model: input.model!,
         ruleTexts,
+        interactionMode: input.interactionMode,
         signal: request.signal,
       });
-      await persistPair(turn);
+      const payload = turnPayload(turn);
+      await persistPair(payload);
       return aiResponse({
-        turn: {
-          requestId: turn.requestId,
-          role: turn.role,
-          text: turn.text,
-          failureCategory: turn.failureCategory ?? null,
-          runId: turn.runId ?? null,
-          costMicros: turn.costMicros ?? null,
-          reservedMicros: turn.reservedMicros ?? null,
-          noProviderFee: turn.noProviderFee ?? false,
-          artifacts: turn.artifacts ?? [],
-          toolsUsed: turn.toolsUsed ?? [],
-        },
+        turn: payload,
         mode,
         employee: null,
         modelProfileId: input.modelProfileId,
@@ -139,22 +154,13 @@ export async function POST(request: NextRequest, context: Context) {
       userText: input.text,
       priorTurns: input.history,
       ruleTexts,
+      interactionMode: input.interactionMode,
       signal: request.signal,
     });
-    await persistPair(turn);
+    const payload = turnPayload(turn);
+    await persistPair(payload);
     return aiResponse({
-      turn: {
-        requestId: turn.requestId,
-        role: turn.role,
-        text: turn.text,
-        failureCategory: turn.failureCategory ?? null,
-        runId: turn.runId ?? null,
-        costMicros: turn.costMicros ?? null,
-        reservedMicros: turn.reservedMicros ?? null,
-        noProviderFee: turn.noProviderFee ?? false,
-        artifacts: turn.artifacts ?? [],
-        toolsUsed: turn.toolsUsed ?? [],
-      },
+      turn: payload,
       mode,
       employee,
       rulesApplied: ruleTexts.length,
