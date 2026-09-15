@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   createEvent: vi.fn(),
   findBudget: vi.fn(),
   webSearch: vi.fn(),
+  imageSearch: vi.fn(),
   repoAssist: vi.fn(),
 }));
 
@@ -38,7 +39,10 @@ vi.mock('@/lib/ai/control/dispatchLimits', () => ({
   DISPATCH_USAGE_ID: 'dispatch',
 }));
 vi.mock('@/lib/ai/tools/runToolLoop', () => ({ runIdeToolLoop: mocks.toolLoop }));
-vi.mock('@/lib/ai/tools/webSearch', () => ({ webSearch: mocks.webSearch }));
+vi.mock('@/lib/ai/tools/webSearch', () => ({
+  webSearch: mocks.webSearch,
+  imageSearch: mocks.imageSearch,
+}));
 vi.mock('@/lib/ai/tools/serverRepoAssist', () => ({
   gatherRepoAssistContext: mocks.repoAssist,
   formatRepoAssistContext: (result: { contextBlock: string }) => result.contextBlock,
@@ -82,6 +86,14 @@ beforeEach(() => {
   mocks.findBudget.mockResolvedValue({ _id: new Types.ObjectId() });
   // Default: repo assist unavailable so free digs still exercise the tool loop.
   mocks.repoAssist.mockRejectedValue(new Error('repo assist offline'));
+  mocks.imageSearch.mockResolvedValue({
+    query: '',
+    hits: [],
+    note: 'No image hits.',
+    providersTried: [],
+    toolsUsed: ['image_search'],
+    hitCount: 0,
+  });
   mocks.gatewayFromProfile.mockResolvedValue({
     gateway: {
       endpoint: 'https://rogly.example/v1/chat/completions',
@@ -233,6 +245,162 @@ describe('attemptCompanyCredentialChat free tools', () => {
     expect(turn).toMatchObject({
       role: 'assistant',
       text: 'Thierry Henry is Arsenal’s all-time top scorer.',
+      toolsUsed: ['web_search'],
+      noProviderFee: true,
+    });
+  });
+
+  it('runs web + image assist for info digs that ask for screenshots without tool loop', async () => {
+    mocks.webSearch.mockResolvedValue({
+      query: 'Castlevania Revamped',
+      note: 'From searxng.',
+      hits: [
+        {
+          title: 'Castlevania ReVamped',
+          url: 'https://www.inverteddungeon.com/index.php?section=fanworks&page=game_castlevania_revamped',
+          snippet: 'Fan game',
+          provider: 'searxng',
+        },
+      ],
+      toolsUsed: ['web_search', 'web_fetch'],
+      providersTried: ['searxng'],
+      hitCount: 1,
+      fetchCount: 1,
+    });
+    mocks.imageSearch.mockResolvedValue({
+      query: 'Castlevania Revamped',
+      note: 'Found 1.',
+      hits: [
+        {
+          title: 'ReVamped screenshot',
+          imageUrl: 'https://cdn.example.com/revamped.png',
+          contextUrl: 'https://example.com/page',
+          provider: 'searxng',
+          snippet: 'Gameplay',
+        },
+      ],
+      providersTried: ['searxng'],
+      toolsUsed: ['image_search'],
+      hitCount: 1,
+    });
+    mocks.invokeModel.mockResolvedValue({
+      content: 'Castlevania ReVamped is a fan remake. Screenshot: https://cdn.example.com/revamped.png',
+      model: 'local',
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText:
+        'find me as much information as possible about the game Castlevania Revamped, including screenshots',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: false,
+    });
+
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
+    expect(mocks.webSearch).toHaveBeenCalled();
+    expect(mocks.imageSearch).toHaveBeenCalled();
+    const invokeArg = mocks.invokeModel.mock.calls[0]?.[1] as {
+      messages: { role: string; content: string }[];
+    };
+    const userMsg = invokeArg.messages.find((m) => m.role === 'user')?.content ?? '';
+    expect(userMsg).toMatch(/Web search results/);
+    expect(userMsg).toMatch(/Image search results/);
+    expect(userMsg).toMatch(/cdn\.example\.com\/revamped\.png/);
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      toolsUsed: expect.arrayContaining(['web_search', 'image_search']),
+      noProviderFee: true,
+    });
+  });
+
+  it('resolves anaphoric follow-ups using prior user turns for search', async () => {
+    mocks.webSearch.mockResolvedValue({
+      query: 'Castlevania',
+      note: 'ok',
+      hits: [{ title: 'Castlevania ReVamped', url: 'https://example.com/c', snippet: 'Fan remake' }],
+      toolsUsed: ['web_search'],
+      providersTried: ['searxng'],
+      hitCount: 1,
+      fetchCount: 0,
+    });
+    mocks.invokeModel.mockResolvedValue({
+      content: 'Found it — Castlevania ReVamped.',
+      model: 'local',
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: "it's a fan remake, and it does exist. see if you can find it",
+      priorTurns: [
+        {
+          role: 'user',
+          text: 'find me as much information as possible about the game Castlevania Revamped, including screenshots',
+        },
+        { role: 'assistant', text: 'I could not find it.' },
+      ],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: false,
+    });
+
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
+    const searchArg = String(mocks.webSearch.mock.calls[0]?.[0] ?? '');
+    expect(searchArg).toMatch(/Castlevania Revamped/i);
+  });
+
+  it('retries plain invoke once after assist when the free host returns 504', async () => {
+    mocks.webSearch.mockResolvedValue({
+      query: 'who are the top 5 scorers for Arsenal all time?',
+      note: 'Sparse.',
+      hits: [{ title: 'Thierry Henry', url: 'https://example.com/h', snippet: '226 goals' }],
+      toolsUsed: ['web_search'],
+      providersTried: ['wikipedia'],
+      hitCount: 1,
+      fetchCount: 0,
+    });
+    mocks.invokeModel
+      .mockRejectedValueOnce(new GatewayError('unavailable', { kind: 'http', httpStatus: 504 }))
+      .mockResolvedValue({
+        content: 'Thierry Henry leads.',
+        model: 'local',
+        inputTokens: 1,
+        outputTokens: 2,
+        latencyMs: 5,
+        finishReason: 'stop',
+      });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'who are the top 5 scorers for Arsenal all time?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: false,
+    });
+
+    expect(mocks.invokeModel).toHaveBeenCalledTimes(2);
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'Thierry Henry leads.',
       toolsUsed: ['web_search'],
       noProviderFee: true,
     });

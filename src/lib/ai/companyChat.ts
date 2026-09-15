@@ -25,7 +25,9 @@ import {
   looksLikeImageSearchQuery,
   looksLikeProjectInternalQuery,
   looksLikeWebLookupQuery,
+  resolveAssistSearchQuery,
   userTextWithBrowseContext,
+  wantsLookupScreenshots,
 } from '@/lib/ai/tools/serverBrowseAssist';
 import { formatRepoAssistContext, gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
 import { estimateCostMicros } from '@/lib/ai/pricing/modelRates';
@@ -329,11 +331,21 @@ export async function attemptCompanyCredentialChat(input: {
     const toolNeedy = looksLikeToolNeedyQuery(input.userText);
     const repoToolsOn = input.includeRepoTools !== false;
     const projectInternal = looksLikeProjectInternalQuery(input.userText);
-    /** Project IDE: prefer the tool loop (repo_*) over plain answers for lookups and in-repo asks. */
+    /**
+     * Prefer the tool loop for paid hosts and project IDE (repo_*).
+     * Free Chat without repo tools: Nucleas assist covers web/image digs; only force the
+     * tool loop for generate/draw-style asks (toolNeedy with no assist path) or forceToolLoop.
+     */
     const preferToolLoop =
       Boolean(input.forceToolLoop) ||
-      toolNeedy ||
-      (repoToolsOn && (isLookup || projectInternal));
+      (repoToolsOn && (toolNeedy || isLookup || projectInternal)) ||
+      (!freeCredential && toolNeedy) ||
+      (freeCredential && !repoToolsOn && toolNeedy && !isLookup && !isImageLookup);
+
+    const priorUserTexts = input.priorTurns
+      .filter((turn) => turn.role === 'user')
+      .map((turn) => turn.text);
+    const assistSearchQuery = resolveAssistSearchQuery(input.userText, priorUserTexts);
 
     async function plainInvoke(args: {
       systemExtra: string;
@@ -357,6 +369,27 @@ export async function attemptCompanyCredentialChat(input: {
       );
     }
 
+    /** One soft retry when the free host returns 502/504 after Nucleas already gathered context. */
+    async function plainInvokeAfterAssist(args: {
+      systemExtra: string;
+      userContent: string;
+    }) {
+      try {
+        return await plainInvoke(args);
+      } catch (error) {
+        const status =
+          error instanceof GatewayError ? error.details?.httpStatus : undefined;
+        const retryable =
+          freeCredential &&
+          error instanceof GatewayError &&
+          error.code === 'unavailable' &&
+          (status === 502 || status === 504);
+        if (!retryable) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return plainInvoke(args);
+      }
+    }
+
     async function tryBrowseAssistPlain(systemExtra: string): Promise<{
       content: string;
       toolCallsMade: string[];
@@ -368,16 +401,24 @@ export async function attemptCompanyCredentialChat(input: {
       if (!freeCredential || !isLookup) return null;
       // Project IDE has repo tools — let the tool loop choose repo_* vs web.
       if (input.includeRepoTools !== false) return null;
-      const search = await webSearch(input.userText, {
+      const search = await webSearch(assistSearchQuery, {
         signal: input.signal,
         depth: 'standard',
         organizationId: input.organizationId,
       });
       browseAssisted = true;
-      const toolsUsed = search.toolsUsed?.length ? search.toolsUsed : ['web_search'];
-      const block = formatResearchResultContext(search);
-      const plain = await plainInvoke({
-        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran research (${toolsUsed.join(', ')}); ground your answer in the provided sources and extracts.`,
+      const toolsUsed = search.toolsUsed?.length ? [...search.toolsUsed] : ['web_search'];
+      let block = formatResearchResultContext(search);
+      if (wantsLookupScreenshots(input.userText)) {
+        const images = await imageSearch(assistSearchQuery, {
+          signal: input.signal,
+          organizationId: input.organizationId,
+        });
+        if (!toolsUsed.includes('image_search')) toolsUsed.push('image_search');
+        block = `${block}\n\n${formatImageSearchContext(images)}`.slice(0, 10000);
+      }
+      const plain = await plainInvokeAfterAssist({
+        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran research (${toolsUsed.join(', ')}); ground your answer in the provided sources and extracts. Cite concrete image URLs when image results are present.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
       return {
@@ -399,14 +440,14 @@ export async function attemptCompanyCredentialChat(input: {
       latencyMs: number;
     } | null> {
       if (!freeCredential || !isImageLookup) return null;
-      const search = await imageSearch(input.userText, {
+      const search = await imageSearch(assistSearchQuery, {
         signal: input.signal,
         organizationId: input.organizationId,
       });
       browseAssisted = true;
       const toolsUsed = search.toolsUsed?.length ? search.toolsUsed : ['image_search'];
       const block = formatImageSearchContext(search);
-      const plain = await plainInvoke({
+      const plain = await plainInvokeAfterAssist({
         systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran image_search; list the concrete image URLs from the results (markdown links are fine). Do not invent URLs.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
@@ -438,7 +479,7 @@ export async function attemptCompanyCredentialChat(input: {
       });
       browseAssisted = true;
       const block = formatRepoAssistContext(dig);
-      const plain = await plainInvoke({
+      const plain = await plainInvokeAfterAssist({
         systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran repo_tree/repo_read; ground your answer in the provided repository dig. If the dig says the repo is unbound, tell the user to bind GitHub / connect the GitHub App.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });

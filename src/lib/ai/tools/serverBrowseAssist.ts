@@ -2,6 +2,13 @@ import type { ImageSearchResult, ResearchSearchResult, WebSearchHit } from '@/li
 
 const LOOKUP_HINT =
   /\b(who|what|when|where|which|how many|top\s+\d+|all[- ]time|current|latest|score|scorer|ranking|standings|stats?|record|winner|champion|research|look\s*up|find\s+out|tell\s+me\s+about|information\s+about|details\s+(on|about)|background\s+on)\b/i;
+/** Open-ended digs that miss the tighter LOOKUP_HINT (e.g. "information as possible about"). */
+const LOOKUP_EXTRA =
+  /\b(find\s+(me\s+)?(as\s+much\s+)?(info|information|details)|information\b[\s\S]{0,40}\babout\b|about\s+the\s+(game|movie|show|band|book|album|title)|see\s+if\s+you\s+can\s+find|does\s+(it|this)\s+exist)\b/i;
+const ANAPHORIC_LOOKUP =
+  /\b(see\s+if\s+you\s+can\s+find(\s+it)?|find\s+it|does\s+(it|this)\s+exist|it\s+does\s+exist|fan\s+remake)\b/i;
+const LOOKUP_MEDIA =
+  /\b(screenshots?|images?|photos?|pictures?)\b/i;
 const CODE_HEAVY =
   /\b(refactor|typescript|javascript|python|bugfix|stack\s*trace|compile)\b/i;
 /** Project / codebase questions should use repo tools, not proactive web_search. */
@@ -36,8 +43,8 @@ export function looksLikeWebLookupQuery(text: string): boolean {
   if (q.length < 8) return false;
   if (looksLikeImageSearchQuery(q) || IMAGE_GENERATE.test(q)) return false;
   if (looksLikeProjectInternalQuery(q)) return false;
-  if (CODE_HEAVY.test(q) && !LOOKUP_HINT.test(q)) return false;
-  return LOOKUP_HINT.test(q) || /\?/.test(q);
+  if (CODE_HEAVY.test(q) && !LOOKUP_HINT.test(q) && !LOOKUP_EXTRA.test(q)) return false;
+  return LOOKUP_HINT.test(q) || LOOKUP_EXTRA.test(q) || ANAPHORIC_LOOKUP.test(q) || /\?/.test(q);
 }
 
 /** Find existing web images (not AI image generation). */
@@ -46,6 +53,34 @@ export function looksLikeImageSearchQuery(text: string): boolean {
   if (q.length < 6) return false;
   if (IMAGE_GENERATE.test(q)) return false;
   return IMAGE_FIND.test(q);
+}
+
+/** Follow-ups that omit the subject ("find it", "fan remake") and need prior user turns. */
+export function looksLikeAnaphoricLookup(text: string): boolean {
+  const q = extractChatHeuristicText(text);
+  if (q.length < 6) return false;
+  if (looksLikeImageSearchQuery(q) || IMAGE_GENERATE.test(q)) return false;
+  return ANAPHORIC_LOOKUP.test(q);
+}
+
+/**
+ * Build a search query for free assist. Anaphoric follow-ups pull recent user turns
+ * so "see if you can find it" still includes the prior subject (e.g. Castlevania Revamped).
+ */
+export function resolveAssistSearchQuery(userText: string, priorUserTexts: string[] = []): string {
+  const current = extractChatHeuristicText(userText);
+  if (!looksLikeAnaphoricLookup(current)) return current.slice(0, 400);
+  const recent = priorUserTexts
+    .map((t) => extractChatHeuristicText(t))
+    .filter(Boolean)
+    .slice(-2)
+    .join(' ');
+  return `${recent}\n${current}`.trim().slice(0, 400) || current.slice(0, 400);
+}
+
+/** Web lookup that also wants screenshots / photos cited. */
+export function wantsLookupScreenshots(text: string): boolean {
+  return LOOKUP_MEDIA.test(extractChatHeuristicText(text));
 }
 
 export function formatWebSearchContext(input: {

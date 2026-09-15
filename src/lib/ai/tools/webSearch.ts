@@ -604,6 +604,71 @@ async function searxngSearch(q: string, limit: number, opts: FetchOpts): Promise
   return hits;
 }
 
+function queryTokensForImageRank(q: string): string[] {
+  return q
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3)
+    .slice(0, 8);
+}
+
+async function searxngImageSearch(q: string, limit: number, opts: FetchOpts): Promise<ImageSearchHit[]> {
+  const base = process.env.SEARXNG_BASE_URL?.trim().replace(/\/+$/, '');
+  if (!base || !/^https:\/\//i.test(base)) return [];
+  const endpoint = assertSafePublicHttpsUrl(
+    `${base}/search?q=${encodeURIComponent(q)}&format=json&language=en&categories=images`
+  );
+  const response = await opts.fetcher(endpoint, {
+    method: 'GET',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: opts.signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    return [];
+  }
+  let body: {
+    results?: Array<{
+      title?: string;
+      url?: string;
+      content?: string;
+      img_src?: string;
+      thumbnail_src?: string;
+    }>;
+  };
+  try {
+    body = (await response.json()) as typeof body;
+  } catch {
+    return [];
+  }
+  const tokens = queryTokensForImageRank(q);
+  const scored: Array<{ hit: ImageSearchHit; score: number }> = [];
+  for (const row of body.results ?? []) {
+    const imageUrl = row.img_src?.trim() || row.thumbnail_src?.trim();
+    if (!imageUrl || !/^https:\/\//i.test(imageUrl)) continue;
+    const hay = `${row.title ?? ''} ${row.url ?? ''} ${imageUrl}`.toLowerCase();
+    const score =
+      tokens.length === 0 ? 1 : tokens.reduce((n, t) => n + (hay.includes(t) ? 1 : 0), 0);
+    if (tokens.length && score === 0) continue;
+    scored.push({
+      score,
+      hit: {
+        title: (row.title ?? 'Image').slice(0, 200),
+        imageUrl: imageUrl.slice(0, 4000),
+        thumbnailUrl: row.thumbnail_src?.slice(0, 4000),
+        contextUrl: row.url?.slice(0, 4000),
+        snippet: (row.content ?? row.title ?? '').slice(0, 400),
+        provider: 'searxng',
+      },
+    });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map((row) => row.hit);
+}
+
 async function runProvider(
   name: string,
   work: () => Promise<WebSearchHit[]>,
@@ -1013,7 +1078,16 @@ export async function imageSearch(
         );
       }
     } else {
-      notes.push('GOOGLE_CSE not configured; using Wikipedia/Commons fallback.');
+      notes.push('GOOGLE_CSE not configured; using SearXNG/Wikipedia/Commons fallback.');
+    }
+
+    if (!hits.length && isSearxngConfigured()) {
+      providersTried.push('searxng');
+      try {
+        hits = await searxngImageSearch(q, limit, opts);
+      } catch {
+        notes.push('searxng image fallback failed.');
+      }
     }
 
     if (!hits.length) {

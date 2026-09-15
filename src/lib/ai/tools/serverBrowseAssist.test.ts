@@ -3,10 +3,13 @@ import {
   extractChatHeuristicText,
   formatImageSearchContext,
   formatWebSearchContext,
+  looksLikeAnaphoricLookup,
   looksLikeImageSearchQuery,
   looksLikeProjectInternalQuery,
   looksLikeWebLookupQuery,
+  resolveAssistSearchQuery,
   userTextWithBrowseContext,
+  wantsLookupScreenshots,
 } from '@/lib/ai/tools/serverBrowseAssist';
 
 describe('looksLikeWebLookupQuery', () => {
@@ -16,12 +19,51 @@ describe('looksLikeWebLookupQuery', () => {
     expect(looksLikeWebLookupQuery('tell me about the history of Arsenal Football Club')).toBe(true);
   });
 
+  it('matches open-ended info digs including screenshots wording', () => {
+    expect(
+      looksLikeWebLookupQuery(
+        'find me as much information as possible about the game Castlevania Revamped, including screenshots'
+      )
+    ).toBe(true);
+    expect(looksLikeWebLookupQuery('see if you can find it')).toBe(true);
+    expect(looksLikeWebLookupQuery("it's a fan remake, and it does exist. see if you can find it")).toBe(
+      true
+    );
+  });
+
   it('rejects short, code-heavy, project-internal, or image prompts', () => {
     expect(looksLikeWebLookupQuery('hi')).toBe(false);
     expect(looksLikeWebLookupQuery('fix this TypeScript compile error please')).toBe(false);
     expect(looksLikeWebLookupQuery('find images of Emirates Stadium')).toBe(false);
     expect(looksLikeWebLookupQuery('how does our rules system work exactly?')).toBe(false);
     expect(looksLikeWebLookupQuery('Explain the codebase architecture')).toBe(false);
+  });
+});
+
+describe('resolveAssistSearchQuery', () => {
+  it('keeps non-anaphoric asks as-is', () => {
+    const q = 'find me as much information as possible about Castlevania Revamped';
+    expect(resolveAssistSearchQuery(q, ['earlier'])).toBe(q);
+  });
+
+  it('merges prior user turns for anaphoric follow-ups', () => {
+    expect(looksLikeAnaphoricLookup('see if you can find it')).toBe(true);
+    const resolved = resolveAssistSearchQuery("it's a fan remake, and it does exist. see if you can find it", [
+      'find me as much information as possible about the game Castlevania Revamped, including screenshots',
+    ]);
+    expect(resolved).toMatch(/Castlevania Revamped/i);
+    expect(resolved).toMatch(/fan remake/i);
+  });
+});
+
+describe('wantsLookupScreenshots', () => {
+  it('detects screenshot / image asks on web digs', () => {
+    expect(
+      wantsLookupScreenshots(
+        'find me as much information as possible about the game Castlevania Revamped, including screenshots'
+      )
+    ).toBe(true);
+    expect(wantsLookupScreenshots('who scored most for Arsenal?')).toBe(false);
   });
 });
 

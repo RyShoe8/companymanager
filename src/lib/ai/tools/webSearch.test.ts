@@ -345,4 +345,42 @@ describe('imageSearch', () => {
     expect(callUrl).toContain('searchType=image');
     expect(callUrl).toContain('cx=engine-cx');
   });
+
+  it('falls back to SearXNG images when CSE is empty', async () => {
+    vi.stubEnv('SEARXNG_BASE_URL', 'https://search.example.com');
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({
+        results: [
+          {
+            title: 'Castlevania ReVamped PC 083',
+            url: 'https://thekingofgrabs.com/2024/04/07/castlevania-revamped-pc/',
+            img_src: 'https://i0.wp.com/thekingofgrabs.com/wp-content/uploads/castlevania-revamped-pc-083.png',
+            thumbnail_src: 'https://i0.wp.com/thekingofgrabs.com/wp-content/uploads/castlevania-revamped-pc-083.png?w=200',
+            content: 'Screenshot',
+          },
+          {
+            title: 'unrelated art',
+            url: 'https://example.com/art',
+            img_src: 'https://cdn.example.com/unrelated.jpg',
+          },
+        ],
+      })
+    );
+
+    const result = await imageSearch('Castlevania ReVamped screenshots', { fetcher });
+    expect(result.providersTried).toContain('searxng');
+    expect(result.hits[0]).toEqual(
+      expect.objectContaining({
+        title: 'Castlevania ReVamped PC 083',
+        imageUrl: 'https://i0.wp.com/thekingofgrabs.com/wp-content/uploads/castlevania-revamped-pc-083.png',
+        provider: 'searxng',
+      })
+    );
+    expect(result.hits.every((hit) => /castlevania|revamped/i.test(`${hit.title} ${hit.imageUrl}`))).toBe(
+      true
+    );
+    const callUrl = String(fetcher.mock.calls[0]?.[0]);
+    expect(callUrl).toContain('categories=images');
+    expect(callUrl).toContain('search.example.com');
+  });
 });
