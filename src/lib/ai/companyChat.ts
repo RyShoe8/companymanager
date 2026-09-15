@@ -1,7 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
-import { GatewayError } from '@nucleas/ai-core/gateway';
+import { GatewayError, invokeModel } from '@nucleas/ai-core/gateway';
 import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
@@ -232,21 +232,55 @@ export async function attemptCompanyCredentialChat(input: {
     .map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.text.slice(0, 2000) }));
 
   try {
-    const loop = await runIdeToolLoop({
-      gateway,
-      messages: [
-        { role: 'system', content: input.systemPrompt },
-        ...history,
-        { role: 'user', content: input.userText.slice(0, 6000) },
-      ],
-      maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
-      includeImageTool: input.includeImageTool !== false,
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      userId: input.userId,
-      runId,
-      signal: input.signal,
-    });
+    let loop: Awaited<ReturnType<typeof runIdeToolLoop>>;
+    try {
+      loop = await runIdeToolLoop({
+        gateway,
+        messages: [
+          { role: 'system', content: input.systemPrompt },
+          ...history,
+          { role: 'user', content: input.userText.slice(0, 6000) },
+        ],
+        maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
+        includeImageTool: input.includeImageTool !== false,
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        userId: input.userId,
+        runId,
+        signal: input.signal,
+      });
+    } catch (toolError) {
+      const retryPlain =
+        freeCredential &&
+        toolError instanceof GatewayError &&
+        (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
+      if (!retryPlain) throw toolError;
+
+      const plain = await invokeModel(
+        gateway,
+        {
+          role: 'architect',
+          messages: [
+            {
+              role: 'system',
+              content: `${input.systemPrompt} Tools are unavailable on this host; answer from knowledge only.`,
+            },
+            ...history,
+            { role: 'user', content: input.userText.slice(0, 6000) },
+          ],
+          maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
+        },
+        { signal: input.signal }
+      );
+      loop = {
+        content: plain.content,
+        toolCallsMade: [],
+        artifacts: [],
+        inputTokens: plain.inputTokens,
+        outputTokens: plain.outputTokens,
+        latencyMs: plain.latencyMs,
+      };
+    }
 
     const content = appendArtifacts(loop.content, loop.artifacts).trim();
     if (!content) {

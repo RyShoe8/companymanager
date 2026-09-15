@@ -4,6 +4,7 @@ import { Types } from 'mongoose';
 const mocks = vi.hoisted(() => ({
   find: vi.fn(),
   insertMany: vi.fn(),
+  createIndexes: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -11,6 +12,7 @@ vi.mock('@/lib/models/AiIdeChatTurn', () => ({
   AiIdeChatTurn: {
     find: mocks.find,
     insertMany: mocks.insertMany,
+    createIndexes: mocks.createIndexes,
   },
 }));
 
@@ -18,6 +20,7 @@ import { appendIdeChatTurns, ideThreadKeys, loadIdeChatHistory } from '@/lib/ide
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.createIndexes.mockResolvedValue(undefined);
 });
 
 describe('ideThreadKeys', () => {
@@ -104,6 +107,26 @@ describe('loadIdeChatHistory', () => {
     });
     expect(turns.map((item) => item.requestId)).toEqual(['r1', 'r2']);
   });
+
+  it('soft-fails to an empty thread when the query throws', async () => {
+    mocks.find.mockReturnValue({
+      sort: () => ({
+        limit: () => ({
+          maxTimeMS: () => ({
+            lean: () => Promise.reject(Object.assign(new Error('pool'), { name: 'MongoPoolClearedError' })),
+          }),
+        }),
+      }),
+    });
+    await expect(
+      loadIdeChatHistory({
+        organizationId: 'org',
+        projectId,
+        userId,
+        mode: 'product',
+      })
+    ).resolves.toEqual([]);
+  });
 });
 
 describe('appendIdeChatTurns', () => {
@@ -151,5 +174,18 @@ describe('appendIdeChatTurns', () => {
       ],
       { ordered: false }
     );
+  });
+
+  it('swallows persist failures so chat can still return', async () => {
+    mocks.insertMany.mockRejectedValue(new Error('unavailable'));
+    await expect(
+      appendIdeChatTurns({
+        organizationId: 'org',
+        projectId,
+        userId,
+        mode: 'product',
+        turns: [{ requestId: 'u1', role: 'user', text: 'hello' }],
+      })
+    ).resolves.toBeUndefined();
   });
 });

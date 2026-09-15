@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
-import { requireAiProject } from '@/lib/ai/control/access';
+import { AiHttpError, requireAiProject } from '@/lib/ai/control/access';
 import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { attemptTeamChatReply } from '@/lib/ai/teamChat';
 import { attemptDirectModelChat } from '@/lib/ai/ideDirectChat';
@@ -14,7 +14,6 @@ import {
 import { ideChatSchema } from '@/lib/ide/ideChatSchema';
 import { loadIdeTaskRuleTexts } from '@/lib/ide/loadTaskRules';
 import { appendIdeChatTurns, loadIdeChatHistory } from '@/lib/ide/chatHistory';
-import { ensureAiIndexes } from '@/lib/ai/control/indexes';
 
 export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
@@ -22,11 +21,10 @@ type Context = { params: Promise<{ id: string }> };
 export async function GET(request: NextRequest, context: Context) {
   try {
     const access = await requireAiProject(request, (await context.params).id, false, true);
-    await ensureAiIndexes();
     const modeRaw = request.nextUrl.searchParams.get('mode')?.trim() ?? '';
     const mode = normalizeIdeChatMode(modeRaw);
     if (!mode || !isIdeChatMode(mode)) {
-      return aiError(Object.assign(new Error('Invalid IDE chat mode.'), { status: 400 }));
+      throw new AiHttpError(400, 'Invalid IDE chat mode.');
     }
     const modelProfileId = request.nextUrl.searchParams.get('modelProfileId')?.trim() ?? '';
     const model = request.nextUrl.searchParams.get('model')?.trim() ?? '';
@@ -47,7 +45,6 @@ export async function GET(request: NextRequest, context: Context) {
 export async function POST(request: NextRequest, context: Context) {
   try {
     const access = await requireAiProject(request, (await context.params).id, false, true);
-    await ensureAiIndexes();
     const input = ideChatSchema.parse(await readAiBody(request));
     const mode = input.mode;
     const ruleTexts = await loadIdeTaskRuleTexts(access.organizationId, access.project._id, mode);
@@ -91,7 +88,7 @@ export async function POST(request: NextRequest, context: Context) {
             artifacts: reply.artifacts ?? [],
           },
         ],
-      }).catch(() => undefined);
+      });
     };
 
     if (isIdeDirectMode(mode)) {
@@ -130,7 +127,7 @@ export async function POST(request: NextRequest, context: Context) {
     }
 
     if (!isIdeWorkerMode(mode)) {
-      throw new Error('Invalid IDE worker mode.');
+      throw new AiHttpError(400, 'Invalid IDE worker mode.');
     }
     const employee = employeeForIdeMode(mode);
     const turn = await attemptTeamChatReply({

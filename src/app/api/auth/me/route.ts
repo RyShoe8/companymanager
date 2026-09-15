@@ -3,8 +3,9 @@ import { getSession, deleteSession } from '@/lib/auth/session';
 import connectDB from '@/lib/db/mongodb';
 import User, { isAdminEmail } from '@/lib/models/User';
 import { migrateLegacyEmailVerified } from '@/lib/auth/emailVerification';
+import { isMongoNetworkError, MONGO_NETWORK_USER_MESSAGE } from '@/lib/utils/mongoErrors';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
@@ -55,7 +56,9 @@ export async function GET(request: NextRequest) {
       createdAt: user.createdAt?.toISOString() ?? null,
     });
   } catch (error) {
-    // Get user error
+    if (isMongoNetworkError(error)) {
+      return NextResponse.json({ error: MONGO_NETWORK_USER_MESSAGE }, { status: 503 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

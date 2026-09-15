@@ -6,6 +6,18 @@ import { AiIdeChatTurn } from '@/lib/models/AiIdeChatTurn';
 
 const HISTORY_LIMIT = 50;
 
+let indexesReady: Promise<void> | undefined;
+
+/** Best-effort; never throw to callers. */
+function ensureIdeChatIndexes(): Promise<void> {
+  indexesReady ??= AiIdeChatTurn.createIndexes()
+    .then(() => undefined)
+    .catch(() => {
+      indexesReady = undefined;
+    });
+  return indexesReady;
+}
+
 export type IdePersistedTurn = {
   requestId: string;
   role: 'user' | 'assistant' | 'status';
@@ -48,40 +60,45 @@ export async function loadIdeChatHistory(input: {
   if (isIdeDirectMode(keys.mode) && (!keys.directProfileId || !keys.directModel)) {
     return [];
   }
-  const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
-  const rows = await AiIdeChatTurn.find({
-    organizationId: input.organizationId,
-    projectId: input.projectId,
-    createdByUserId: new Types.ObjectId(input.userId),
-    mode: keys.mode,
-    directProfileId: keys.directProfileId,
-    directModel: keys.directModel,
-  })
-    .sort({ _id: -1 })
-    .limit(limit)
-    .maxTimeMS(3000)
-    .lean();
+  try {
+    await ensureIdeChatIndexes();
+    const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
+    const rows = await AiIdeChatTurn.find({
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      createdByUserId: new Types.ObjectId(input.userId),
+      mode: keys.mode,
+      directProfileId: keys.directProfileId,
+      directModel: keys.directModel,
+    })
+      .sort({ _id: -1 })
+      .limit(limit)
+      .maxTimeMS(3000)
+      .lean();
 
-  return rows
-    .reverse()
-    .map((row) => ({
-      requestId: row.requestId,
-      role: row.role as IdePersistedTurn['role'],
-      text: row.text,
-      failureCategory: row.failureCategory ?? null,
-      runId: row.runId ?? null,
-      costMicros: row.costMicros ?? null,
-      reservedMicros: row.reservedMicros ?? null,
-      noProviderFee: row.noProviderFee ?? false,
-      toolsUsed: row.toolsUsed ?? [],
-      artifacts: (row.artifacts ?? []).map((item) => ({
-        kind: 'image' as const,
-        assetId: item.assetId,
-        name: item.name,
-        url: item.url,
-      })),
-      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
-    }));
+    return rows
+      .reverse()
+      .map((row) => ({
+        requestId: row.requestId,
+        role: row.role as IdePersistedTurn['role'],
+        text: row.text,
+        failureCategory: row.failureCategory ?? null,
+        runId: row.runId ?? null,
+        costMicros: row.costMicros ?? null,
+        reservedMicros: row.reservedMicros ?? null,
+        noProviderFee: row.noProviderFee ?? false,
+        toolsUsed: row.toolsUsed ?? [],
+        artifacts: (row.artifacts ?? []).map((item) => ({
+          kind: 'image' as const,
+          assetId: item.assetId,
+          name: item.name,
+          url: item.url,
+        })),
+        createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+      }));
+  } catch {
+    return [];
+  }
 }
 
 export async function appendIdeChatTurns(input: {
@@ -125,8 +142,10 @@ export async function appendIdeChatTurns(input: {
       : {}),
   }));
 
-  await AiIdeChatTurn.insertMany(docs, { ordered: false }).catch((error: { code?: number }) => {
-    // Ignore duplicate requestId races; other errors rethrow.
-    if (error?.code !== 11000) throw error;
-  });
+  try {
+    await ensureIdeChatIndexes();
+    await AiIdeChatTurn.insertMany(docs, { ordered: false });
+  } catch {
+    // Soft-fail: chat reply must still return even if history cannot persist.
+  }
 }
