@@ -16,10 +16,9 @@ import type { IdeInteractionMode, IdePlanDocument } from '@/lib/ide/idePlan';
 import type { IdeChatStageCallback } from '@/lib/ide/ideChatStream';
 import { withStage } from '@/lib/ide/ideChatStream';
 import {
-  appendInteractionModePrompt,
-  pipelineStageForInteractionMode,
+  orchestraStagePrompt,
   shouldForcePlainChat,
-  toolProfileForInteractionMode,
+  toolProfileForOrchestraStage,
 } from '@/lib/ide/planModePrompt';
 import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
 import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
@@ -30,6 +29,11 @@ import {
   type TeamContextSummary,
   type TeamMessageRole,
 } from '@/lib/ai/teamWorkspace';
+
+type PipelineStageBinding = {
+  modelProfileId?: Types.ObjectId | string;
+  model?: string;
+};
 
 export type TeamChatTurn = {
   requestId: string;
@@ -48,6 +52,44 @@ export type TeamChatTurn = {
   toolsUsed?: string[];
   plan?: IdePlanDocument;
 };
+
+function readStageBinding(
+  pipeline: { planner?: PipelineStageBinding; worker?: PipelineStageBinding; reviewer?: PipelineStageBinding } | null | undefined,
+  key: 'planner' | 'worker' | 'reviewer'
+): { profileId: string; model: string } | null {
+  const stage = pipeline?.[key];
+  const profileId = stage?.modelProfileId ? String(stage.modelProfileId) : '';
+  const model = stage?.model?.trim() ?? '';
+  if (!profileId || !model) return null;
+  return { profileId, model };
+}
+
+function mergeTurnCosts(turns: TeamChatTurn[]): {
+  costMicros: number | null;
+  reservedMicros: number;
+  noProviderFee: boolean;
+  toolsUsed: string[];
+  artifacts: NonNullable<TeamChatTurn['artifacts']>;
+} {
+  let costMicros: number | null = 0;
+  let reservedMicros = 0;
+  let noProviderFee = true;
+  const toolsUsed: string[] = [];
+  const artifacts: NonNullable<TeamChatTurn['artifacts']> = [];
+  for (const turn of turns) {
+    if (costMicros != null) {
+      if (turn.costMicros == null) costMicros = null;
+      else costMicros += turn.costMicros;
+    }
+    reservedMicros += turn.reservedMicros ?? 0;
+    noProviderFee = Boolean(noProviderFee && turn.noProviderFee);
+    for (const tool of turn.toolsUsed ?? []) {
+      if (!toolsUsed.includes(tool)) toolsUsed.push(tool);
+    }
+    artifacts.push(...(turn.artifacts ?? []));
+  }
+  return { costMicros, reservedMicros, noProviderFee, toolsUsed, artifacts };
+}
 
 const CHAT_LOCK_MS = 60000;
 
@@ -354,7 +396,7 @@ function costFields(policy: { reservationMicros: number; noProviderFee: boolean 
   };
 }
 
-/** IDE / team role chat via that employee's AI Team Worker company binding + tool loop. */
+/** IDE / team role chat: always Planner → Worker → Reviewer on worker tabs. */
 export async function attemptTeamChatReply(input: {
   employee: AiEmployeeKey;
   projectName: string;
@@ -385,22 +427,22 @@ export async function attemptTeamChatReply(input: {
     .lean();
 
   const interactionMode = input.interactionMode ?? 'chat';
-  const stageKey = pipelineStageForInteractionMode(interactionMode);
-  const stage = pipeline?.[stageKey] as
-    | { modelProfileId?: Types.ObjectId | string; model?: string }
-    | undefined;
-  const stageProfileId = stage?.modelProfileId ? String(stage.modelProfileId) : '';
-  const stageModel = stage?.model?.trim() ?? '';
-  if (!stageProfileId || !stageModel) {
-    const label = stageKey === 'planner' ? 'Planner' : 'Worker';
+  const plannerBinding = readStageBinding(pipeline, 'planner');
+  const workerBinding = readStageBinding(pipeline, 'worker');
+  const reviewerBinding = readStageBinding(pipeline, 'reviewer');
+
+  if (!plannerBinding) {
     return statusTurn(
-      `Configure a ${label} company and model for ${input.employee} on AI Team before using ${interactionMode} mode.`,
+      `Configure a Planner company and model for ${input.employee} on AI Team before chatting.`,
       'configuration'
     );
   }
-
-  const allowTools = true;
-  const toolProfile = toolProfileForInteractionMode(interactionMode);
+  if (!workerBinding) {
+    return statusTurn(
+      `Configure a Worker company and model for ${input.employee} on AI Team before chatting.`,
+      'configuration'
+    );
+  }
 
   const role = aiEmployees.find((item) => item.id === input.employee)!;
   const ruleBlock =
@@ -409,104 +451,173 @@ export async function attemptTeamChatReply(input: {
           '\n'
         )
       : null;
-  const basePrompt = [
-    `You are ${role.name} assisting on the Nucleas project "${input.projectName}".`,
+
+  const sharedContext = [
+    `You are on the ${role.name} AI Team for the Nucleas project "${input.projectName}".`,
     role.description,
-    `Pipeline stage: ${stageKey}.`,
     `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
-    'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
-    allowTools
-      ? 'You may call provided tools. Never claim browse, repo, or image results without tool output. If a tool fails, say so from the error—do not invent results.'
-      : 'Do not call tools in this turn.',
-    allowTools && toolProfile === 'full'
-      ? 'Prefer repo_tree/repo_read for this codebase; web_search/web_fetch only for external facts; browser_navigate only when fetch is thin.'
-      : allowTools
-        ? 'Use repo_tree/repo_read to inspect the bound repository while planning.'
-        : '',
+    'Do not claim to have changed project data or completed tasks outside this chat.',
     'If you lack information or tools, say what is missing instead of inventing project or web facts.',
     ...(ruleBlock ? [ruleBlock] : []),
   ]
     .filter(Boolean)
     .join(' ');
 
-  const turn = await withStage(input.onStage, stageKey, () =>
-    attemptCompanyCredentialChat({
-      systemPrompt: appendInteractionModePrompt(basePrompt, interactionMode),
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      userId: input.userId,
-      userText: input.userText,
-      priorTurns: input.priorTurns,
-      modelProfileId: stageProfileId,
-      model: stageModel,
-      includeImageTool: toolProfile === 'full',
-      includeRepoTools: true,
-      toolProfile,
-      forcePlain: shouldForcePlainChat(interactionMode),
-      signal: input.signal,
-    })
-  );
+  async function runStage(args: {
+    stage: 'planner' | 'worker' | 'reviewer';
+    binding: { profileId: string; model: string };
+    userText: string;
+    priorTurns: { role: TeamMessageRole; text: string }[];
+  }): Promise<TeamChatTurn> {
+    const toolProfile = toolProfileForOrchestraStage(args.stage, interactionMode);
+    const allowTools = toolProfile !== 'none';
+    const systemPrompt = [
+      sharedContext,
+      `Pipeline stage: ${args.stage}.`,
+      orchestraStagePrompt(args.stage, interactionMode),
+      allowTools
+        ? 'You may call provided tools. Never claim browse, repo, or image results without tool output. If a tool fails, say so from the error—do not invent results.'
+        : 'Do not call tools in this turn.',
+      allowTools && toolProfile === 'full'
+        ? 'Prefer repo_tree/repo_read for this codebase; web_search/web_fetch only for external facts; browser_navigate only when fetch is thin.'
+        : allowTools
+          ? 'Use repo_tree/repo_read to inspect the bound repository.'
+          : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-  let result = turn;
-  if (interactionMode === 'plan' && turn.role === 'assistant') {
-    const parsed = parseNucleasPlan(turn.text);
-    if (parsed) {
-      result = { ...turn, text: parsed.displayText, plan: parsed.plan };
-    }
-  }
-
-  if (
-    interactionMode === 'build' &&
-    result.role === 'assistant' &&
-    pipeline?.reviewer?.modelProfileId &&
-    pipeline.reviewer.model?.trim()
-  ) {
-    const reviewerProfileId = String(pipeline.reviewer.modelProfileId);
-    const reviewerModel = pipeline.reviewer.model.trim();
-    const review = await withStage(input.onStage, 'reviewer', () =>
+    return withStage(input.onStage, args.stage, () =>
       attemptCompanyCredentialChat({
-        systemPrompt: [
-          `You are the Reviewer for ${role.name} on "${input.projectName}".`,
-          'The Worker just executed an approved plan. Review their reply for gaps, risks, and missed acceptance criteria.',
-          'Be concise. Do not call tools. Do not rewrite the whole worker answer—add a short review section.',
-        ].join(' '),
+        systemPrompt,
         organizationId: input.organizationId,
         projectId: input.projectId,
         userId: input.userId,
-        userText: [
-          'Worker output to review:',
-          result.text.slice(0, 5000),
-          '',
-          'User build request was:',
-          input.userText.slice(0, 2000),
-        ].join('\n'),
-        priorTurns: [],
-        modelProfileId: reviewerProfileId,
-        model: reviewerModel,
-        includeImageTool: false,
-        includeRepoTools: false,
-        toolProfile: 'none',
-        forcePlain: true,
+        userText: args.userText,
+        priorTurns: args.priorTurns,
+        modelProfileId: args.binding.profileId,
+        model: args.binding.model,
+        includeImageTool: toolProfile === 'full',
+        includeRepoTools: toolProfile !== 'none',
+        toolProfile,
+        forcePlain: toolProfile === 'none' || shouldForcePlainChat(interactionMode),
         signal: input.signal,
       })
     );
-    if (review.role === 'assistant' && review.text.trim()) {
-      const workerCost = result.costMicros;
-      const reviewCost = review.costMicros;
-      const mergedCost =
-        workerCost != null && reviewCost != null
-          ? workerCost + reviewCost
-          : workerCost ?? reviewCost ?? null;
-      result = {
-        ...result,
-        text: `${result.text.trim()}\n\n---\n**Reviewer (${reviewerModel}):**\n${review.text.trim()}`,
-        toolsUsed: [...(result.toolsUsed ?? []), ...(review.toolsUsed ?? [])],
-        costMicros: mergedCost,
-        reservedMicros: (result.reservedMicros ?? 0) + (review.reservedMicros ?? 0),
-        noProviderFee: Boolean(result.noProviderFee && review.noProviderFee),
-      };
-    }
   }
 
-  return result;
+  const plannerTurn = await runStage({
+    stage: 'planner',
+    binding: plannerBinding,
+    userText: input.userText,
+    priorTurns: input.priorTurns,
+  });
+  if (plannerTurn.role !== 'assistant') return plannerTurn;
+
+  const workerTurn = await runStage({
+    stage: 'worker',
+    binding: workerBinding,
+    userText: [
+      'User request:',
+      input.userText.slice(0, 4000),
+      '',
+      'Planner briefing / jobs:',
+      plannerTurn.text.slice(0, 6000),
+    ].join('\n'),
+    priorTurns: [],
+  });
+  if (workerTurn.role !== 'assistant') {
+    const costs = mergeTurnCosts([plannerTurn, workerTurn]);
+    return {
+      ...workerTurn,
+      toolsUsed: costs.toolsUsed,
+      artifacts: costs.artifacts,
+      costMicros: costs.costMicros,
+      reservedMicros: costs.reservedMicros,
+      noProviderFee: costs.noProviderFee,
+    };
+  }
+
+  let plan: IdePlanDocument | undefined;
+  if (interactionMode === 'plan') {
+    const parsed = parseNucleasPlan(plannerTurn.text);
+    if (parsed) plan = parsed.plan;
+  }
+
+  let reviewerTurn: TeamChatTurn | null = null;
+  if (reviewerBinding) {
+    reviewerTurn = await runStage({
+      stage: 'reviewer',
+      binding: reviewerBinding,
+      userText: [
+        'User request:',
+        input.userText.slice(0, 2000),
+        '',
+        'Planner output:',
+        plannerTurn.text.slice(0, 4000),
+        '',
+        'Worker output:',
+        workerTurn.text.slice(0, 5000),
+      ].join('\n'),
+      priorTurns: [],
+    });
+  }
+
+  const stages = [plannerTurn, workerTurn, ...(reviewerTurn ? [reviewerTurn] : [])];
+  const costs = mergeTurnCosts(stages.filter((t) => t.role === 'assistant'));
+
+  if (reviewerTurn?.role === 'assistant' && reviewerTurn.text.trim()) {
+    if (interactionMode === 'chat') {
+      return {
+        ...reviewerTurn,
+        text: reviewerTurn.text.trim(),
+        toolsUsed: costs.toolsUsed,
+        artifacts: costs.artifacts,
+        costMicros: costs.costMicros,
+        reservedMicros: costs.reservedMicros,
+        noProviderFee: costs.noProviderFee,
+        ...(plan ? { plan } : {}),
+      };
+    }
+
+    const workerBody =
+      interactionMode === 'plan' && plan
+        ? parseNucleasPlan(plannerTurn.text)?.displayText ?? plannerTurn.text.trim()
+        : workerTurn.text.trim();
+    return {
+      ...workerTurn,
+      text: `${workerBody}\n\n---\n**Reviewer (${reviewerBinding!.model}):**\n${reviewerTurn.text.trim()}`,
+      toolsUsed: costs.toolsUsed,
+      artifacts: costs.artifacts,
+      costMicros: costs.costMicros,
+      reservedMicros: costs.reservedMicros,
+      noProviderFee: costs.noProviderFee,
+      ...(plan ? { plan } : {}),
+    };
+  }
+
+  if (interactionMode === 'plan' && plan) {
+    const display = parseNucleasPlan(plannerTurn.text)?.displayText ?? plannerTurn.text.trim();
+    return {
+      ...workerTurn,
+      text: `${display}\n\n---\n**Worker findings:**\n${workerTurn.text.trim()}`,
+      toolsUsed: costs.toolsUsed,
+      artifacts: costs.artifacts,
+      costMicros: costs.costMicros,
+      reservedMicros: costs.reservedMicros,
+      noProviderFee: costs.noProviderFee,
+      plan,
+    };
+  }
+
+  return {
+    ...workerTurn,
+    text: workerTurn.text.trim(),
+    toolsUsed: costs.toolsUsed,
+    artifacts: costs.artifacts,
+    costMicros: costs.costMicros,
+    reservedMicros: costs.reservedMicros,
+    noProviderFee: costs.noProviderFee,
+    ...(plan ? { plan } : {}),
+  };
 }

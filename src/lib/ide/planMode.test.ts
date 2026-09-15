@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ideChatSchema } from '@/lib/ide/ideChatSchema';
-import { appendInteractionModePrompt, shouldForcePlainChat } from '@/lib/ide/planModePrompt';
+import {
+  appendInteractionModePrompt,
+  orchestraStagePrompt,
+  pipelineStageForInteractionMode,
+  shouldForcePlainChat,
+  toolProfileForOrchestraStage,
+} from '@/lib/ide/planModePrompt';
 import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
 
@@ -24,7 +30,7 @@ describe('ide plan mode helpers', () => {
     ).toBe(true);
   });
 
-  it('appends plan and build prompt instructions', () => {
+  it('appends Direct plan/build/chat instructions', () => {
     expect(appendInteractionModePrompt('Base.', 'chat')).toMatch(/repo_tree/);
     expect(appendInteractionModePrompt('Base.', 'plan')).toMatch(/Plan mode/);
     expect(appendInteractionModePrompt('Base.', 'plan')).toMatch(/nucleas-plan/);
@@ -32,6 +38,18 @@ describe('ide plan mode helpers', () => {
     expect(appendInteractionModePrompt('Base.', 'build')).toMatch(/approved the plan/);
     expect(shouldForcePlainChat('plan')).toBe(false);
     expect(shouldForcePlainChat('chat')).toBe(false);
+  });
+
+  it('gives orchestra stage prompts for chat lead → dig → review', () => {
+    expect(orchestraStagePrompt('planner', 'chat')).toMatch(/Lead deep investigation/);
+    expect(orchestraStagePrompt('worker', 'chat')).toMatch(/Execute the Planner/);
+    expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/Synthesize/);
+    expect(orchestraStagePrompt('planner', 'plan')).toMatch(/nucleas-plan/);
+    expect(toolProfileForOrchestraStage('planner', 'chat')).toBe('repo');
+    expect(toolProfileForOrchestraStage('worker', 'chat')).toBe('full');
+    expect(toolProfileForOrchestraStage('reviewer', 'chat')).toBe('none');
+    expect(pipelineStageForInteractionMode('chat')).toBe('planner');
+    expect(pipelineStageForInteractionMode('build')).toBe('planner');
   });
 
   it('parses a nucleas-plan fence and strips it from display text', () => {

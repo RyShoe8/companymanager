@@ -53,9 +53,8 @@ type ChatTurn = {
   plan?: IdePlanDocument;
 };
 
-function fallbackStageForMode(mode: IdeInteractionMode): IdeChatStage {
-  if (mode === 'plan') return 'planner';
-  return 'worker';
+function fallbackStageForMode(_mode: IdeInteractionMode): IdeChatStage {
+  return 'planner';
 }
 
 async function readIdeChatNdjson(
@@ -1065,7 +1064,7 @@ export default function IdeChatPane({
         <div
           className="mb-2 inline-flex rounded-lg border border-border bg-muted/40 p-0.5 text-xs font-medium"
           role="group"
-          aria-label="Chat or Plan mode"
+          aria-label="Chat or Plan intent"
         >
           {(['chat', 'plan'] as const).map((item) => (
             <button
@@ -1089,8 +1088,8 @@ export default function IdeChatPane({
             !projectId
               ? 'Select a project first'
               : interactionMode === 'plan'
-                ? 'Describe what to plan…'
-                : 'Message…'
+                ? 'What should the team plan? (Planner → Worker → Reviewer)'
+                : 'Ask the team… (Planner leads, Worker digs, Reviewer answers)'
           }
           value={draft}
           disabled={!projectId || busy || historyLoading}
