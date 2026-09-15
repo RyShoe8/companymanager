@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     if (source.startsWith('data:image/')) {
-      const match = source.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
+      const match = source.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
       if (!match) {
         return NextResponse.json({ error: 'Invalid stored image.' }, { status: 500 });
       }
