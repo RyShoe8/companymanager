@@ -72,6 +72,7 @@ type Props = {
   onPlanReady?: (plan: IdePlanDocument | null) => void;
   onRunActivity?: (activity: IdeRunActivity) => void;
   approvePlanRef?: MutableRefObject<((plan: IdePlanDocument) => void) | null>;
+  rejectPlanRef?: MutableRefObject<(() => void) | null>;
 };
 
 const CHAT_MIN_WIDTH = 280;
@@ -88,6 +89,7 @@ export default function IdeChatPane({
   onPlanReady,
   onRunActivity,
   approvePlanRef,
+  rejectPlanRef,
 }: Props) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState('');
@@ -561,11 +563,46 @@ export default function IdeChatPane({
     void postChat({ text, modeForRequest: 'build', appendUserTurn: true });
   }
 
+  function rejectActivePlan() {
+    setPlanReadyFlag(false);
+    setTurns((current) => {
+      let cleared = false;
+      const next = [...current];
+      for (let index = next.length - 1; index >= 0; index -= 1) {
+        const turn = next[index];
+        if (!turn?.plan) continue;
+        const { plan: _removed, ...rest } = turn;
+        next[index] = rest;
+        cleared = true;
+        break;
+      }
+      if (!cleared) return current;
+      if (projectId) {
+        const key = ideChatThreadCacheKey({
+          mode,
+          modelProfileId: directProfileId,
+          model: directModel,
+        });
+        threadCacheRef.current.set(key, next);
+      }
+      return next;
+    });
+    onPlanReady?.(null);
+  }
+
   useEffect(() => {
     if (!approvePlanRef) return;
     approvePlanRef.current = approveAndBuild;
     return () => {
       approvePlanRef.current = null;
+    };
+  });
+
+  useEffect(() => {
+    if (!rejectPlanRef) return;
+    rejectPlanRef.current = rejectActivePlan;
+    return () => {
+      rejectPlanRef.current = null;
     };
   });
 

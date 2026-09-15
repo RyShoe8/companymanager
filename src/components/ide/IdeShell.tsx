@@ -16,6 +16,7 @@ import {
   writeStoredIdeChatMode,
 } from '@/lib/ide/chatSelectionStorage';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
+import { microsToDollars } from '@/lib/ai/settingsSchema';
 
 type TreeEntry = { name: string; path: string; type: 'file' | 'dir'; sha: string };
 
@@ -31,12 +32,23 @@ type RepositorySnapshot = {
   canManage: boolean;
 };
 
+type SpendSnapshot = {
+  dailyEstimatedMicros: number;
+  monthlyEstimatedMicros: number;
+};
+
+function formatSpend(micros: number): string {
+  return `$${microsToDollars(micros)}`;
+}
+
 export default function IdeShell({ initialProjectId }: { initialProjectId?: string }) {
   const [projectId, setProjectId] = useState<string | null>(initialProjectId ?? null);
   const [repository, setRepository] = useState<RepositorySnapshot | null>(null);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
-  const [dirPath, setDirPath] = useState('');
-  const [entries, setEntries] = useState<TreeEntry[]>([]);
+  const [rootEntries, setRootEntries] = useState<TreeEntry[]>([]);
+  const [childrenByPath, setChildrenByPath] = useState<Record<string, TreeEntry[]>>({});
+  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
+  const [loadingPaths, setLoadingPaths] = useState<Record<string, boolean>>({});
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeReason, setTreeReason] = useState<string | null>(null);
   const [treeBranch, setTreeBranch] = useState<string | null>(null);
@@ -48,10 +60,15 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [chatWidth, setChatWidth] = useState(352);
   const [centerView, setCenterView] = useState<'file' | 'plan'>('file');
   const [activePlan, setActivePlan] = useState<IdePlanDocument | null>(null);
+  const [spend, setSpend] = useState<SpendSnapshot | null>(null);
   const [runActivity, setRunActivity] = useState<IdeRunActivity>(() =>
     runSceneFromState({ busy: false, interactionMode: 'chat' })
   );
   const approvePlanRef = useRef<((plan: IdePlanDocument) => void) | null>(null);
+  const rejectPlanRef = useRef<(() => void) | null>(null);
+  const prevBusyRef = useRef(false);
+  const expandedPathsRef = useRef(expandedPaths);
+  expandedPathsRef.current = expandedPaths;
 
   useEffect(() => {
     try {
@@ -101,55 +118,156 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const dirty = activePath != null && fileContent !== originalContent;
   const hasBinding = Boolean(repository?.repository);
 
-  const loadTree = useCallback(
-    async (path: string) => {
-      if (!projectId || !hasBinding) {
-        setEntries([]);
-        setTreeReason(
-          hasBinding
-            ? null
-            : 'Link a GitHub repository to load the file tree. Server GitHub App credentials and an installation are required for live files.'
-        );
-        setTreeBranch(null);
-        return;
+  const fetchTreePath = useCallback(
+    async (path: string): Promise<TreeEntry[] | null> => {
+      if (!projectId || !hasBinding) return null;
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(projectId)}/ai/ide/tree?path=${encodeURIComponent(path)}`,
+        { cache: 'no-store' }
+      );
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'Unable to load tree.');
+      if (!body.ok) {
+        throw new Error(body.reason ?? 'Unable to load tree.');
       }
-      setTreeLoading(true);
-      try {
-        const response = await fetch(
-          `/api/projects/${encodeURIComponent(projectId)}/ai/ide/tree?path=${encodeURIComponent(path)}`,
-          { cache: 'no-store' }
-        );
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error ?? 'Unable to load tree.');
-        if (!body.ok) {
-          setEntries([]);
-          setTreeReason(body.reason ?? 'Unable to load tree.');
-          setTreeBranch(null);
-        } else {
-          setEntries(body.entries ?? []);
-          setTreeReason(null);
-          setTreeBranch(body.branch ?? null);
-        }
-      } catch (error) {
-        setEntries([]);
-        setTreeReason(error instanceof Error ? error.message : 'Unable to load tree.');
-        setTreeBranch(null);
-      } finally {
-        setTreeLoading(false);
+      if (path === '') {
+        setTreeBranch(body.branch ?? null);
       }
+      return (body.entries ?? []) as TreeEntry[];
     },
     [projectId, hasBinding]
   );
 
+  const loadRoot = useCallback(async () => {
+    if (!projectId || !hasBinding) {
+      setRootEntries([]);
+      setChildrenByPath({});
+      setExpandedPaths({});
+      setLoadingPaths({});
+      setTreeReason(
+        hasBinding
+          ? null
+          : 'Link a GitHub repository to load the file tree. Server GitHub App credentials and an installation are required for live files.'
+      );
+      setTreeBranch(null);
+      return;
+    }
+    setTreeLoading(true);
+    try {
+      const entries = await fetchTreePath('');
+      setRootEntries(entries ?? []);
+      setTreeReason(null);
+    } catch (error) {
+      setRootEntries([]);
+      setTreeReason(error instanceof Error ? error.message : 'Unable to load tree.');
+      setTreeBranch(null);
+    } finally {
+      setTreeLoading(false);
+    }
+  }, [projectId, hasBinding, fetchTreePath]);
+
+  const refreshExpanded = useCallback(async () => {
+    const paths = Object.keys(expandedPathsRef.current).filter((path) => expandedPathsRef.current[path]);
+    if (!paths.length) {
+      await loadRoot();
+      return;
+    }
+    await loadRoot();
+    const nextChildren: Record<string, TreeEntry[]> = {};
+    await Promise.all(
+      paths.map(async (path) => {
+        try {
+          const entries = await fetchTreePath(path);
+          if (entries) nextChildren[path] = entries;
+        } catch {
+          /* leave missing; user can re-expand */
+        }
+      })
+    );
+    setChildrenByPath((current) => ({ ...current, ...nextChildren }));
+  }, [loadRoot, fetchTreePath]);
+
+  const toggleDir = useCallback(
+    async (path: string) => {
+      const isOpen = Boolean(expandedPathsRef.current[path]);
+      if (isOpen) {
+        setExpandedPaths((current) => {
+          const next = { ...current };
+          delete next[path];
+          return next;
+        });
+        return;
+      }
+      setExpandedPaths((current) => ({ ...current, [path]: true }));
+      if (childrenByPath[path]) return;
+      setLoadingPaths((current) => ({ ...current, [path]: true }));
+      try {
+        const entries = await fetchTreePath(path);
+        if (entries) {
+          setChildrenByPath((current) => ({ ...current, [path]: entries }));
+          setTreeReason(null);
+        }
+      } catch (error) {
+        setExpandedPaths((current) => {
+          const next = { ...current };
+          delete next[path];
+          return next;
+        });
+        setTreeReason(error instanceof Error ? error.message : 'Unable to load folder.');
+      } finally {
+        setLoadingPaths((current) => {
+          const next = { ...current };
+          delete next[path];
+          return next;
+        });
+      }
+    },
+    [childrenByPath, fetchTreePath]
+  );
+
+  const loadSpend = useCallback(async (id: string) => {
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(id)}/ai/ide/spend`, {
+        cache: 'no-store',
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'Unable to load spend.');
+      setSpend({
+        dailyEstimatedMicros: Number(body.dailyEstimatedMicros) || 0,
+        monthlyEstimatedMicros: Number(body.monthlyEstimatedMicros) || 0,
+      });
+    } catch {
+      setSpend(null);
+    }
+  }, []);
+
   useEffect(() => {
-    setDirPath('');
     setActivePath(null);
     setFileContent('');
     setOriginalContent('');
     setActivePlan(null);
     setCenterView('file');
-    void loadTree('');
-  }, [projectId, hasBinding, loadTree]);
+    setChildrenByPath({});
+    setExpandedPaths({});
+    setLoadingPaths({});
+    void loadRoot();
+  }, [projectId, hasBinding, loadRoot]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setSpend(null);
+      return;
+    }
+    void loadSpend(projectId);
+  }, [projectId, loadSpend]);
+
+  useEffect(() => {
+    const wasBusy = prevBusyRef.current;
+    prevBusyRef.current = runActivity.busy;
+    if (wasBusy && !runActivity.busy && projectId) {
+      void loadSpend(projectId);
+    }
+  }, [runActivity.busy, projectId, loadSpend]);
 
   async function openFile(path: string) {
     if (!projectId) return;
@@ -172,18 +290,10 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     }
   }
 
-  function openDir(path: string) {
-    setDirPath(path);
-    void loadTree(path);
-  }
-
-  function goUp() {
-    if (!dirPath) return;
-    const parts = dirPath.split('/').filter(Boolean);
-    parts.pop();
-    const next = parts.join('/');
-    setDirPath(next);
-    void loadTree(next);
+  function rejectPlan() {
+    rejectPlanRef.current?.();
+    setActivePlan(null);
+    setCenterView('file');
   }
 
   return (
@@ -204,20 +314,26 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
             {centerView === 'plan' ? 'Show file' : 'Show plan'}
           </button>
         ) : null}
+        {spend ? (
+          <p className="font-mono text-[11px] text-text-secondary" title="Estimated project AI spend (UTC)">
+            Today {formatSpend(spend.dailyEstimatedMicros)} · Month {formatSpend(spend.monthlyEstimatedMicros)}
+          </p>
+        ) : null}
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <IdeFileTree
           collapsed={treeCollapsed}
           onToggle={() => setTreeCollapsed((value) => !value)}
-          entries={entries}
+          rootEntries={rootEntries}
+          childrenByPath={childrenByPath}
+          expandedPaths={expandedPaths}
+          loadingPaths={loadingPaths}
           loading={treeLoading}
           reason={treeReason}
           branch={treeBranch}
           activePath={activePath}
           onOpenFile={(path) => void openFile(path)}
-          onOpenDir={openDir}
-          breadcrumb={dirPath}
-          onGoUp={goUp}
+          onToggleDir={(path) => void toggleDir(path)}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1 flex-col">
@@ -225,6 +341,8 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
               <IdePlanPane
                 plan={activePlan}
                 approveDisabled={runActivity.busy}
+                onChange={setActivePlan}
+                onReject={rejectPlan}
                 onApprove={() => {
                   if (!activePlan) return;
                   approvePlanRef.current?.(activePlan);
@@ -249,7 +367,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
                   onPublished={() => {
                     if (activePath) {
                       setOriginalContent(fileContent);
-                      void loadTree(dirPath);
+                      void refreshExpanded();
                     }
                   }}
                 />
@@ -268,6 +386,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           onPlanReady={onPlanReady}
           onRunActivity={onRunActivity}
           approvePlanRef={approvePlanRef}
+          rejectPlanRef={rejectPlanRef}
         />
       </div>
       <IdeTaskRulesPanel projectId={projectId} open={rulesOpen} onClose={() => setRulesOpen(false)} />
