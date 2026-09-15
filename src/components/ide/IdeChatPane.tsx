@@ -135,6 +135,8 @@ export default function IdeChatPane({
   const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [interactionMode, setInteractionMode] = useState<Exclude<IdeInteractionMode, 'build'>>('chat');
+  /** In-flight request mode (includes `build`); UI toggle never stores `build`. */
+  const [busyRequestMode, setBusyRequestMode] = useState<IdeInteractionMode | null>(null);
   const [busyTick, setBusyTick] = useState(0);
   const [lastToolsUsed, setLastToolsUsed] = useState<string[]>([]);
   const [planReadyFlag, setPlanReadyFlag] = useState(false);
@@ -394,8 +396,8 @@ export default function IdeChatPane({
         activeStage: 'direct',
       });
     }
-    const activeStage =
-      interactionMode === 'plan' ? 'planner' : interactionMode === 'build' ? 'worker' : 'worker';
+    const deskMode = busyRequestMode ?? interactionMode;
+    const activeStage = deskMode === 'plan' ? 'planner' : 'worker';
     return buildDioramaDesks({
       stages: {
         planner: workerPipeline?.planner?.model
@@ -411,13 +413,13 @@ export default function IdeChatPane({
       busy,
       activeStage,
     });
-  }, [mode, directModel, busy, workerPipeline, interactionMode]);
+  }, [mode, directModel, busy, workerPipeline, interactionMode, busyRequestMode]);
 
   useEffect(() => {
     onRunActivity?.(
       runSceneFromState({
         busy,
-        interactionMode,
+        interactionMode: busyRequestMode ?? interactionMode,
         targetLabel,
         toolsUsed: lastToolsUsed,
         planReady: planReadyFlag,
@@ -429,6 +431,7 @@ export default function IdeChatPane({
   }, [
     busy,
     interactionMode,
+    busyRequestMode,
     targetLabel,
     lastToolsUsed,
     planReadyFlag,
@@ -522,6 +525,7 @@ export default function IdeChatPane({
     }
 
     setBusy(true);
+    setBusyRequestMode(args.modeForRequest);
     setError('');
     setActivityFailed(false);
     if (args.modeForRequest === 'plan') setPlanReadyFlag(false);
@@ -598,7 +602,10 @@ export default function IdeChatPane({
       setError(err instanceof Error ? err.message : 'Chat request failed.');
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
-      if (generation === sendGenerationRef.current) setBusy(false);
+      if (generation === sendGenerationRef.current) {
+        setBusy(false);
+        setBusyRequestMode(null);
+      }
     }
   }
 

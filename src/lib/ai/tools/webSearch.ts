@@ -949,7 +949,7 @@ async function commonsImageSearch(q: string, limit: number, opts: FetchOpts): Pr
   for (const page of Object.values(infoBody.query?.pages ?? {})) {
     const info = page.imageinfo?.[0];
     const imageUrl = info?.url?.trim();
-    if (!imageUrl || !/^https:\/\//i.test(imageUrl)) continue;
+    if (!info || !imageUrl || !/^https:\/\//i.test(imageUrl)) continue;
     hits.push({
       title: (page.title ?? 'Commons image').replace(/^File:/i, '').slice(0, 200),
       imageUrl: imageUrl.slice(0, 4000),
