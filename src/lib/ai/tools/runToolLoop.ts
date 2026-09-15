@@ -5,7 +5,7 @@ import type { ToolCall, ToolDefinition } from '@nucleas/ai-contracts';
 import { Types } from 'mongoose';
 import { AiRunEvent } from '@/lib/models/AiControl';
 import { executeIdeTool, type ToolArtifact } from '@/lib/ai/tools/executeTool';
-import { ideChatToolDefinitions } from '@/lib/ai/tools/definitions';
+import { ideChatToolDefinitions, type IdeToolProfile } from '@/lib/ai/tools/definitions';
 
 const MAX_ROUNDS = 6;
 
@@ -30,13 +30,22 @@ export async function runIdeToolLoop(input: {
   messages: LoopMessage[];
   maxOutputTokens: number;
   includeImageTool: boolean;
+  includeRepoTools?: boolean;
+  toolProfile?: IdeToolProfile;
   organizationId: string;
   projectId: Types.ObjectId;
   userId: string;
   runId: Types.ObjectId;
   signal?: AbortSignal;
 }): Promise<ToolLoopResult> {
-  const tools: ToolDefinition[] = ideChatToolDefinitions({ includeImage: input.includeImageTool });
+  const tools: ToolDefinition[] = ideChatToolDefinitions({
+    includeImage: input.includeImageTool,
+    includeRepo: input.includeRepoTools !== false,
+    profile: input.toolProfile ?? 'full',
+  });
+  if (!tools.length) {
+    throw new GatewayError('invalid_response', { kind: 'no_tools' });
+  }
   const messages: LoopMessage[] = [...input.messages];
   const artifacts: ToolArtifact[] = [];
   const toolCallsMade: string[] = [];

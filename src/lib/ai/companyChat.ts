@@ -17,6 +17,7 @@ import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
 import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
 import { runIdeToolLoop } from '@/lib/ai/tools/runToolLoop';
+import type { IdeToolProfile } from '@/lib/ai/tools/definitions';
 import { imageSearch, webSearch } from '@/lib/ai/tools/webSearch';
 import {
   formatImageSearchContext,
@@ -116,7 +117,11 @@ export async function attemptCompanyCredentialChat(input: {
   modelProfileId: string;
   model: string;
   includeImageTool?: boolean;
-  /** Skip tools (e.g. Plan mode before Approve). */
+  /** When false, omit GitHub repo tools (Free Chat). Default true. */
+  includeRepoTools?: boolean;
+  /** Restrict tool catalog. Plan mode should use `repo`. */
+  toolProfile?: IdeToolProfile;
+  /** Skip tools (e.g. forced plain completion). */
   forcePlain?: boolean;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
@@ -295,7 +300,7 @@ export async function attemptCompanyCredentialChat(input: {
     let browseAssisted = false;
     let phase: ChatPhase = 'tool_loop';
     let lastError: unknown;
-    const usePlain = Boolean(input.forcePlain);
+    const usePlain = Boolean(input.forcePlain) || input.toolProfile === 'none';
     const isImageLookup = looksLikeImageSearchQuery(input.userText);
     const isLookup = !isImageLookup && looksLikeWebLookupQuery(input.userText);
     const toolNeedy = looksLikeToolNeedyQuery(input.userText);
@@ -394,6 +399,8 @@ export async function attemptCompanyCredentialChat(input: {
         ],
         maxOutputTokens,
         includeImageTool: input.includeImageTool !== false,
+        includeRepoTools: input.includeRepoTools !== false,
+        toolProfile: input.toolProfile ?? 'full',
         organizationId: input.organizationId,
         projectId: input.projectId,
         userId: input.userId,

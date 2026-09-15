@@ -18,11 +18,12 @@ describe('ide plan mode helpers', () => {
   });
 
   it('appends plan and build prompt instructions', () => {
-    expect(appendInteractionModePrompt('Base.', 'chat')).toBe('Base.');
+    expect(appendInteractionModePrompt('Base.', 'chat')).toMatch(/repo_tree/);
     expect(appendInteractionModePrompt('Base.', 'plan')).toMatch(/Plan mode/);
     expect(appendInteractionModePrompt('Base.', 'plan')).toMatch(/nucleas-plan/);
+    expect(appendInteractionModePrompt('Base.', 'plan')).toMatch(/repo_read/);
     expect(appendInteractionModePrompt('Base.', 'build')).toMatch(/approved the plan/);
-    expect(shouldForcePlainChat('plan')).toBe(true);
+    expect(shouldForcePlainChat('plan')).toBe(false);
     expect(shouldForcePlainChat('chat')).toBe(false);
   });
 

@@ -23,15 +23,16 @@ describe('buildDioramaDesks', () => {
     ).toEqual([{ role: 'direct', modelLabel: 'o4-mini', active: true }]);
   });
 
-  it('builds three team desks with worker active when busy', () => {
+  it('builds three team desks with the active stage lit when busy', () => {
     const desks = buildDioramaDesks({
       stages: { planner: 'gpt-a', worker: 'gpt-b', reviewer: 'gpt-c' },
       busy: true,
+      activeStage: 'planner',
     });
     expect(desks).toHaveLength(3);
     expect(desks.map((d) => d.role)).toEqual(['planner', 'worker', 'reviewer']);
-    expect(desks.find((d) => d.role === 'worker')?.active).toBe(true);
-    expect(desks.find((d) => d.role === 'planner')?.active).toBe(false);
+    expect(desks.find((d) => d.role === 'planner')?.active).toBe(true);
+    expect(desks.find((d) => d.role === 'worker')?.active).toBe(false);
   });
 });
 

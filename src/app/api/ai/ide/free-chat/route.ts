@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       model: input.model,
       ruleTexts: [],
       interactionMode: input.interactionMode,
+      includeRepoTools: false,
       signal: request.signal,
     });
     const payload = turnPayload(turn);

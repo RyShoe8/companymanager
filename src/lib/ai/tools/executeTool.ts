@@ -6,6 +6,7 @@ import { browserNavigate } from '@/lib/ai/tools/browserClient';
 import { chooseBrowseTool, isBrowserWorkerConfigured } from '@/lib/ai/tools/browseRouter';
 import { webFetch } from '@/lib/ai/tools/webFetch';
 import { imageSearch, webSearch } from '@/lib/ai/tools/webSearch';
+import { listIdeTree, readIdeFile } from '@/lib/ai/ideCommitPush';
 
 export type ToolArtifact = {
   kind: 'image';
@@ -41,6 +42,32 @@ export async function executeIdeTool(input: {
 }): Promise<ToolExecutionResult> {
   const args = parseArgs(input.argumentsJson);
   const artifacts: ToolArtifact[] = [];
+
+  if (input.name === 'repo_tree') {
+    const path = typeof args.path === 'string' ? args.path : '';
+    const result = await listIdeTree(input.organizationId, input.projectId, path);
+    return { content: JSON.stringify(result).slice(0, 12000), artifacts };
+  }
+
+  if (input.name === 'repo_read') {
+    const path = typeof args.path === 'string' ? args.path : '';
+    if (!path.trim()) throw new Error('repo_read requires a path.');
+    const result = await readIdeFile(input.organizationId, input.projectId, path);
+    if (!result.ok) {
+      return { content: JSON.stringify(result).slice(0, 4000), artifacts };
+    }
+    return {
+      content: JSON.stringify({
+        ok: true,
+        path: result.path,
+        branch: result.branch,
+        sha: result.sha,
+        content: result.content.slice(0, 100000),
+        truncated: result.content.length > 100000,
+      }).slice(0, 12000),
+      artifacts,
+    };
+  }
 
   if (input.name === 'web_search') {
     const query = typeof args.query === 'string' ? args.query : '';

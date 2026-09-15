@@ -22,6 +22,8 @@ export function buildDioramaDesks(input: {
   directModelLabel?: string;
   stages?: { planner?: string; worker?: string; reviewer?: string };
   busy?: boolean;
+  /** Which stage is actually running (IDE chat/pipeline). */
+  activeStage?: 'planner' | 'worker' | 'reviewer' | 'direct' | null;
 }): IdeDioramaDesk[] {
   if (input.direct) {
     return [
@@ -33,21 +35,22 @@ export function buildDioramaDesks(input: {
     ];
   }
   const stages = input.stages ?? {};
+  const active = input.busy ? input.activeStage ?? 'worker' : null;
   return [
     {
       role: 'planner',
       modelLabel: stages.planner?.trim() || 'Planner',
-      active: false,
+      active: active === 'planner',
     },
     {
       role: 'worker',
       modelLabel: stages.worker?.trim() || 'Worker',
-      active: Boolean(input.busy),
+      active: active === 'worker',
     },
     {
       role: 'reviewer',
       modelLabel: stages.reviewer?.trim() || 'Reviewer',
-      active: false,
+      active: active === 'reviewer',
     },
   ];
 }

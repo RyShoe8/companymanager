@@ -13,7 +13,12 @@ import { defaultPlatformAiSettings, platformAiSettingsSchema } from '@/lib/ai/se
 import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 import type { IdeInteractionMode, IdePlanDocument } from '@/lib/ide/idePlan';
-import { appendInteractionModePrompt, shouldForcePlainChat } from '@/lib/ide/planModePrompt';
+import {
+  appendInteractionModePrompt,
+  pipelineStageForInteractionMode,
+  shouldForcePlainChat,
+  toolProfileForInteractionMode,
+} from '@/lib/ide/planModePrompt';
 import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
 import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { AiRolePipeline } from '@/lib/models/AiRolePipeline';
@@ -372,22 +377,27 @@ export async function attemptTeamChatReply(input: {
     employee: input.employee,
     enabled: true,
   })
-    .select('worker')
+    .select('planner worker reviewer')
     .maxTimeMS(3000)
     .lean();
-  const workerProfileId = pipeline?.worker?.modelProfileId
-    ? String(pipeline.worker.modelProfileId)
-    : '';
-  const workerModel = pipeline?.worker?.model?.trim() ?? '';
-  if (!workerProfileId || !workerModel) {
+
+  const interactionMode = input.interactionMode ?? 'chat';
+  const stageKey = pipelineStageForInteractionMode(interactionMode);
+  const stage = pipeline?.[stageKey] as
+    | { modelProfileId?: Types.ObjectId | string; model?: string }
+    | undefined;
+  const stageProfileId = stage?.modelProfileId ? String(stage.modelProfileId) : '';
+  const stageModel = stage?.model?.trim() ?? '';
+  if (!stageProfileId || !stageModel) {
+    const label = stageKey === 'planner' ? 'Planner' : 'Worker';
     return statusTurn(
-      `Configure a Worker company and model for ${input.employee} on AI Team before chatting.`,
+      `Configure a ${label} company and model for ${input.employee} on AI Team before using ${interactionMode} mode.`,
       'configuration'
     );
   }
 
-  const interactionMode = input.interactionMode ?? 'chat';
-  const allowTools = interactionMode !== 'plan';
+  const allowTools = true;
+  const toolProfile = toolProfileForInteractionMode(interactionMode);
 
   const role = aiEmployees.find((item) => item.id === input.employee)!;
   const ruleBlock =
@@ -399,14 +409,17 @@ export async function attemptTeamChatReply(input: {
   const basePrompt = [
     `You are ${role.name} assisting on the Nucleas project "${input.projectName}".`,
     role.description,
+    `Pipeline stage: ${stageKey}.`,
     `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
     'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
     allowTools
-      ? 'You may call provided tools (web_search, image_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output. If a tool fails, say so from the error—do not invent results.'
+      ? 'You may call provided tools. Never claim browse, repo, or image results without tool output. If a tool fails, say so from the error—do not invent results.'
       : 'Do not call tools in this turn.',
-    allowTools
-      ? 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.'
-      : '',
+    allowTools && toolProfile === 'full'
+      ? 'Prefer repo_tree/repo_read for this codebase; web_search/web_fetch only for external facts; browser_navigate only when fetch is thin.'
+      : allowTools
+        ? 'Use repo_tree/repo_read to inspect the bound repository while planning.'
+        : '',
     'If you lack information or tools, say what is missing instead of inventing project or web facts.',
     ...(ruleBlock ? [ruleBlock] : []),
   ]
@@ -420,18 +433,73 @@ export async function attemptTeamChatReply(input: {
     userId: input.userId,
     userText: input.userText,
     priorTurns: input.priorTurns,
-    modelProfileId: workerProfileId,
-    model: workerModel,
-    includeImageTool: allowTools,
+    modelProfileId: stageProfileId,
+    model: stageModel,
+    includeImageTool: toolProfile === 'full',
+    includeRepoTools: true,
+    toolProfile,
     forcePlain: shouldForcePlainChat(interactionMode),
     signal: input.signal,
   });
 
+  let result = turn;
   if (interactionMode === 'plan' && turn.role === 'assistant') {
     const parsed = parseNucleasPlan(turn.text);
     if (parsed) {
-      return { ...turn, text: parsed.displayText, plan: parsed.plan };
+      result = { ...turn, text: parsed.displayText, plan: parsed.plan };
     }
   }
-  return turn;
+
+  if (
+    interactionMode === 'build' &&
+    result.role === 'assistant' &&
+    pipeline?.reviewer?.modelProfileId &&
+    pipeline.reviewer.model?.trim()
+  ) {
+    const reviewerProfileId = String(pipeline.reviewer.modelProfileId);
+    const reviewerModel = pipeline.reviewer.model.trim();
+    const review = await attemptCompanyCredentialChat({
+      systemPrompt: [
+        `You are the Reviewer for ${role.name} on "${input.projectName}".`,
+        'The Worker just executed an approved plan. Review their reply for gaps, risks, and missed acceptance criteria.',
+        'Be concise. Do not call tools. Do not rewrite the whole worker answer—add a short review section.',
+      ].join(' '),
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      userId: input.userId,
+      userText: [
+        'Worker output to review:',
+        result.text.slice(0, 5000),
+        '',
+        'User build request was:',
+        input.userText.slice(0, 2000),
+      ].join('\n'),
+      priorTurns: [],
+      modelProfileId: reviewerProfileId,
+      model: reviewerModel,
+      includeImageTool: false,
+      includeRepoTools: false,
+      toolProfile: 'none',
+      forcePlain: true,
+      signal: input.signal,
+    });
+    if (review.role === 'assistant' && review.text.trim()) {
+      const workerCost = result.costMicros;
+      const reviewCost = review.costMicros;
+      const mergedCost =
+        workerCost != null && reviewCost != null
+          ? workerCost + reviewCost
+          : workerCost ?? reviewCost ?? null;
+      result = {
+        ...result,
+        text: `${result.text.trim()}\n\n---\n**Reviewer (${reviewerModel}):**\n${review.text.trim()}`,
+        toolsUsed: [...(result.toolsUsed ?? []), ...(review.toolsUsed ?? [])],
+        costMicros: mergedCost,
+        reservedMicros: (result.reservedMicros ?? 0) + (review.reservedMicros ?? 0),
+        noProviderFee: Boolean(result.noProviderFee && review.noProviderFee),
+      };
+    }
+  }
+
+  return result;
 }

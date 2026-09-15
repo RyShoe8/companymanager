@@ -62,7 +62,9 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
   if (mode === 'plan') {
     return {
       phase: 'working',
-      label: 'Drafting plan at the desk…',
+      label: desks?.find((d) => d.active)?.modelLabel
+        ? `${desks.find((d) => d.active)!.modelLabel} drafting plan…`
+        : 'Drafting plan at the desk…',
       interactionMode: mode,
       busy: true,
       desks,
@@ -71,7 +73,9 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
   if (mode === 'build') {
     return {
       phase: 'building',
-      label: 'Building the approved plan…',
+      label: desks?.find((d) => d.active)?.modelLabel
+        ? `${desks.find((d) => d.active)!.modelLabel} building…`
+        : 'Building the approved plan…',
       interactionMode: mode,
       busy: true,
       desks,

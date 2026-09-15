@@ -391,8 +391,11 @@ export default function IdeChatPane({
         direct: true,
         directModelLabel: directModel ? shortModelDisplayName(directModel) : 'Direct',
         busy,
+        activeStage: 'direct',
       });
     }
+    const activeStage =
+      interactionMode === 'plan' ? 'planner' : interactionMode === 'build' ? 'worker' : 'worker';
     return buildDioramaDesks({
       stages: {
         planner: workerPipeline?.planner?.model
@@ -406,8 +409,9 @@ export default function IdeChatPane({
           : undefined,
       },
       busy,
+      activeStage,
     });
-  }, [mode, directModel, busy, workerPipeline]);
+  }, [mode, directModel, busy, workerPipeline, interactionMode]);
 
   useEffect(() => {
     onRunActivity?.(
