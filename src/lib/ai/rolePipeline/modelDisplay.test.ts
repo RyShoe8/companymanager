@@ -43,8 +43,8 @@ describe('localModelPowerScore generation preference', () => {
 describe('markFlagshipAmongModels', () => {
   it('still picks largest within same generation', () => {
     const models = markFlagshipAmongModels([
-      { id: 'Qwen/Qwen3-8B' },
-      { id: 'Qwen/Qwen3-72B' },
+      { id: 'Qwen/Qwen3-8B', flagship: false },
+      { id: 'Qwen/Qwen3-72B', flagship: false },
     ]);
     expect(models.find((m) => m.flagship)?.id).toBe('Qwen/Qwen3-72B');
   });

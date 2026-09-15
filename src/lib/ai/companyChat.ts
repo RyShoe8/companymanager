@@ -1,7 +1,12 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
-import { GatewayError, invokeModel, usesMaxCompletionTokens } from '@nucleas/ai-core/gateway';
+import {
+  GatewayError,
+  invokeModel,
+  usesMaxCompletionTokens,
+  type GatewayConfiguration,
+} from '@nucleas/ai-core/gateway';
 import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
@@ -68,8 +73,8 @@ export async function attemptCompanyCredentialChat(input: {
   forcePlain?: boolean;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
-  let gateway;
-  let profile;
+  let gateway: GatewayConfiguration;
+  let profile: Awaited<ReturnType<typeof gatewayFromModelProfile>>['profile'];
   try {
     ({ gateway, profile } = await gatewayFromModelProfile(input.modelProfileId, input.model));
   } catch (error) {
