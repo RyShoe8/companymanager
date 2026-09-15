@@ -482,15 +482,17 @@ export default function IdeChatPane({
               ))}
             </select>
           </label>
-          <ModelMetaStrip
-            meta={
-              directModel
-                ? isCustomDirect || directCredential?.tier === 'local_remote'
-                  ? { ...directMeta, pricing: { label: 'Free' } }
-                  : directMeta
-                : null
-            }
-          />
+          {turns.length === 0 ? (
+            <ModelMetaStrip
+              meta={
+                directModel
+                  ? isCustomDirect || directCredential?.tier === 'local_remote'
+                    ? { ...directMeta, pricing: { label: 'Free' } }
+                    : directMeta
+                  : null
+              }
+            />
+          ) : null}
           {isCustomDirect && directProfileId ? (
             <button
               type="button"

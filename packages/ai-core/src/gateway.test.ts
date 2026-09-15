@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { invokeModel, validateGatewayConfiguration, type GatewayConfiguration } from './gateway';
+import {
+  completionLimitBody,
+  invokeModel,
+  usesMaxCompletionTokens,
+  validateGatewayConfiguration,
+  type GatewayConfiguration,
+} from './gateway';
 
 const config: GatewayConfiguration = { endpoint: 'https://llm.rogly.net/v1/chat/completions', bearerToken: 'test-secret', model: 'test-model', protocol: 'openai-chat' };
 const request = { role: 'architect' as const, messages: [{ role: 'user' as const, content: 'Plan a synthetic task.' }], maxOutputTokens: 100 };
@@ -11,9 +17,36 @@ describe('remote inference gateway', () => {
     const options = fetcher.mock.calls[0][1]!;
     expect(options.redirect).toBe('error'); expect(options.cache).toBe('no-store');
     expect(options.headers).toEqual({ 'Content-Type': 'application/json', Authorization: 'Bearer test-secret' });
-    expect(JSON.parse(String(options.body))).not.toHaveProperty('tools');
+    const body = JSON.parse(String(options.body));
+    expect(body).not.toHaveProperty('tools');
+    expect(body).toMatchObject({ max_tokens: 100 });
+    expect(body).not.toHaveProperty('max_completion_tokens');
     expect(result).toMatchObject({ content: 'A plan', inputTokens: null, outputTokens: null });
     expect(JSON.stringify(result)).not.toContain('test-secret');
+  });
+
+  it('sends max_completion_tokens for o4-mini and omits max_tokens', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(output));
+    await invokeModel({ ...config, model: 'o4-mini' }, request, { fetcher });
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]!.body));
+    expect(body).toMatchObject({ model: 'o4-mini', max_completion_tokens: 100 });
+    expect(body).not.toHaveProperty('max_tokens');
+  });
+
+  it('keeps max_tokens for gpt-4o-mini', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(output));
+    await invokeModel({ ...config, model: 'gpt-4o-mini' }, request, { fetcher });
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]!.body));
+    expect(body).toMatchObject({ model: 'gpt-4o-mini', max_tokens: 100 });
+    expect(body).not.toHaveProperty('max_completion_tokens');
+  });
+
+  it('detects reasoning token-limit models including provider prefixes', () => {
+    expect(usesMaxCompletionTokens('o4-mini')).toBe(true);
+    expect(usesMaxCompletionTokens('openai/gpt-5.6-sol')).toBe(true);
+    expect(usesMaxCompletionTokens('gpt-4o-mini')).toBe(false);
+    expect(completionLimitBody('o3', 256)).toEqual({ max_completion_tokens: 256 });
+    expect(completionLimitBody('gpt-4.1', 256)).toEqual({ max_tokens: 256 });
   });
   it.each(['http://llm.rogly.net/v1', 'https://user:secret@llm.rogly.net/v1', 'https://llm.rogly.net/v1?token=secret'])('rejects unsafe endpoint configuration', endpoint => {
     expect(() => validateGatewayConfiguration({ ...config, endpoint })).toThrow();

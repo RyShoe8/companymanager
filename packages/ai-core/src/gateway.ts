@@ -90,6 +90,31 @@ export function validateGatewayConfiguration(config: GatewayConfiguration): URL 
   return endpoint;
 }
 
+/** Strip provider prefixes (e.g. openai/o4-mini → o4-mini). */
+function modelIdBase(model: string): string {
+  const slash = model.lastIndexOf('/');
+  return (slash >= 0 ? model.slice(slash + 1) : model).trim().toLowerCase();
+}
+
+/**
+ * o-series and GPT-5/6 reject `max_tokens` on Chat Completions; they require
+ * `max_completion_tokens` (which also covers reasoning tokens).
+ */
+export function usesMaxCompletionTokens(model: string): boolean {
+  const id = modelIdBase(model);
+  return /^o[1-9]/.test(id) || /^gpt-[56]/.test(id);
+}
+
+/** Token-limit fields for an OpenAI-compatible chat completions body. */
+export function completionLimitBody(
+  model: string,
+  maxOutputTokens: number
+): { max_completion_tokens: number } | { max_tokens: number } {
+  return usesMaxCompletionTokens(model)
+    ? { max_completion_tokens: maxOutputTokens }
+    : { max_tokens: maxOutputTokens };
+}
+
 /** Derive OpenAI-compatible images generations URL from a chat-completions endpoint. */
 export function imagesUrlFromChatEndpoint(endpoint: string): URL {
   const url = validateGatewayConfiguration({
@@ -180,7 +205,7 @@ export async function invokeModel(
       body: JSON.stringify({
         model: config.model,
         messages: input.messages,
-        max_tokens: input.maxOutputTokens,
+        ...completionLimitBody(config.model, input.maxOutputTokens),
         stream: false,
       }),
     });
@@ -244,7 +269,7 @@ export async function invokeModelWithTools(
       body: JSON.stringify({
         model: config.model,
         messages: input.messages,
-        max_tokens: input.maxOutputTokens,
+        ...completionLimitBody(config.model, input.maxOutputTokens),
         tools: input.tools,
         stream: false,
       }),

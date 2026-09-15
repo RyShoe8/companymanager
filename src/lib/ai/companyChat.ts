@@ -1,7 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
-import { GatewayError, invokeModel } from '@nucleas/ai-core/gateway';
+import { GatewayError, invokeModel, usesMaxCompletionTokens } from '@nucleas/ai-core/gateway';
 import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
@@ -226,6 +226,10 @@ export async function attemptCompanyCredentialChat(input: {
     .slice(-8)
     .map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.text.slice(0, 2000) }));
 
+  // Reasoning models count reasoning tokens against max_completion_tokens; keep headroom for visible text.
+  const chatTokenCap = usesMaxCompletionTokens(gateway.model) ? 4096 : 1024;
+  const maxOutputTokens = Math.min(chatTokenCap, policy.maxOutputTokens);
+
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>>;
     if (freeCredential) {
@@ -241,7 +245,7 @@ export async function attemptCompanyCredentialChat(input: {
             ...history,
             { role: 'user', content: input.userText.slice(0, 6000) },
           ],
-          maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
+          maxOutputTokens,
         },
         { signal: input.signal }
       );
@@ -262,7 +266,7 @@ export async function attemptCompanyCredentialChat(input: {
             ...history,
             { role: 'user', content: input.userText.slice(0, 6000) },
           ],
-          maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
+          maxOutputTokens,
           includeImageTool: input.includeImageTool !== false,
           organizationId: input.organizationId,
           projectId: input.projectId,
@@ -288,7 +292,7 @@ export async function attemptCompanyCredentialChat(input: {
               ...history,
               { role: 'user', content: input.userText.slice(0, 6000) },
             ],
-            maxOutputTokens: Math.min(1024, policy.maxOutputTokens),
+            maxOutputTokens,
           },
           { signal: input.signal }
         );
