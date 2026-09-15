@@ -15,8 +15,6 @@ import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 import type { IdeInteractionMode, IdePlanDocument } from '@/lib/ide/idePlan';
 import { appendInteractionModePrompt, shouldForcePlainChat } from '@/lib/ide/planModePrompt';
 import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
-import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
-import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
 import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { AiRolePipeline } from '@/lib/models/AiRolePipeline';
 import {
@@ -387,15 +385,7 @@ export async function attemptTeamChatReply(input: {
   }
 
   const interactionMode = input.interactionMode ?? 'chat';
-  let allowTools = interactionMode !== 'plan';
-  try {
-    const { profile } = await gatewayFromModelProfile(workerProfileId, workerModel);
-    if (isFreeCredential({ provider: profile.provider, tier: profile.tier })) {
-      allowTools = false;
-    }
-  } catch {
-    /* companyChat will surface credential errors */
-  }
+  const allowTools = interactionMode !== 'plan';
 
   const role = aiEmployees.find((item) => item.id === input.employee)!;
   const ruleBlock =
@@ -410,10 +400,8 @@ export async function attemptTeamChatReply(input: {
     `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
     'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
     allowTools
-      ? 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.'
-      : interactionMode === 'plan'
-        ? 'Do not call tools in this turn.'
-        : 'Tools (including image generation) are not available on this free/local Worker credential. Say so clearly if the user asks for images or browsing; suggest a commercial Direct credential for image tools.',
+      ? 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output. If a tool fails, say so from the error—do not invent results.'
+      : 'Do not call tools in this turn.',
     allowTools
       ? 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.'
       : '',
@@ -433,7 +421,7 @@ export async function attemptTeamChatReply(input: {
     modelProfileId: workerProfileId,
     model: workerModel,
     includeImageTool: allowTools,
-    forcePlain: shouldForcePlainChat(interactionMode) || !allowTools,
+    forcePlain: shouldForcePlainChat(interactionMode),
     signal: input.signal,
   });
 

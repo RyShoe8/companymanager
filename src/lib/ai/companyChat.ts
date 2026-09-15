@@ -234,11 +234,9 @@ export async function attemptCompanyCredentialChat(input: {
 
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>>;
-    const usePlain = freeCredential || input.forcePlain;
+    const usePlain = Boolean(input.forcePlain);
     if (usePlain) {
-      const plainHint = freeCredential
-        ? 'Tools are not available on this free/local host; answer from knowledge only.'
-        : 'Tools are disabled for this turn; answer from knowledge only.';
+      const plainHint = 'Tools are disabled for this turn; answer from knowledge only.';
       const plain = await invokeModel(
         gateway,
         {
@@ -366,7 +364,7 @@ export async function attemptCompanyCredentialChat(input: {
           ? 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
           : 'The remote model endpoint was unreachable or returned an error.',
         invalid_response: freeCredential
-          ? 'This free/local host does not support tools like image generation. Use a commercial Direct credential (for example OpenAI) for image tools.'
+          ? 'This free/local host returned an invalid response. Check that the model id is loaded and the endpoint accepts the request (including tools if used).'
           : 'The remote response could not be validated.',
         cancelled: 'The chat request was cancelled before completion.',
       };

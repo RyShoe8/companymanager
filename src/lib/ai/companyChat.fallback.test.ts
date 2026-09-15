@@ -98,10 +98,38 @@ beforeEach(() => {
   );
 });
 
-describe('attemptCompanyCredentialChat free plain-first', () => {
-  it('skips the tool loop and uses plain invokeModel for free credentials', async () => {
+describe('attemptCompanyCredentialChat free tools', () => {
+  it('runs the tool loop for free credentials (including image tool by default)', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'tool reply',
+      toolCallsMade: ['web_search'],
+      artifacts: [],
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'hello',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(mocks.toolLoop.mock.calls[0]?.[0]).toMatchObject({ includeImageTool: true });
+    expect(mocks.invokeModel).not.toHaveBeenCalled();
+    expect(turn).toMatchObject({ role: 'assistant', text: 'tool reply', noProviderFee: true });
+  });
+
+  it('retries plain invokeModel when the free host rejects tools', async () => {
+    mocks.toolLoop.mockRejectedValue(new GatewayError('invalid_response'));
     mocks.invokeModel.mockResolvedValue({
-      content: 'plain reply',
+      content: 'plain local reply',
       model: 'local',
       inputTokens: 1,
       outputTokens: 2,
@@ -120,12 +148,42 @@ describe('attemptCompanyCredentialChat free plain-first', () => {
       model: 'local',
     });
 
-    expect(mocks.toolLoop).not.toHaveBeenCalled();
+    expect(mocks.toolLoop).toHaveBeenCalled();
     expect(mocks.invokeModel).toHaveBeenCalled();
-    expect(turn).toMatchObject({ role: 'assistant', text: 'plain reply', noProviderFee: true });
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'plain local reply',
+      noProviderFee: true,
+    });
   });
 
-  it('uses clearer unavailable copy when the free host fails', async () => {
+  it('uses host-focused invalid_response copy when free tools and plain both fail', async () => {
+    mocks.toolLoop.mockRejectedValue(new GatewayError('invalid_response'));
+    mocks.invokeModel.mockRejectedValue(new GatewayError('invalid_response'));
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'hello',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(turn).toMatchObject({
+      role: 'status',
+      failureCategory: 'invalid_response',
+      noProviderFee: true,
+    });
+    expect(turn.text).toMatch(/invalid response/i);
+    expect(turn.text).not.toMatch(/commercial/i);
+    expect(turn.text).not.toMatch(/image generation/i);
+  });
+
+  it('uses clearer unavailable copy when the free host fails after tool retry', async () => {
+    mocks.toolLoop.mockRejectedValue(new GatewayError('unavailable'));
     mocks.invokeModel.mockRejectedValue(new GatewayError('unavailable'));
 
     const turn = await attemptCompanyCredentialChat({
