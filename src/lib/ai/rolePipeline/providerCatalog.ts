@@ -83,6 +83,8 @@ export const MODEL_PROVIDERS: ModelProviderOption[] = [
       m('gpt-4.1-mini', 'GPT-4.1 mini', 'Cheap coding and summarization', ['coding', 'chat', 'speed'], 1_000_000),
       m('gpt-4o', 'GPT-4o', 'Multimodal chat and vision Q&A', ['chat', 'vision', 'coding'], 128_000),
       m('gpt-4o-mini', 'GPT-4o mini', 'Fast cheap multimodal helper', ['chat', 'vision', 'speed'], 128_000),
+      m('gpt-image-1', 'GPT Image 1', 'OpenAI image generation', ['image_gen'], null),
+      m('dall-e-3', 'DALL·E 3', 'High-quality image generation', ['image_gen'], null),
     ],
   },
   {

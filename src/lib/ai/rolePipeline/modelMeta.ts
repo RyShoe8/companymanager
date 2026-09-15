@@ -57,6 +57,9 @@ export function localModelMetaOverlay(modelId: string): Pick<CatalogModel, 'best
   if (id.includes('bge') || id.includes('embed')) {
     return { bestAt: 'Embeddings and retrieval', strengths: ['embeddings'] };
   }
+  if (id.includes('flux') || id.includes('sdxl') || id.includes('stable-diffusion') || id.includes('dall-e') || id.includes('image')) {
+    return { bestAt: 'Local image generation', strengths: ['image_gen'] };
+  }
   if (id.includes('coder') || id.includes('code')) {
     return { bestAt: 'Local coding and code edits', strengths: ['coding', 'chat'] };
   }

@@ -76,7 +76,60 @@ export type ModelResult = {
   finishReason: string | null;
 };
 
-// Tool execution is deliberately absent from this initial inference-only contract.
+export const toolCallSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    type: z.literal('function'),
+    function: z
+      .object({
+        name: z.string().min(1).max(64),
+        arguments: z.string().max(16000),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const toolDefinitionSchema = z
+  .object({
+    type: z.literal('function'),
+    function: z
+      .object({
+        name: z.string().min(1).max(64),
+        description: z.string().max(1000),
+        parameters: z.record(z.unknown()),
+      })
+      .strict(),
+  })
+  .strict();
+
+/** Messages for tool-capable chat completions (OpenAI-compatible). */
+export const toolCapableMessageSchema = z
+  .object({
+    role: z.enum(['system', 'user', 'assistant', 'tool']),
+    content: z.string().max(32000).nullable().optional(),
+    tool_calls: z.array(toolCallSchema).max(8).optional(),
+    tool_call_id: z.string().min(1).max(128).optional(),
+  })
+  .strict();
+
+export const modelToolRequestSchema = z
+  .object({
+    role: z.enum(['architect', 'worker', 'reviewer']),
+    messages: z.array(toolCapableMessageSchema).min(1).max(40),
+    maxOutputTokens: z.number().int().min(1).max(8192),
+    tools: z.array(toolDefinitionSchema).min(1).max(16),
+  })
+  .strict();
+
+export type ModelToolRequest = z.infer<typeof modelToolRequestSchema>;
+export type ToolCall = z.infer<typeof toolCallSchema>;
+export type ToolDefinition = z.infer<typeof toolDefinitionSchema>;
+
+export type ModelToolResult = ModelResult & {
+  toolCalls: ToolCall[];
+};
+
+// Text-only remote jobs remain inference-only; tool loops run in-process on Nucleas.
 export const remoteJobSchema = z.object({
   protocolVersion: z.literal(PROTOCOL_VERSION),
   jobId: objectIdSchema,

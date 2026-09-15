@@ -33,7 +33,7 @@ export const aiEmployees = [
     name: 'Researcher AI',
     initials: 'RE',
     description:
-      'Research briefs, competitive scans, source notes and structured summaries. Does not browse the live web or open a browser in Nucleas today—ask what is missing instead of inventing current listings.',
+      'Research briefs, competitive scans, source notes and structured summaries. Use web_search/web_fetch (and browser_navigate only when needed) via provided tools—never invent live listings without tool results.',
   },
 ] as const;
 

@@ -56,6 +56,7 @@ vi.mock('@/lib/ai/control/config', async (importOriginal) => {
   return {
     ...actual,
     getChatInferencePolicy: vi.fn(),
+    getPipelineInferencePolicy: vi.fn(),
   };
 });
 
@@ -69,8 +70,16 @@ vi.mock('@/lib/ai/control/dispatchLimits', () => ({
   reserveDispatch: vi.fn(),
 }));
 
-vi.mock('@/lib/ai/control/transaction', () => ({
-  aiTransaction: async (work: (session: unknown) => Promise<unknown>) => work({}),
+vi.mock('@/lib/models/AiRolePipeline', () => ({
+  AiRolePipeline: {
+    findOne: vi.fn(() => ({
+      select: () => ({
+        maxTimeMS: () => ({
+          lean: async () => null,
+        }),
+      }),
+    })),
+  },
 }));
 
 vi.mock('@nucleas/ai-core/gateway', async () => {
@@ -152,7 +161,6 @@ describe('attemptTeamChatReply', () => {
   });
 
   it('does not call the model when budgets block chat admission', async () => {
-    process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN = 'synthetic-token';
     const enabled = {
       ...platformValue,
       remoteEnabled: true,
@@ -163,11 +171,11 @@ describe('attemptTeamChatReply', () => {
     };
     const { GatewayError } = await import('@nucleas/ai-core/gateway');
     const { readSettings, readPlatformSettings } = await import('@/lib/ai/control/settings');
-    const { getChatInferencePolicy } = await import('@/lib/ai/control/config');
+    const { getPipelineInferencePolicy } = await import('@/lib/ai/control/config');
     const { invokeModel } = await import('@nucleas/ai-core/gateway');
     vi.mocked(readSettings).mockResolvedValue({ revision: 1, value: enabled });
     vi.mocked(readPlatformSettings).mockResolvedValue({ revision: 1, value: enabled } as never);
-    vi.mocked(getChatInferencePolicy).mockRejectedValue(new GatewayError('configuration'));
+    vi.mocked(getPipelineInferencePolicy).mockRejectedValue(new GatewayError('configuration'));
 
     const { attemptTeamChatReply } = await import('./teamChat');
     const turn = await attemptTeamChatReply({
@@ -182,5 +190,44 @@ describe('attemptTeamChatReply', () => {
     expect(turn).toMatchObject({ role: 'status', failureCategory: 'unavailable' });
     expect(turn.text).toMatch(/reservation|budget/i);
     expect(invokeModel).not.toHaveBeenCalled();
+  });
+
+  it('asks to configure Worker binding when pipeline missing', async () => {
+    const enabled = {
+      ...platformValue,
+      remoteEnabled: true,
+      dispatchEnabled: true,
+      reservationMicros: 25,
+      organizationLimitMicros: 100,
+      projectLimitMicros: 75,
+    };
+    const { readSettings, readPlatformSettings } = await import('@/lib/ai/control/settings');
+    const { getPipelineInferencePolicy } = await import('@/lib/ai/control/config');
+    vi.mocked(readSettings).mockResolvedValue({ revision: 1, value: enabled });
+    vi.mocked(readPlatformSettings).mockResolvedValue({ revision: 1, value: enabled } as never);
+    vi.mocked(getPipelineInferencePolicy).mockResolvedValue({
+      reservationMicros: 25,
+      organizationLimitMicros: 100,
+      projectLimitMicros: 75,
+      noProviderFee: false,
+      dailyRequestLimit: 48,
+      minimumIntervalSeconds: 300,
+      maxOutputTokens: 2048,
+      revisions: [1, 1, 1],
+      digest: 'd',
+    } as never);
+
+    const { attemptTeamChatReply } = await import('./teamChat');
+    const turn = await attemptTeamChatReply({
+      employee: 'engineering',
+      projectName: 'Demo',
+      organizationId: 'org-1',
+      projectId,
+      userId,
+      userText: 'Hello',
+      priorTurns: [],
+    });
+    expect(turn.role).toBe('status');
+    expect(turn.text).toMatch(/AI Team/i);
   });
 });

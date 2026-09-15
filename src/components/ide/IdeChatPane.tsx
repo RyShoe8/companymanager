@@ -12,6 +12,7 @@ import {
 } from '@/lib/ide/modes';
 import { companyDisplayName, FLAGSHIP_MODEL_OPTION_STYLE, modelOptionLabel } from '@/lib/ai/rolePipeline/providerCatalog';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
+import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
 
 type ChatTurn = {
@@ -21,6 +22,8 @@ type ChatTurn = {
   costMicros?: number | null;
   reservedMicros?: number | null;
   noProviderFee?: boolean;
+  artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
+  toolsUsed?: string[];
 };
 
 type CatalogModel = {
@@ -82,6 +85,7 @@ export default function IdeChatPane({
   const [discovered, setDiscovered] = useState<CatalogModel[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -479,7 +483,8 @@ export default function IdeChatPane({
           <p className="text-xs text-text-secondary">
             {isIdeDirectMode(mode)
               ? 'Direct mode chats with one company model (great for free/local low-level tasks).'
-              : 'Pick an AI Team role to chat with that worker pipeline. Costs show in dollars per reply.'}
+              : 'Pick an AI Team role. Chat uses that role’s Worker company/model (with search, fetch, and image tools when available).'}
+
           </p>
         ) : null}
         {turns.map((turn) => {
@@ -504,6 +509,34 @@ export default function IdeChatPane({
             >
               <div className="mb-1 text-[10px] uppercase tracking-wide text-text-secondary">{turn.role}</div>
               <div className="whitespace-pre-wrap text-text-primary">{turn.text}</div>
+              {turn.toolsUsed?.length ? (
+                <div className="mt-1 text-[11px] text-text-secondary">
+                  Tools: {turn.toolsUsed.join(', ')}
+                </div>
+              ) : null}
+              {turn.artifacts?.length ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {turn.artifacts.map((artifact) => (
+                    <button
+                      key={artifact.assetId}
+                      type="button"
+                      className="group relative max-w-full overflow-hidden rounded border border-border text-left"
+                      onClick={() => setPreviewImage({ src: artifact.url, title: artifact.name })}
+                      title="View full size"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={artifact.url}
+                        alt={artifact.name}
+                        className="max-h-40 max-w-full object-contain transition group-hover:opacity-90"
+                      />
+                      <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
+                        Full size
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {cost && cost.amount !== '—' ? (
                 <div className="mt-1 text-[11px] text-text-secondary">
                   {cost.label === 'reserved' ? 'Reserved ' : cost.label === 'no provider fee' ? '' : ''}
@@ -547,6 +580,13 @@ export default function IdeChatPane({
           </button>
         )}
       </div>
+      <ImagePreviewModal
+        isOpen={Boolean(previewImage)}
+        src={previewImage?.src ?? null}
+        title={previewImage?.title ?? 'Generated image'}
+        onClose={() => setPreviewImage(null)}
+        stackAboveLightbox
+      />
     </aside>
   );
 }

@@ -1,9 +1,9 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
-import { GatewayError, invokeModel, validateGatewayConfiguration } from '@nucleas/ai-core/gateway';
+import { getChatInferencePolicy, getPipelineInferencePolicy } from '@/lib/ai/control/config';
+import { GatewayError, invokeModel } from '@nucleas/ai-core/gateway';
 import { digestValue } from '@nucleas/ai-core/planning';
-import { getChatInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
 import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
 import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
@@ -11,7 +11,9 @@ import { aiTransaction } from '@/lib/ai/control/transaction';
 import { readSettings, platformSettingsId } from '@/lib/ai/control/settings';
 import { defaultPlatformAiSettings, platformAiSettingsSchema } from '@/lib/ai/settingsSchema';
 import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
+import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
+import { AiRolePipeline } from '@/lib/models/AiRolePipeline';
 import {
   aiEmployees,
   type AiEmployeeKey,
@@ -30,6 +32,8 @@ export type TeamChatTurn = {
   /** Admission reservation amount for honest reserved-cost UI. */
   reservedMicros?: number | null;
   noProviderFee?: boolean;
+  artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
+  toolsUsed?: string[];
 };
 
 const CHAT_LOCK_MS = 60000;
@@ -123,27 +127,9 @@ export async function buildTeamContextSummary(
       counts
     );
   }
-  if (!process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN?.trim()) {
-    return unavailableContext(
-      projectName,
-      'Remote credentials are not configured on the server.',
-      settings,
-      counts
-    );
-  }
   try {
-    validateGatewayConfiguration({
-      endpoint: settings.endpoint,
-      model: settings.model,
-      protocol: settings.protocol,
-      bearerToken: process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN ?? '',
-      timeoutMs: 20000,
-    });
-    await getChatInferencePolicy(organizationId, String(projectId));
-  } catch (error) {
-    if (error instanceof GatewayError && error.code === 'credentials') {
-      return unavailableContext(projectName, 'Remote authentication is not configured correctly.', settings, counts);
-    }
+    await getPipelineInferencePolicy(organizationId, String(projectId));
+  } catch {
     return unavailableContext(
       projectName,
       'Chat inference needs a positive request reservation within organization and project budget ceilings, with remote connection and processing enabled.',
@@ -159,12 +145,11 @@ export async function buildTeamContextSummary(
     unavailableReason: null,
     included: [
       `Project name: ${projectName}`,
-      'Selected AI employee role preset',
-      'Recent private thread turns for this employee',
+      'Selected AI employee Worker model from AI Team',
+      'Recent private thread turns for this employee (when available)',
       `Recent objectives in project: ${counts.recentObjectiveCount}${counts.recentObjectiveCount >= 25 ? '+' : ''}`,
       `Recent AI runs in project: ${counts.recentRunCount}${counts.recentRunCount >= 25 ? '+' : ''}`,
-      'Repository files are not included in team chat',
-      'Live web browsing is not available in team chat',
+      'Tools: web_search, web_fetch, optional browser_navigate, image_generate when supported',
     ],
     ...counts,
   };
@@ -351,7 +336,7 @@ function costFields(policy: { reservationMicros: number; noProviderFee: boolean 
   };
 }
 
-/** Attempt a real gateway chat reply after shared admission. Never invents assistant content on failure. */
+/** IDE / team role chat via that employee's AI Team Worker company binding + tool loop. */
 export async function attemptTeamChatReply(input: {
   employee: AiEmployeeKey;
   projectName: string;
@@ -370,197 +355,53 @@ export async function attemptTeamChatReply(input: {
     return statusTurn(context.unavailableReason ?? 'Inference is unavailable.', 'unavailable');
   }
 
-  const admission = await admitTeamChat({
+  const pipeline = await AiRolePipeline.findOne({
     organizationId: input.organizationId,
-    projectId: input.projectId,
-    userId: input.userId,
-    userText: input.userText,
-  });
-  if (!admission.ok) return admission.turn;
-
-  const { runId, lockToken, policy } = admission.admitted;
-  if (input.signal?.aborted) {
-    await finishTeamChatRun({
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      runId,
-      lockToken,
-      actualMicros: policy.noProviderFee ? 0 : null,
-      status: 'blocked',
-      summary: 'Team chat cancelled after admission before the model call.',
-      failureCode: 'cancelled',
-      noProviderFee: policy.noProviderFee,
-      reservationMicros: policy.reservationMicros,
-    }).catch(() => undefined);
+    employee: input.employee,
+    enabled: true,
+  })
+    .select('worker')
+    .maxTimeMS(3000)
+    .lean();
+  const workerProfileId = pipeline?.worker?.modelProfileId
+    ? String(pipeline.worker.modelProfileId)
+    : '';
+  const workerModel = pipeline?.worker?.model?.trim() ?? '';
+  if (!workerProfileId || !workerModel) {
     return statusTurn(
-      'The chat request was cancelled before completion.',
-      'cancelled',
-      String(runId),
-      costFields(policy, policy.noProviderFee ? 0 : null)
+      `Configure a Worker company and model for ${input.employee} on AI Team before chatting.`,
+      'configuration'
     );
   }
 
   const role = aiEmployees.find((item) => item.id === input.employee)!;
-  const history = input.priorTurns
-    .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
-    .slice(-8)
-    .map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.text.slice(0, 2000) }));
   const ruleBlock =
     input.ruleTexts && input.ruleTexts.length > 0
       ? ['Project task rules you must follow:', ...input.ruleTexts.map((rule, index) => `${index + 1}. ${rule}`)].join(
           '\n'
         )
       : null;
-  const messages = [
-    {
-      role: 'system' as const,
-      content: [
-        `You are ${role.name} assisting on the Nucleas project "${input.projectName}".`,
-        role.description,
-        `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
-        'Reply helpfully and briefly. Do not claim to have changed project data, run code, browsed the live web, or completed tasks outside this chat.',
-        'If you lack information or tools, say what is missing instead of inventing project or web facts.',
-        ...(ruleBlock ? [ruleBlock] : []),
-      ].join(' '),
-    },
-    ...history,
-    { role: 'user' as const, content: input.userText.slice(0, 6000) },
-  ];
+  const systemPrompt = [
+    `You are ${role.name} assisting on the Nucleas project "${input.projectName}".`,
+    role.description,
+    `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
+    'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
+    'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output.',
+    'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.',
+    'If you lack information or tools, say what is missing instead of inventing project or web facts.',
+    ...(ruleBlock ? [ruleBlock] : []),
+  ].join(' ');
 
-  try {
-    const result = await invokeModel(
-      policy.gateway,
-      {
-        role: 'architect',
-        messages,
-        maxOutputTokens: Math.min(512, policy.maxOutputTokens),
-      },
-      { signal: input.signal }
-    );
-    try {
-      const latest = await getChatInferencePolicy(input.organizationId, String(input.projectId));
-      if (latest.digest !== policy.digest) {
-        await finishTeamChatRun({
-          organizationId: input.organizationId,
-          projectId: input.projectId,
-          runId,
-          lockToken,
-          actualMicros: policy.noProviderFee ? 0 : null,
-          status: 'blocked',
-          summary: 'Policy changed during chat inference; assistant text was discarded.',
-          failureCode: 'stale_policy',
-          noProviderFee: policy.noProviderFee,
-          reservationMicros: policy.reservationMicros,
-          result,
-        });
-        return statusTurn(
-          'AI settings changed during the reply. No assistant content was stored. Refresh and try again.',
-          'unavailable',
-          String(runId),
-          costFields(policy, policy.noProviderFee ? 0 : null)
-        );
-      }
-    } catch {
-      await finishTeamChatRun({
-        organizationId: input.organizationId,
-        projectId: input.projectId,
-        runId,
-        lockToken,
-        actualMicros: policy.noProviderFee ? 0 : null,
-        status: 'blocked',
-        summary: 'Authorization fence failed after chat inference.',
-        failureCode: 'stale_policy',
-        noProviderFee: policy.noProviderFee,
-        reservationMicros: policy.reservationMicros,
-        result,
-      });
-      return statusTurn(
-        'Chat authorization changed before the reply could be saved. No assistant content was stored.',
-        'unavailable',
-        String(runId),
-        costFields(policy, policy.noProviderFee ? 0 : null)
-      );
-    }
-
-    const content = result.content.trim().slice(0, 6000);
-    if (!content) {
-      await finishTeamChatRun({
-        organizationId: input.organizationId,
-        projectId: input.projectId,
-        runId,
-        lockToken,
-        actualMicros: policy.noProviderFee ? 0 : null,
-        status: 'blocked',
-        summary: 'Model returned empty chat content.',
-        failureCode: 'invalid_response',
-        noProviderFee: policy.noProviderFee,
-        reservationMicros: policy.reservationMicros,
-        result,
-      });
-      return statusTurn(
-        'The model returned an empty reply. No assistant content was stored.',
-        'invalid_response',
-        String(runId),
-        costFields(policy, policy.noProviderFee ? 0 : null)
-      );
-    }
-
-    const settled = policy.noProviderFee ? 0 : null;
-    await finishTeamChatRun({
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      runId,
-      lockToken,
-      actualMicros: settled,
-      status: 'completed',
-      summary: 'Team chat reply stored after governed admission.',
-      noProviderFee: policy.noProviderFee,
-      reservationMicros: policy.reservationMicros,
-      result,
-    });
-    return {
-      requestId: randomUUID(),
-      role: 'assistant',
-      text: content,
-      runId: String(runId),
-      ...costFields(policy, settled),
-    };
-  } catch (error) {
-    const failureCode = error instanceof GatewayError ? error.code : classifyProbeFailure(error);
-    await finishTeamChatRun({
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      runId,
-      lockToken,
-      actualMicros: policy.noProviderFee ? 0 : null,
-      status: 'blocked',
-      summary: 'Team chat model call failed after admission.',
-      failureCode,
-      noProviderFee: policy.noProviderFee,
-      reservationMicros: policy.reservationMicros,
-    }).catch(() => undefined);
-
-    if (error instanceof GatewayError) {
-      const messagesByCode: Record<GatewayError['code'], string> = {
-        configuration: 'Remote inference is not configured for team chat.',
-        credentials: 'Remote authentication was rejected.',
-        rate_limit: 'The remote provider rate-limited this request.',
-        unavailable: 'The remote model endpoint was unreachable or returned an error.',
-        invalid_response: 'The remote response could not be validated.',
-        cancelled: 'The chat request was cancelled before completion.',
-      };
-      return statusTurn(
-        messagesByCode[error.code],
-        error.code,
-        String(runId),
-        costFields(policy, policy.noProviderFee ? 0 : null)
-      );
-    }
-    return statusTurn(
-      'The chat request failed before a model reply was received.',
-      failureCode,
-      String(runId),
-      costFields(policy, policy.noProviderFee ? 0 : null)
-    );
-  }
+  return attemptCompanyCredentialChat({
+    systemPrompt,
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    userId: input.userId,
+    userText: input.userText,
+    priorTurns: input.priorTurns,
+    modelProfileId: workerProfileId,
+    model: workerModel,
+    includeImageTool: true,
+    signal: input.signal,
+  });
 }
