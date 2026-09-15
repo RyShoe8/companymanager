@@ -33,11 +33,25 @@ function IsoDesk({
   return (
     <div className="absolute flex flex-col items-center" style={style}>
       <p
-        className="mb-0.5 max-w-[6rem] truncate rounded bg-white/90 px-1 font-mono text-[9px] font-semibold leading-tight text-[#2a2040] shadow-sm"
+        className="mb-0.5 max-w-[6.5rem] truncate rounded bg-white/90 px-1 font-mono text-[9px] font-semibold leading-tight text-[#2a2040] shadow-sm"
         title={desk.modelLabel}
       >
         {desk.modelLabel}
       </p>
+      {desk.activityLabel ? (
+        <p
+          className={`mb-0.5 max-w-[6.5rem] truncate rounded px-1 font-mono text-[8px] leading-tight shadow-sm ${
+            typing
+              ? 'bg-[#1a1428]/85 text-[#a8e8f0]'
+              : done
+                ? 'bg-[#1a1428]/70 text-[#8fd4a8]'
+                : 'bg-[#1a1428]/60 text-[#c8b8e0]'
+          }`}
+          title={desk.activityLabel}
+        >
+          {desk.activityLabel}
+        </p>
+      ) : null}
       <div className="relative h-[3.75rem] w-[5.25rem]" style={{ imageRendering: 'pixelated' }}>
         {/* Chair back */}
         <div
@@ -226,12 +240,9 @@ export default function IdeRunScene({ activity }: Props) {
         />
       ))}
 
-      {/* Ticker */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 bg-[#1a1428]/75 px-2 py-0.5">
-        <p className="truncate font-mono text-[9px] font-semibold uppercase tracking-wide text-[#c8b8e0]">
-          {desks.length > 1 ? 'Team floor' : desks[0]?.modelLabel ?? 'Desk'}
-        </p>
-        <p className="max-w-[70%] truncate text-right font-mono text-[9px] text-[#a8e8f0]">
+      {/* Floor phase (detail lives on desk chips) */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-center bg-[#1a1428]/75 px-2 py-0.5">
+        <p className="truncate font-mono text-[9px] text-[#a8e8f0]" aria-live="polite">
           {activity.label}
         </p>
       </div>

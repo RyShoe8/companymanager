@@ -263,6 +263,39 @@ describe('attemptCompanyCredentialChat free tools', () => {
     });
   });
 
+  it('forces the tool loop for project-internal rules questions on free credentials', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'Task rules live in IdeTaskRulesPanel and loadIdeTaskRuleTexts.',
+      toolCallsMade: ['repo_tree', 'repo_read'],
+      artifacts: [],
+      inputTokens: 10,
+      outputTokens: 20,
+      latencyMs: 5,
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'what does our rules system do and how exactly does it work?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: true,
+    });
+
+    expect(mocks.webSearch).not.toHaveBeenCalled();
+    expect(mocks.invokeModel).not.toHaveBeenCalled();
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      toolsUsed: ['repo_tree', 'repo_read'],
+      noProviderFee: true,
+      costMicros: 0,
+    });
+  });
+
   it('retries assist when tools fail with a non-GatewayError on a factual lookup', async () => {
     mocks.webSearch
       .mockRejectedValueOnce(new Error('search briefly unavailable'))
@@ -471,6 +504,46 @@ describe('attemptCompanyCredentialChat commercial', () => {
       text: 'paid reply',
       noProviderFee: false,
       reservedMicros: 25,
+    });
+  });
+
+  it('settles paid turns with list-price estimates when usage is known', async () => {
+    mocks.gatewayFromProfile.mockResolvedValue({
+      gateway: {
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+        bearerToken: 'tok',
+        model: 'openai/gpt-5.6-sol',
+        protocol: 'openai-chat',
+        timeoutMs: 60000,
+      },
+      profile: { provider: 'openrouter', tier: 'commercial' },
+    });
+    mocks.toolLoop.mockResolvedValue({
+      content: 'sol reply',
+      toolCallsMade: [],
+      artifacts: [],
+      inputTokens: 10_000,
+      outputTokens: 2_000,
+      latencyMs: 5,
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'hello',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'openai/gpt-5.6-sol',
+    });
+
+    // 10k * $4/1M + 2k * $20/1M = $0.04 + $0.04 = $0.08 = 80_000 micros
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'sol reply',
+      noProviderFee: false,
+      costMicros: 80_000,
     });
   });
 

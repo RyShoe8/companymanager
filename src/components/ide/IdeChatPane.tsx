@@ -1071,10 +1071,11 @@ export default function IdeChatPane({
               ) : null}
               {cost && cost.amount !== '—' ? (
                 <div className="mt-1 text-[11px] text-text-secondary">
-                  {cost.label === 'reserved' ? 'Reserved ' : cost.label === 'no provider fee' ? '' : ''}
+                  {cost.label === 'budget hold' ? 'Budget hold ' : ''}
                   {cost.amount}
+                  {cost.label === 'estimated' ? ' est.' : ''}
                   {cost.label === 'no provider fee' ? ' · no provider fee' : ''}
-                  {cost.label === 'reserved' ? ' (usage unknown)' : ''}
+                  {cost.label === 'budget hold' ? ' · not metered' : ''}
                 </div>
               ) : null}
             </div>

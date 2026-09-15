@@ -44,6 +44,7 @@ describe('ide plan mode helpers', () => {
     expect(orchestraStagePrompt('planner', 'chat')).toMatch(/Lead deep investigation/);
     expect(orchestraStagePrompt('worker', 'chat')).toMatch(/Execute the Planner/);
     expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/Synthesize/);
+    expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/Do not invent/);
     expect(orchestraStagePrompt('planner', 'plan')).toMatch(/nucleas-plan/);
     expect(toolProfileForOrchestraStage('planner', 'chat')).toBe('repo');
     expect(toolProfileForOrchestraStage('worker', 'chat')).toBe('full');
@@ -80,8 +81,13 @@ describe('ide plan mode helpers', () => {
   it('maps run-scene phases without network', () => {
     expect(runSceneFromState({ busy: false, interactionMode: 'chat' }).label).toMatch(/Standing by|quiet/i);
     expect(
-      runSceneFromState({ busy: true, interactionMode: 'plan', busyTick: 1 }).label
-    ).toMatch(/Drafting plan/);
+      runSceneFromState({
+        busy: true,
+        interactionMode: 'plan',
+        busyTick: 1,
+        liveStage: 'planner',
+      }).label
+    ).toMatch(/Team floor · planning/i);
     expect(
       runSceneFromState({
         busy: false,

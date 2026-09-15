@@ -20,18 +20,68 @@ function activeDesk(desks?: IdeDioramaDesk[]): IdeDioramaDesk | undefined {
   return desks?.find((d) => d.status === 'active' || d.active);
 }
 
-function stageBusyLabel(stage: IdeChatStage, deskLabel?: string): string {
-  const who = deskLabel?.trim();
-  if (stage === 'planner') return who ? `${who} drafting plan…` : 'Planner drafting…';
-  if (stage === 'reviewer') return who ? `${who} reviewing…` : 'Reviewer checking…';
-  if (stage === 'direct') return who ? `${who} typing…` : 'Model typing…';
-  return who ? `${who} building…` : 'Worker building…';
+/** Short verb for the desk chip (no model name — name is already above the desk). */
+export function deskActivityVerb(
+  role: IdeChatStage,
+  status: IdeDioramaDesk['status'],
+  mode: IdeInteractionMode,
+  busy: boolean
+): string | undefined {
+  if (!busy) return undefined;
+  if (status === 'done') return 'done';
+  if (status === 'idle') return 'waiting';
+  if (role === 'planner') {
+    if (mode === 'plan') return 'drafting plan…';
+    if (mode === 'build') return 'briefing worker…';
+    return 'leading digs…';
+  }
+  if (role === 'worker') {
+    if (mode === 'build') return 'building…';
+    if (mode === 'plan') return 'verifying repo…';
+    return 'reading repo…';
+  }
+  if (role === 'reviewer') {
+    if (mode === 'plan') return 'critiquing plan…';
+    if (mode === 'build') return 'checking work…';
+    return 'synthesizing…';
+  }
+  return 'typing…';
+}
+
+function withDeskActivityLabels(
+  desks: IdeDioramaDesk[] | undefined,
+  mode: IdeInteractionMode,
+  busy: boolean
+): IdeDioramaDesk[] | undefined {
+  if (!desks?.length) return desks;
+  return desks.map((desk) => ({
+    ...desk,
+    activityLabel: deskActivityVerb(desk.role, desk.status, mode, busy),
+  }));
+}
+
+function floorLabel(input: {
+  mode: IdeInteractionMode;
+  busy: boolean;
+  live?: IdeChatStage | null;
+  target?: string;
+  desks?: IdeDioramaDesk[];
+}): string {
+  if (!input.busy) {
+    return input.desks && input.desks.length > 1 ? 'Team floor · quiet' : 'Standing by';
+  }
+  if (input.live === 'planner') return 'Team floor · planning';
+  if (input.live === 'worker') return input.mode === 'build' ? 'Team floor · building' : 'Team floor · digging';
+  if (input.live === 'reviewer') return 'Team floor · reviewing';
+  if (input.live === 'direct') return input.target ? `Working · ${input.target}` : 'Team floor · working';
+  return 'Team floor · working';
 }
 
 /** Map client busy/mode signals to diorama phase + label. Zero network / model usage. */
 export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
   const mode = input.interactionMode;
-  const desks = input.desks;
+  const desks = withDeskActivityLabels(input.desks, mode, input.busy);
+
   if (input.failed) {
     return { phase: 'error', label: 'Hit a snag', interactionMode: mode, busy: false, desks };
   }
@@ -54,13 +104,13 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
         desks,
       };
     }
-    const quiet =
-      desks && desks.length > 1
-        ? `${desks.map((d) => d.modelLabel).join(' · ')} standing by`
-        : desks?.[0]?.modelLabel
-          ? `${desks[0].modelLabel} is quiet`
-          : 'Standing by';
-    return { phase: 'idle', label: quiet, interactionMode: mode, busy: false, desks };
+    return {
+      phase: 'idle',
+      label: floorLabel({ mode, busy: false, desks }),
+      interactionMode: mode,
+      busy: false,
+      desks,
+    };
   }
 
   const target = input.targetLabel?.trim();
@@ -76,50 +126,12 @@ export function runSceneFromState(input: RunSceneInput): IdeRunActivity {
   }
 
   const live = input.liveStage ?? activeDesk(desks)?.role ?? null;
-  if (live) {
-    const phase =
-      live === 'reviewer' || mode === 'build'
-        ? live === 'reviewer'
-          ? 'working'
-          : 'building'
-        : live === 'planner' || mode === 'plan'
-          ? 'working'
-          : 'working';
-    return {
-      phase: mode === 'build' && live !== 'reviewer' ? 'building' : phase,
-      label: stageBusyLabel(live, activeDesk(desks)?.modelLabel),
-      interactionMode: mode,
-      busy: true,
-      desks,
-    };
-  }
+  const phase: IdeRunActivity['phase'] =
+    mode === 'build' && live !== 'reviewer' ? 'building' : 'working';
 
-  if (mode === 'plan') {
-    return {
-      phase: 'working',
-      label: activeDesk(desks)?.modelLabel
-        ? `${activeDesk(desks)!.modelLabel} drafting plan…`
-        : 'Drafting plan at the desk…',
-      interactionMode: mode,
-      busy: true,
-      desks,
-    };
-  }
-  if (mode === 'build') {
-    return {
-      phase: 'building',
-      label: activeDesk(desks)?.modelLabel
-        ? `${activeDesk(desks)!.modelLabel} building…`
-        : 'Building the approved plan…',
-      interactionMode: mode,
-      busy: true,
-      desks,
-    };
-  }
-  const workingLabel = activeDesk(desks)?.modelLabel ?? (target ? target : 'model');
   return {
-    phase: 'working',
-    label: `${workingLabel} typing…`,
+    phase,
+    label: floorLabel({ mode, busy: true, live, target, desks }),
     interactionMode: mode,
     busy: true,
     desks,

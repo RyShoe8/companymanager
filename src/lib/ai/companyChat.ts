@@ -23,14 +23,30 @@ import {
   formatImageSearchContext,
   formatResearchResultContext,
   looksLikeImageSearchQuery,
+  looksLikeProjectInternalQuery,
   looksLikeWebLookupQuery,
   userTextWithBrowseContext,
 } from '@/lib/ai/tools/serverBrowseAssist';
+import { estimateCostMicros } from '@/lib/ai/pricing/modelRates';
 import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
 import type { ToolArtifact } from '@/lib/ai/tools/executeTool';
 
 const LOCK_MS = 90000;
+
+function settleChatCostMicros(input: {
+  noProviderFee: boolean;
+  model: string;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}): number | null {
+  if (input.noProviderFee) return 0;
+  return estimateCostMicros({
+    model: input.model,
+    inputTokens: input.inputTokens,
+    outputTokens: input.outputTokens,
+  });
+}
 
 function statusTurn(
   text: string,
@@ -305,8 +321,9 @@ export async function attemptCompanyCredentialChat(input: {
     const isLookup = !isImageLookup && looksLikeWebLookupQuery(input.userText);
     const toolNeedy = looksLikeToolNeedyQuery(input.userText);
     const repoToolsOn = input.includeRepoTools !== false;
-    /** Project IDE: prefer the tool loop (repo_*) over plain answers for lookup-shaped asks. */
-    const preferToolLoop = toolNeedy || (repoToolsOn && isLookup);
+    const projectInternal = looksLikeProjectInternalQuery(input.userText);
+    /** Project IDE: prefer the tool loop (repo_*) over plain answers for lookups and in-repo asks. */
+    const preferToolLoop = toolNeedy || (repoToolsOn && (isLookup || projectInternal));
 
     async function plainInvoke(args: {
       systemExtra: string;
@@ -595,7 +612,12 @@ export async function attemptCompanyCredentialChat(input: {
         tools: loop.toolCallsMade.join(',') || 'none',
       });
       await finish({
-        actualMicros: noProviderFee ? 0 : null,
+        actualMicros: settleChatCostMicros({
+          noProviderFee,
+          model: gateway.model,
+          inputTokens: loop.inputTokens,
+          outputTokens: loop.outputTokens,
+        }),
         status: 'blocked',
         summary: `Model returned empty chat content. ${hint}`.slice(0, 500),
         failureCode: 'invalid_response',
@@ -608,7 +630,12 @@ export async function attemptCompanyCredentialChat(input: {
         'invalid_response',
         String(runId),
         {
-          costMicros: noProviderFee ? 0 : null,
+          costMicros: settleChatCostMicros({
+            noProviderFee,
+            model: gateway.model,
+            inputTokens: loop.inputTokens,
+            outputTokens: loop.outputTokens,
+          }),
           reservedMicros: reservationMicros,
           noProviderFee,
           debugHint: hint,
@@ -616,7 +643,12 @@ export async function attemptCompanyCredentialChat(input: {
       );
     }
 
-    const settled = noProviderFee ? 0 : null;
+    const settled = settleChatCostMicros({
+      noProviderFee,
+      model: gateway.model,
+      inputTokens: loop.inputTokens,
+      outputTokens: loop.outputTokens,
+    });
     await finish({
       actualMicros: settled,
       status: 'completed',

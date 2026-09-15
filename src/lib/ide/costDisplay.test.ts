@@ -23,16 +23,16 @@ describe('formatIdeCostUsd', () => {
     });
   });
 
-  it('prefers settled cost', () => {
+  it('prefers token-estimated cost', () => {
     expect(formatIdeCostUsd({ costMicros: 1_500_000, reservedMicros: 2_000_000, noProviderFee: false })).toEqual({
-      label: 'cost',
-      amount: '$1.5',
+      label: 'estimated',
+      amount: '~$1.5',
     });
   });
 
-  it('falls back to reserved when settled unknown', () => {
+  it('falls back to budget hold when settled unknown', () => {
     expect(formatIdeCostUsd({ costMicros: null, reservedMicros: 250_000, noProviderFee: false })).toEqual({
-      label: 'reserved',
+      label: 'budget hold',
       amount: '$0.25',
     });
   });

@@ -70,29 +70,33 @@ describe('buildDioramaDesks', () => {
 });
 
 describe('runSceneFromState desks', () => {
-  it('labels idle with model names', () => {
+  it('labels idle floor quietly', () => {
     const desks = buildDioramaDesks({
       stages: { planner: 'p', worker: 'w', reviewer: 'r' },
     });
     expect(runSceneFromState({ busy: false, interactionMode: 'chat', desks }).label).toMatch(
-      /standing by/
+      /quiet|Standing by/i
     );
   });
 
-  it('labels busy with the active desk model', () => {
+  it('puts activity verbs on desks while busy', () => {
     const desks = buildDioramaDesks({
-      direct: true,
-      directModelLabel: 'o4-mini',
+      stages: { planner: 'p', worker: 'w', reviewer: 'r' },
       busy: true,
+      activeStage: 'worker',
+      doneStages: ['planner'],
     });
-    expect(
-      runSceneFromState({
-        busy: true,
-        interactionMode: 'chat',
-        busyTick: 1,
-        desks,
-      }).label
-    ).toMatch(/o4-mini typing/);
+    const scene = runSceneFromState({
+      busy: true,
+      interactionMode: 'chat',
+      busyTick: 1,
+      desks,
+      liveStage: 'worker',
+    });
+    expect(scene.label).toMatch(/Team floor · digging/i);
+    expect(scene.desks?.find((d) => d.role === 'planner')?.activityLabel).toBe('done');
+    expect(scene.desks?.find((d) => d.role === 'worker')?.activityLabel).toBe('reading repo…');
+    expect(scene.desks?.find((d) => d.role === 'reviewer')?.activityLabel).toBe('waiting');
   });
 
   it('labels busy reviewer from live stage', () => {
@@ -102,14 +106,14 @@ describe('runSceneFromState desks', () => {
       activeStage: 'reviewer',
       doneStages: ['worker'],
     });
-    expect(
-      runSceneFromState({
-        busy: true,
-        interactionMode: 'build',
-        busyTick: 1,
-        desks,
-        liveStage: 'reviewer',
-      }).label
-    ).toMatch(/Sol reviewing|Reviewer/i);
+    const scene = runSceneFromState({
+      busy: true,
+      interactionMode: 'build',
+      busyTick: 1,
+      desks,
+      liveStage: 'reviewer',
+    });
+    expect(scene.label).toMatch(/Team floor · reviewing/i);
+    expect(scene.desks?.find((d) => d.role === 'reviewer')?.activityLabel).toBe('checking work…');
   });
 });

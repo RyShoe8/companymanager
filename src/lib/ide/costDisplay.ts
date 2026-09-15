@@ -12,10 +12,10 @@ export function formatIdeCostUsd(input: IdeCostPayload): { label: string; amount
     return { label: 'no provider fee', amount: '$0.00' };
   }
   if (input.costMicros != null) {
-    return { label: 'cost', amount: `$${microsToDollars(input.costMicros)}` };
+    return { label: 'estimated', amount: `~$${microsToDollars(input.costMicros)}` };
   }
   if (input.reservedMicros != null && input.reservedMicros > 0) {
-    return { label: 'reserved', amount: `$${microsToDollars(input.reservedMicros)}` };
+    return { label: 'budget hold', amount: `$${microsToDollars(input.reservedMicros)}` };
   }
   return { label: 'cost', amount: '—' };
 }

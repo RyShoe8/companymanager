@@ -3,6 +3,7 @@ import {
   formatImageSearchContext,
   formatWebSearchContext,
   looksLikeImageSearchQuery,
+  looksLikeProjectInternalQuery,
   looksLikeWebLookupQuery,
   userTextWithBrowseContext,
 } from '@/lib/ai/tools/serverBrowseAssist';
@@ -20,6 +21,20 @@ describe('looksLikeWebLookupQuery', () => {
     expect(looksLikeWebLookupQuery('find images of Emirates Stadium')).toBe(false);
     expect(looksLikeWebLookupQuery('how does our rules system work exactly?')).toBe(false);
     expect(looksLikeWebLookupQuery('Explain the codebase architecture')).toBe(false);
+  });
+});
+
+describe('looksLikeProjectInternalQuery', () => {
+  it('matches rules/codebase phrasing', () => {
+    expect(looksLikeProjectInternalQuery('how does our rules system work exactly?')).toBe(true);
+    expect(looksLikeProjectInternalQuery('what does our rules system do and how exactly does it work?')).toBe(
+      true
+    );
+    expect(looksLikeProjectInternalQuery('Explain the codebase architecture')).toBe(true);
+  });
+
+  it('rejects unrelated factual asks', () => {
+    expect(looksLikeProjectInternalQuery('who scored most for Arsenal?')).toBe(false);
   });
 });
 

@@ -22,6 +22,8 @@ export type IdeDioramaDesk = {
   /** True when this desk is the live stage. */
   active: boolean;
   status: IdeDeskStatus;
+  /** Short status under the model name (office activity). */
+  activityLabel?: string;
 };
 
 function statusForRole(
