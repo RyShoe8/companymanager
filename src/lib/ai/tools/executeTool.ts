@@ -5,7 +5,7 @@ import Asset from '@/lib/models/Asset';
 import { browserNavigate } from '@/lib/ai/tools/browserClient';
 import { chooseBrowseTool, isBrowserWorkerConfigured } from '@/lib/ai/tools/browseRouter';
 import { webFetch } from '@/lib/ai/tools/webFetch';
-import { webSearch } from '@/lib/ai/tools/webSearch';
+import { imageSearch, webSearch } from '@/lib/ai/tools/webSearch';
 
 export type ToolArtifact = {
   kind: 'image';
@@ -44,7 +44,15 @@ export async function executeIdeTool(input: {
 
   if (input.name === 'web_search') {
     const query = typeof args.query === 'string' ? args.query : '';
-    const result = await webSearch(query, { signal: input.signal });
+    const depthRaw = typeof args.depth === 'string' ? args.depth.trim() : 'lite';
+    const depth = depthRaw === 'standard' ? 'standard' : 'lite';
+    const result = await webSearch(query, { signal: input.signal, depth });
+    return { content: JSON.stringify(result).slice(0, 12000), artifacts };
+  }
+
+  if (input.name === 'image_search') {
+    const query = typeof args.query === 'string' ? args.query : '';
+    const result = await imageSearch(query, { signal: input.signal });
     return { content: JSON.stringify(result).slice(0, 12000), artifacts };
   }
 

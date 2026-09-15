@@ -8,11 +8,31 @@ export function ideChatToolDefinitions(options: { includeImage: boolean }): Tool
       function: {
         name: 'web_search',
         description:
-          'Cheap web search for discovery. Prefer this before browsing. Returns titles, URLs, and short snippets only.',
+          'Multi-source web search for discovery (Instant Answer, Wikipedia, optional Brave/Google/SearXNG). Prefer before browsing. Use depth=standard to also fetch top page text.',
         parameters: {
           type: 'object',
           properties: {
             query: { type: 'string', description: 'Search query' },
+            depth: {
+              type: 'string',
+              description: 'lite = titles/snippets only; standard = also fetch top page extracts',
+              enum: ['lite', 'standard'],
+            },
+          },
+          required: ['query'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'image_search',
+        description:
+          'Find existing images on the public web (Google CSE). Use when the user wants photos/pictures/links of something that already exists. Prefer image_generate only when they ask to create a new AI image.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Image search query' },
           },
           required: ['query'],
         },

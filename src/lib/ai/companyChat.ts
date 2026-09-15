@@ -17,9 +17,11 @@ import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
 import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
 import { runIdeToolLoop } from '@/lib/ai/tools/runToolLoop';
-import { webSearch } from '@/lib/ai/tools/webSearch';
+import { imageSearch, webSearch } from '@/lib/ai/tools/webSearch';
 import {
-  formatWebSearchContext,
+  formatImageSearchContext,
+  formatResearchResultContext,
+  looksLikeImageSearchQuery,
   looksLikeWebLookupQuery,
   userTextWithBrowseContext,
 } from '@/lib/ai/tools/serverBrowseAssist';
@@ -60,7 +62,7 @@ function appendArtifacts(text: string, artifacts: ToolArtifact[]): string {
 }
 
 const TOOL_NEEDY =
-  /\b(image|generate|draw|screenshot|browse|fetch|navigate|web[_ ]?search|search the web)\b/i;
+  /\b(image|photo|picture|generate|draw|screenshot|browse|fetch|navigate|web[_ ]?search|search the web|image[_ ]?search)\b/i;
 
 function looksLikeToolNeedyQuery(text: string): boolean {
   return TOOL_NEEDY.test(text.trim());
@@ -294,7 +296,8 @@ export async function attemptCompanyCredentialChat(input: {
     let phase: ChatPhase = 'tool_loop';
     let lastError: unknown;
     const usePlain = Boolean(input.forcePlain);
-    const isLookup = looksLikeWebLookupQuery(input.userText);
+    const isImageLookup = looksLikeImageSearchQuery(input.userText);
+    const isLookup = !isImageLookup && looksLikeWebLookupQuery(input.userText);
     const toolNeedy = looksLikeToolNeedyQuery(input.userText);
 
     async function plainInvoke(args: {
@@ -328,16 +331,44 @@ export async function attemptCompanyCredentialChat(input: {
       latencyMs: number;
     } | null> {
       if (!freeCredential || !isLookup) return null;
-      const search = await webSearch(input.userText, { signal: input.signal });
+      const search = await webSearch(input.userText, { signal: input.signal, depth: 'standard' });
       browseAssisted = true;
-      const block = formatWebSearchContext(search);
+      const toolsUsed = search.toolsUsed?.length ? search.toolsUsed : ['web_search'];
+      const block = formatResearchResultContext(search);
       const plain = await plainInvoke({
-        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran web_search; ground your answer in the provided results.`,
+        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran research (${toolsUsed.join(', ')}); ground your answer in the provided sources and extracts.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
       return {
         content: plain.content,
-        toolCallsMade: ['web_search'],
+        toolCallsMade: toolsUsed,
+        artifacts: [],
+        inputTokens: plain.inputTokens,
+        outputTokens: plain.outputTokens,
+        latencyMs: plain.latencyMs,
+      };
+    }
+
+    async function tryImageAssistPlain(systemExtra: string): Promise<{
+      content: string;
+      toolCallsMade: string[];
+      artifacts: ToolArtifact[];
+      inputTokens: number | null;
+      outputTokens: number | null;
+      latencyMs: number;
+    } | null> {
+      if (!freeCredential || !isImageLookup) return null;
+      const search = await imageSearch(input.userText, { signal: input.signal });
+      browseAssisted = true;
+      const toolsUsed = search.toolsUsed?.length ? search.toolsUsed : ['image_search'];
+      const block = formatImageSearchContext(search);
+      const plain = await plainInvoke({
+        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran image_search; list the concrete image URLs from the results (markdown links are fine). Do not invent URLs.`,
+        userContent: userTextWithBrowseContext(input.userText, block),
+      });
+      return {
+        content: plain.content,
+        toolCallsMade: toolsUsed,
         artifacts: [],
         inputTokens: plain.inputTokens,
         outputTokens: plain.outputTokens,
@@ -385,17 +416,34 @@ export async function attemptCompanyCredentialChat(input: {
           freeCredential &&
           (plainError instanceof GatewayError
             ? plainError.code === 'unavailable' || plainError.code === 'invalid_response'
-            : isLookup);
+            : isLookup || isImageLookup);
         if (!retryBrowse) throw plainError;
         phase = 'browse_assist_retry';
-        const assisted = await tryBrowseAssistPlain('Tools are disabled for this turn.');
+        const assisted =
+          (await tryImageAssistPlain('Tools are disabled for this turn.')) ??
+          (await tryBrowseAssistPlain('Tools are disabled for this turn.'));
         if (!assisted) throw plainError;
         loop = assisted;
       }
     } else if (freeCredential) {
       let resolved = false;
 
-      if (isLookup) {
+      if (isImageLookup) {
+        phase = 'proactive_browse';
+        try {
+          const assisted = await tryImageAssistPlain(
+            'Prefer Nucleas image_search for finding existing web images.'
+          );
+          if (assisted) {
+            loop = assisted;
+            resolved = true;
+          }
+        } catch (browseError) {
+          lastError = browseError;
+        }
+      }
+
+      if (!resolved && isLookup) {
         phase = 'proactive_browse';
         try {
           const assisted = await tryBrowseAssistPlain(
@@ -441,7 +489,9 @@ export async function attemptCompanyCredentialChat(input: {
           phase = 'browse_assist_retry';
           let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
           try {
-            assisted = await tryBrowseAssistPlain('Tools failed on this host.');
+            assisted =
+              (await tryImageAssistPlain('Tools failed on this host.')) ??
+              (await tryBrowseAssistPlain('Tools failed on this host.'));
           } catch (assistError) {
             lastError = assistError;
             assisted = null;
@@ -454,7 +504,7 @@ export async function attemptCompanyCredentialChat(input: {
             try {
               const plain = await plainInvoke({
                 systemExtra:
-                  isLookup && browseAssisted
+                  (isLookup || isImageLookup) && browseAssisted
                     ? 'Tools and browse assist failed; answer from knowledge only. Do not call tools.'
                     : 'Tools failed on this host; answer from knowledge only. Do not call tools.',
                 userContent: input.userText,
@@ -470,7 +520,7 @@ export async function attemptCompanyCredentialChat(input: {
               resolved = true;
             } catch (plainError) {
               lastError = plainError;
-              if (isLookup && browseAssisted === false) {
+              if ((isLookup || isImageLookup) && browseAssisted === false) {
                 throw new GatewayError('unavailable', {
                   ...(plainError instanceof GatewayError ? plainError.details : {}),
                   kind: 'browse_unavailable',

@@ -157,7 +157,7 @@ export async function buildTeamContextSummary(
       'Recent private thread turns for this employee (when available)',
       `Recent objectives in project: ${counts.recentObjectiveCount}${counts.recentObjectiveCount >= 25 ? '+' : ''}`,
       `Recent AI runs in project: ${counts.recentRunCount}${counts.recentRunCount >= 25 ? '+' : ''}`,
-      'Tools: web_search, web_fetch, optional browser_navigate, image_generate when supported',
+      'Tools: web_search, image_search, web_fetch, optional browser_navigate, image_generate when supported',
     ],
     ...counts,
   };
@@ -402,7 +402,7 @@ export async function attemptTeamChatReply(input: {
     `This project has about ${context.recentObjectiveCount} recent objectives and ${context.recentRunCount} recent AI runs recorded in Nucleas.`,
     'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
     allowTools
-      ? 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output. If a tool fails, say so from the error—do not invent results.'
+      ? 'You may call provided tools (web_search, image_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output. If a tool fails, say so from the error—do not invent results.'
       : 'Do not call tools in this turn.',
     allowTools
       ? 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.'

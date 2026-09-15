@@ -36,7 +36,7 @@ export async function attemptDirectModelChat(input: {
     `You are a helpful assistant on the Nucleas project "${input.projectName}".`,
     'Reply helpfully and briefly. Do not claim to have changed project data or completed tasks outside this chat.',
     allowTools
-      ? 'You may call provided tools (web_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output. If a tool fails, say so from the error—do not invent results.'
+      ? 'You may call provided tools (web_search, image_search, web_fetch, browser_navigate when available, image_generate). Never claim browse or image results without tool output. If a tool fails, say so from the error—do not invent results.'
       : 'Do not call tools in this turn.',
     allowTools
       ? 'Prefer web_search/web_fetch; use browser_navigate only when fetch is thin or JS rendering is required.'
