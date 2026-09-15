@@ -28,7 +28,8 @@ function IsoDesk({
   reducedMotion: boolean;
   style: CSSProperties;
 }) {
-  const typing = busy && desk.active && !reducedMotion;
+  const typing = busy && (desk.status === 'active' || desk.active) && !reducedMotion;
+  const done = desk.status === 'done';
   return (
     <div className="absolute flex flex-col items-center" style={style}>
       <p
@@ -76,7 +77,13 @@ function IsoDesk({
         <div className="absolute bottom-[1.65rem] left-[2.1rem] w-8 border-2 border-[#2a2040] bg-[#1a1428] p-0.5">
           <div
             className={`relative h-4 overflow-hidden ${
-              typing ? 'bg-[#00c2e0]' : desk.active ? 'bg-[#008fa6]' : 'bg-[#4a6080]'
+              typing
+                ? 'bg-[#00c2e0]'
+                : done
+                  ? 'bg-[#3d9b6a]'
+                  : desk.active
+                    ? 'bg-[#008fa6]'
+                    : 'bg-[#4a6080]'
             }`}
           >
             {typing ? (
@@ -87,7 +94,7 @@ function IsoDesk({
               </div>
             ) : (
               <div className="flex h-full items-center justify-center font-mono text-[7px] text-white/80">
-                {desk.active ? '…' : 'z'}
+                {done ? 'ok' : desk.active ? '…' : 'z'}
               </div>
             )}
           </div>
@@ -121,7 +128,7 @@ export default function IdeRunScene({ activity }: Props) {
   const desks =
     activity.desks && activity.desks.length > 0
       ? activity.desks
-      : [{ role: 'direct' as const, modelLabel: 'Model', active: activity.busy }];
+      : [{ role: 'direct' as const, modelLabel: 'Model', active: activity.busy, status: activity.busy ? ('active' as const) : ('idle' as const) }];
   const positions = deskPositions(desks.length);
 
   useEffect(() => {

@@ -31,6 +31,8 @@ export const ideChatSchema = z
       .optional(),
     model: z.string().trim().min(1).max(200).optional(),
     interactionMode: z.enum(['chat', 'plan', 'build']).default('chat'),
+    /** When true, response is application/x-ndjson with stage + turn events. */
+    stream: z.boolean().optional(),
   })
   .strict()
   .superRefine((value, ctx) => {

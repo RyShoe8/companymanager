@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { requireAttentionAccess } from '@/lib/ai/control/attention';
 import { AiHttpError } from '@/lib/ai/control/access';
 import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
@@ -8,6 +9,11 @@ import { isIdeDirectMode, normalizeIdeChatMode } from '@/lib/ide/modes';
 import { ideChatSchema } from '@/lib/ide/ideChatSchema';
 import { appendIdeChatTurns, clearIdeChatTurnPlan, loadIdeChatHistory } from '@/lib/ide/chatHistory';
 import { freeChatLedgerProjectId } from '@/lib/ide/freeChat';
+import {
+  encodeIdeChatNdjsonLine,
+  type IdeChatStreamEvent,
+} from '@/lib/ide/ideChatStream';
+import { isMongoDuplicateKeyError, isMongoNetworkError, MONGO_NETWORK_USER_MESSAGE } from '@/lib/utils/mongoErrors';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +51,49 @@ function turnPayload(turn: {
     toolsUsed: turn.toolsUsed ?? [],
     ...(turn.plan ? { plan: turn.plan } : {}),
   };
+}
+
+function streamErrorMessage(error: unknown): string {
+  if (error instanceof AiHttpError) return error.message;
+  if (error instanceof z.ZodError) return 'Invalid input. Check lengths, criteria, and dependencies.';
+  if (isMongoDuplicateKeyError(error)) return 'Request already exists. Refresh before retrying.';
+  if (typeof error === 'object' && error && 'name' in error && error.name === 'ValidationError') {
+    return 'Unable to save this AI credential. Check required fields and try again.';
+  }
+  if (isMongoNetworkError(error)) return MONGO_NETWORK_USER_MESSAGE;
+  return 'AI operation unavailable. Check server configuration and transaction support.';
+}
+
+function wantsNdjsonStream(request: NextRequest, streamFlag?: boolean): boolean {
+  if (streamFlag === true) return true;
+  const accept = request.headers.get('accept') ?? '';
+  return accept.includes('application/x-ndjson');
+}
+
+function ndjsonResponse(
+  run: (send: (event: IdeChatStreamEvent) => void) => Promise<void>
+): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: IdeChatStreamEvent) => {
+        controller.enqueue(encoder.encode(encodeIdeChatNdjsonLine(event)));
+      };
+      try {
+        await run(send);
+      } catch (error) {
+        send({ type: 'error', error: streamErrorMessage(error) });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'private, no-store',
+    },
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -85,6 +134,74 @@ export async function POST(request: NextRequest) {
 
     const projectId = freeChatLedgerProjectId(access.organizationId);
     const userRequestId = randomUUID();
+    const stream = wantsNdjsonStream(request, input.stream);
+
+    const persistAndPayload = async (
+      turn: Awaited<ReturnType<typeof attemptDirectModelChat>>
+    ) => {
+      const payload = turnPayload(turn);
+      await appendIdeChatTurns({
+        organizationId: access.organizationId,
+        projectId,
+        userId: access.userId,
+        mode: input.mode,
+        modelProfileId: input.modelProfileId,
+        model: input.model,
+        turns: [
+          {
+            requestId: userRequestId,
+            role: 'user',
+            text: input.text,
+          },
+          {
+            requestId: payload.requestId,
+            role: payload.role,
+            text: payload.text,
+            failureCategory: payload.failureCategory ?? null,
+            runId: payload.runId ?? null,
+            costMicros: payload.costMicros ?? null,
+            reservedMicros: payload.reservedMicros ?? null,
+            noProviderFee: payload.noProviderFee ?? false,
+            toolsUsed: payload.toolsUsed ?? [],
+            artifacts: payload.artifacts ?? [],
+            plan: payload.plan ?? null,
+          },
+        ],
+      });
+      return payload;
+    };
+
+    if (stream) {
+      return ndjsonResponse(async (send) => {
+        const turn = await attemptDirectModelChat({
+          projectName: 'Free Chat',
+          organizationId: access.organizationId,
+          projectId,
+          userId: access.userId,
+          userText: input.text,
+          priorTurns: input.history,
+          modelProfileId: input.modelProfileId!,
+          model: input.model!,
+          ruleTexts: [],
+          interactionMode: input.interactionMode,
+          includeRepoTools: false,
+          signal: request.signal,
+          onStage: (stage, status) => send({ type: 'stage', stage, status }),
+        });
+        const payload = await persistAndPayload(turn);
+        send({
+          type: 'turn',
+          turn: payload,
+          mode: input.mode,
+          employee: null,
+          modelProfileId: input.modelProfileId,
+          model: input.model,
+          rulesApplied: 0,
+          freeChat: true,
+        });
+      });
+    }
+
     const turn = await attemptDirectModelChat({
       projectName: 'Free Chat',
       organizationId: access.organizationId,
@@ -99,35 +216,7 @@ export async function POST(request: NextRequest) {
       includeRepoTools: false,
       signal: request.signal,
     });
-    const payload = turnPayload(turn);
-    await appendIdeChatTurns({
-      organizationId: access.organizationId,
-      projectId,
-      userId: access.userId,
-      mode: input.mode,
-      modelProfileId: input.modelProfileId,
-      model: input.model,
-      turns: [
-        {
-          requestId: userRequestId,
-          role: 'user',
-          text: input.text,
-        },
-        {
-          requestId: payload.requestId,
-          role: payload.role,
-          text: payload.text,
-          failureCategory: payload.failureCategory ?? null,
-          runId: payload.runId ?? null,
-          costMicros: payload.costMicros ?? null,
-          reservedMicros: payload.reservedMicros ?? null,
-          noProviderFee: payload.noProviderFee ?? false,
-          toolsUsed: payload.toolsUsed ?? [],
-          artifacts: payload.artifacts ?? [],
-          plan: payload.plan ?? null,
-        },
-      ],
-    });
+    const payload = await persistAndPayload(turn);
     return aiResponse({
       turn: payload,
       mode: input.mode,
@@ -149,13 +238,14 @@ export async function DELETE(request: NextRequest) {
     if (!requestId) {
       throw new AiHttpError(400, 'Provide the chat turn requestId to reject.');
     }
+    const projectId = freeChatLedgerProjectId(access.organizationId);
     const cleared = await clearIdeChatTurnPlan({
       organizationId: access.organizationId,
-      projectId: freeChatLedgerProjectId(access.organizationId),
+      projectId,
       userId: access.userId,
       requestId,
     });
-    return aiResponse({ ok: true, cleared, freeChat: true });
+    return aiResponse({ ok: true, cleared });
   } catch (error) {
     return aiError(error);
   }

@@ -4,6 +4,9 @@ const LOOKUP_HINT =
   /\b(who|what|when|where|which|how many|top\s+\d+|all[- ]time|current|latest|score|scorer|ranking|standings|stats?|record|winner|champion|research|look\s*up|find\s+out|tell\s+me\s+about|information\s+about|details\s+(on|about)|background\s+on)\b/i;
 const CODE_HEAVY =
   /\b(refactor|typescript|javascript|python|bugfix|stack\s*trace|compile)\b/i;
+/** Project / codebase questions should use repo tools, not proactive web_search. */
+const PROJECT_INTERNAL =
+  /\b(rules?\s+system|task\s+rules?|codebase|architecture|\.cursor|nucleas|repo(?:sitory)?|our\s+rules|this\s+(?:project|repo|codebase))\b/i;
 const IMAGE_GENERATE =
   /\b(generate|draw|create|make)\b.*\b(image|picture|photo|illustration|art)\b|\b(image|picture|photo)\b.*\b(generate|draw|create|make)\b/i;
 const IMAGE_FIND =
@@ -14,6 +17,7 @@ export function looksLikeWebLookupQuery(text: string): boolean {
   const q = text.trim();
   if (q.length < 8 || q.length > 500) return false;
   if (looksLikeImageSearchQuery(q) || IMAGE_GENERATE.test(q)) return false;
+  if (PROJECT_INTERNAL.test(q)) return false;
   if (CODE_HEAVY.test(q) && !LOOKUP_HINT.test(q)) return false;
   return LOOKUP_HINT.test(q) || /\?/.test(q);
 }

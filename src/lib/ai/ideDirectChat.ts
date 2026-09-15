@@ -2,6 +2,8 @@ import 'server-only';
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
 import type { IdeInteractionMode } from '@/lib/ide/idePlan';
+import type { IdeChatStageCallback } from '@/lib/ide/ideChatStream';
+import { withStage } from '@/lib/ide/ideChatStream';
 import {
   appendInteractionModePrompt,
   shouldForcePlainChat,
@@ -28,6 +30,7 @@ export async function attemptDirectModelChat(input: {
   /** False for Free Chat (no GitHub binding). Default true. */
   includeRepoTools?: boolean;
   signal?: AbortSignal;
+  onStage?: IdeChatStageCallback;
 }): Promise<TeamChatTurn> {
   const interactionMode = input.interactionMode ?? 'chat';
   const includeRepo = input.includeRepoTools !== false;
@@ -52,21 +55,23 @@ export async function attemptDirectModelChat(input: {
     .filter(Boolean)
     .join(' ');
 
-  const turn = await attemptCompanyCredentialChat({
-    systemPrompt: appendInteractionModePrompt(basePrompt, interactionMode),
-    organizationId: input.organizationId,
-    projectId: input.projectId,
-    userId: input.userId,
-    userText: input.userText,
-    priorTurns: input.priorTurns,
-    modelProfileId: input.modelProfileId,
-    model: input.model,
-    includeImageTool: toolProfile === 'full',
-    includeRepoTools: includeRepo,
-    toolProfile: includeRepo ? toolProfile : 'full',
-    forcePlain: shouldForcePlainChat(interactionMode),
-    signal: input.signal,
-  });
+  const turn = await withStage(input.onStage, 'direct', () =>
+    attemptCompanyCredentialChat({
+      systemPrompt: appendInteractionModePrompt(basePrompt, interactionMode),
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      userId: input.userId,
+      userText: input.userText,
+      priorTurns: input.priorTurns,
+      modelProfileId: input.modelProfileId,
+      model: input.model,
+      includeImageTool: toolProfile === 'full',
+      includeRepoTools: includeRepo,
+      toolProfile: includeRepo ? toolProfile : 'full',
+      forcePlain: shouldForcePlainChat(interactionMode),
+      signal: input.signal,
+    })
+  );
 
   if (interactionMode === 'plan' && turn.role === 'assistant') {
     const parsed = parseNucleasPlan(turn.text);

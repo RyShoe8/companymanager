@@ -211,6 +211,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
       priorTurns: [],
       modelProfileId: 'b'.repeat(24),
       model: 'local',
+      includeRepoTools: false,
     });
 
     expect(mocks.toolLoop).not.toHaveBeenCalled();
@@ -226,6 +227,38 @@ describe('attemptCompanyCredentialChat free tools', () => {
       role: 'assistant',
       text: 'Thierry Henry is Arsenal’s all-time top scorer.',
       toolsUsed: ['web_search'],
+      noProviderFee: true,
+    });
+  });
+
+  it('skips proactive web_search assist when project repo tools are enabled', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'From the repo rules system…',
+      toolCallsMade: ['repo_tree', 'repo_read'],
+      artifacts: [],
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'who are the top 5 scorers for Arsenal all time?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: true,
+    });
+
+    expect(mocks.webSearch).not.toHaveBeenCalled();
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'From the repo rules system…',
+      toolsUsed: ['repo_tree', 'repo_read'],
       noProviderFee: true,
     });
   });
@@ -259,6 +292,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
       priorTurns: [],
       modelProfileId: 'b'.repeat(24),
       model: 'local',
+      includeRepoTools: false,
     });
 
     expect(mocks.toolLoop).toHaveBeenCalled();
@@ -292,6 +326,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
       priorTurns: [],
       modelProfileId: 'b'.repeat(24),
       model: 'local',
+      includeRepoTools: false,
     });
 
     expect(mocks.toolLoop).not.toHaveBeenCalled();

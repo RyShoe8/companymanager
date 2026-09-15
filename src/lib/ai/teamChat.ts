@@ -13,6 +13,8 @@ import { defaultPlatformAiSettings, platformAiSettingsSchema } from '@/lib/ai/se
 import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 import type { IdeInteractionMode, IdePlanDocument } from '@/lib/ide/idePlan';
+import type { IdeChatStageCallback } from '@/lib/ide/ideChatStream';
+import { withStage } from '@/lib/ide/ideChatStream';
 import {
   appendInteractionModePrompt,
   pipelineStageForInteractionMode,
@@ -366,6 +368,7 @@ export async function attemptTeamChatReply(input: {
   interactionMode?: IdeInteractionMode;
   /** When aborted (e.g. client Stop), cancels the gateway fetch and releases the dispatch lock. */
   signal?: AbortSignal;
+  onStage?: IdeChatStageCallback;
 }): Promise<TeamChatTurn> {
   const context = await buildTeamContextSummary(input.projectName, input.organizationId, input.projectId);
   if (!context.inferenceReady) {
@@ -426,21 +429,23 @@ export async function attemptTeamChatReply(input: {
     .filter(Boolean)
     .join(' ');
 
-  const turn = await attemptCompanyCredentialChat({
-    systemPrompt: appendInteractionModePrompt(basePrompt, interactionMode),
-    organizationId: input.organizationId,
-    projectId: input.projectId,
-    userId: input.userId,
-    userText: input.userText,
-    priorTurns: input.priorTurns,
-    modelProfileId: stageProfileId,
-    model: stageModel,
-    includeImageTool: toolProfile === 'full',
-    includeRepoTools: true,
-    toolProfile,
-    forcePlain: shouldForcePlainChat(interactionMode),
-    signal: input.signal,
-  });
+  const turn = await withStage(input.onStage, stageKey, () =>
+    attemptCompanyCredentialChat({
+      systemPrompt: appendInteractionModePrompt(basePrompt, interactionMode),
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      userId: input.userId,
+      userText: input.userText,
+      priorTurns: input.priorTurns,
+      modelProfileId: stageProfileId,
+      model: stageModel,
+      includeImageTool: toolProfile === 'full',
+      includeRepoTools: true,
+      toolProfile,
+      forcePlain: shouldForcePlainChat(interactionMode),
+      signal: input.signal,
+    })
+  );
 
   let result = turn;
   if (interactionMode === 'plan' && turn.role === 'assistant') {
@@ -458,31 +463,33 @@ export async function attemptTeamChatReply(input: {
   ) {
     const reviewerProfileId = String(pipeline.reviewer.modelProfileId);
     const reviewerModel = pipeline.reviewer.model.trim();
-    const review = await attemptCompanyCredentialChat({
-      systemPrompt: [
-        `You are the Reviewer for ${role.name} on "${input.projectName}".`,
-        'The Worker just executed an approved plan. Review their reply for gaps, risks, and missed acceptance criteria.',
-        'Be concise. Do not call tools. Do not rewrite the whole worker answer—add a short review section.',
-      ].join(' '),
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      userId: input.userId,
-      userText: [
-        'Worker output to review:',
-        result.text.slice(0, 5000),
-        '',
-        'User build request was:',
-        input.userText.slice(0, 2000),
-      ].join('\n'),
-      priorTurns: [],
-      modelProfileId: reviewerProfileId,
-      model: reviewerModel,
-      includeImageTool: false,
-      includeRepoTools: false,
-      toolProfile: 'none',
-      forcePlain: true,
-      signal: input.signal,
-    });
+    const review = await withStage(input.onStage, 'reviewer', () =>
+      attemptCompanyCredentialChat({
+        systemPrompt: [
+          `You are the Reviewer for ${role.name} on "${input.projectName}".`,
+          'The Worker just executed an approved plan. Review their reply for gaps, risks, and missed acceptance criteria.',
+          'Be concise. Do not call tools. Do not rewrite the whole worker answer—add a short review section.',
+        ].join(' '),
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        userId: input.userId,
+        userText: [
+          'Worker output to review:',
+          result.text.slice(0, 5000),
+          '',
+          'User build request was:',
+          input.userText.slice(0, 2000),
+        ].join('\n'),
+        priorTurns: [],
+        modelProfileId: reviewerProfileId,
+        model: reviewerModel,
+        includeImageTool: false,
+        includeRepoTools: false,
+        toolProfile: 'none',
+        forcePlain: true,
+        signal: input.signal,
+      })
+    );
     if (review.role === 'assistant' && review.text.trim()) {
       const workerCost = result.costMicros;
       const reviewCost = review.costMicros;

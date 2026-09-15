@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { AiHttpError, requireAiProject } from '@/lib/ai/control/access';
 import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { attemptTeamChatReply } from '@/lib/ai/teamChat';
@@ -14,6 +15,12 @@ import {
 import { ideChatSchema } from '@/lib/ide/ideChatSchema';
 import { loadIdeTaskRuleTexts } from '@/lib/ide/loadTaskRules';
 import { appendIdeChatTurns, clearIdeChatTurnPlan, loadIdeChatHistory } from '@/lib/ide/chatHistory';
+import {
+  encodeIdeChatNdjsonLine,
+  type IdeChatStageCallback,
+  type IdeChatStreamEvent,
+} from '@/lib/ide/ideChatStream';
+import { isMongoDuplicateKeyError, isMongoNetworkError, MONGO_NETWORK_USER_MESSAGE } from '@/lib/utils/mongoErrors';
 
 export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
@@ -54,6 +61,49 @@ function turnPayload(turn: {
   };
 }
 
+function streamErrorMessage(error: unknown): string {
+  if (error instanceof AiHttpError) return error.message;
+  if (error instanceof z.ZodError) return 'Invalid input. Check lengths, criteria, and dependencies.';
+  if (isMongoDuplicateKeyError(error)) return 'Request already exists. Refresh before retrying.';
+  if (typeof error === 'object' && error && 'name' in error && error.name === 'ValidationError') {
+    return 'Unable to save this AI credential. Check required fields and try again.';
+  }
+  if (isMongoNetworkError(error)) return MONGO_NETWORK_USER_MESSAGE;
+  return 'AI operation unavailable. Check server configuration and transaction support.';
+}
+
+function wantsNdjsonStream(request: NextRequest, streamFlag?: boolean): boolean {
+  if (streamFlag === true) return true;
+  const accept = request.headers.get('accept') ?? '';
+  return accept.includes('application/x-ndjson');
+}
+
+function ndjsonResponse(
+  run: (send: (event: IdeChatStreamEvent) => void) => Promise<void>
+): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: IdeChatStreamEvent) => {
+        controller.enqueue(encoder.encode(encodeIdeChatNdjsonLine(event)));
+      };
+      try {
+        await run(send);
+      } catch (error) {
+        send({ type: 'error', error: streamErrorMessage(error) });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'private, no-store',
+    },
+  });
+}
+
 export async function GET(request: NextRequest, context: Context) {
   try {
     const access = await requireAiProject(request, (await context.params).id, false, true);
@@ -85,6 +135,7 @@ export async function POST(request: NextRequest, context: Context) {
     const mode = input.mode;
     const ruleTexts = await loadIdeTaskRuleTexts(access.organizationId, access.project._id, mode);
     const userRequestId = randomUUID();
+    const stream = wantsNdjsonStream(request, input.stream);
 
     const persistPair = async (reply: ReturnType<typeof turnPayload>) => {
       await appendIdeChatTurns({
@@ -117,56 +168,78 @@ export async function POST(request: NextRequest, context: Context) {
       });
     };
 
-    if (isIdeDirectMode(mode)) {
-      const turn = await attemptDirectModelChat({
+    const runChat = async (onStage?: IdeChatStageCallback) => {
+      if (isIdeDirectMode(mode)) {
+        const turn = await attemptDirectModelChat({
+          projectName: access.project.name,
+          organizationId: access.organizationId,
+          projectId: access.project._id,
+          userId: access.userId,
+          userText: input.text,
+          priorTurns: input.history,
+          modelProfileId: input.modelProfileId!,
+          model: input.model!,
+          ruleTexts,
+          interactionMode: input.interactionMode,
+          signal: request.signal,
+          onStage,
+        });
+        const payload = turnPayload(turn);
+        await persistPair(payload);
+        return {
+          turn: payload,
+          mode,
+          employee: null as string | null,
+          modelProfileId: input.modelProfileId,
+          model: input.model,
+          rulesApplied: ruleTexts.length,
+        };
+      }
+
+      if (!isIdeWorkerMode(mode)) {
+        throw new AiHttpError(400, 'Invalid IDE worker mode.');
+      }
+      const employee = employeeForIdeMode(mode);
+      const turn = await attemptTeamChatReply({
+        employee,
         projectName: access.project.name,
         organizationId: access.organizationId,
         projectId: access.project._id,
         userId: access.userId,
         userText: input.text,
         priorTurns: input.history,
-        modelProfileId: input.modelProfileId!,
-        model: input.model!,
         ruleTexts,
         interactionMode: input.interactionMode,
         signal: request.signal,
+        onStage,
       });
       const payload = turnPayload(turn);
       await persistPair(payload);
-      return aiResponse({
+      return {
         turn: payload,
         mode,
-        employee: null,
-        modelProfileId: input.modelProfileId,
-        model: input.model,
+        employee,
         rulesApplied: ruleTexts.length,
+      };
+    };
+
+    if (stream) {
+      return ndjsonResponse(async (send) => {
+        const result = await runChat((stage, status) => send({ type: 'stage', stage, status }));
+        send({
+          type: 'turn',
+          turn: result.turn,
+          mode: result.mode,
+          employee: result.employee,
+          modelProfileId: 'modelProfileId' in result ? result.modelProfileId : undefined,
+          model: 'model' in result ? result.model : undefined,
+          rulesApplied: result.rulesApplied,
+        });
       });
     }
 
-    if (!isIdeWorkerMode(mode)) {
-      throw new AiHttpError(400, 'Invalid IDE worker mode.');
-    }
-    const employee = employeeForIdeMode(mode);
-    const turn = await attemptTeamChatReply({
-      employee,
-      projectName: access.project.name,
-      organizationId: access.organizationId,
-      projectId: access.project._id,
-      userId: access.userId,
-      userText: input.text,
-      priorTurns: input.history,
-      ruleTexts,
-      interactionMode: input.interactionMode,
-      signal: request.signal,
-    });
-    const payload = turnPayload(turn);
-    await persistPair(payload);
-    return aiResponse({
-      turn: payload,
-      mode,
-      employee,
-      rulesApplied: ruleTexts.length,
-    });
+    const result = await runChat();
+    return aiResponse(result);
   } catch (error) {
     return aiError(error);
   }

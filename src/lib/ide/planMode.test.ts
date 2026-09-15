@@ -15,6 +15,13 @@ describe('ide plan mode helpers', () => {
     });
     expect(parsed.interactionMode).toBe('plan');
     expect(ideChatSchema.parse({ mode: 'engineering', text: 'hi' }).interactionMode).toBe('chat');
+    expect(
+      ideChatSchema.parse({
+        mode: 'engineering',
+        text: 'hi',
+        stream: true,
+      }).stream
+    ).toBe(true);
   });
 
   it('appends plan and build prompt instructions', () => {

@@ -28,6 +28,7 @@ import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
 import type { IdeInteractionMode, IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
 import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThreadCache';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
+import type { IdeChatStage, IdeChatStreamEvent } from '@/lib/ide/ideChatStream';
 import { userFirstNameFromProfile } from '@/lib/utils/userDisplayName';
 import { isIdeFreeChatScope } from '@/lib/ide/freeChat';
 import type { MutableRefObject } from 'react';
@@ -36,19 +37,6 @@ function ideChatEndpoint(projectId: string): string {
   return isIdeFreeChatScope(projectId)
     ? '/api/ai/ide/free-chat'
     : `/api/projects/${encodeURIComponent(projectId)}/ai/ide/chat`;
-}
-
-function idePipelineEndpoint(projectId: string): string {
-  return isIdeFreeChatScope(projectId)
-    ? '/api/ai/ide/free-chat/pipeline'
-    : `/api/projects/${encodeURIComponent(projectId)}/ai/pipeline`;
-}
-
-function ideDiscoverModelsEndpoint(projectId: string, profileId: string): string {
-  const query = `profileId=${encodeURIComponent(profileId)}`;
-  return isIdeFreeChatScope(projectId)
-    ? `/api/ai/ide/free-chat/models?${query}`
-    : `/api/projects/${encodeURIComponent(projectId)}/ai/pipeline/models?${query}`;
 }
 
 type ChatTurn = {
@@ -64,6 +52,73 @@ type ChatTurn = {
   toolsUsed?: string[];
   plan?: IdePlanDocument;
 };
+
+function fallbackStageForMode(mode: IdeInteractionMode): IdeChatStage {
+  if (mode === 'plan') return 'planner';
+  return 'worker';
+}
+
+async function readIdeChatNdjson(
+  response: Response,
+  onEvent: (event: IdeChatStreamEvent) => void
+): Promise<{ turn?: ChatTurn; error?: string }> {
+  if (!response.body) {
+    const body = (await response.json().catch(() => null)) as { error?: string; turn?: ChatTurn } | null;
+    if (body?.turn) return { turn: body.turn };
+    return { error: body?.error ?? 'Chat request failed.' };
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let turn: ChatTurn | undefined;
+  let streamError: string | undefined;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let newline = buffer.indexOf('\n');
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (line) {
+        try {
+          const event = JSON.parse(line) as IdeChatStreamEvent;
+          onEvent(event);
+          if (event.type === 'turn') turn = event.turn as ChatTurn;
+          if (event.type === 'error') streamError = event.error;
+        } catch {
+          /* skip malformed line */
+        }
+      }
+      newline = buffer.indexOf('\n');
+    }
+  }
+  const rest = buffer.trim();
+  if (rest) {
+    try {
+      const event = JSON.parse(rest) as IdeChatStreamEvent;
+      onEvent(event);
+      if (event.type === 'turn') turn = event.turn as ChatTurn;
+      if (event.type === 'error') streamError = event.error;
+    } catch {
+      /* ignore */
+    }
+  }
+  return { turn, error: streamError };
+}
+
+function idePipelineEndpoint(projectId: string): string {
+  return isIdeFreeChatScope(projectId)
+    ? '/api/ai/ide/free-chat/pipeline'
+    : `/api/projects/${encodeURIComponent(projectId)}/ai/pipeline`;
+}
+
+function ideDiscoverModelsEndpoint(projectId: string, profileId: string): string {
+  const query = `profileId=${encodeURIComponent(profileId)}`;
+  return isIdeFreeChatScope(projectId)
+    ? `/api/ai/ide/free-chat/models?${query}`
+    : `/api/projects/${encodeURIComponent(projectId)}/ai/pipeline/models?${query}`;
+}
 
 type CatalogModel = {
   id: string;
@@ -137,6 +192,8 @@ export default function IdeChatPane({
   const [interactionMode, setInteractionMode] = useState<Exclude<IdeInteractionMode, 'build'>>('chat');
   /** In-flight request mode (includes `build`); UI toggle never stores `build`. */
   const [busyRequestMode, setBusyRequestMode] = useState<IdeInteractionMode | null>(null);
+  const [liveStage, setLiveStage] = useState<IdeChatStage | null>(null);
+  const [doneStages, setDoneStages] = useState<IdeChatStage[]>([]);
   const [busyTick, setBusyTick] = useState(0);
   const [lastToolsUsed, setLastToolsUsed] = useState<string[]>([]);
   const [planReadyFlag, setPlanReadyFlag] = useState(false);
@@ -393,11 +450,12 @@ export default function IdeChatPane({
         direct: true,
         directModelLabel: directModel ? shortModelDisplayName(directModel) : 'Direct',
         busy,
-        activeStage: 'direct',
+        activeStage: liveStage ?? 'direct',
+        doneStages,
       });
     }
     const deskMode = busyRequestMode ?? interactionMode;
-    const activeStage = deskMode === 'plan' ? 'planner' : 'worker';
+    const activeStage = liveStage ?? (busy ? fallbackStageForMode(deskMode) : null);
     return buildDioramaDesks({
       stages: {
         planner: workerPipeline?.planner?.model
@@ -412,8 +470,9 @@ export default function IdeChatPane({
       },
       busy,
       activeStage,
+      doneStages,
     });
-  }, [mode, directModel, busy, workerPipeline, interactionMode, busyRequestMode]);
+  }, [mode, directModel, busy, workerPipeline, interactionMode, busyRequestMode, liveStage, doneStages]);
 
   useEffect(() => {
     onRunActivity?.(
@@ -426,12 +485,14 @@ export default function IdeChatPane({
         failed: activityFailed,
         busyTick,
         desks: dioramaDesks,
+        liveStage,
       })
     );
   }, [
     busy,
     interactionMode,
     busyRequestMode,
+    liveStage,
     targetLabel,
     lastToolsUsed,
     planReadyFlag,
@@ -526,6 +587,8 @@ export default function IdeChatPane({
 
     setBusy(true);
     setBusyRequestMode(args.modeForRequest);
+    setLiveStage(isIdeDirectMode(mode) ? 'direct' : fallbackStageForMode(args.modeForRequest));
+    setDoneStages([]);
     setError('');
     setActivityFailed(false);
     if (args.modeForRequest === 'plan') setPlanReadyFlag(false);
@@ -554,12 +617,16 @@ export default function IdeChatPane({
         .map((turn) => ({ role: turn.role, text: turn.text }));
       const response = await fetch(ideChatEndpoint(projectId), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/x-ndjson',
+        },
         body: JSON.stringify({
           mode,
           text: args.text,
           history,
           interactionMode: args.modeForRequest,
+          stream: true,
           ...(isIdeDirectMode(mode)
             ? { modelProfileId: directProfileId, model: directModel }
             : {}),
@@ -567,10 +634,32 @@ export default function IdeChatPane({
         signal: controller.signal,
       });
       if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
-      const body = await response.json();
-      if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
-      if (!response.ok) throw new Error(body.error ?? 'Chat request failed.');
-      const turn = body.turn as ChatTurn;
+
+      const contentType = response.headers.get('content-type') ?? '';
+      let turn: ChatTurn | undefined;
+      if (contentType.includes('application/x-ndjson') || contentType.includes('ndjson')) {
+        const streamed = await readIdeChatNdjson(response, (event) => {
+          if (generation !== sendGenerationRef.current) return;
+          if (event.type !== 'stage') return;
+          if (event.status === 'start') {
+            setLiveStage(event.stage);
+          } else {
+            setDoneStages((prev) => (prev.includes(event.stage) ? prev : [...prev, event.stage]));
+          }
+        });
+        if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
+        if (!response.ok || streamed.error) {
+          throw new Error(streamed.error ?? 'Chat request failed.');
+        }
+        turn = streamed.turn;
+      } else {
+        const body = await response.json();
+        if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
+        if (!response.ok) throw new Error(body.error ?? 'Chat request failed.');
+        turn = body.turn as ChatTurn;
+      }
+      if (!turn) throw new Error('Chat request failed.');
+
       const nextTurns = [...historyBase, turn];
       const cacheKey = ideChatThreadCacheKey({
         mode,
@@ -605,6 +694,8 @@ export default function IdeChatPane({
       if (generation === sendGenerationRef.current) {
         setBusy(false);
         setBusyRequestMode(null);
+        setLiveStage(null);
+        setDoneStages([]);
       }
     }
   }

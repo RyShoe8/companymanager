@@ -14,10 +14,12 @@ describe('looksLikeWebLookupQuery', () => {
     expect(looksLikeWebLookupQuery('tell me about the history of Arsenal Football Club')).toBe(true);
   });
 
-  it('rejects short, code-heavy, or image prompts', () => {
+  it('rejects short, code-heavy, project-internal, or image prompts', () => {
     expect(looksLikeWebLookupQuery('hi')).toBe(false);
     expect(looksLikeWebLookupQuery('fix this TypeScript compile error please')).toBe(false);
     expect(looksLikeWebLookupQuery('find images of Emirates Stadium')).toBe(false);
+    expect(looksLikeWebLookupQuery('how does our rules system work exactly?')).toBe(false);
+    expect(looksLikeWebLookupQuery('Explain the codebase architecture')).toBe(false);
   });
 });
 

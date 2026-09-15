@@ -20,7 +20,7 @@ describe('buildDioramaDesks', () => {
   it('builds one Direct desk', () => {
     expect(
       buildDioramaDesks({ direct: true, directModelLabel: 'o4-mini', busy: true })
-    ).toEqual([{ role: 'direct', modelLabel: 'o4-mini', active: true }]);
+    ).toEqual([{ role: 'direct', modelLabel: 'o4-mini', active: true, status: 'active' }]);
   });
 
   it('builds three team desks with the active stage lit when busy', () => {
@@ -32,7 +32,32 @@ describe('buildDioramaDesks', () => {
     expect(desks).toHaveLength(3);
     expect(desks.map((d) => d.role)).toEqual(['planner', 'worker', 'reviewer']);
     expect(desks.find((d) => d.role === 'planner')?.active).toBe(true);
+    expect(desks.find((d) => d.role === 'planner')?.status).toBe('active');
     expect(desks.find((d) => d.role === 'worker')?.active).toBe(false);
+    expect(desks.find((d) => d.role === 'worker')?.status).toBe('idle');
+  });
+
+  it('marks finished stages as done while another is active', () => {
+    const desks = buildDioramaDesks({
+      stages: { planner: 'p', worker: 'w', reviewer: 'r' },
+      busy: true,
+      activeStage: 'reviewer',
+      doneStages: ['worker'],
+    });
+    expect(desks.find((d) => d.role === 'worker')?.status).toBe('done');
+    expect(desks.find((d) => d.role === 'reviewer')?.status).toBe('active');
+    expect(desks.find((d) => d.role === 'planner')?.status).toBe('idle');
+  });
+
+  it('does not light planner or reviewer for chat-style worker stage', () => {
+    const desks = buildDioramaDesks({
+      stages: { planner: 'p', worker: 'w', reviewer: 'r' },
+      busy: true,
+      activeStage: 'worker',
+    });
+    expect(desks.find((d) => d.role === 'planner')?.active).toBe(false);
+    expect(desks.find((d) => d.role === 'reviewer')?.active).toBe(false);
+    expect(desks.find((d) => d.role === 'worker')?.active).toBe(true);
   });
 });
 
@@ -60,5 +85,23 @@ describe('runSceneFromState desks', () => {
         desks,
       }).label
     ).toMatch(/o4-mini typing/);
+  });
+
+  it('labels busy reviewer from live stage', () => {
+    const desks = buildDioramaDesks({
+      stages: { planner: 'p', worker: 'w', reviewer: 'Sol' },
+      busy: true,
+      activeStage: 'reviewer',
+      doneStages: ['worker'],
+    });
+    expect(
+      runSceneFromState({
+        busy: true,
+        interactionMode: 'build',
+        busyTick: 1,
+        desks,
+        liveStage: 'reviewer',
+      }).label
+    ).toMatch(/Sol reviewing|Reviewer/i);
   });
 });

@@ -304,6 +304,9 @@ export async function attemptCompanyCredentialChat(input: {
     const isImageLookup = looksLikeImageSearchQuery(input.userText);
     const isLookup = !isImageLookup && looksLikeWebLookupQuery(input.userText);
     const toolNeedy = looksLikeToolNeedyQuery(input.userText);
+    const repoToolsOn = input.includeRepoTools !== false;
+    /** Project IDE: prefer the tool loop (repo_*) over plain answers for lookup-shaped asks. */
+    const preferToolLoop = toolNeedy || (repoToolsOn && isLookup);
 
     async function plainInvoke(args: {
       systemExtra: string;
@@ -336,6 +339,8 @@ export async function attemptCompanyCredentialChat(input: {
       latencyMs: number;
     } | null> {
       if (!freeCredential || !isLookup) return null;
+      // Project IDE has repo tools — let the tool loop choose repo_* vs web.
+      if (input.includeRepoTools !== false) return null;
       const search = await webSearch(input.userText, {
         signal: input.signal,
         depth: 'standard',
@@ -473,7 +478,7 @@ export async function attemptCompanyCredentialChat(input: {
         }
       }
 
-      if (!resolved && !toolNeedy) {
+      if (!resolved && !preferToolLoop) {
         phase = 'plain_first';
         try {
           const plain = await plainInvoke({
@@ -494,7 +499,7 @@ export async function attemptCompanyCredentialChat(input: {
         }
       }
 
-      if (!resolved && (toolNeedy || !loop)) {
+      if (!resolved && (preferToolLoop || !loop)) {
         try {
           loop = await runToolLoopPhase();
           resolved = true;
