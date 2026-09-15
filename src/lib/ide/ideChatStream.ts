@@ -20,6 +20,7 @@ export type IdeChatStreamTurnEvent = {
   model?: string;
   rulesApplied?: number;
   freeChat?: boolean;
+  historyPersisted?: boolean;
 };
 
 export type IdeChatStreamErrorEvent = {

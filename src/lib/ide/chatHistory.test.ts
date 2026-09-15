@@ -136,30 +136,34 @@ describe('appendIdeChatTurns', () => {
   const userId = 'c'.repeat(24);
 
   it('skips Direct append without selection', async () => {
-    await appendIdeChatTurns({
-      organizationId: 'org',
-      projectId,
-      userId,
-      mode: 'direct',
-      turns: [{ requestId: 'a', role: 'user', text: 'x' }],
-    });
+    await expect(
+      appendIdeChatTurns({
+        organizationId: 'org',
+        projectId,
+        userId,
+        mode: 'direct',
+        turns: [{ requestId: 'a', role: 'user', text: 'x' }],
+      })
+    ).resolves.toBe(false);
     expect(mocks.insertMany).not.toHaveBeenCalled();
   });
 
   it('persists Direct turns with profile and model keys', async () => {
     mocks.insertMany.mockResolvedValue([]);
-    await appendIdeChatTurns({
-      organizationId: 'org',
-      projectId,
-      userId,
-      mode: 'direct',
-      modelProfileId: 'prof',
-      model: 'gpt',
-      turns: [
-        { requestId: 'u1', role: 'user', text: 'hello' },
-        { requestId: 'a1', role: 'assistant', text: 'world' },
-      ],
-    });
+    await expect(
+      appendIdeChatTurns({
+        organizationId: 'org',
+        projectId,
+        userId,
+        mode: 'direct',
+        modelProfileId: 'prof',
+        model: 'gpt',
+        turns: [
+          { requestId: 'u1', role: 'user', text: 'hello' },
+          { requestId: 'a1', role: 'assistant', text: 'world' },
+        ],
+      })
+    ).resolves.toBe(true);
     expect(mocks.insertMany).toHaveBeenCalledWith(
       [
         expect.objectContaining({
@@ -178,7 +182,7 @@ describe('appendIdeChatTurns', () => {
     );
   });
 
-  it('swallows persist failures so chat can still return', async () => {
+  it('returns false when persist fails after retry without plan', async () => {
     mocks.insertMany.mockRejectedValue(new Error('unavailable'));
     await expect(
       appendIdeChatTurns({
@@ -188,7 +192,8 @@ describe('appendIdeChatTurns', () => {
         mode: 'product',
         turns: [{ requestId: 'u1', role: 'user', text: 'hello' }],
       })
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
+    expect(mocks.insertMany).toHaveBeenCalledTimes(2);
   });
 });
 

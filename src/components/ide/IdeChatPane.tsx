@@ -290,6 +290,15 @@ export default function IdeChatPane({
     return ideChatModes.find((item) => item.id === mode)?.label ?? mode;
   }, [mode, directModel]);
 
+  const historyScopeKey = useMemo(() => {
+    if (!projectId) return '';
+    if (isIdeDirectMode(mode)) {
+      if (!directProfileId.trim() || !directModel.trim()) return `${projectId}:direct:pending`;
+      return `${projectId}:direct:${directProfileId}:${directModel}`;
+    }
+    return `${projectId}:worker:${mode}`;
+  }, [projectId, mode, directProfileId, directModel]);
+
   useEffect(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -318,16 +327,12 @@ export default function IdeChatPane({
       } else {
         onPlanReady?.(null);
       }
-    } else {
+    } else if (!historyScopeKey.endsWith(':direct:pending')) {
       setTurns([]);
       onPlanReady?.(null);
     }
 
-    if (!projectId) {
-      setHistoryLoading(false);
-      return;
-    }
-    if (isIdeDirectMode(mode) && (!directProfileId || !directModel.trim())) {
+    if (!projectId || historyScopeKey.endsWith(':direct:pending')) {
       setHistoryLoading(false);
       return;
     }
@@ -351,6 +356,14 @@ export default function IdeChatPane({
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
         if (!response.ok) throw new Error(body.error ?? 'Unable to load chat history.');
         const loaded = (body.turns ?? []) as ChatTurn[];
+        // Never wipe a non-empty local thread with an empty server response (persist lag / soft-fail).
+        if (loaded.length === 0) {
+          const existing = threadCacheRef.current.get(cacheKey);
+          if (existing?.length) {
+            setTurns(existing);
+            return;
+          }
+        }
         threadCacheRef.current.set(cacheKey, loaded);
         setTurns(loaded);
         const latestPlan = [...loaded].reverse().find((turn) => turn.plan)?.plan ?? null;
@@ -364,7 +377,6 @@ export default function IdeChatPane({
       } catch (err) {
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        // Keep cached turns; only surface the error.
         setError(err instanceof Error ? err.message : 'Unable to load chat history.');
       } finally {
         if (generation === historyGenerationRef.current) setHistoryLoading(false);
@@ -372,7 +384,7 @@ export default function IdeChatPane({
     })();
 
     return () => controller.abort();
-  }, [projectId, mode, directProfileId, directModel]);
+  }, [historyScopeKey]);
 
   useEffect(() => {
     return () => {
@@ -409,7 +421,7 @@ export default function IdeChatPane({
         const models = (body.models ?? []) as CatalogModel[];
         setDiscovered(models);
         setDiscoverError(body.error ?? null);
-        if (models[0] && !models.some((item) => item.id === directModel)) {
+        if (models[0] && !directModel.trim()) {
           setDirectModel(models[0].id);
         }
       } catch (err) {
@@ -433,7 +445,7 @@ export default function IdeChatPane({
   useEffect(() => {
     if (!isIdeDirectMode(mode) || !directProfileId || isCustomDirect) return;
     const models = catalogModelsForDirect;
-    if (models[0] && !models.some((item) => item.id === directModel)) {
+    if (models[0] && !directModel.trim()) {
       setDirectModel(models[0].id);
     }
   }, [mode, directProfileId, isCustomDirect, catalogModelsForDirect, directModel]);
@@ -637,9 +649,13 @@ export default function IdeChatPane({
 
       const contentType = response.headers.get('content-type') ?? '';
       let turn: ChatTurn | undefined;
+      let historyPersisted: boolean | undefined;
       if (contentType.includes('application/x-ndjson') || contentType.includes('ndjson')) {
         const streamed = await readIdeChatNdjson(response, (event) => {
           if (generation !== sendGenerationRef.current) return;
+          if (event.type === 'turn' && typeof event.historyPersisted === 'boolean') {
+            historyPersisted = event.historyPersisted;
+          }
           if (event.type !== 'stage') return;
           if (event.status === 'start') {
             setLiveStage(event.stage);
@@ -657,6 +673,7 @@ export default function IdeChatPane({
         if (generation !== sendGenerationRef.current || controller.signal.aborted) return;
         if (!response.ok) throw new Error(body.error ?? 'Chat request failed.');
         turn = body.turn as ChatTurn;
+        if (typeof body.historyPersisted === 'boolean') historyPersisted = body.historyPersisted;
       }
       if (!turn) throw new Error('Chat request failed.');
 
@@ -674,6 +691,9 @@ export default function IdeChatPane({
       if (turn.plan) {
         setPlanReadyFlag(turn.plan.status === 'ready_for_review');
         onPlanReady?.(turn.plan);
+      }
+      if (historyPersisted === false) {
+        setError('Reply ready, but this turn was not saved to project history. Try sending again if it disappears after refresh.');
       }
     } catch (err) {
       if (generation !== sendGenerationRef.current) return;

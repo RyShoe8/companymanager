@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       turn: Awaited<ReturnType<typeof attemptDirectModelChat>>
     ) => {
       const payload = turnPayload(turn);
-      await appendIdeChatTurns({
+      const historyPersisted = await appendIdeChatTurns({
         organizationId: access.organizationId,
         projectId,
         userId: access.userId,
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
           },
         ],
       });
-      return payload;
+      return { payload, historyPersisted };
     };
 
     if (stream) {
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
           signal: request.signal,
           onStage: (stage, status) => send({ type: 'stage', stage, status }),
         });
-        const payload = await persistAndPayload(turn);
+        const { payload, historyPersisted } = await persistAndPayload(turn);
         send({
           type: 'turn',
           turn: payload,
@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
           model: input.model,
           rulesApplied: 0,
           freeChat: true,
+          historyPersisted,
         });
       });
     }
@@ -216,7 +217,7 @@ export async function POST(request: NextRequest) {
       includeRepoTools: false,
       signal: request.signal,
     });
-    const payload = await persistAndPayload(turn);
+    const { payload, historyPersisted } = await persistAndPayload(turn);
     return aiResponse({
       turn: payload,
       mode: input.mode,
@@ -225,6 +226,7 @@ export async function POST(request: NextRequest) {
       model: input.model,
       rulesApplied: 0,
       freeChat: true,
+      historyPersisted,
     });
   } catch (error) {
     return aiError(error);

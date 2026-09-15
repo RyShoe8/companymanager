@@ -138,7 +138,7 @@ export async function POST(request: NextRequest, context: Context) {
     const stream = wantsNdjsonStream(request, input.stream);
 
     const persistPair = async (reply: ReturnType<typeof turnPayload>) => {
-      await appendIdeChatTurns({
+      const historyPersisted = await appendIdeChatTurns({
         organizationId: access.organizationId,
         projectId: access.project._id,
         userId: access.userId,
@@ -166,6 +166,7 @@ export async function POST(request: NextRequest, context: Context) {
           },
         ],
       });
+      return historyPersisted;
     };
 
     const runChat = async (onStage?: IdeChatStageCallback) => {
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest, context: Context) {
           onStage,
         });
         const payload = turnPayload(turn);
-        await persistPair(payload);
+        const historyPersisted = await persistPair(payload);
         return {
           turn: payload,
           mode,
@@ -193,6 +194,7 @@ export async function POST(request: NextRequest, context: Context) {
           modelProfileId: input.modelProfileId,
           model: input.model,
           rulesApplied: ruleTexts.length,
+          historyPersisted,
         };
       }
 
@@ -214,12 +216,13 @@ export async function POST(request: NextRequest, context: Context) {
         onStage,
       });
       const payload = turnPayload(turn);
-      await persistPair(payload);
+      const historyPersisted = await persistPair(payload);
       return {
         turn: payload,
         mode,
         employee,
         rulesApplied: ruleTexts.length,
+        historyPersisted,
       };
     };
 
@@ -234,6 +237,7 @@ export async function POST(request: NextRequest, context: Context) {
           modelProfileId: 'modelProfileId' in result ? result.modelProfileId : undefined,
           model: 'model' in result ? result.model : undefined,
           rulesApplied: result.rulesApplied,
+          historyPersisted: result.historyPersisted,
         });
       });
     }

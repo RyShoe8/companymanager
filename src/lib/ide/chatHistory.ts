@@ -4,6 +4,7 @@ import type { IdeChatMode } from '@/lib/ide/modes';
 import { isIdeDirectMode } from '@/lib/ide/modes';
 import type { IdePlanDocument } from '@/lib/ide/idePlan';
 import { AiIdeChatTurn } from '@/lib/models/AiIdeChatTurn';
+import { isMongoDuplicateKeyError } from '@/lib/utils/mongoErrors';
 
 const HISTORY_LIMIT = 50;
 
@@ -64,6 +65,59 @@ function mapPlan(plan: unknown): IdePlanDocument | null {
   return { title, summary, steps, markdown, status };
 }
 
+function toInsertDocs(
+  input: {
+    organizationId: string;
+    projectId: Types.ObjectId;
+    userId: string;
+    mode: IdeChatMode;
+    modelProfileId?: string;
+    model?: string;
+    turns: IdePersistedTurn[];
+  },
+  options: { includePlan: boolean }
+) {
+  const keys = ideThreadKeys(input);
+  return input.turns.map((turn) => ({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    createdByUserId: new Types.ObjectId(input.userId),
+    mode: keys.mode,
+    directProfileId: keys.directProfileId,
+    directModel: keys.directModel,
+    requestId: turn.requestId,
+    role: turn.role,
+    text: (turn.text || ' ').slice(0, 8000),
+    ...(turn.failureCategory ? { failureCategory: turn.failureCategory } : {}),
+    ...(turn.runId ? { runId: turn.runId } : {}),
+    ...(turn.costMicros != null ? { costMicros: turn.costMicros } : {}),
+    ...(turn.reservedMicros != null ? { reservedMicros: turn.reservedMicros } : {}),
+    ...(turn.noProviderFee != null ? { noProviderFee: turn.noProviderFee } : {}),
+    ...(turn.toolsUsed?.length ? { toolsUsed: turn.toolsUsed.slice(0, 20) } : {}),
+    ...(turn.artifacts?.length
+      ? {
+          artifacts: turn.artifacts.slice(0, 8).map((item) => ({
+            kind: 'image' as const,
+            assetId: item.assetId.slice(0, 64),
+            name: item.name.slice(0, 200),
+            url: item.url.slice(0, 4000),
+          })),
+        }
+      : {}),
+    ...(options.includePlan && turn.plan
+      ? {
+          plan: {
+            title: turn.plan.title.slice(0, 200),
+            summary: (turn.plan.summary || ' ').slice(0, 2000),
+            steps: turn.plan.steps.slice(0, 40).map((step) => step.slice(0, 500)),
+            markdown: turn.plan.markdown.slice(0, 8000),
+            status: turn.plan.status,
+          },
+        }
+      : {}),
+  }));
+}
+
 export async function loadIdeChatHistory(input: {
   organizationId: string;
   projectId: Types.ObjectId;
@@ -115,6 +169,10 @@ export async function loadIdeChatHistory(input: {
     }));
 }
 
+/**
+ * Persist turns. Returns whether at least one write attempt succeeded.
+ * Retries without embedded plan if the first insert fails (plan validation).
+ */
 export async function appendIdeChatTurns(input: {
   organizationId: string;
   projectId: Types.ObjectId;
@@ -123,61 +181,42 @@ export async function appendIdeChatTurns(input: {
   modelProfileId?: string;
   model?: string;
   turns: IdePersistedTurn[];
-}): Promise<void> {
+}): Promise<boolean> {
   const keys = ideThreadKeys(input);
-  if (!input.turns.length) return;
-  if (isIdeDirectMode(keys.mode) && (!keys.directProfileId || !keys.directModel)) return;
+  if (!input.turns.length) return true;
+  if (isIdeDirectMode(keys.mode) && (!keys.directProfileId || !keys.directModel)) return false;
 
-  const docs = input.turns.map((turn) => ({
-    organizationId: input.organizationId,
-    projectId: input.projectId,
-    createdByUserId: new Types.ObjectId(input.userId),
-    mode: keys.mode,
-    directProfileId: keys.directProfileId,
-    directModel: keys.directModel,
-    requestId: turn.requestId,
-    role: turn.role,
-    text: turn.text.slice(0, 8000),
-    ...(turn.failureCategory ? { failureCategory: turn.failureCategory } : {}),
-    ...(turn.runId ? { runId: turn.runId } : {}),
-    ...(turn.costMicros != null ? { costMicros: turn.costMicros } : {}),
-    ...(turn.reservedMicros != null ? { reservedMicros: turn.reservedMicros } : {}),
-    ...(turn.noProviderFee != null ? { noProviderFee: turn.noProviderFee } : {}),
-    ...(turn.toolsUsed?.length ? { toolsUsed: turn.toolsUsed.slice(0, 20) } : {}),
-    ...(turn.artifacts?.length
-      ? {
-          artifacts: turn.artifacts.slice(0, 8).map((item) => ({
-            kind: 'image' as const,
-            assetId: item.assetId.slice(0, 64),
-            name: item.name.slice(0, 200),
-            url: item.url.slice(0, 4000),
-          })),
-        }
-      : {}),
-    ...(turn.plan
-      ? {
-          plan: {
-            title: turn.plan.title.slice(0, 200),
-            summary: turn.plan.summary.slice(0, 2000),
-            steps: turn.plan.steps.slice(0, 40).map((step) => step.slice(0, 500)),
-            markdown: turn.plan.markdown.slice(0, 8000),
-            status: turn.plan.status,
-          },
-        }
-      : {}),
-  }));
+  await ensureIdeChatIndexes();
 
-  try {
-    await ensureIdeChatIndexes();
-    await AiIdeChatTurn.insertMany(docs, { ordered: false });
-  } catch (error) {
-    // Soft-fail so the chat reply still returns; duplicate requestIds are benign.
-    const code =
-      typeof error === 'object' && error && 'code' in error ? (error as { code?: number }).code : undefined;
-    if (code !== 11000) {
-      console.error('[ide-chat-history] persist failed', error);
+  const attempts = [
+    toInsertDocs(input, { includePlan: true }),
+    toInsertDocs(input, { includePlan: false }),
+  ];
+
+  let lastError: unknown;
+  for (const docs of attempts) {
+    try {
+      await AiIdeChatTurn.insertMany(docs, { ordered: false });
+      return true;
+    } catch (error) {
+      if (isMongoDuplicateKeyError(error)) return true;
+      lastError = error;
+      const code =
+        typeof error === 'object' && error && 'code' in error
+          ? (error as { code?: number }).code
+          : undefined;
+      if (code === 11000) return true;
     }
   }
+
+  console.error('[ide-chat-history] persist failed', {
+    organizationId: input.organizationId,
+    projectId: String(input.projectId),
+    mode: keys.mode,
+    turnCount: input.turns.length,
+    error: lastError,
+  });
+  return false;
 }
 
 /** Permanently remove an embedded plan from a persisted turn (reject). */
