@@ -303,6 +303,7 @@ export default function IdeChatPane({
     setDirectSelectorsExpanded(false);
 
     const cacheKey = ideChatThreadCacheKey({
+      projectId: projectId ?? '',
       mode,
       modelProfileId: isIdeDirectMode(mode) ? directProfileId : undefined,
       model: isIdeDirectMode(mode) ? directModel : undefined,
@@ -661,6 +662,7 @@ export default function IdeChatPane({
 
       const nextTurns = [...historyBase, turn];
       const cacheKey = ideChatThreadCacheKey({
+        projectId,
         mode,
         modelProfileId: isIdeDirectMode(mode) ? directProfileId : undefined,
         model: isIdeDirectMode(mode) ? directModel : undefined,
@@ -755,6 +757,7 @@ export default function IdeChatPane({
           return rest;
         });
         const key = ideChatThreadCacheKey({
+          projectId: projectId ?? '',
           mode,
           modelProfileId: isIdeDirectMode(mode) ? directProfileId : undefined,
           model: isIdeDirectMode(mode) ? directModel : undefined,

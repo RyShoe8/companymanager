@@ -3,16 +3,24 @@ import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThrea
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
 
 describe('ideChatThreadCacheKey', () => {
-  it('keys worker modes by mode only', () => {
-    expect(ideChatThreadCacheKey({ mode: 'product', modelProfileId: 'x', model: 'y' })).toBe(
-      'worker:product'
-    );
+  it('keys worker modes by project and mode', () => {
+    expect(
+      ideChatThreadCacheKey({ projectId: 'projA', mode: 'product', modelProfileId: 'x', model: 'y' })
+    ).toBe('projA:worker:product');
+    expect(
+      ideChatThreadCacheKey({ projectId: 'projB', mode: 'product' })
+    ).toBe('projB:worker:product');
   });
 
-  it('keys Direct by profile and model', () => {
+  it('keys Direct by project, profile, and model', () => {
     expect(
-      ideChatThreadCacheKey({ mode: 'direct', modelProfileId: 'abc', model: 'o4-mini' })
-    ).toBe('direct:abc:o4-mini');
+      ideChatThreadCacheKey({
+        projectId: 'projA',
+        mode: 'direct',
+        modelProfileId: 'abc',
+        model: 'o4-mini',
+      })
+    ).toBe('projA:direct:abc:o4-mini');
   });
 });
 

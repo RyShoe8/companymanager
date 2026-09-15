@@ -2,14 +2,16 @@ import type { IdeChatMode } from '@/lib/ide/modes';
 import { isIdeDirectMode } from '@/lib/ide/modes';
 import type { IdeChatStage } from '@/lib/ide/ideChatStream';
 
-/** Client-side transcript cache key for IDE chat tabs. */
+/** Client-side transcript cache key for IDE chat tabs (must include project). */
 export function ideChatThreadCacheKey(input: {
+  projectId: string;
   mode: IdeChatMode;
   modelProfileId?: string;
   model?: string;
 }): string {
-  if (!isIdeDirectMode(input.mode)) return `worker:${input.mode}`;
-  return `direct:${input.modelProfileId?.trim() ?? ''}:${input.model?.trim() ?? ''}`;
+  const project = input.projectId.trim() || '_none';
+  if (!isIdeDirectMode(input.mode)) return `${project}:worker:${input.mode}`;
+  return `${project}:direct:${input.modelProfileId?.trim() ?? ''}:${input.model?.trim() ?? ''}`;
 }
 
 export type IdeDeskStatus = 'idle' | 'active' | 'done';

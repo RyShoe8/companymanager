@@ -170,8 +170,13 @@ export async function appendIdeChatTurns(input: {
   try {
     await ensureIdeChatIndexes();
     await AiIdeChatTurn.insertMany(docs, { ordered: false });
-  } catch {
-    // Soft-fail: chat reply must still return even if history cannot persist.
+  } catch (error) {
+    // Soft-fail so the chat reply still returns; duplicate requestIds are benign.
+    const code =
+      typeof error === 'object' && error && 'code' in error ? (error as { code?: number }).code : undefined;
+    if (code !== 11000) {
+      console.error('[ide-chat-history] persist failed', error);
+    }
   }
 }
 
