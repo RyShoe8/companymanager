@@ -244,7 +244,7 @@ export async function attemptCompanyCredentialChat(input: {
   const maxOutputTokens = Math.min(chatTokenCap, policy.maxOutputTokens);
 
   try {
-    let loop: Awaited<ReturnType<typeof runIdeToolLoop>>;
+    let loop: Awaited<ReturnType<typeof runIdeToolLoop>> | undefined;
     let browseAssisted = false;
     const usePlain = Boolean(input.forcePlain);
 
@@ -388,6 +388,10 @@ export async function attemptCompanyCredentialChat(input: {
           }
         }
       }
+    }
+
+    if (!loop) {
+      throw new GatewayError('invalid_response');
     }
 
     const content = appendArtifacts(loop.content, loop.artifacts).trim();
