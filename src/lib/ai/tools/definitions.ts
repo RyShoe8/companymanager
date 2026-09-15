@@ -69,8 +69,9 @@ export function ideChatToolDefinitions(options: {
             query: { type: 'string', description: 'Search query' },
             depth: {
               type: 'string',
-              description: 'lite = titles/snippets only; standard = also fetch top page extracts',
-              enum: ['lite', 'standard'],
+              description:
+                'lite = titles/snippets only; standard = fetch top page extracts (default); deep = also Playwright-render top pages when configured',
+              enum: ['lite', 'standard', 'deep'],
             },
           },
           required: ['query'],

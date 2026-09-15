@@ -27,8 +27,8 @@ import {
   looksLikeWebLookupQuery,
   resolveAssistSearchQuery,
   userTextWithBrowseContext,
-  wantsLookupScreenshots,
 } from '@/lib/ai/tools/serverBrowseAssist';
+import { imageHitsToArtifacts, mergeImageArtifacts } from '@/lib/ai/tools/imageSearchArtifacts';
 import { formatRepoAssistContext, gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
 import { estimateCostMicros } from '@/lib/ai/pricing/modelRates';
 import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
@@ -77,7 +77,11 @@ function statusTurn(
 
 function appendArtifacts(text: string, artifacts: ToolArtifact[]): string {
   if (!artifacts.length) return text;
-  const safe = artifacts.map((item) => `- Generated image: ${item.name} (asset ${item.assetId})`);
+  const safe = artifacts.map((item) =>
+    item.assetId.startsWith('imgsearch:')
+      ? `- Image: ${item.name}`
+      : `- Generated image: ${item.name} (asset ${item.assetId})`
+  );
   return `${text}\n\n${safe.join('\n')}`.slice(0, 8000);
 }
 
@@ -401,30 +405,49 @@ export async function attemptCompanyCredentialChat(input: {
       if (!freeCredential || !isLookup) return null;
       // Project IDE has repo tools — let the tool loop choose repo_* vs web.
       if (input.includeRepoTools !== false) return null;
-      const search = await webSearch(assistSearchQuery, {
-        signal: input.signal,
-        depth: 'standard',
-        organizationId: input.organizationId,
-      });
-      browseAssisted = true;
-      const toolsUsed = search.toolsUsed?.length ? [...search.toolsUsed] : ['web_search'];
-      let block = formatResearchResultContext(search);
-      if (wantsLookupScreenshots(input.userText)) {
-        const images = await imageSearch(assistSearchQuery, {
+      const [search, images] = await Promise.all([
+        webSearch(assistSearchQuery, {
+          signal: input.signal,
+          depth: 'deep',
+          organizationId: input.organizationId,
+        }),
+        imageSearch(assistSearchQuery, {
           signal: input.signal,
           organizationId: input.organizationId,
-        });
-        if (!toolsUsed.includes('image_search')) toolsUsed.push('image_search');
-        block = `${block}\n\n${formatImageSearchContext(images)}`.slice(0, 10000);
-      }
+        }),
+      ]);
+      browseAssisted = true;
+      const toolsUsed = search.toolsUsed?.length ? [...search.toolsUsed] : ['web_search'];
+      if (!toolsUsed.includes('image_search')) toolsUsed.push('image_search');
+      const mergedImages = [
+        ...images.hits,
+        ...(search.pageImages ?? []),
+      ];
+      const imageBlock =
+        mergedImages.length > 0
+          ? formatImageSearchContext({
+              ...images,
+              hits: mergedImages.slice(0, 8),
+              hitCount: Math.min(mergedImages.length, 8),
+              note:
+                images.hitCount > 0
+                  ? images.note
+                  : `Found ${Math.min(mergedImages.length, 8)} image(s) from page renders / image search.`,
+            })
+          : formatImageSearchContext(images);
+      const block = `${formatResearchResultContext(search)}\n\n${imageBlock}`.slice(0, 10000);
+      const artifacts = mergeImageArtifacts(
+        imageHitsToArtifacts(images.hits),
+        imageHitsToArtifacts(search.pageImages ?? [])
+      );
       const plain = await plainInvokeAfterAssist({
-        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran research (${toolsUsed.join(', ')}); ground your answer in the provided sources and extracts. Cite concrete image URLs when image results are present.`,
+        systemExtra: `${systemExtra} Answer directly in clear markdown (headings, bullet lists, [links](url)). Do not call tools. Nucleas already ran a full research stack (${toolsUsed.join(', ')}): search, page fetch, and image discovery${toolsUsed.includes('browser_navigate') ? ' plus Playwright page render' : ''}. Summarize those sources—never say you cannot browse, that tools were unavailable, or that no images were found when image results or thumbnails are present. Prefer compact facts and clickable source links; mention that screenshots appear as attached thumbnails when artifacts exist.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
       return {
         content: plain.content,
         toolCallsMade: toolsUsed,
-        artifacts: [],
+        artifacts,
         inputTokens: plain.inputTokens,
         outputTokens: plain.outputTokens,
         latencyMs: plain.latencyMs,
@@ -447,14 +470,15 @@ export async function attemptCompanyCredentialChat(input: {
       browseAssisted = true;
       const toolsUsed = search.toolsUsed?.length ? search.toolsUsed : ['image_search'];
       const block = formatImageSearchContext(search);
+      const artifacts = imageHitsToArtifacts(search.hits);
       const plain = await plainInvokeAfterAssist({
-        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran image_search; list the concrete image URLs from the results (markdown links are fine). Do not invent URLs.`,
+        systemExtra: `${systemExtra} Answer directly in clear markdown. Do not call tools. Nucleas already ran image_search; cite concrete image URLs when present and note that thumbnails are attached in the UI. Never invent URLs or claim no images if results/artifacts exist.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
       return {
         content: plain.content,
         toolCallsMade: toolsUsed,
-        artifacts: [],
+        artifacts,
         inputTokens: plain.inputTokens,
         outputTokens: plain.outputTokens,
         latencyMs: plain.latencyMs,

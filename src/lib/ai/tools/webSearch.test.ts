@@ -82,7 +82,7 @@ describe('webSearch / researchSearch', () => {
         })
       )
       .mockRejectedValueOnce(new Error('wiki down'));
-    const result = await webSearch('hello world news today', { fetcher });
+    const result = await webSearch('hello world news today', { fetcher, depth: 'lite' });
     expect(result.hits).toEqual([]);
     expect(result.providersTried).toEqual(['duckduckgo_ia', 'wikipedia']);
     expect(result.note).toMatch(/No hits/);
@@ -90,16 +90,17 @@ describe('webSearch / researchSearch', () => {
 
   it('returns empty hits on network failure instead of throwing', async () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error('ECONNRESET'));
-    await expect(webSearch('hello world news today', { fetcher })).resolves.toMatchObject({
+    await expect(webSearch('hello world news today', { fetcher, depth: 'lite' })).resolves.toMatchObject({
       hits: [],
       providersTried: ['duckduckgo_ia', 'wikipedia'],
+      pageImages: [],
     });
   });
 
   it('rethrows when the caller signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
-    await expect(webSearch('arsenal', { signal: controller.signal })).rejects.toThrow(/cancelled/i);
+    await expect(webSearch('arsenal', { signal: controller.signal, depth: 'lite' })).rejects.toThrow(/cancelled/i);
   });
 
   it('uses Wikipedia records page for Arsenal all-time scorers', async () => {
@@ -163,7 +164,7 @@ describe('webSearch / researchSearch', () => {
       )
       .mockResolvedValueOnce(Response.json({ parse: { sections: [] } }));
 
-    const result = await webSearch("who are Arsenal's all time top scorers?", { fetcher });
+    const result = await webSearch("who are Arsenal's all time top scorers?", { fetcher, depth: 'lite' });
     expect(result.hits[0]?.url).toMatch(/List_of_Arsenal_F\.C\._records_and_statistics/i);
     expect(result.hits[0]?.extract).toMatch(/Thierry Henry/i);
     expect(result.hits[0]?.extract).toMatch(/228/);
@@ -199,7 +200,7 @@ describe('webSearch / researchSearch', () => {
       )
       .mockRejectedValue(new Error('skip further providers'));
 
-    const result = await webSearch('Thierry Henry', { fetcher, limit: 1 });
+    const result = await webSearch('Thierry Henry', { fetcher, limit: 1, depth: 'lite' });
     expect(result.hits).toEqual([
       expect.objectContaining({
         url: 'https://duckduckgo.com/Thierry_Henry',
@@ -212,25 +213,23 @@ describe('webSearch / researchSearch', () => {
 
   it('still calls Brave after Wikipedia returns hits', async () => {
     vi.stubEnv('BRAVE_SEARCH_API_KEY', 'brave-test-key');
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(Response.json(emptyInstantAnswer))
-      .mockResolvedValueOnce(
-        Response.json({
-          query: {
-            search: [{ title: 'Noise season', snippet: 'season page' }],
-          },
-        })
-      )
-      .mockResolvedValueOnce(
-        Response.json({
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('api.duckduckgo.com')) return Response.json(emptyInstantAnswer);
+      if (url.includes('action=query&list=search')) {
+        return Response.json({
+          query: { search: [{ title: 'Noise season', snippet: 'season page' }] },
+        });
+      }
+      if (url.includes('api/rest_v1/page/summary')) {
+        return Response.json({
           title: 'Noise season',
           extract: 'A season article.',
           content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Noise_season' } },
-        })
-      )
-      .mockResolvedValueOnce(
-        Response.json({
+        });
+      }
+      if (url.includes('api.search.brave.com')) {
+        return Response.json({
           web: {
             results: [
               {
@@ -240,10 +239,12 @@ describe('webSearch / researchSearch', () => {
               },
             ],
           },
-        })
-      );
+        });
+      }
+      return Response.json({});
+    });
 
-    const result = await webSearch('arsenal scorers', { fetcher, limit: 2 });
+    const result = await webSearch('arsenal scorers', { fetcher, limit: 2, depth: 'lite' });
     expect(result.providersTried).toEqual(expect.arrayContaining(['wikipedia', 'brave']));
     expect(result.hits.some((hit) => hit.provider === 'brave')).toBe(true);
     const braveCall = fetcher.mock.calls.find((call) => String(call[0]).includes('api.search.brave.com'));
@@ -281,6 +282,55 @@ describe('webSearch / researchSearch', () => {
     expect(result.fetchCount).toBeGreaterThanOrEqual(1);
     expect(result.toolsUsed).toEqual(expect.arrayContaining(['web_search', 'web_fetch']));
     expect(result.hits[0]?.extract).toMatch(/Thierry Henry/i);
+  });
+
+  it('deep depth uses Playwright and collects page images when configured', async () => {
+    vi.stubEnv('NUCLEAS_BROWSER_WORKER_URL', 'https://browser.example.com');
+    vi.stubEnv('NUCLEAS_BROWSER_WORKER_SECRET', 'x'.repeat(24));
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('api.duckduckgo.com')) {
+          return Response.json({
+            AbstractText: '',
+            AbstractURL: '',
+            Heading: '',
+            RelatedTopics: [
+              {
+                Text: 'Castlevania ReVamped - fan remake',
+                FirstURL: 'https://www.inverteddungeon.com/revamped',
+              },
+            ],
+          });
+        }
+        if (url.includes('wikipedia.org')) {
+          return Response.json({ query: { search: [] } });
+        }
+        if (url.includes('browser.example.com')) {
+          return Response.json({
+            url: 'https://www.inverteddungeon.com/revamped',
+            title: 'Castlevania ReVamped',
+            text: 'Full rendered review of the fan remake with Classicvania and Metroidvania fusion. '.repeat(
+              8
+            ),
+            images: ['https://cdn.example.com/revamped-shot.png'],
+          });
+        }
+        return new Response('<html><body>thin shell</body></html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        });
+      });
+
+    const result = await researchSearch('Castlevania ReVamped', {
+      fetcher,
+      depth: 'deep',
+      limit: 1,
+    });
+    expect(result.toolsUsed).toEqual(expect.arrayContaining(['web_fetch', 'browser_navigate']));
+    expect(result.hits[0]?.extract).toMatch(/Classicvania/i);
+    expect(result.pageImages[0]?.imageUrl).toBe('https://cdn.example.com/revamped-shot.png');
   });
 });
 

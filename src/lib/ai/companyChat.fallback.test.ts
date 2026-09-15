@@ -245,9 +245,10 @@ describe('attemptCompanyCredentialChat free tools', () => {
     expect(turn).toMatchObject({
       role: 'assistant',
       text: 'Thierry Henry is Arsenal’s all-time top scorer.',
-      toolsUsed: ['web_search'],
+      toolsUsed: expect.arrayContaining(['web_search', 'image_search']),
       noProviderFee: true,
     });
+    expect(mocks.imageSearch).toHaveBeenCalled();
   });
 
   it('runs web + image assist for info digs that ask for screenshots without tool loop', async () => {
@@ -319,6 +320,12 @@ describe('attemptCompanyCredentialChat free tools', () => {
       role: 'assistant',
       toolsUsed: expect.arrayContaining(['web_search', 'image_search']),
       noProviderFee: true,
+      artifacts: [
+        expect.objectContaining({
+          kind: 'image',
+          url: 'https://cdn.example.com/revamped.png',
+        }),
+      ],
     });
   });
 
@@ -401,7 +408,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
     expect(turn).toMatchObject({
       role: 'assistant',
       text: 'Thierry Henry leads.',
-      toolsUsed: ['web_search'],
+      toolsUsed: expect.arrayContaining(['web_search', 'image_search']),
       noProviderFee: true,
     });
   });
@@ -614,7 +621,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
     expect(turn).toMatchObject({
       role: 'assistant',
       text: 'Grounded from Nucleas search.',
-      toolsUsed: ['web_search'],
+      toolsUsed: expect.arrayContaining(['web_search', 'image_search']),
       noProviderFee: true,
     });
     expect(turn.text).not.toMatch(/model call failed/i);

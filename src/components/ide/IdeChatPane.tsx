@@ -24,6 +24,7 @@ import {
 } from '@/lib/ai/rolePipeline/providerCatalog';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
+import IdeChatMarkdown from '@/components/ide/IdeChatMarkdown';
 import type { AiEmployeeKey } from '@/lib/ai/teamWorkspace';
 import type { IdeInteractionMode, IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
 import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThreadCache';
@@ -1045,7 +1046,11 @@ export default function IdeChatPane({
                     ? 'Status'
                     : 'Assistant'}
               </div>
-              <div className="whitespace-pre-wrap text-text-primary">{turn.text}</div>
+              {turn.role === 'status' ? (
+                <div className="whitespace-pre-wrap text-text-primary">{turn.text}</div>
+              ) : (
+                <IdeChatMarkdown text={turn.text} />
+              )}
               {turn.role === 'status' && turn.debugHint ? (
                 <p className="mt-1 font-mono text-[10px] text-text-secondary break-all">{turn.debugHint}</p>
               ) : null}

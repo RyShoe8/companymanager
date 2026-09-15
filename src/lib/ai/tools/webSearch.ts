@@ -12,7 +12,16 @@ export type WebSearchHit = {
   extract?: string;
 };
 
-export type ResearchDepth = 'lite' | 'standard';
+export type ImageSearchHit = {
+  title: string;
+  imageUrl: string;
+  contextUrl?: string;
+  thumbnailUrl?: string;
+  snippet: string;
+  provider?: string;
+};
+
+export type ResearchDepth = 'lite' | 'standard' | 'deep';
 
 export type ResearchSearchResult = {
   query: string;
@@ -22,15 +31,8 @@ export type ResearchSearchResult = {
   toolsUsed: string[];
   hitCount: number;
   fetchCount: number;
-};
-
-export type ImageSearchHit = {
-  title: string;
-  imageUrl: string;
-  contextUrl?: string;
-  thumbnailUrl?: string;
-  snippet: string;
-  provider?: string;
+  /** Images scraped from Playwright-rendered pages during deep/standard enrich. */
+  pageImages: ImageSearchHit[];
 };
 
 export type ImageSearchResult = {
@@ -721,16 +723,18 @@ export async function researchSearch(
       toolsUsed: [],
       hitCount: 0,
       fetchCount: 0,
+      pageImages: [],
     };
   }
   const limit = Math.min(Math.max(options.limit ?? 5, 1), 8);
-  const depth = options.depth ?? 'lite';
+  const depth = options.depth ?? 'standard';
   const queries = buildResearchQueries(q);
   const controller = new AbortController();
   const cancel = () => controller.abort();
   if (options.signal?.aborted) throw new Error('Search cancelled.');
   options.signal?.addEventListener('abort', cancel, { once: true });
-  const timeout = setTimeout(cancel, depth === 'standard' ? 45000 : 20000);
+  const timeoutMs = depth === 'deep' ? 90000 : depth === 'standard' ? 60000 : 20000;
+  const timeout = setTimeout(cancel, timeoutMs);
   const fetcher = options.fetcher ?? fetch;
   const opts: FetchOpts = { fetcher, signal: controller.signal };
   const providersTried: string[] = [];
@@ -740,6 +744,24 @@ export async function researchSearch(
   const pool: WebSearchHit[] = [];
   const poolCap = Math.max(limit * 3, 12);
   const organizationId = options.organizationId?.trim() || undefined;
+  const pageImages: ImageSearchHit[] = [];
+  const pageImageSeen = new Set<string>();
+
+  const pushPageImages = (pageUrl: string, pageTitle: string | null | undefined, urls: string[]) => {
+    for (const imageUrl of urls) {
+      const key = imageUrl.toLowerCase();
+      if (pageImageSeen.has(key)) continue;
+      pageImageSeen.add(key);
+      pageImages.push({
+        title: (pageTitle || 'Page image').slice(0, 200),
+        imageUrl: imageUrl.slice(0, 4000),
+        contextUrl: pageUrl.slice(0, 4000),
+        snippet: 'From Playwright page render.',
+        provider: 'browser_navigate',
+      });
+      if (pageImages.length >= 12) break;
+    }
+  };
 
   try {
     const floorCap = Math.min(2, limit);
@@ -775,14 +797,19 @@ export async function researchSearch(
       },
     ];
 
-    for (const provider of providers) {
-      if (!provider.enabled) continue;
-      providersTried.push(provider.name);
-      const result = await runProvider(provider.name, provider.run, controller.signal);
+    const enabledProviders = providers.filter((provider) => provider.enabled);
+    providersTried.push(...enabledProviders.map((provider) => provider.name));
+    const settled = await Promise.all(
+      enabledProviders.map(async (provider) => {
+        const result = await runProvider(provider.name, provider.run, controller.signal);
+        return { name: provider.name, ...result };
+      })
+    );
+    for (const result of settled) {
       if (result.error) providerErrors.push(result.error);
       const before = pool.length;
       mergeHits(pool, result.hits, poolCap);
-      if (pool.length > before) providersWithHits.push(provider.name);
+      if (pool.length > before) providersWithHits.push(result.name);
     }
 
     let hits = rankResearchHits(pool, q, limit);
@@ -794,33 +821,50 @@ export async function researchSearch(
     hits = rankResearchHits(hits, q, limit);
 
     let fetchCount = 0;
-    if (depth === 'standard' && hits.length) {
-      const fetchTargets = hits.slice(0, Math.min(3, hits.length));
+    if ((depth === 'standard' || depth === 'deep') && hits.length) {
+      const fetchCap = Math.min(5, hits.length);
+      const fetchTargets = hits.slice(0, fetchCap);
+      const playwrightBudget = depth === 'deep' ? 3 : 2;
+      let playwrightUsed = 0;
+
       for (const hit of fetchTargets) {
         if (hit.extract && /goalscorer|goals\b|\d{2,3}\s+goals/i.test(hit.extract)) {
           continue;
         }
+        let fetchFailed = false;
+        let thin = false;
         try {
           const page = await webFetch(hit.url, { fetcher, signal: controller.signal });
           fetchCount += 1;
           if (!toolsUsed.includes('web_fetch')) toolsUsed.push('web_fetch');
-          const text = page.text.slice(0, 3500);
+          const text = page.text.slice(0, 5000);
           if (!hit.extract || text.length > hit.extract.length) hit.extract = text;
           if (page.title && (!hit.title || hit.title.length < 8)) hit.title = page.title.slice(0, 200);
-          if ((page.thin || page.escalateHint) && isBrowserWorkerConfigured() && (hit.extract?.length ?? 0) < 280) {
-            try {
-              const rendered = await browserNavigate(hit.url, { fetcher, signal: controller.signal });
-              if (rendered.text.trim().length > (hit.extract?.length ?? 0)) {
-                if (!toolsUsed.includes('browser_navigate')) toolsUsed.push('browser_navigate');
-                hit.extract = rendered.text.slice(0, 3500);
-                if (rendered.title) hit.title = rendered.title.slice(0, 200);
-              }
-            } catch {
-              /* keep fetch */
-            }
-          }
+          thin = Boolean(page.thin || page.escalateHint) || (hit.extract?.length ?? 0) < 400;
         } catch {
-          /* skip failed fetch */
+          fetchFailed = true;
+        }
+
+        const shouldPlaywright =
+          isBrowserWorkerConfigured() &&
+          playwrightUsed < playwrightBudget &&
+          (depth === 'deep' || fetchFailed || thin || (hit.extract?.length ?? 0) < 400);
+
+        if (shouldPlaywright) {
+          try {
+            const rendered = await browserNavigate(hit.url, { fetcher, signal: controller.signal });
+            playwrightUsed += 1;
+            if (!toolsUsed.includes('browser_navigate')) toolsUsed.push('browser_navigate');
+            if (rendered.text.trim().length > (hit.extract?.length ?? 0)) {
+              hit.extract = rendered.text.slice(0, 5000);
+              if (rendered.title) hit.title = rendered.title.slice(0, 200);
+            }
+            if (rendered.images.length) {
+              pushPageImages(rendered.url || hit.url, rendered.title || hit.title, rendered.images);
+            }
+          } catch {
+            /* keep fetch */
+          }
         }
       }
     }
@@ -829,6 +873,7 @@ export async function researchSearch(
       buildNote(providersTried, providersWithHits, hits.length, providerErrors),
       queries.wikipedia !== q ? `Wiki query: ${queries.wikipedia}.` : '',
       queries.primary !== q ? `Web query: ${queries.primary}.` : '',
+      pageImages.length ? `Page images: ${pageImages.length}.` : '',
     ].filter(Boolean);
 
     return {
@@ -839,6 +884,7 @@ export async function researchSearch(
       toolsUsed,
       hitCount: hits.length,
       fetchCount,
+      pageImages,
     };
   } catch (error) {
     if (options.signal?.aborted || (error instanceof Error && error.message === 'Search cancelled.')) {
@@ -852,6 +898,7 @@ export async function researchSearch(
       toolsUsed,
       hitCount: 0,
       fetchCount: 0,
+      pageImages,
     };
   } finally {
     clearTimeout(timeout);
@@ -860,7 +907,8 @@ export async function researchSearch(
 }
 
 /**
- * Bounded web search (lite depth). Cascade: Instant Answer → Wikipedia → optional Brave/CSE/SearXNG.
+ * Multi-provider web search. Defaults to standard depth (fetch top pages).
+ * Pass depth: 'lite' for snippets only; 'deep' for aggressive Playwright enrich.
  */
 export async function webSearch(
   query: string,
@@ -872,7 +920,7 @@ export async function webSearch(
     organizationId?: string;
   } = {}
 ): Promise<ResearchSearchResult> {
-  return researchSearch(query, { ...options, depth: options.depth ?? 'lite' });
+  return researchSearch(query, { ...options, depth: options.depth ?? 'standard' });
 }
 
 /** Strip chatty wrappers before image backends. */

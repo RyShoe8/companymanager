@@ -6,7 +6,26 @@ export type BrowserNavigateResult = {
   title: string | null;
   text: string;
   note: string;
+  /** Absolute https image URLs discovered on the page (og:image, content imgs). */
+  images: string[];
 };
+
+function sanitizeImageList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const url = item.trim();
+    if (!/^https:\/\//i.test(url)) continue;
+    const key = url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(url.slice(0, 4000));
+    if (out.length >= 12) break;
+  }
+  return out;
+}
 
 /** Call the optional Playwright browser worker. Fail closed when unset. */
 export async function browserNavigate(
@@ -47,12 +66,14 @@ export async function browserNavigate(
       url?: string;
       title?: string | null;
       text?: string;
+      images?: unknown;
     };
     return {
       url: typeof body.url === 'string' ? body.url : target.toString(),
       title: typeof body.title === 'string' ? body.title.slice(0, 200) : null,
       text: typeof body.text === 'string' ? body.text.slice(0, 12000) : '',
       note: 'Rendered via Playwright browser worker.',
+      images: sanitizeImageList(body.images),
     };
   } finally {
     clearTimeout(timeout);

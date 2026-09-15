@@ -63,26 +63,67 @@ async function navigate(url: string, maxChars: number) {
   const playwright = (await import(
     /* webpackIgnore: true */ 'playwright' as string
   )) as {
-    chromium: { launch: (opts: { headless: boolean }) => Promise<{
-      newPage: () => Promise<{
-        goto: (u: string, o: { waitUntil: string; timeout: number }) => Promise<unknown>;
-        title: () => Promise<string>;
-        evaluate: (fn: () => string) => Promise<string>;
-        url: () => string;
+    chromium: {
+      launch: (opts: { headless: boolean }) => Promise<{
+        newPage: () => Promise<{
+          goto: (u: string, o: { waitUntil: string; timeout: number }) => Promise<unknown>;
+          title: () => Promise<string>;
+          evaluate: <T>(fn: () => T) => Promise<T>;
+          url: () => string;
+        }>;
+        close: () => Promise<void>;
       }>;
-      close: () => Promise<void>;
-    }> };
+    };
   };
   const browser = await playwright.chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     const title = await page.title();
-    const text = await page.evaluate(() => document.body?.innerText ?? '');
+    const scraped = await page.evaluate(() => {
+      const text = document.body?.innerText ?? '';
+      const images: string[] = [];
+      const push = (raw: string | null | undefined) => {
+        const value = (raw ?? '').trim();
+        if (!value || value.startsWith('data:')) return;
+        try {
+          const abs = new URL(value, location.href);
+          if (abs.protocol !== 'https:') return;
+          images.push(abs.toString());
+        } catch {
+          /* ignore */
+        }
+      };
+      for (const sel of ['meta[property="og:image"]', 'meta[name="twitter:image"]']) {
+        push(document.querySelector(sel)?.getAttribute('content'));
+      }
+      for (const img of Array.from(document.querySelectorAll('img[src]'))) {
+        const el = img as HTMLImageElement;
+        const w = el.naturalWidth || el.width || Number(el.getAttribute('width')) || 0;
+        const h = el.naturalHeight || el.height || Number(el.getAttribute('height')) || 0;
+        if ((w > 0 && w < 64) || (h > 0 && h < 64)) continue;
+        const src = el.currentSrc || el.src || el.getAttribute('src');
+        push(src);
+      }
+      return { text, images };
+    });
+    const seen = new Set<string>();
+    const images: string[] = [];
+    for (const src of scraped.images ?? []) {
+      const key = src.toLowerCase();
+      if (seen.has(key) || !isSafeHttpsUrl(src)) continue;
+      seen.add(key);
+      images.push(src.slice(0, 4000));
+      if (images.length >= 12) break;
+    }
     return {
       url: page.url(),
       title: title.slice(0, 200),
-      text: String(text).replace(/\s+/g, ' ').trim().slice(0, maxChars),
+      text: String(scraped.text ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, maxChars),
+      images,
     };
   } finally {
     await browser.close();

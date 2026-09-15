@@ -91,7 +91,7 @@ export function formatWebSearchContext(input: {
   fetchCount?: number;
 }): string {
   const lines = [
-    'Web search results (use these; do not invent facts beyond them):',
+    'Web search results (Nucleas already searched and fetched these; summarize them—do not claim you cannot browse or that tools were unavailable):',
     'Prefer club/team “records and statistics” pages over UEFA/competition-wide top-scorer lists when the question is about a specific club.',
     `Query: ${input.query}`,
     input.note ? `Note: ${input.note}` : '',
@@ -127,14 +127,14 @@ export function formatResearchResultContext(result: ResearchSearchResult): strin
 
 export function formatImageSearchContext(result: ImageSearchResult): string {
   const lines = [
-    'Image search results (cite these image URLs; do not invent image links):',
+    'Image search results (Nucleas already found these; cite them. Screenshots may also appear as attached thumbnails in the UI—do not say no images were found if this list is non-empty):',
     `Query: ${result.query}`,
     result.note ? `Note: ${result.note}` : '',
     result.providersTried?.length ? `Providers tried: ${result.providersTried.join(', ')}` : '',
   ].filter(Boolean);
   if (!result.hits.length) {
     lines.push(
-      'No image hits. Say search returned nothing. Do not invent image URLs. Suggest refining the query or enabling CSE Image search if misconfigured.'
+      'No image hits from image backends. Do not invent image URLs. You may still summarize web sources if present above.'
     );
   } else {
     for (const [index, hit] of result.hits.entries()) {

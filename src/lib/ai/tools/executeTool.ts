@@ -5,6 +5,7 @@ import Asset from '@/lib/models/Asset';
 import { browserNavigate } from '@/lib/ai/tools/browserClient';
 import { chooseBrowseTool, isBrowserWorkerConfigured } from '@/lib/ai/tools/browseRouter';
 import { webFetch } from '@/lib/ai/tools/webFetch';
+import { imageHitsToArtifacts } from '@/lib/ai/tools/imageSearchArtifacts';
 import { imageSearch, webSearch } from '@/lib/ai/tools/webSearch';
 import { listIdeTree, readIdeFile } from '@/lib/ai/ideCommitPush';
 
@@ -71,14 +72,19 @@ export async function executeIdeTool(input: {
 
   if (input.name === 'web_search') {
     const query = typeof args.query === 'string' ? args.query : '';
-    const depthRaw = typeof args.depth === 'string' ? args.depth.trim() : 'lite';
-    const depth = depthRaw === 'standard' ? 'standard' : 'lite';
+    const depthRaw = typeof args.depth === 'string' ? args.depth.trim() : 'standard';
+    const depth =
+      depthRaw === 'lite' ? 'lite' : depthRaw === 'deep' ? 'deep' : 'standard';
     const result = await webSearch(query, {
       signal: input.signal,
       depth,
       organizationId: input.organizationId,
     });
-    return { content: JSON.stringify(result).slice(0, 12000), artifacts };
+    const fromPages = imageHitsToArtifacts(result.pageImages ?? []);
+    return {
+      content: JSON.stringify(result).slice(0, 12000),
+      artifacts: fromPages,
+    };
   }
 
   if (input.name === 'image_search') {
@@ -87,7 +93,10 @@ export async function executeIdeTool(input: {
       signal: input.signal,
       organizationId: input.organizationId,
     });
-    return { content: JSON.stringify(result).slice(0, 12000), artifacts };
+    return {
+      content: JSON.stringify(result).slice(0, 12000),
+      artifacts: imageHitsToArtifacts(result.hits),
+    };
   }
 
   if (input.name === 'web_fetch') {
