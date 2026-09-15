@@ -181,6 +181,14 @@ function parseToolCalls(raw: unknown[] | undefined): ToolCall[] {
   return calls;
 }
 
+function parseOrInvalidResponse<T>(parse: () => T): T {
+  try {
+    return parse();
+  } catch {
+    throw new GatewayError('invalid_response');
+  }
+}
+
 /** Called only by a server-side, budget-authorized dispatcher; never directly by a browser route. */
 export async function invokeModel(
   config: GatewayConfiguration,
@@ -188,7 +196,7 @@ export async function invokeModel(
   options: { signal?: AbortSignal; fetcher?: typeof fetch } = {}
 ): Promise<ModelResult> {
   const endpoint = validateGatewayConfiguration(config);
-  const input = modelRequestSchema.parse(request);
+  const input = parseOrInvalidResponse(() => modelRequestSchema.parse(request));
   const controller = new AbortController();
   const cancel = () => controller.abort();
   if (options.signal?.aborted) throw new GatewayError('cancelled');
@@ -251,7 +259,7 @@ export async function invokeModelWithTools(
   options: { signal?: AbortSignal; fetcher?: typeof fetch } = {}
 ): Promise<ModelToolResult> {
   const endpoint = validateGatewayConfiguration(config);
-  const input = modelToolRequestSchema.parse(request);
+  const input = parseOrInvalidResponse(() => modelToolRequestSchema.parse(request));
   const controller = new AbortController();
   const cancel = () => controller.abort();
   if (options.signal?.aborted) throw new GatewayError('cancelled');

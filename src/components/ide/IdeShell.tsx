@@ -17,6 +17,7 @@ import {
 } from '@/lib/ide/chatSelectionStorage';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
 import { microsToDollars } from '@/lib/ai/settingsSchema';
+import { IDE_FREE_CHAT_SCOPE, isIdeFreeChatScope } from '@/lib/ide/freeChat';
 
 type TreeEntry = { name: string; path: string; type: 'file' | 'dir'; sha: string };
 
@@ -42,7 +43,10 @@ function formatSpend(micros: number): string {
 }
 
 export default function IdeShell({ initialProjectId }: { initialProjectId?: string }) {
-  const [projectId, setProjectId] = useState<string | null>(initialProjectId ?? null);
+  const [projectId, setProjectId] = useState<string | null>(
+    initialProjectId ?? IDE_FREE_CHAT_SCOPE
+  );
+  const freeChat = isIdeFreeChatScope(projectId);
   const [repository, setRepository] = useState<RepositorySnapshot | null>(null);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [rootEntries, setRootEntries] = useState<TreeEntry[]>([]);
@@ -55,7 +59,9 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [activePath, setActivePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
-  const [mode, setMode] = useState<IdeChatMode>('engineering');
+  const [mode, setMode] = useState<IdeChatMode>(
+    isIdeFreeChatScope(initialProjectId ?? IDE_FREE_CHAT_SCOPE) ? 'direct' : 'engineering'
+  );
   const [rulesOpen, setRulesOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(352);
   const [centerView, setCenterView] = useState<'file' | 'plan'>('file');
@@ -65,7 +71,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     runSceneFromState({ busy: false, interactionMode: 'chat' })
   );
   const approvePlanRef = useRef<((plan: IdePlanDocument) => void) | null>(null);
-  const rejectPlanRef = useRef<(() => void) | null>(null);
+  const rejectPlanRef = useRef<(() => void | Promise<void>) | null>(null);
   const prevBusyRef = useRef(false);
   const expandedPathsRef = useRef(expandedPaths);
   expandedPathsRef.current = expandedPaths;
@@ -84,17 +90,21 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   }, []);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || freeChat) {
+      setMode('direct');
+      return;
+    }
     const stored = readStoredIdeChatMode(projectId);
     if (stored) setMode(stored);
-  }, [projectId]);
+  }, [projectId, freeChat]);
 
   const onModeChange = useCallback(
     (next: IdeChatMode) => {
+      if (freeChat && next !== 'direct') return;
       setMode(next);
-      if (projectId) writeStoredIdeChatMode(projectId, next);
+      if (projectId && !isIdeFreeChatScope(projectId)) writeStoredIdeChatMode(projectId, next);
     },
-    [projectId]
+    [projectId, freeChat]
   );
 
   const onChatWidthChange = useCallback((next: number) => {
@@ -109,6 +119,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const onPlanReady = useCallback((plan: IdePlanDocument | null) => {
     setActivePlan(plan);
     if (plan) setCenterView('plan');
+    else setCenterView('file');
   }, []);
 
   const onRunActivity = useCallback((activity: IdeRunActivity) => {
@@ -116,11 +127,11 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   }, []);
 
   const dirty = activePath != null && fileContent !== originalContent;
-  const hasBinding = Boolean(repository?.repository);
+  const hasBinding = Boolean(repository?.repository) && !freeChat;
 
   const fetchTreePath = useCallback(
     async (path: string): Promise<TreeEntry[] | null> => {
-      if (!projectId || !hasBinding) return null;
+      if (!projectId || freeChat || !hasBinding) return null;
       const response = await fetch(
         `/api/projects/${encodeURIComponent(projectId)}/ai/ide/tree?path=${encodeURIComponent(path)}`,
         { cache: 'no-store' }
@@ -135,18 +146,18 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
       }
       return (body.entries ?? []) as TreeEntry[];
     },
-    [projectId, hasBinding]
+    [projectId, freeChat, hasBinding]
   );
 
   const loadRoot = useCallback(async () => {
-    if (!projectId || !hasBinding) {
+    if (!projectId || freeChat || !hasBinding) {
       setRootEntries([]);
       setChildrenByPath({});
       setExpandedPaths({});
       setLoadingPaths({});
       setTreeReason(
-        hasBinding
-          ? null
+        freeChat
+          ? 'Free Chat has no project files. Pick a project to browse a linked repo.'
           : 'Link a GitHub repository to load the file tree. Server GitHub App credentials and an installation are required for live files.'
       );
       setTreeBranch(null);
@@ -164,7 +175,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     } finally {
       setTreeLoading(false);
     }
-  }, [projectId, hasBinding, fetchTreePath]);
+  }, [projectId, freeChat, hasBinding, fetchTreePath]);
 
   const refreshExpanded = useCallback(async () => {
     const paths = Object.keys(expandedPathsRef.current).filter((path) => expandedPathsRef.current[path]);
@@ -254,23 +265,23 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   }, [projectId, hasBinding, loadRoot]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || freeChat) {
       setSpend(null);
       return;
     }
     void loadSpend(projectId);
-  }, [projectId, loadSpend]);
+  }, [projectId, freeChat, loadSpend]);
 
   useEffect(() => {
     const wasBusy = prevBusyRef.current;
     prevBusyRef.current = runActivity.busy;
-    if (wasBusy && !runActivity.busy && projectId) {
+    if (wasBusy && !runActivity.busy && projectId && !freeChat) {
       void loadSpend(projectId);
     }
-  }, [runActivity.busy, projectId, loadSpend]);
+  }, [runActivity.busy, projectId, freeChat, loadSpend]);
 
   async function openFile(path: string) {
-    if (!projectId) return;
+    if (!projectId || freeChat) return;
     try {
       const response = await fetch(
         `/api/projects/${encodeURIComponent(projectId)}/ai/ide/file?path=${encodeURIComponent(path)}`,
@@ -290,10 +301,8 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     }
   }
 
-  function rejectPlan() {
-    rejectPlanRef.current?.();
-    setActivePlan(null);
-    setCenterView('file');
+  async function rejectPlan() {
+    await rejectPlanRef.current?.();
   }
 
   return (
@@ -358,8 +367,8 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
                   onChange={setFileContent}
                 />
                 <IdePublishApproval
-                  projectId={projectId}
-                  canPublish={Boolean(repository?.canManage)}
+                  projectId={freeChat ? null : projectId}
+                  canPublish={Boolean(repository?.canManage) && !freeChat}
                   path={activePath}
                   originalContent={originalContent}
                   content={fileContent}
@@ -380,7 +389,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           projectId={projectId}
           mode={mode}
           onModeChange={onModeChange}
-          onOpenRules={() => setRulesOpen(true)}
+          onOpenRules={freeChat ? undefined : () => setRulesOpen(true)}
           width={chatWidth}
           onWidthChange={onChatWidthChange}
           onPlanReady={onPlanReady}
@@ -389,7 +398,9 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
           rejectPlanRef={rejectPlanRef}
         />
       </div>
-      <IdeTaskRulesPanel projectId={projectId} open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      {!freeChat ? (
+        <IdeTaskRulesPanel projectId={projectId} open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      ) : null}
     </div>
   );
 }

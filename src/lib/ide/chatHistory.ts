@@ -174,3 +174,25 @@ export async function appendIdeChatTurns(input: {
     // Soft-fail: chat reply must still return even if history cannot persist.
   }
 }
+
+/** Permanently remove an embedded plan from a persisted turn (reject). */
+export async function clearIdeChatTurnPlan(input: {
+  organizationId: string;
+  projectId: Types.ObjectId;
+  userId: string;
+  requestId: string;
+}): Promise<boolean> {
+  const requestId = input.requestId.trim();
+  if (!requestId) return false;
+  await ensureIdeChatIndexes();
+  const result = await AiIdeChatTurn.updateOne(
+    {
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      createdByUserId: new Types.ObjectId(input.userId),
+      requestId,
+    },
+    { $unset: { plan: 1 } }
+  );
+  return (result.matchedCount ?? 0) > 0;
+}

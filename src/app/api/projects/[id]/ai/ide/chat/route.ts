@@ -13,7 +13,7 @@ import {
 } from '@/lib/ide/modes';
 import { ideChatSchema } from '@/lib/ide/ideChatSchema';
 import { loadIdeTaskRuleTexts } from '@/lib/ide/loadTaskRules';
-import { appendIdeChatTurns, loadIdeChatHistory } from '@/lib/ide/chatHistory';
+import { appendIdeChatTurns, clearIdeChatTurnPlan, loadIdeChatHistory } from '@/lib/ide/chatHistory';
 
 export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
@@ -165,6 +165,25 @@ export async function POST(request: NextRequest, context: Context) {
       employee,
       rulesApplied: ruleTexts.length,
     });
+  } catch (error) {
+    return aiError(error);
+  }
+}
+
+export async function DELETE(request: NextRequest, context: Context) {
+  try {
+    const access = await requireAiProject(request, (await context.params).id, false, true);
+    const requestId = request.nextUrl.searchParams.get('requestId')?.trim() ?? '';
+    if (!requestId) {
+      throw new AiHttpError(400, 'Provide the chat turn requestId to reject.');
+    }
+    const cleared = await clearIdeChatTurnPlan({
+      organizationId: access.organizationId,
+      projectId: access.project._id,
+      userId: access.userId,
+      requestId,
+    });
+    return aiResponse({ ok: true, cleared });
   } catch (error) {
     return aiError(error);
   }

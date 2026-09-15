@@ -29,7 +29,27 @@ import type { IdeInteractionMode, IdePlanDocument, IdeRunActivity } from '@/lib/
 import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThreadCache';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
 import { userFirstNameFromProfile } from '@/lib/utils/userDisplayName';
+import { isIdeFreeChatScope } from '@/lib/ide/freeChat';
 import type { MutableRefObject } from 'react';
+
+function ideChatEndpoint(projectId: string): string {
+  return isIdeFreeChatScope(projectId)
+    ? '/api/ai/ide/free-chat'
+    : `/api/projects/${encodeURIComponent(projectId)}/ai/ide/chat`;
+}
+
+function idePipelineEndpoint(projectId: string): string {
+  return isIdeFreeChatScope(projectId)
+    ? '/api/ai/ide/free-chat/pipeline'
+    : `/api/projects/${encodeURIComponent(projectId)}/ai/pipeline`;
+}
+
+function ideDiscoverModelsEndpoint(projectId: string, profileId: string): string {
+  const query = `profileId=${encodeURIComponent(profileId)}`;
+  return isIdeFreeChatScope(projectId)
+    ? `/api/ai/ide/free-chat/models?${query}`
+    : `/api/projects/${encodeURIComponent(projectId)}/ai/pipeline/models?${query}`;
+}
 
 type ChatTurn = {
   requestId: string;
@@ -72,13 +92,13 @@ type Props = {
   projectId: string | null;
   mode: IdeChatMode;
   onModeChange: (mode: IdeChatMode) => void;
-  onOpenRules: () => void;
+  onOpenRules?: () => void;
   width: number;
   onWidthChange: (width: number) => void;
   onPlanReady?: (plan: IdePlanDocument | null) => void;
   onRunActivity?: (activity: IdeRunActivity) => void;
   approvePlanRef?: MutableRefObject<((plan: IdePlanDocument) => void) | null>;
-  rejectPlanRef?: MutableRefObject<(() => void) | null>;
+  rejectPlanRef?: MutableRefObject<(() => void | Promise<void>) | null>;
 };
 
 const CHAT_MIN_WIDTH = 280;
@@ -142,7 +162,7 @@ export default function IdeChatPane({
   }, []);
 
   const loadPipeline = useCallback(async (id: string) => {
-    const response = await fetch(`/api/projects/${encodeURIComponent(id)}/ai/pipeline`, {
+    const response = await fetch(idePipelineEndpoint(id), {
       cache: 'no-store',
     });
     const body = await response.json();
@@ -261,10 +281,10 @@ export default function IdeChatPane({
 
     void (async () => {
       try {
-        const response = await fetch(
-          `/api/projects/${encodeURIComponent(projectId)}/ai/ide/chat?${params}`,
-          { cache: 'no-store', signal: controller.signal }
-        );
+        const response = await fetch(`${ideChatEndpoint(projectId)}?${params}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
         const body = await response.json();
         if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
@@ -320,10 +340,9 @@ export default function IdeChatPane({
       setDiscoverLoading(true);
       setDiscoverError(null);
       try {
-        const response = await fetch(
-          `/api/projects/${encodeURIComponent(id)}/ai/pipeline/models?profileId=${encodeURIComponent(profileId)}`,
-          { cache: 'no-store' }
-        );
+        const response = await fetch(ideDiscoverModelsEndpoint(id, profileId), {
+          cache: 'no-store',
+        });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? 'Unable to list models.');
         const models = (body.models ?? []) as CatalogModel[];
@@ -523,7 +542,7 @@ export default function IdeChatPane({
         .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
         .slice(-8)
         .map((turn) => ({ role: turn.role, text: turn.text }));
-      const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/ai/ide/chat`, {
+      const response = await fetch(ideChatEndpoint(projectId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -597,31 +616,53 @@ export default function IdeChatPane({
     void postChat({ text, modeForRequest: 'build', appendUserTurn: true });
   }
 
-  function rejectActivePlan() {
-    setPlanReadyFlag(false);
-    setTurns((current) => {
-      let cleared = false;
-      const next = [...current];
-      for (let index = next.length - 1; index >= 0; index -= 1) {
-        const turn = next[index];
-        if (!turn?.plan) continue;
-        const { plan: _removed, ...rest } = turn;
-        next[index] = rest;
-        cleared = true;
-        break;
+  async function rejectActivePlan() {
+    const requestIds = turnsRef.current
+      .filter((turn) => Boolean(turn.plan))
+      .map((turn) => turn.requestId);
+    if (!requestIds.length) {
+      setPlanReadyFlag(false);
+      onPlanReady?.(null);
+      return;
+    }
+    if (!projectId) {
+      setError('Unable to reject plan without a project scope.');
+      return;
+    }
+
+    try {
+      for (const requestId of requestIds) {
+        const response = await fetch(
+          `${ideChatEndpoint(projectId)}?requestId=${encodeURIComponent(requestId)}`,
+          { method: 'DELETE', cache: 'no-store' }
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            typeof body.error === 'string' ? body.error : 'Unable to reject plan.'
+          );
+        }
       }
-      if (!cleared) return current;
-      if (projectId) {
+
+      setPlanReadyFlag(false);
+      setTurns((current) => {
+        const next = current.map((turn) => {
+          if (!turn.plan) return turn;
+          const { plan: _removed, ...rest } = turn;
+          return rest;
+        });
         const key = ideChatThreadCacheKey({
           mode,
-          modelProfileId: directProfileId,
-          model: directModel,
+          modelProfileId: isIdeDirectMode(mode) ? directProfileId : undefined,
+          model: isIdeDirectMode(mode) ? directModel : undefined,
         });
         threadCacheRef.current.set(key, next);
-      }
-      return next;
-    });
-    onPlanReady?.(null);
+        return next;
+      });
+      onPlanReady?.(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to reject plan.');
+    }
   }
 
   useEffect(() => {
@@ -674,7 +715,10 @@ export default function IdeChatPane({
         }}
       />
       <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-2">
-        {ideChatModes.map((item) => (
+        {(isIdeFreeChatScope(projectId)
+          ? ideChatModes.filter((item) => item.id === 'direct')
+          : ideChatModes
+        ).map((item) => (
           <button
             key={item.id}
             type="button"
@@ -688,13 +732,15 @@ export default function IdeChatPane({
             {item.label}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={onOpenRules}
-          className="ml-auto rounded border border-border px-2 py-1 text-xs text-text-secondary"
-        >
-          Rules
-        </button>
+        {onOpenRules ? (
+          <button
+            type="button"
+            onClick={onOpenRules}
+            className="ml-auto rounded border border-border px-2 py-1 text-xs text-text-secondary"
+          >
+            Rules
+          </button>
+        ) : null}
       </div>
 
       {isIdeDirectMode(mode) ? (
@@ -833,7 +879,9 @@ export default function IdeChatPane({
       <div className="flex-1 space-y-3 overflow-auto p-3 text-sm">
         {turns.length === 0 && isIdeDirectMode(mode) ? (
           <p className="text-xs text-text-secondary">
-            Direct mode chats with one company model (great for free/local low-level tasks).
+            {isIdeFreeChatScope(projectId)
+              ? 'Free Chat is open Direct chat — pick a company model and ask about anything. Switch to a project when you need files or AI Team workers.'
+              : 'Direct mode chats with one company model (great for free/local low-level tasks).'}
           </p>
         ) : null}
         {turns.map((turn) => {

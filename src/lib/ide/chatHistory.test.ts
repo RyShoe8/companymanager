@@ -4,6 +4,7 @@ import { Types } from 'mongoose';
 const mocks = vi.hoisted(() => ({
   find: vi.fn(),
   insertMany: vi.fn(),
+  updateOne: vi.fn(),
   createIndexes: vi.fn(),
 }));
 
@@ -12,11 +13,12 @@ vi.mock('@/lib/models/AiIdeChatTurn', () => ({
   AiIdeChatTurn: {
     find: mocks.find,
     insertMany: mocks.insertMany,
+    updateOne: mocks.updateOne,
     createIndexes: mocks.createIndexes,
   },
 }));
 
-import { appendIdeChatTurns, ideThreadKeys, loadIdeChatHistory } from '@/lib/ide/chatHistory';
+import { appendIdeChatTurns, clearIdeChatTurnPlan, ideThreadKeys, loadIdeChatHistory } from '@/lib/ide/chatHistory';
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -187,5 +189,43 @@ describe('appendIdeChatTurns', () => {
         turns: [{ requestId: 'u1', role: 'user', text: 'hello' }],
       })
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('clearIdeChatTurnPlan', () => {
+  const projectId = new Types.ObjectId();
+  const userId = 'd'.repeat(24);
+
+  it('unsets plan on the scoped turn', async () => {
+    mocks.updateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
+    await expect(
+      clearIdeChatTurnPlan({
+        organizationId: 'org',
+        projectId,
+        userId,
+        requestId: ' turn-1 ',
+      })
+    ).resolves.toBe(true);
+    expect(mocks.updateOne).toHaveBeenCalledWith(
+      {
+        organizationId: 'org',
+        projectId,
+        createdByUserId: new Types.ObjectId(userId),
+        requestId: 'turn-1',
+      },
+      { $unset: { plan: 1 } }
+    );
+  });
+
+  it('returns false when requestId is empty', async () => {
+    await expect(
+      clearIdeChatTurnPlan({
+        organizationId: 'org',
+        projectId,
+        userId,
+        requestId: '   ',
+      })
+    ).resolves.toBe(false);
+    expect(mocks.updateOne).not.toHaveBeenCalled();
   });
 });

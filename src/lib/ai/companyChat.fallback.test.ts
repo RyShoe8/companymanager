@@ -160,8 +160,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
     });
   });
 
-  it('runs Nucleas web_search assist when tools fail on a factual lookup', async () => {
-    mocks.toolLoop.mockRejectedValue(new GatewayError('invalid_response'));
+  it('prefers Nucleas web_search assist before the tool loop on factual lookups', async () => {
     mocks.webSearch.mockResolvedValue({
       query: 'who are the top 5 scorers for Arsenal all time?',
       note: 'Sparse.',
@@ -187,6 +186,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
       model: 'local',
     });
 
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
     expect(mocks.webSearch).toHaveBeenCalled();
     expect(mocks.invokeModel).toHaveBeenCalled();
     const invokeArg = mocks.invokeModel.mock.calls[0]?.[1] as {
@@ -199,6 +199,76 @@ describe('attemptCompanyCredentialChat free tools', () => {
       role: 'assistant',
       text: 'Thierry Henry is Arsenal’s all-time top scorer.',
       toolsUsed: ['web_search'],
+      noProviderFee: true,
+    });
+  });
+
+  it('retries assist when tools fail with a non-GatewayError on a factual lookup', async () => {
+    mocks.webSearch
+      .mockRejectedValueOnce(new Error('search briefly unavailable'))
+      .mockResolvedValue({
+        query: 'who won the latest champions league final?',
+        note: 'Sparse.',
+        hits: [{ title: 'Final', url: 'https://example.com/f', snippet: 'Result' }],
+      });
+    mocks.toolLoop.mockRejectedValue(new Error('unexpected tool schema'));
+    mocks.invokeModel.mockResolvedValue({
+      content: 'Grounded from Nucleas search.',
+      model: 'local',
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'who won the latest champions league final?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(mocks.webSearch).toHaveBeenCalledTimes(2);
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'Grounded from Nucleas search.',
+      toolsUsed: ['web_search'],
+      noProviderFee: true,
+    });
+  });
+
+  it('retries plain invokeModel when free tools fail with a non-GatewayError', async () => {
+    mocks.toolLoop.mockRejectedValue(new Error('unexpected tool schema'));
+    mocks.invokeModel.mockResolvedValue({
+      content: 'plain after unknown tool failure',
+      model: 'local',
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'hello',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(mocks.invokeModel).toHaveBeenCalled();
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'plain after unknown tool failure',
       noProviderFee: true,
     });
   });

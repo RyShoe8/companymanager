@@ -313,57 +313,79 @@ export async function attemptCompanyCredentialChat(input: {
       } catch (plainError) {
         const retryBrowse =
           freeCredential &&
-          plainError instanceof GatewayError &&
-          (plainError.code === 'unavailable' || plainError.code === 'invalid_response');
+          (plainError instanceof GatewayError
+            ? plainError.code === 'unavailable' || plainError.code === 'invalid_response'
+            : looksLikeWebLookupQuery(input.userText));
         if (!retryBrowse) throw plainError;
         const assisted = await tryBrowseAssistPlain('Tools are disabled for this turn.');
         if (!assisted) throw plainError;
         loop = assisted;
       }
     } else {
-      try {
-        loop = await runIdeToolLoop({
-          gateway,
-          messages: [
-            { role: 'system', content: input.systemPrompt },
-            ...history,
-            { role: 'user', content: input.userText.slice(0, 6000) },
-          ],
-          maxOutputTokens,
-          includeImageTool: input.includeImageTool !== false,
-          organizationId: input.organizationId,
-          projectId: input.projectId,
-          userId: input.userId,
-          runId,
-          signal: input.signal,
-        });
-      } catch (toolError) {
-        const retryPlain =
-          toolError instanceof GatewayError &&
-          (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
-        if (!retryPlain) throw toolError;
-
-        let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
+      let resolved = false;
+      // Prefer Nucleas-side search for free factual asks — skip fragile local tool protocol.
+      if (freeCredential && looksLikeWebLookupQuery(input.userText)) {
         try {
-          assisted = await tryBrowseAssistPlain('Tools failed on this host.');
+          const assisted = await tryBrowseAssistPlain(
+            'Prefer Nucleas web_search for this factual lookup.'
+          );
+          if (assisted) {
+            loop = assisted;
+            resolved = true;
+          }
         } catch {
-          assisted = null;
+          // Fall through to the tool loop, then hardened assist/plain retry.
         }
-        if (assisted) {
-          loop = assisted;
-        } else {
-          const plain = await plainInvoke({
-            systemExtra: 'Tools failed on this host; answer from knowledge only.',
-            userContent: input.userText,
+      }
+
+      if (!resolved) {
+        try {
+          loop = await runIdeToolLoop({
+            gateway,
+            messages: [
+              { role: 'system', content: input.systemPrompt },
+              ...history,
+              { role: 'user', content: input.userText.slice(0, 6000) },
+            ],
+            maxOutputTokens,
+            includeImageTool: input.includeImageTool !== false,
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            userId: input.userId,
+            runId,
+            signal: input.signal,
           });
-          loop = {
-            content: plain.content,
-            toolCallsMade: [],
-            artifacts: [],
-            inputTokens: plain.inputTokens,
-            outputTokens: plain.outputTokens,
-            latencyMs: plain.latencyMs,
-          };
+        } catch (toolError) {
+          const retryableGateway =
+            toolError instanceof GatewayError &&
+            (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
+          // Free/local: retry assist/plain on any tool-loop failure (incl. non-GatewayError).
+          if (!freeCredential && !retryableGateway) throw toolError;
+
+          let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
+          try {
+            assisted = await tryBrowseAssistPlain('Tools failed on this host.');
+          } catch (assistError) {
+            // Do not swallow lookup assist failures into knowledge-only plain.
+            if (looksLikeWebLookupQuery(input.userText)) throw assistError;
+            assisted = null;
+          }
+          if (assisted) {
+            loop = assisted;
+          } else {
+            const plain = await plainInvoke({
+              systemExtra: 'Tools failed on this host; answer from knowledge only.',
+              userContent: input.userText,
+            });
+            loop = {
+              content: plain.content,
+              toolCallsMade: [],
+              artifacts: [],
+              inputTokens: plain.inputTokens,
+              outputTokens: plain.outputTokens,
+              latencyMs: plain.latencyMs,
+            };
+          }
         }
       }
     }

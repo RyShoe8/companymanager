@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { IDE_FREE_CHAT_SCOPE, isIdeFreeChatScope } from '@/lib/ide/freeChat';
 
 type ProjectOption = { id: string; name: string };
 
@@ -33,6 +34,14 @@ export default function IdeProjectRepoSwitcher({ projectId, onProjectChange, onR
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const sortedProjects = useMemo(
+    () =>
+      [...projects].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
+    [projects]
+  );
+
+  const freeChat = isIdeFreeChatScope(projectId);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -43,7 +52,7 @@ export default function IdeProjectRepoSwitcher({ projectId, onProjectChange, onR
         if (cancelled) return;
         const list = (body.projects ?? []) as ProjectOption[];
         setProjects(list);
-        if (!projectId && list[0]) onProjectChange(list[0].id);
+        if (!projectId) onProjectChange(IDE_FREE_CHAT_SCOPE);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load projects.');
       }
@@ -54,7 +63,7 @@ export default function IdeProjectRepoSwitcher({ projectId, onProjectChange, onR
   }, [projectId, onProjectChange]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || freeChat) {
       setRepository(null);
       onRepositoryChange(null);
       setEditing(false);
@@ -96,11 +105,11 @@ export default function IdeProjectRepoSwitcher({ projectId, onProjectChange, onR
     return () => {
       cancelled = true;
     };
-  }, [projectId, onRepositoryChange]);
+  }, [projectId, freeChat, onRepositoryChange]);
 
   async function saveBinding(event: React.FormEvent) {
     event.preventDefault();
-    if (!projectId || !repository?.canManage) return;
+    if (!projectId || freeChat || !repository?.canManage) return;
     setSaving(true);
     setError('');
     try {
@@ -136,12 +145,16 @@ export default function IdeProjectRepoSwitcher({ projectId, onProjectChange, onR
     }
   }
 
-  const repoLabel = repository?.repository
-    ? `${repository.repository.owner}/${repository.repository.repo}@${repository.repository.defaultBranch}`
-    : 'No repo linked';
+  const repoLabel = freeChat
+    ? 'Open chat · no project repo'
+    : repository?.repository
+      ? `${repository.repository.owner}/${repository.repository.repo}@${repository.repository.defaultBranch}`
+      : 'No repo linked';
   const needsInstall =
     Boolean(repository?.repository) && !repository?.repository?.installationId;
-  const showForm = Boolean(projectId && repository && (editing || !repository.repository || needsInstall));
+  const showForm = Boolean(
+    projectId && !freeChat && repository && (editing || !repository.repository || needsInstall)
+  );
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -149,11 +162,11 @@ export default function IdeProjectRepoSwitcher({ projectId, onProjectChange, onR
         Project
         <select
           className="rounded border border-border bg-background px-2 py-1 text-text-primary"
-          value={projectId ?? ''}
+          value={projectId ?? IDE_FREE_CHAT_SCOPE}
           onChange={(event) => onProjectChange(event.target.value)}
         >
-          {projects.length === 0 ? <option value="">No projects</option> : null}
-          {projects.map((project) => (
+          <option value={IDE_FREE_CHAT_SCOPE}>Free Chat</option>
+          {sortedProjects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
             </option>
@@ -162,9 +175,9 @@ export default function IdeProjectRepoSwitcher({ projectId, onProjectChange, onR
       </label>
       <span className="text-text-secondary truncate max-w-[18rem]" title={repoLabel}>
         {repoLabel}
-        {needsInstall ? ' · needs installation ID' : ''}
+        {needsInstall && !freeChat ? ' · needs installation ID' : ''}
       </span>
-      {projectId && repository?.repository && repository.canManage ? (
+      {projectId && !freeChat && repository?.repository && repository.canManage ? (
         <button
           type="button"
           className="rounded border border-border px-2 py-0.5 text-xs text-text-secondary"
