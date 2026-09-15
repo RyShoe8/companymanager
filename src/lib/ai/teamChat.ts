@@ -523,7 +523,7 @@ export async function attemptTeamChatReply(input: {
       input.userText.slice(0, 4000),
       '',
       'Planner briefing / jobs:',
-      plannerTurn.text.slice(0, 6000),
+      plannerTurn.text.slice(0, 1500),
     ].join('\n'),
     priorTurns: [],
   });

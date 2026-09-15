@@ -221,6 +221,11 @@ export default function IdeChatPane({
     return () => controller.abort();
   }, []);
 
+  function persistDirectSelection(profileId: string, model: string) {
+    if (!projectId || !profileId.trim() || !model.trim()) return;
+    writeStoredIdeDirectSelection(projectId, { profileId, model });
+  }
+
   const loadPipeline = useCallback(async (id: string) => {
     const response = await fetch(idePipelineEndpoint(id), {
       cache: 'no-store',
@@ -246,14 +251,6 @@ export default function IdeChatPane({
     setDirectModel(stored?.model ?? '');
     void loadPipeline(projectId).catch(() => undefined);
   }, [projectId, loadPipeline]);
-
-  useEffect(() => {
-    if (!projectId || !directProfileId.trim() || !directModel.trim()) return;
-    writeStoredIdeDirectSelection(projectId, {
-      profileId: directProfileId,
-      model: directModel,
-    });
-  }, [projectId, directProfileId, directModel]);
 
   useEffect(() => {
     if (!projectId) {
@@ -296,7 +293,7 @@ export default function IdeChatPane({
       if (!directProfileId.trim() || !directModel.trim()) return `${projectId}:direct:pending`;
       return `${projectId}:direct:${directProfileId}:${directModel}`;
     }
-    return `${projectId}:worker:${mode}`;
+    return `${projectId}:worker`;
   }, [projectId, mode, directProfileId, directModel]);
 
   useEffect(() => {
@@ -423,6 +420,7 @@ export default function IdeChatPane({
         setDiscoverError(body.error ?? null);
         if (models[0] && !directModel.trim()) {
           setDirectModel(models[0].id);
+          if (projectId) persistDirectSelection(profileId, models[0].id);
         }
       } catch (err) {
         setDiscovered([]);
@@ -447,6 +445,7 @@ export default function IdeChatPane({
     const models = catalogModelsForDirect;
     if (models[0] && !directModel.trim()) {
       setDirectModel(models[0].id);
+      persistDirectSelection(directProfileId, models[0].id);
     }
   }, [mode, directProfileId, isCustomDirect, catalogModelsForDirect, directModel]);
 
@@ -899,7 +898,11 @@ export default function IdeChatPane({
                   className={`${field} mt-1`}
                   value={directModels.some((item) => item.id === directModel) ? directModel : ''}
                   disabled={!projectId || busy || !directProfileId || discoverLoading || directModels.length === 0}
-                  onChange={(event) => setDirectModel(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setDirectModel(next);
+                    persistDirectSelection(directProfileId, next);
+                  }}
                 >
                   <option value="">{discoverLoading ? 'Loading…' : 'Select…'}</option>
                   {directModels.map((item) => (

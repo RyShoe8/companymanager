@@ -3,13 +3,12 @@ import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThrea
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
 
 describe('ideChatThreadCacheKey', () => {
-  it('keys worker modes by project and mode', () => {
+  it('shares one worker transcript key per project', () => {
     expect(
       ideChatThreadCacheKey({ projectId: 'projA', mode: 'product', modelProfileId: 'x', model: 'y' })
-    ).toBe('projA:worker:product');
-    expect(
-      ideChatThreadCacheKey({ projectId: 'projB', mode: 'product' })
-    ).toBe('projB:worker:product');
+    ).toBe('projA:worker');
+    expect(ideChatThreadCacheKey({ projectId: 'projA', mode: 'engineering' })).toBe('projA:worker');
+    expect(ideChatThreadCacheKey({ projectId: 'projB', mode: 'product' })).toBe('projB:worker');
   });
 
   it('keys Direct by project, profile, and model', () => {

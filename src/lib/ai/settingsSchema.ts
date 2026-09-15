@@ -15,7 +15,7 @@ export const platformAiSettingsSchema = z.object({
   model: z.string().trim().min(1).max(200), noProviderFee: z.boolean(),
   dailyRequestLimit: z.number().int().min(1).max(10000).default(48),
   minimumIntervalSeconds: z.number().int().min(1).max(86400).default(300),
-  maxOutputTokens: z.number().int().min(256).max(4096).default(2048),
+  maxOutputTokens: z.number().int().min(256).max(4096).default(3072),
   reservationMicros: micros, organizationLimitMicros: micros, projectLimitMicros: micros,
   /** Complimentary Nucleas credit ceiling (display / funding reference). */
   freePoolLimitMicros: micros.default(0),
@@ -38,7 +38,7 @@ export const defaultPlatformAiSettings: PlatformAiSettings = {
   planningEnabled: true, remoteEnabled: false, dispatchEnabled: false, protocol: 'openai-chat',
   endpoint: 'https://llm.rogly.net/v1/chat/completions', model: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ',
   noProviderFee: false, reservationMicros: 0, organizationLimitMicros: 0, projectLimitMicros: 0,
-  dailyRequestLimit: 48, minimumIntervalSeconds: 300, maxOutputTokens: 2048,
+  dailyRequestLimit: 48, minimumIntervalSeconds: 300, maxOutputTokens: 3072,
   freePoolLimitMicros: 0, freePoolRemainingMicros: 0,
 };
 export const aiBudgetSettingsSchema = z.object({ limitMicros: micros.nullable(), paused: z.boolean().default(false) }).strict();

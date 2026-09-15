@@ -62,9 +62,14 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [activePath, setActivePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
-  const [mode, setMode] = useState<IdeChatMode>(
-    isIdeFreeChatScope(initialProjectId ?? IDE_FREE_CHAT_SCOPE) ? 'direct' : 'engineering'
-  );
+  const [mode, setMode] = useState<IdeChatMode>(() => {
+    const initial = initialProjectId ?? IDE_FREE_CHAT_SCOPE;
+    if (isIdeFreeChatScope(initial)) return 'direct';
+    if (typeof window !== 'undefined') {
+      return readStoredIdeChatMode(initial) ?? 'engineering';
+    }
+    return 'engineering';
+  });
   const [rulesOpen, setRulesOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(352);
   const [centerView, setCenterView] = useState<'file' | 'plan'>('file');

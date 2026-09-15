@@ -30,7 +30,7 @@ describe('shared inference limits', () => {
   it('adds conservative defaults to stored legacy settings', () => {
     const legacy = { ...defaultPlatformAiSettings } as Record<string, unknown>;
     delete legacy.dailyRequestLimit; delete legacy.minimumIntervalSeconds; delete legacy.maxOutputTokens;
-    expect(platformAiSettingsSchema.parse(legacy)).toMatchObject({ ...limits, maxOutputTokens: 2048 });
+    expect(platformAiSettingsSchema.parse(legacy)).toMatchObject({ ...limits, maxOutputTokens: 3072 });
   });
   it.each([{ dailyRequestLimit: 0 }, { minimumIntervalSeconds: 0 }, { maxOutputTokens: 4097 }, { dailyRequestLimit: 1.5 }])('rejects invalid limits %j', value => {
     expect(platformAiSettingsSchema.safeParse({ ...defaultPlatformAiSettings, ...value }).success).toBe(false);

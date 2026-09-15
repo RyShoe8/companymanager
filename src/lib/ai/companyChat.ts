@@ -27,6 +27,7 @@ import {
   looksLikeWebLookupQuery,
   userTextWithBrowseContext,
 } from '@/lib/ai/tools/serverBrowseAssist';
+import { formatRepoAssistContext, gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
 import { estimateCostMicros } from '@/lib/ai/pricing/modelRates';
 import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
@@ -87,6 +88,7 @@ function looksLikeToolNeedyQuery(text: string): boolean {
 
 type ChatPhase =
   | 'proactive_browse'
+  | 'repo_assist'
   | 'plain_first'
   | 'tool_loop'
   | 'browse_assist_retry'
@@ -310,8 +312,11 @@ export async function attemptCompanyCredentialChat(input: {
     .map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.text.slice(0, 2000) }));
 
   // Reasoning models count reasoning tokens against max_completion_tokens; keep headroom for visible text.
-  const chatTokenCap = usesMaxCompletionTokens(gateway.model) ? 4096 : 1024;
-  const maxOutputTokens = Math.min(chatTokenCap, policy.maxOutputTokens);
+  // Free/local hosts: 3072 (3× prior 1024), not clipped by older Admin defaults of 2048. Sol/o-series: 4096.
+  const chatTokenCap = usesMaxCompletionTokens(gateway.model) ? 4096 : 3072;
+  const maxOutputTokens = freeCredential
+    ? chatTokenCap
+    : Math.min(chatTokenCap, policy.maxOutputTokens);
 
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>> | undefined;
@@ -415,6 +420,45 @@ export async function attemptCompanyCredentialChat(input: {
       };
     }
 
+    async function tryRepoAssistPlain(systemExtra: string): Promise<{
+      content: string;
+      toolCallsMade: string[];
+      artifacts: ToolArtifact[];
+      inputTokens: number | null;
+      outputTokens: number | null;
+      latencyMs: number;
+    } | null> {
+      if (!freeCredential || !repoToolsOn) return null;
+      if (!projectInternal && !input.forceToolLoop) return null;
+      phase = 'repo_assist';
+      const dig = await gatherRepoAssistContext({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        userText: input.userText,
+      });
+      browseAssisted = true;
+      const block = formatRepoAssistContext(dig);
+      const plain = await plainInvoke({
+        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran repo_tree/repo_read; ground your answer in the provided repository dig. If the dig says the repo is unbound, tell the user to bind GitHub / connect the GitHub App.`,
+        userContent: userTextWithBrowseContext(input.userText, block),
+      });
+      return {
+        content: plain.content,
+        toolCallsMade: dig.toolsUsed.length ? dig.toolsUsed : ['repo_tree'],
+        artifacts: [],
+        inputTokens: plain.inputTokens,
+        outputTokens: plain.outputTokens,
+        latencyMs: plain.latencyMs,
+      };
+    }
+
+    function isEmptyLengthToolFailure(error: unknown): boolean {
+      if (!(error instanceof GatewayError) || error.code !== 'invalid_response') return false;
+      const kind = error.details?.kind;
+      const finishReason = error.details?.finishReason;
+      return kind === 'empty_content' || finishReason === 'length';
+    }
+
     async function runToolLoopPhase() {
       phase = 'tool_loop';
       return runIdeToolLoop({
@@ -500,6 +544,20 @@ export async function attemptCompanyCredentialChat(input: {
         }
       }
 
+      if (!resolved && (projectInternal || Boolean(input.forceToolLoop)) && repoToolsOn) {
+        try {
+          const assisted = await tryRepoAssistPlain(
+            'Prefer Nucleas repo dig for this project-internal question.'
+          );
+          if (assisted) {
+            loop = assisted;
+            resolved = true;
+          }
+        } catch (repoError) {
+          lastError = repoError;
+        }
+      }
+
       if (!resolved && !preferToolLoop) {
         phase = 'plain_first';
         try {
@@ -531,10 +589,11 @@ export async function attemptCompanyCredentialChat(input: {
           let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
           try {
             assisted =
+              (await tryRepoAssistPlain('Tools failed or returned empty on this host.')) ??
               (await tryImageAssistPlain('Tools failed on this host.')) ??
               (await tryBrowseAssistPlain('Tools failed on this host.'));
           } catch (assistError) {
-            lastError = assistError;
+            lastError = isEmptyLengthToolFailure(toolError) ? toolError : assistError;
             assisted = null;
           }
           if (assisted) {
@@ -545,8 +604,8 @@ export async function attemptCompanyCredentialChat(input: {
             try {
               const plain = await plainInvoke({
                 systemExtra:
-                  (isLookup || isImageLookup) && browseAssisted
-                    ? 'Tools and browse assist failed; answer from knowledge only. Do not call tools.'
+                  (isLookup || isImageLookup || projectInternal) && browseAssisted
+                    ? 'Tools and assist failed; answer from knowledge only. Do not call tools.'
                     : 'Tools failed on this host; answer from knowledge only. Do not call tools.',
                 userContent: input.userText,
               });

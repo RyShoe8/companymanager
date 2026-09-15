@@ -103,7 +103,7 @@ describe('loadIdeChatHistory', () => {
       organizationId: 'org',
       projectId,
       createdByUserId: new Types.ObjectId(userId),
-      mode: 'engineering',
+      mode: { $in: ['marketing', 'product', 'support', 'engineering', 'researcher'] },
       directProfileId: '',
       directModel: '',
     });

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   createEvent: vi.fn(),
   findBudget: vi.fn(),
   webSearch: vi.fn(),
+  repoAssist: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -38,6 +39,10 @@ vi.mock('@/lib/ai/control/dispatchLimits', () => ({
 }));
 vi.mock('@/lib/ai/tools/runToolLoop', () => ({ runIdeToolLoop: mocks.toolLoop }));
 vi.mock('@/lib/ai/tools/webSearch', () => ({ webSearch: mocks.webSearch }));
+vi.mock('@/lib/ai/tools/serverRepoAssist', () => ({
+  gatherRepoAssistContext: mocks.repoAssist,
+  formatRepoAssistContext: (result: { contextBlock: string }) => result.contextBlock,
+}));
 vi.mock('@nucleas/ai-core/gateway', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@nucleas/ai-core/gateway')>();
   return { ...actual, invokeModel: mocks.invokeModel };
@@ -75,6 +80,8 @@ beforeEach(() => {
   mocks.findUpdateRun.mockResolvedValue({ _id: runId, revision: 1 });
   mocks.createEvent.mockResolvedValue([]);
   mocks.findBudget.mockResolvedValue({ _id: new Types.ObjectId() });
+  // Default: repo assist unavailable so free digs still exercise the tool loop.
+  mocks.repoAssist.mockRejectedValue(new Error('repo assist offline'));
   mocks.gatewayFromProfile.mockResolvedValue({
     gateway: {
       endpoint: 'https://rogly.example/v1/chat/completions',
@@ -263,7 +270,46 @@ describe('attemptCompanyCredentialChat free tools', () => {
     });
   });
 
-  it('forces the tool loop for project-internal rules questions on free credentials', async () => {
+  it('uses Nucleas repo assist for project-internal rules questions on free credentials', async () => {
+    mocks.repoAssist.mockResolvedValue({
+      ok: true,
+      note: 'Read 2 file(s).',
+      toolsUsed: ['repo_tree', 'repo_read'],
+      contextBlock: 'Repository dig: task rules in IdeTaskRulesPanel',
+    });
+    mocks.invokeModel.mockResolvedValue({
+      content: 'Task rules live in IdeTaskRulesPanel and loadIdeTaskRuleTexts.',
+      inputTokens: 10,
+      outputTokens: 20,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'what does our rules system do and how exactly does it work?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: true,
+    });
+
+    expect(mocks.webSearch).not.toHaveBeenCalled();
+    expect(mocks.repoAssist).toHaveBeenCalled();
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
+    expect(mocks.invokeModel).toHaveBeenCalled();
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      toolsUsed: ['repo_tree', 'repo_read'],
+      noProviderFee: true,
+      costMicros: 0,
+    });
+  });
+
+  it('falls back to the tool loop for project-internal asks when repo assist fails', async () => {
     mocks.toolLoop.mockResolvedValue({
       content: 'Task rules live in IdeTaskRulesPanel and loadIdeTaskRuleTexts.',
       toolCallsMade: ['repo_tree', 'repo_read'],
@@ -286,7 +332,6 @@ describe('attemptCompanyCredentialChat free tools', () => {
     });
 
     expect(mocks.webSearch).not.toHaveBeenCalled();
-    expect(mocks.invokeModel).not.toHaveBeenCalled();
     expect(mocks.toolLoop).toHaveBeenCalled();
     expect(turn).toMatchObject({
       role: 'assistant',

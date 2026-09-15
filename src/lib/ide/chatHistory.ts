@@ -1,12 +1,15 @@
 import 'server-only';
 import { Types } from 'mongoose';
 import type { IdeChatMode } from '@/lib/ide/modes';
-import { isIdeDirectMode } from '@/lib/ide/modes';
+import { ideChatModes, isIdeDirectMode, isIdeWorkerMode } from '@/lib/ide/modes';
 import type { IdePlanDocument } from '@/lib/ide/idePlan';
 import { AiIdeChatTurn } from '@/lib/models/AiIdeChatTurn';
 import { isMongoDuplicateKeyError } from '@/lib/utils/mongoErrors';
 
 const HISTORY_LIMIT = 50;
+const WORKER_HISTORY_MODES = ideChatModes
+  .map((item) => item.id)
+  .filter((id): id is Exclude<IdeChatMode, 'direct'> => isIdeWorkerMode(id));
 
 let indexesReady: Promise<void> | undefined;
 
@@ -133,11 +136,14 @@ export async function loadIdeChatHistory(input: {
   }
   await ensureIdeChatIndexes();
   const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
+  const modeFilter = isIdeDirectMode(keys.mode)
+    ? { mode: keys.mode }
+    : { mode: { $in: WORKER_HISTORY_MODES } };
   const rows = await AiIdeChatTurn.find({
     organizationId: input.organizationId,
     projectId: input.projectId,
     createdByUserId: new Types.ObjectId(input.userId),
-    mode: keys.mode,
+    ...modeFilter,
     directProfileId: keys.directProfileId,
     directModel: keys.directModel,
   })
