@@ -34,6 +34,18 @@ describe('transactional budget repository', () => {
     await settleRunBudget('org-a', runId, null);
     expect(mongoose.startSession).not.toHaveBeenCalled();
   });
+  it('no-ops settling zero when the run never reserved budget', async () => {
+    vi.spyOn(AiBudgetReservation, 'find').mockReturnValue({
+      session: async () => [],
+    } as unknown as ReturnType<typeof AiBudgetReservation.find>);
+    await expect(settleRunBudget('org-a', runId, 0)).resolves.toBeUndefined();
+  });
+  it('still requires reservations when settling a positive amount', async () => {
+    vi.spyOn(AiBudgetReservation, 'find').mockReturnValue({
+      session: async () => [],
+    } as unknown as ReturnType<typeof AiBudgetReservation.find>);
+    await expect(settleRunBudget('org-a', runId, 25)).rejects.toThrow('Reservation missing');
+  });
   it('does not reserve twice for the same run and scope', async () => {
     vi.mocked(AiBudgetReservation.findOne).mockReturnValue({ session: async () => ({ state: 'reserved', amountMicros: 25 }) } as unknown as ReturnType<typeof AiBudgetReservation.findOne>);
     const update = vi.spyOn(AiBudget, 'updateOne');

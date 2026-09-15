@@ -172,44 +172,48 @@ export async function attemptCompanyCredentialChat(input: {
     failureCode?: string;
     result?: { inputTokens?: number | null; outputTokens?: number | null; latencyMs?: number | null };
   }) {
-    await aiTransaction(async (session) => {
-      await settleRunBudget(input.organizationId, runId, args.actualMicros, session);
-      if (noProviderFee && reservationMicros > 0) {
-        await decrementFreePoolRemaining(reservationMicros, session);
-      }
-      const run = await AiRun.findOneAndUpdate(
-        { _id: runId, organizationId: input.organizationId, projectId: input.projectId },
-        {
-          $set: {
-            status: args.status,
-            completedAt: new Date(),
-            ...(args.failureCode ? { failureCode: args.failureCode } : {}),
-            ...(args.result?.inputTokens != null ? { inputTokens: args.result.inputTokens } : {}),
-            ...(args.result?.outputTokens != null ? { outputTokens: args.result.outputTokens } : {}),
-            ...(args.result?.latencyMs != null ? { latencyMs: args.result.latencyMs } : {}),
-            ...(args.actualMicros !== null ? { costMicros: args.actualMicros } : {}),
-          },
-          $inc: { revision: 1 },
-        },
-        { session, new: true }
-      );
-      if (run) {
-        await AiRunEvent.create(
-          [
-            {
-              organizationId: input.organizationId,
-              projectId: input.projectId,
-              runId: run._id,
-              sequence: run.revision,
-              type: `run.${args.status}`,
-              summary: args.summary.slice(0, 2000),
+    try {
+      await aiTransaction(async (session) => {
+        await settleRunBudget(input.organizationId, runId, args.actualMicros, session);
+        if (noProviderFee && reservationMicros > 0) {
+          await decrementFreePoolRemaining(reservationMicros, session);
+        }
+        const run = await AiRun.findOneAndUpdate(
+          { _id: runId, organizationId: input.organizationId, projectId: input.projectId },
+          {
+            $set: {
+              status: args.status,
+              completedAt: new Date(),
+              ...(args.failureCode ? { failureCode: args.failureCode } : {}),
+              ...(args.result?.inputTokens != null ? { inputTokens: args.result.inputTokens } : {}),
+              ...(args.result?.outputTokens != null ? { outputTokens: args.result.outputTokens } : {}),
+              ...(args.result?.latencyMs != null ? { latencyMs: args.result.latencyMs } : {}),
+              ...(args.actualMicros !== null ? { costMicros: args.actualMicros } : {}),
             },
-          ],
-          { session }
+            $inc: { revision: 1 },
+          },
+          { session, new: true }
         );
-      }
-    });
-    await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).catch(() => undefined);
+        if (run) {
+          await AiRunEvent.create(
+            [
+              {
+                organizationId: input.organizationId,
+                projectId: input.projectId,
+                runId: run._id,
+                sequence: run.revision,
+                type: `run.${args.status}`,
+                summary: args.summary.slice(0, 2000),
+              },
+            ],
+            { session }
+          );
+        }
+      });
+    } finally {
+      // Always clear the shared lock, even if settle/Mongo fails mid-finish.
+      await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).catch(() => undefined);
+    }
   }
 
   if (input.signal?.aborted) {

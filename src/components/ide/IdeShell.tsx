@@ -8,6 +8,10 @@ import IdeProjectRepoSwitcher from '@/components/ide/IdeProjectRepoSwitcher';
 import IdePublishApproval from '@/components/ide/IdePublishApproval';
 import IdeTaskRulesPanel from '@/components/ide/IdeTaskRulesPanel';
 import type { IdeChatMode } from '@/lib/ide/modes';
+import {
+  readStoredIdeChatMode,
+  writeStoredIdeChatMode,
+} from '@/lib/ide/chatSelectionStorage';
 
 type TreeEntry = { name: string; path: string; type: 'file' | 'dir'; sha: string };
 
@@ -51,6 +55,20 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const stored = readStoredIdeChatMode(projectId);
+    if (stored) setMode(stored);
+  }, [projectId]);
+
+  const onModeChange = useCallback(
+    (next: IdeChatMode) => {
+      setMode(next);
+      if (projectId) writeStoredIdeChatMode(projectId, next);
+    },
+    [projectId]
+  );
 
   const onChatWidthChange = useCallback((next: number) => {
     setChatWidth(next);
@@ -196,7 +214,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
         <IdeChatPane
           projectId={projectId}
           mode={mode}
-          onModeChange={setMode}
+          onModeChange={onModeChange}
           onOpenRules={() => setRulesOpen(true)}
           width={chatWidth}
           onWidthChange={onChatWidthChange}

@@ -126,46 +126,49 @@ async function finishStageCall(input: {
     latencyMs?: number | null;
   };
 }) {
-  await aiTransaction(async (session) => {
-    await settleRunBudget(input.organizationId, input.runId, input.actualMicros, session);
-    if (input.noProviderFee && (input.reservationMicros ?? 0) > 0) {
-      await decrementFreePoolRemaining(input.reservationMicros!, session);
-    }
-    const run = await AiRun.findOneAndUpdate(
-      { _id: input.runId, organizationId: input.organizationId, projectId: input.projectId },
-      {
-        $set: {
-          status: input.status,
-          completedAt: new Date(),
-          summary: input.summary.slice(0, 2000),
-          ...(input.failureCode ? { failureCode: input.failureCode } : {}),
-          ...(input.result?.model ? { model: input.result.model } : {}),
-          ...(input.result?.inputTokens != null ? { inputTokens: input.result.inputTokens } : {}),
-          ...(input.result?.outputTokens != null ? { outputTokens: input.result.outputTokens } : {}),
-          ...(input.result?.latencyMs != null ? { latencyMs: input.result.latencyMs } : {}),
-          ...(input.actualMicros !== null ? { costMicros: input.actualMicros } : {}),
-        },
-        $inc: { revision: 1 },
-      },
-      { session, new: true }
-    );
-    if (run) {
-      await AiRunEvent.create(
-        [
-          {
-            organizationId: input.organizationId,
-            projectId: input.projectId,
-            runId: run._id,
-            sequence: run.revision,
-            type: `run.${input.status}`,
+  try {
+    await aiTransaction(async (session) => {
+      await settleRunBudget(input.organizationId, input.runId, input.actualMicros, session);
+      if (input.noProviderFee && (input.reservationMicros ?? 0) > 0) {
+        await decrementFreePoolRemaining(input.reservationMicros!, session);
+      }
+      const run = await AiRun.findOneAndUpdate(
+        { _id: input.runId, organizationId: input.organizationId, projectId: input.projectId },
+        {
+          $set: {
+            status: input.status,
+            completedAt: new Date(),
             summary: input.summary.slice(0, 2000),
+            ...(input.failureCode ? { failureCode: input.failureCode } : {}),
+            ...(input.result?.model ? { model: input.result.model } : {}),
+            ...(input.result?.inputTokens != null ? { inputTokens: input.result.inputTokens } : {}),
+            ...(input.result?.outputTokens != null ? { outputTokens: input.result.outputTokens } : {}),
+            ...(input.result?.latencyMs != null ? { latencyMs: input.result.latencyMs } : {}),
+            ...(input.actualMicros !== null ? { costMicros: input.actualMicros } : {}),
           },
-        ],
-        { session }
+          $inc: { revision: 1 },
+        },
+        { session, new: true }
       );
-    }
-  });
-  await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: input.lockToken }).catch(() => undefined);
+      if (run) {
+        await AiRunEvent.create(
+          [
+            {
+              organizationId: input.organizationId,
+              projectId: input.projectId,
+              runId: run._id,
+              sequence: run.revision,
+              type: `run.${input.status}`,
+              summary: input.summary.slice(0, 2000),
+            },
+          ],
+          { session }
+        );
+      }
+    });
+  } finally {
+    await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: input.lockToken }).catch(() => undefined);
+  }
 }
 
 /** One governed model call using a UI-managed model profile. */

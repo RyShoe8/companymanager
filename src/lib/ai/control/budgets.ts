@@ -31,7 +31,11 @@ export async function settleRunBudget(organizationId: string, runId: Types.Objec
   assertBudgetReservation(Number.MAX_SAFE_INTEGER, 0, 0, actualMicros);
   await aiTransaction(async (session) => {
       const reservations = await AiBudgetReservation.find({ organizationId, runId }).session(session);
-      if (!reservations.length) throw new Error('Reservation missing.');
+      // Free/local chats often reserve $0 and create no reservation rows; settling 0 is a no-op.
+      if (!reservations.length) {
+        if (actualMicros === 0) return;
+        throw new Error('Reservation missing.');
+      }
       for (const reservation of reservations) {
         if (reservation.state === 'settled') {
           if (reservation.actualMicros !== actualMicros) throw new Error('Usage mismatch.');

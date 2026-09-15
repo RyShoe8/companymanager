@@ -10,6 +10,10 @@ import {
   isIdeWorkerMode,
   type IdeChatMode,
 } from '@/lib/ide/modes';
+import {
+  readStoredIdeDirectSelection,
+  writeStoredIdeDirectSelection,
+} from '@/lib/ide/chatSelectionStorage';
 import { companyDisplayName, FLAGSHIP_MODEL_OPTION_STYLE, modelOptionLabel } from '@/lib/ai/rolePipeline/providerCatalog';
 import { ModelMetaStrip } from '@/components/ai/ModelMetaStrip';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
@@ -109,10 +113,23 @@ export default function IdeChatPane({
       setProfiles([]);
       setCatalog([]);
       setPipelines([]);
+      setDirectProfileId('');
+      setDirectModel('');
       return;
     }
+    const stored = readStoredIdeDirectSelection(projectId);
+    setDirectProfileId(stored?.profileId ?? '');
+    setDirectModel(stored?.model ?? '');
     void loadPipeline(projectId).catch(() => undefined);
   }, [projectId, loadPipeline]);
+
+  useEffect(() => {
+    if (!projectId || !directProfileId.trim() || !directModel.trim()) return;
+    writeStoredIdeDirectSelection(projectId, {
+      profileId: directProfileId,
+      model: directModel,
+    });
+  }, [projectId, directProfileId, directModel]);
 
   useEffect(() => {
     abortRef.current?.abort();
