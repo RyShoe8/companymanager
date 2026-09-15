@@ -86,10 +86,12 @@ export default function IdeChatPane({
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sendGenerationRef = useRef(0);
+  const historyGenerationRef = useRef(0);
 
   const loadPipeline = useCallback(async (id: string) => {
     const response = await fetch(`/api/projects/${encodeURIComponent(id)}/ai/pipeline`, {
@@ -116,9 +118,49 @@ export default function IdeChatPane({
     abortRef.current?.abort();
     abortRef.current = null;
     sendGenerationRef.current += 1;
+    const generation = ++historyGenerationRef.current;
     setBusy(false);
     setTurns([]);
     setError('');
+
+    if (!projectId) {
+      setHistoryLoading(false);
+      return;
+    }
+    if (isIdeDirectMode(mode) && (!directProfileId || !directModel.trim())) {
+      setHistoryLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setHistoryLoading(true);
+    const params = new URLSearchParams({ mode });
+    if (isIdeDirectMode(mode)) {
+      params.set('modelProfileId', directProfileId);
+      params.set('model', directModel);
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/projects/${encodeURIComponent(projectId)}/ai/ide/chat?${params}`,
+          { cache: 'no-store', signal: controller.signal }
+        );
+        if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
+        const body = await response.json();
+        if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
+        if (!response.ok) throw new Error(body.error ?? 'Unable to load chat history.');
+        setTurns((body.turns ?? []) as ChatTurn[]);
+      } catch (err) {
+        if (generation !== historyGenerationRef.current || controller.signal.aborted) return;
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Unable to load chat history.');
+      } finally {
+        if (generation === historyGenerationRef.current) setHistoryLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
   }, [projectId, mode, directProfileId, directModel]);
 
   useEffect(() => {
@@ -259,7 +301,7 @@ export default function IdeChatPane({
   }
 
   async function send() {
-    if (!projectId || !draft.trim() || busy) return;
+    if (!projectId || !draft.trim() || busy || historyLoading) return;
     if (isIdeDirectMode(mode) && (!directProfileId || !directModel.trim())) {
       setError('Pick a company and model for Direct chat.');
       return;
@@ -479,12 +521,9 @@ export default function IdeChatPane({
       )}
 
       <div className="flex-1 space-y-3 overflow-auto p-3 text-sm">
-        {turns.length === 0 ? (
+        {turns.length === 0 && isIdeDirectMode(mode) ? (
           <p className="text-xs text-text-secondary">
-            {isIdeDirectMode(mode)
-              ? 'Direct mode chats with one company model (great for free/local low-level tasks).'
-              : 'Pick an AI Team role. Chat uses that role’s Worker company/model (with search, fetch, and image tools when available).'}
-
+            Direct mode chats with one company model (great for free/local low-level tasks).
           </p>
         ) : null}
         {turns.map((turn) => {
@@ -556,7 +595,7 @@ export default function IdeChatPane({
           className="mb-2 h-20 w-full resize-none rounded border border-border bg-background p-2 text-sm text-text-primary"
           placeholder={projectId ? 'Message…' : 'Select a project first'}
           value={draft}
-          disabled={!projectId || busy}
+          disabled={!projectId || busy || historyLoading}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -573,10 +612,10 @@ export default function IdeChatPane({
           <button
             type="button"
             className="w-full rounded border border-border px-3 py-2 text-sm disabled:opacity-50"
-            disabled={!projectId || !draft.trim() || !canSendDirect}
+            disabled={!projectId || !draft.trim() || !canSendDirect || historyLoading}
             onClick={() => void send()}
           >
-            Send
+            {historyLoading ? 'Loading…' : 'Send'}
           </button>
         )}
       </div>

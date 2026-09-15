@@ -94,7 +94,8 @@ export async function getChatInferencePolicy(organizationId: string, projectId: 
 export async function getPipelineInferencePolicy(
   organizationId: string,
   projectId: string,
-  session?: ClientSession
+  session?: ClientSession,
+  options?: { requirePositiveReservation?: boolean }
 ) {
   const platform = await readPlatformSettings(session);
   const organization = await readBudgetSettings(organizationId, undefined, session);
@@ -112,7 +113,11 @@ export async function getPipelineInferencePolicy(
     organizationLimitMicros,
     project.value.limitMicros ?? settings.projectLimitMicros
   );
-  if (settings.reservationMicros <= 0 || settings.reservationMicros > projectLimitMicros) {
+  const requirePositiveReservation = options?.requirePositiveReservation !== false;
+  if (
+    requirePositiveReservation &&
+    (settings.reservationMicros <= 0 || settings.reservationMicros > projectLimitMicros)
+  ) {
     throw new GatewayError('configuration');
   }
   if (session) {
@@ -121,7 +126,7 @@ export async function getPipelineInferencePolicy(
     await fenceSettings(budgetSettingsId(organizationId, projectId), project.revision, session);
   }
   const policy = {
-    reservationMicros: settings.reservationMicros,
+    reservationMicros: Math.max(0, settings.reservationMicros),
     organizationLimitMicros,
     projectLimitMicros,
     noProviderFee: settings.noProviderFee,

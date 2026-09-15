@@ -1,21 +1,98 @@
 import { NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
 import { requireAiProject } from '@/lib/ai/control/access';
 import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { attemptTeamChatReply } from '@/lib/ai/teamChat';
 import { attemptDirectModelChat } from '@/lib/ai/ideDirectChat';
-import { employeeForIdeMode, isIdeDirectMode, isIdeWorkerMode } from '@/lib/ide/modes';
+import {
+  employeeForIdeMode,
+  isIdeChatMode,
+  isIdeDirectMode,
+  isIdeWorkerMode,
+  normalizeIdeChatMode,
+} from '@/lib/ide/modes';
 import { ideChatSchema } from '@/lib/ide/ideChatSchema';
 import { loadIdeTaskRuleTexts } from '@/lib/ide/loadTaskRules';
+import { appendIdeChatTurns, loadIdeChatHistory } from '@/lib/ide/chatHistory';
+import { ensureAiIndexes } from '@/lib/ai/control/indexes';
 
 export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
 
+export async function GET(request: NextRequest, context: Context) {
+  try {
+    const access = await requireAiProject(request, (await context.params).id, false, true);
+    await ensureAiIndexes();
+    const modeRaw = request.nextUrl.searchParams.get('mode')?.trim() ?? '';
+    const mode = normalizeIdeChatMode(modeRaw);
+    if (!mode || !isIdeChatMode(mode)) {
+      return aiError(Object.assign(new Error('Invalid IDE chat mode.'), { status: 400 }));
+    }
+    const modelProfileId = request.nextUrl.searchParams.get('modelProfileId')?.trim() ?? '';
+    const model = request.nextUrl.searchParams.get('model')?.trim() ?? '';
+    const turns = await loadIdeChatHistory({
+      organizationId: access.organizationId,
+      projectId: access.project._id,
+      userId: access.userId,
+      mode,
+      modelProfileId: isIdeDirectMode(mode) ? modelProfileId : undefined,
+      model: isIdeDirectMode(mode) ? model : undefined,
+    });
+    return aiResponse({ mode, turns });
+  } catch (error) {
+    return aiError(error);
+  }
+}
+
 export async function POST(request: NextRequest, context: Context) {
   try {
     const access = await requireAiProject(request, (await context.params).id, false, true);
+    await ensureAiIndexes();
     const input = ideChatSchema.parse(await readAiBody(request));
     const mode = input.mode;
     const ruleTexts = await loadIdeTaskRuleTexts(access.organizationId, access.project._id, mode);
+    const userRequestId = randomUUID();
+
+    const persistPair = async (reply: {
+      requestId: string;
+      role: 'user' | 'assistant' | 'status';
+      text: string;
+      failureCategory?: string;
+      runId?: string;
+      costMicros?: number | null;
+      reservedMicros?: number | null;
+      noProviderFee?: boolean;
+      toolsUsed?: string[];
+      artifacts?: { kind: 'image'; assetId: string; name: string; url: string }[];
+    }) => {
+      await appendIdeChatTurns({
+        organizationId: access.organizationId,
+        projectId: access.project._id,
+        userId: access.userId,
+        mode,
+        modelProfileId: input.modelProfileId,
+        model: input.model,
+        turns: [
+          {
+            requestId: userRequestId,
+            role: 'user',
+            text: input.text,
+          },
+          {
+            requestId: reply.requestId,
+            role: reply.role,
+            text: reply.text,
+            failureCategory: reply.failureCategory ?? null,
+            runId: reply.runId ?? null,
+            costMicros: reply.costMicros ?? null,
+            reservedMicros: reply.reservedMicros ?? null,
+            noProviderFee: reply.noProviderFee ?? false,
+            toolsUsed: reply.toolsUsed ?? [],
+            artifacts: reply.artifacts ?? [],
+          },
+        ],
+      }).catch(() => undefined);
+    };
 
     if (isIdeDirectMode(mode)) {
       const turn = await attemptDirectModelChat({
@@ -30,6 +107,7 @@ export async function POST(request: NextRequest, context: Context) {
         ruleTexts,
         signal: request.signal,
       });
+      await persistPair(turn);
       return aiResponse({
         turn: {
           requestId: turn.requestId,
@@ -66,6 +144,7 @@ export async function POST(request: NextRequest, context: Context) {
       ruleTexts,
       signal: request.signal,
     });
+    await persistPair(turn);
     return aiResponse({
       turn: {
         requestId: turn.requestId,

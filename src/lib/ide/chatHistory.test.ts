@@ -1,0 +1,155 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Types } from 'mongoose';
+
+const mocks = vi.hoisted(() => ({
+  find: vi.fn(),
+  insertMany: vi.fn(),
+}));
+
+vi.mock('server-only', () => ({}));
+vi.mock('@/lib/models/AiIdeChatTurn', () => ({
+  AiIdeChatTurn: {
+    find: mocks.find,
+    insertMany: mocks.insertMany,
+  },
+}));
+
+import { appendIdeChatTurns, ideThreadKeys, loadIdeChatHistory } from '@/lib/ide/chatHistory';
+
+beforeEach(() => {
+  vi.resetAllMocks();
+});
+
+describe('ideThreadKeys', () => {
+  it('clears Direct keys for worker modes', () => {
+    expect(ideThreadKeys({ mode: 'product', modelProfileId: 'p', model: 'm' })).toEqual({
+      mode: 'product',
+      directProfileId: '',
+      directModel: '',
+    });
+  });
+
+  it('scopes Direct threads by profile and model', () => {
+    expect(
+      ideThreadKeys({
+        mode: 'direct',
+        modelProfileId: ' profile-a ',
+        model: ' local/model ',
+      })
+    ).toEqual({
+      mode: 'direct',
+      directProfileId: 'profile-a',
+      directModel: 'local/model',
+    });
+  });
+});
+
+describe('loadIdeChatHistory', () => {
+  const projectId = new Types.ObjectId();
+  const userId = 'b'.repeat(24);
+
+  it('returns empty for Direct without profile/model', async () => {
+    await expect(
+      loadIdeChatHistory({
+        organizationId: 'org',
+        projectId,
+        userId,
+        mode: 'direct',
+      })
+    ).resolves.toEqual([]);
+    expect(mocks.find).not.toHaveBeenCalled();
+  });
+
+  it('queries the scoped thread newest-first then reverses', async () => {
+    mocks.find.mockReturnValue({
+      sort: (spec: unknown) => {
+        expect(spec).toEqual({ _id: -1 });
+        return {
+          limit: () => ({
+            maxTimeMS: () => ({
+              lean: () =>
+                Promise.resolve([
+                  {
+                    requestId: 'r2',
+                    role: 'assistant',
+                    text: 'hi',
+                    createdAt: new Date('2026-01-02'),
+                  },
+                  {
+                    requestId: 'r1',
+                    role: 'user',
+                    text: 'yo',
+                    createdAt: new Date('2026-01-01'),
+                  },
+                ]),
+            }),
+          }),
+        };
+      },
+    });
+
+    const turns = await loadIdeChatHistory({
+      organizationId: 'org',
+      projectId,
+      userId,
+      mode: 'engineering',
+    });
+    expect(mocks.find).toHaveBeenCalledWith({
+      organizationId: 'org',
+      projectId,
+      createdByUserId: new Types.ObjectId(userId),
+      mode: 'engineering',
+      directProfileId: '',
+      directModel: '',
+    });
+    expect(turns.map((item) => item.requestId)).toEqual(['r1', 'r2']);
+  });
+});
+
+describe('appendIdeChatTurns', () => {
+  const projectId = new Types.ObjectId();
+  const userId = 'c'.repeat(24);
+
+  it('skips Direct append without selection', async () => {
+    await appendIdeChatTurns({
+      organizationId: 'org',
+      projectId,
+      userId,
+      mode: 'direct',
+      turns: [{ requestId: 'a', role: 'user', text: 'x' }],
+    });
+    expect(mocks.insertMany).not.toHaveBeenCalled();
+  });
+
+  it('persists Direct turns with profile and model keys', async () => {
+    mocks.insertMany.mockResolvedValue([]);
+    await appendIdeChatTurns({
+      organizationId: 'org',
+      projectId,
+      userId,
+      mode: 'direct',
+      modelProfileId: 'prof',
+      model: 'gpt',
+      turns: [
+        { requestId: 'u1', role: 'user', text: 'hello' },
+        { requestId: 'a1', role: 'assistant', text: 'world' },
+      ],
+    });
+    expect(mocks.insertMany).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          mode: 'direct',
+          directProfileId: 'prof',
+          directModel: 'gpt',
+          requestId: 'u1',
+          role: 'user',
+        }),
+        expect.objectContaining({
+          requestId: 'a1',
+          role: 'assistant',
+        }),
+      ],
+      { ordered: false }
+    );
+  });
+});

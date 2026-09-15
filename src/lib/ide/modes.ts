@@ -9,11 +9,19 @@ const legacyIdeModeToEmployee = {
 
 type LegacyIdeMode = keyof typeof legacyIdeModeToEmployee;
 
+const ideEmployeeShortLabels: Record<AiEmployeeKey, string> = {
+  marketing: 'Marketing',
+  product: 'Product Manager',
+  support: 'Support',
+  engineering: 'Engineering',
+  researcher: 'Researcher',
+};
+
 /** IDE chat modes: one tab per AI Team role + Direct single-model chat. */
 export const ideChatModes = [
   ...aiEmployees.map((role) => ({
     id: role.id,
-    label: role.name,
+    label: ideEmployeeShortLabels[role.id],
     employee: role.id as AiEmployeeKey,
   })),
   { id: 'direct' as const, label: 'Direct', employee: null },

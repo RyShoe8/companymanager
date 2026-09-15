@@ -3,7 +3,7 @@ import { defaultPlatformAiSettings } from '@/lib/ai/settingsSchema';
 const mocks = vi.hoisted(() => ({ platform: vi.fn(), budget: vi.fn(), fence: vi.fn() }));
 vi.mock('./settings', () => ({ readPlatformSettings: mocks.platform, readBudgetSettings: mocks.budget,
   fenceSettings: mocks.fence, platformSettingsId: 'platform-v1', budgetSettingsId: (org: string, project?: string) => org + (project ?? '') }));
-import { getPlanningPolicy, isAiPlanningEnabled } from './config';
+import { getPlanningPolicy, getPipelineInferencePolicy, isAiPlanningEnabled } from './config';
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -47,5 +47,39 @@ describe('database-backed planning policy', () => {
     expect((await getPlanningPolicy('org', 'project')).digest).toBe(digest);
     (await mocks.platform()).revision++;
     expect((await getPlanningPolicy('org', 'project')).digest).not.toBe(digest);
+  });
+});
+
+describe('pipeline inference policy reservation', () => {
+  it('allows free/local admission when reservationMicros is zero', async () => {
+    mocks.platform.mockResolvedValue({
+      revision: 0,
+      value: {
+        ...defaultPlatformAiSettings,
+        remoteEnabled: true,
+        dispatchEnabled: true,
+        reservationMicros: 0,
+        organizationLimitMicros: 100,
+        projectLimitMicros: 75,
+      },
+    });
+    await expect(
+      getPipelineInferencePolicy('org', 'project', undefined, { requirePositiveReservation: false })
+    ).resolves.toMatchObject({ reservationMicros: 0 });
+  });
+
+  it('still requires a positive reservation for paid credentials by default', async () => {
+    mocks.platform.mockResolvedValue({
+      revision: 0,
+      value: {
+        ...defaultPlatformAiSettings,
+        remoteEnabled: true,
+        dispatchEnabled: true,
+        reservationMicros: 0,
+        organizationLimitMicros: 100,
+        projectLimitMicros: 75,
+      },
+    });
+    await expect(getPipelineInferencePolicy('org', 'project')).rejects.toThrow();
   });
 });

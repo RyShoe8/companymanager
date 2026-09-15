@@ -42,6 +42,8 @@ function appendArtifacts(text: string, artifacts: ToolArtifact[]): string {
   return `${text}\n\n${safe.join('\n')}`.slice(0, 8000);
 }
 
+import { companyChatAdmissionMessage } from '@/lib/ai/companyChatAdmission';
+
 /**
  * Governed IDE chat via a company credential (Direct or AI Team Worker binding).
  * Runs the image/browse tool loop when the host supports tools.
@@ -73,10 +75,17 @@ export async function attemptCompanyCredentialChat(input: {
   const lockToken = randomUUID();
   let runId: Types.ObjectId;
   let policy: Awaited<ReturnType<typeof getPipelineInferencePolicy>>;
+  let reservationMicros = 0;
 
   try {
     const admitted = await aiTransaction(async (session) => {
-      policy = await getPipelineInferencePolicy(input.organizationId, String(input.projectId), session);
+      policy = await getPipelineInferencePolicy(
+        input.organizationId,
+        String(input.projectId),
+        session,
+        { requirePositiveReservation: !freeCredential }
+      );
+      reservationMicros = freeCredential ? 0 : policy.reservationMicros;
       const now = new Date();
       const lock = await AiDispatchLock.findById(DISPATCH_USAGE_ID).session(session);
       if (lock && lock.expiresAt > now) throw new GatewayError('unavailable');
@@ -115,36 +124,41 @@ export async function attemptCompanyCredentialChat(input: {
         { session }
       );
 
-      const period = now.toISOString().slice(0, 7);
-      const budgetIds: Types.ObjectId[] = [];
-      for (const [scopeKey, limitMicros] of [
-        ['organization', policy.organizationLimitMicros],
-        [`project:${String(input.projectId)}`, policy.projectLimitMicros],
-      ] as const) {
-        const budget = await AiBudget.findOneAndUpdate(
-          { organizationId: input.organizationId, scopeKey, period },
-          { $set: { limitMicros }, $setOnInsert: { spentMicros: 0, reservedMicros: 0 } },
-          { session, upsert: true, new: true, runValidators: true }
-        );
-        budgetIds.push(budget._id);
+      if (reservationMicros > 0) {
+        const period = now.toISOString().slice(0, 7);
+        const budgetIds: Types.ObjectId[] = [];
+        for (const [scopeKey, limitMicros] of [
+          ['organization', policy.organizationLimitMicros],
+          [`project:${String(input.projectId)}`, policy.projectLimitMicros],
+        ] as const) {
+          const budget = await AiBudget.findOneAndUpdate(
+            { organizationId: input.organizationId, scopeKey, period },
+            { $set: { limitMicros }, $setOnInsert: { spentMicros: 0, reservedMicros: 0 } },
+            { session, upsert: true, new: true, runValidators: true }
+          );
+          budgetIds.push(budget._id);
+        }
+        await reserveRunBudget(input.organizationId, run._id, budgetIds, reservationMicros, session);
       }
-      await reserveRunBudget(input.organizationId, run._id, budgetIds, policy.reservationMicros, session);
       await AiRun.updateOne(
         { _id: run._id },
         { $set: { status: 'running', startedAt: now }, $inc: { revision: 1 } },
         { session }
       );
-      return { runId: run._id, policy };
+      return { runId: run._id, policy, reservationMicros };
     });
     runId = admitted.runId;
     policy = admitted.policy;
+    reservationMicros = admitted.reservationMicros;
   } catch (error) {
     await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).catch(() => undefined);
     if (error instanceof GatewayError) {
-      return statusTurn('Chat could not be admitted.', error.code);
+      return statusTurn(companyChatAdmissionMessage(error.code), error.code);
     }
     return statusTurn(
-      'Chat needs processing enabled and a positive reservation within budget ceilings.',
+      freeCredential
+        ? 'Enable Remote connection and Processing in Admin → AI Settings before free/local chat can run.'
+        : 'Paid chat needs processing enabled and a positive reservation within budget ceilings.',
       'unavailable'
     );
   }
@@ -160,8 +174,8 @@ export async function attemptCompanyCredentialChat(input: {
   }) {
     await aiTransaction(async (session) => {
       await settleRunBudget(input.organizationId, runId, args.actualMicros, session);
-      if (noProviderFee && policy.reservationMicros > 0) {
-        await decrementFreePoolRemaining(policy.reservationMicros, session);
+      if (noProviderFee && reservationMicros > 0) {
+        await decrementFreePoolRemaining(reservationMicros, session);
       }
       const run = await AiRun.findOneAndUpdate(
         { _id: runId, organizationId: input.organizationId, projectId: input.projectId },
@@ -207,7 +221,7 @@ export async function attemptCompanyCredentialChat(input: {
     }).catch(() => undefined);
     return statusTurn('The chat request was cancelled before completion.', 'cancelled', String(runId), {
       costMicros: noProviderFee ? 0 : null,
-      reservedMicros: policy.reservationMicros,
+      reservedMicros: reservationMicros,
       noProviderFee,
     });
   }
@@ -247,7 +261,7 @@ export async function attemptCompanyCredentialChat(input: {
         'The model returned an empty reply. No assistant content was stored.',
         'invalid_response',
         String(runId),
-        { costMicros: noProviderFee ? 0 : null, reservedMicros: policy.reservationMicros, noProviderFee }
+        { costMicros: noProviderFee ? 0 : null, reservedMicros: reservationMicros, noProviderFee }
       );
     }
 
@@ -264,7 +278,7 @@ export async function attemptCompanyCredentialChat(input: {
       text: content,
       runId: String(runId),
       costMicros: settled,
-      reservedMicros: policy.reservationMicros,
+      reservedMicros: reservationMicros,
       noProviderFee,
       artifacts: loop.artifacts,
       toolsUsed: loop.toolCallsMade,
@@ -289,13 +303,13 @@ export async function attemptCompanyCredentialChat(input: {
       };
       return statusTurn(messagesByCode[error.code], error.code, String(runId), {
         costMicros: noProviderFee ? 0 : null,
-        reservedMicros: policy.reservationMicros,
+        reservedMicros: reservationMicros,
         noProviderFee,
       });
     }
     return statusTurn('The model call failed.', failureCode, String(runId), {
       costMicros: noProviderFee ? 0 : null,
-      reservedMicros: policy.reservationMicros,
+      reservedMicros: reservationMicros,
       noProviderFee,
     });
   }

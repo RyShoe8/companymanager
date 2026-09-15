@@ -128,11 +128,13 @@ export async function buildTeamContextSummary(
     );
   }
   try {
-    await getPipelineInferencePolicy(organizationId, String(projectId));
+    await getPipelineInferencePolicy(organizationId, String(projectId), undefined, {
+      requirePositiveReservation: false,
+    });
   } catch {
     return unavailableContext(
       projectName,
-      'Chat inference needs a positive request reservation within organization and project budget ceilings, with remote connection and processing enabled.',
+      'Enable Remote connection and Processing in Admin → AI Settings before IDE chat can run.',
       settings,
       counts
     );
