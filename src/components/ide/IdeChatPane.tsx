@@ -55,6 +55,8 @@ type ChatTurn = {
   requestId: string;
   role: 'user' | 'assistant' | 'status';
   text: string;
+  failureCategory?: string | null;
+  debugHint?: string | null;
   costMicros?: number | null;
   reservedMicros?: number | null;
   noProviderFee?: boolean;
@@ -912,6 +914,9 @@ export default function IdeChatPane({
                     : 'Assistant'}
               </div>
               <div className="whitespace-pre-wrap text-text-primary">{turn.text}</div>
+              {turn.role === 'status' && turn.debugHint ? (
+                <p className="mt-1 font-mono text-[10px] text-text-secondary break-all">{turn.debugHint}</p>
+              ) : null}
               {turn.toolsUsed?.length ? (
                 <div className="mt-1 text-[11px] text-text-secondary">
                   Tools: {turn.toolsUsed.join(', ')}

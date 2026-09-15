@@ -9,6 +9,7 @@ export type WebSearchHit = {
 /**
  * Bounded web search. Uses DuckDuckGo Instant Answer (no key) when available;
  * returns empty hits rather than inventing results.
+ * Never throws except when the caller signal is already aborted / cancelled.
  */
 export async function webSearch(
   query: string,
@@ -37,12 +38,17 @@ export async function webSearch(
       await response.body?.cancel();
       return { query: q, hits: [], note: 'Search provider returned an error.' };
     }
-    const body = (await response.json()) as {
+    let body: {
       AbstractText?: string;
       AbstractURL?: string;
       Heading?: string;
       RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: unknown }>;
     };
+    try {
+      body = (await response.json()) as typeof body;
+    } catch {
+      return { query: q, hits: [], note: 'Search unavailable.' };
+    }
     const hits: WebSearchHit[] = [];
     if (body.AbstractURL && body.AbstractText) {
       hits.push({
@@ -68,6 +74,11 @@ export async function webSearch(
         ? 'Results from DuckDuckGo Instant Answer (may be sparse). Prefer web_fetch on concrete URLs.'
         : 'No Instant Answer hits. Ask for a concrete URL or try a more specific query.',
     };
+  } catch (error) {
+    if (options.signal?.aborted || (error instanceof Error && error.message === 'Search cancelled.')) {
+      throw error instanceof Error ? error : new Error('Search cancelled.');
+    }
+    return { query: q, hits: [], note: 'Search unavailable.' };
   } finally {
     clearTimeout(timeout);
     options.signal?.removeEventListener('abort', cancel);

@@ -33,7 +33,12 @@ function statusTurn(
   text: string,
   failureCategory: string,
   runId?: string,
-  cost?: { costMicros?: number | null; reservedMicros?: number | null; noProviderFee?: boolean }
+  cost?: {
+    costMicros?: number | null;
+    reservedMicros?: number | null;
+    noProviderFee?: boolean;
+    debugHint?: string;
+  }
 ): TeamChatTurn {
   return {
     requestId: randomUUID(),
@@ -44,6 +49,7 @@ function statusTurn(
     ...(cost?.costMicros !== undefined ? { costMicros: cost.costMicros } : {}),
     ...(cost?.reservedMicros !== undefined ? { reservedMicros: cost.reservedMicros } : {}),
     ...(cost?.noProviderFee !== undefined ? { noProviderFee: cost.noProviderFee } : {}),
+    ...(cost?.debugHint ? { debugHint: cost.debugHint.slice(0, 400) } : {}),
   };
 }
 
@@ -51,6 +57,45 @@ function appendArtifacts(text: string, artifacts: ToolArtifact[]): string {
   if (!artifacts.length) return text;
   const safe = artifacts.map((item) => `- Generated image: ${item.name} (asset ${item.assetId})`);
   return `${text}\n\n${safe.join('\n')}`.slice(0, 8000);
+}
+
+const TOOL_NEEDY =
+  /\b(image|generate|draw|screenshot|browse|fetch|navigate|web[_ ]?search|search the web)\b/i;
+
+function looksLikeToolNeedyQuery(text: string): boolean {
+  return TOOL_NEEDY.test(text.trim());
+}
+
+type ChatPhase =
+  | 'proactive_browse'
+  | 'plain_first'
+  | 'tool_loop'
+  | 'browse_assist_retry'
+  | 'plain_retry'
+  | 'empty_content';
+
+function formatDebugHint(parts: Record<string, string | number | boolean | null | undefined>): string {
+  return Object.entries(parts)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(' ')
+    .slice(0, 400);
+}
+
+function gatewayDebugParts(error: unknown): Record<string, string | number | boolean | null | undefined> {
+  if (!(error instanceof GatewayError)) {
+    return { err: error instanceof Error ? error.name : 'unknown' };
+  }
+  const details = error.details;
+  return {
+    code: error.code,
+    kind: details?.kind,
+    httpStatus: details?.httpStatus,
+    finishReason: details?.finishReason,
+    contentChars: details?.contentChars,
+    hasToolCalls: details?.hasToolCalls,
+    hasReasoning: details?.hasReasoning,
+  };
 }
 
 import { companyChatAdmissionMessage } from '@/lib/ai/companyChatAdmission';
@@ -246,7 +291,11 @@ export async function attemptCompanyCredentialChat(input: {
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>> | undefined;
     let browseAssisted = false;
+    let phase: ChatPhase = 'tool_loop';
+    let lastError: unknown;
     const usePlain = Boolean(input.forcePlain);
+    const isLookup = looksLikeWebLookupQuery(input.userText);
+    const toolNeedy = looksLikeToolNeedyQuery(input.userText);
 
     async function plainInvoke(args: {
       systemExtra: string;
@@ -278,12 +327,12 @@ export async function attemptCompanyCredentialChat(input: {
       outputTokens: number | null;
       latencyMs: number;
     } | null> {
-      if (!freeCredential || !looksLikeWebLookupQuery(input.userText)) return null;
+      if (!freeCredential || !isLookup) return null;
       const search = await webSearch(input.userText, { signal: input.signal });
       browseAssisted = true;
       const block = formatWebSearchContext(search);
       const plain = await plainInvoke({
-        systemExtra: `${systemExtra} Nucleas already ran web_search; ground your answer in the provided results.`,
+        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran web_search; ground your answer in the provided results.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
       return {
@@ -296,10 +345,30 @@ export async function attemptCompanyCredentialChat(input: {
       };
     }
 
+    async function runToolLoopPhase() {
+      phase = 'tool_loop';
+      return runIdeToolLoop({
+        gateway,
+        messages: [
+          { role: 'system', content: input.systemPrompt },
+          ...history,
+          { role: 'user', content: input.userText.slice(0, 6000) },
+        ],
+        maxOutputTokens,
+        includeImageTool: input.includeImageTool !== false,
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        userId: input.userId,
+        runId,
+        signal: input.signal,
+      });
+    }
+
     if (usePlain) {
+      phase = 'plain_first';
       try {
         const plain = await plainInvoke({
-          systemExtra: 'Tools are disabled for this turn; answer from knowledge only.',
+          systemExtra: 'Tools are disabled for this turn; answer from knowledge only. Do not call tools.',
           userContent: input.userText,
         });
         loop = {
@@ -311,20 +380,23 @@ export async function attemptCompanyCredentialChat(input: {
           latencyMs: plain.latencyMs,
         };
       } catch (plainError) {
+        lastError = plainError;
         const retryBrowse =
           freeCredential &&
           (plainError instanceof GatewayError
             ? plainError.code === 'unavailable' || plainError.code === 'invalid_response'
-            : looksLikeWebLookupQuery(input.userText));
+            : isLookup);
         if (!retryBrowse) throw plainError;
+        phase = 'browse_assist_retry';
         const assisted = await tryBrowseAssistPlain('Tools are disabled for this turn.');
         if (!assisted) throw plainError;
         loop = assisted;
       }
-    } else {
+    } else if (freeCredential) {
       let resolved = false;
-      // Prefer Nucleas-side search for free factual asks — skip fragile local tool protocol.
-      if (freeCredential && looksLikeWebLookupQuery(input.userText)) {
+
+      if (isLookup) {
+        phase = 'proactive_browse';
         try {
           const assisted = await tryBrowseAssistPlain(
             'Prefer Nucleas web_search for this factual lookup.'
@@ -333,73 +405,130 @@ export async function attemptCompanyCredentialChat(input: {
             loop = assisted;
             resolved = true;
           }
-        } catch {
-          // Fall through to the tool loop, then hardened assist/plain retry.
+        } catch (browseError) {
+          lastError = browseError;
+          // Fall through to plain / tools; never surface raw search errors alone.
         }
       }
 
-      if (!resolved) {
+      if (!resolved && !toolNeedy) {
+        phase = 'plain_first';
         try {
-          loop = await runIdeToolLoop({
-            gateway,
-            messages: [
-              { role: 'system', content: input.systemPrompt },
-              ...history,
-              { role: 'user', content: input.userText.slice(0, 6000) },
-            ],
-            maxOutputTokens,
-            includeImageTool: input.includeImageTool !== false,
-            organizationId: input.organizationId,
-            projectId: input.projectId,
-            userId: input.userId,
-            runId,
-            signal: input.signal,
+          const plain = await plainInvoke({
+            systemExtra: 'Answer directly and briefly. Do not call tools.',
+            userContent: input.userText,
           });
-        } catch (toolError) {
-          const retryableGateway =
-            toolError instanceof GatewayError &&
-            (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
-          // Free/local: retry assist/plain on any tool-loop failure (incl. non-GatewayError).
-          if (!freeCredential && !retryableGateway) throw toolError;
+          loop = {
+            content: plain.content,
+            toolCallsMade: [],
+            artifacts: [],
+            inputTokens: plain.inputTokens,
+            outputTokens: plain.outputTokens,
+            latencyMs: plain.latencyMs,
+          };
+          resolved = true;
+        } catch (plainError) {
+          lastError = plainError;
+        }
+      }
 
+      if (!resolved && (toolNeedy || !loop)) {
+        try {
+          loop = await runToolLoopPhase();
+          resolved = true;
+        } catch (toolError) {
+          lastError = toolError;
+          phase = 'browse_assist_retry';
           let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
           try {
             assisted = await tryBrowseAssistPlain('Tools failed on this host.');
           } catch (assistError) {
-            // Do not swallow lookup assist failures into knowledge-only plain.
-            if (looksLikeWebLookupQuery(input.userText)) throw assistError;
+            lastError = assistError;
             assisted = null;
           }
           if (assisted) {
             loop = assisted;
+            resolved = true;
           } else {
-            const plain = await plainInvoke({
-              systemExtra: 'Tools failed on this host; answer from knowledge only.',
-              userContent: input.userText,
-            });
-            loop = {
-              content: plain.content,
-              toolCallsMade: [],
-              artifacts: [],
-              inputTokens: plain.inputTokens,
-              outputTokens: plain.outputTokens,
-              latencyMs: plain.latencyMs,
-            };
+            phase = 'plain_retry';
+            try {
+              const plain = await plainInvoke({
+                systemExtra:
+                  isLookup && browseAssisted
+                    ? 'Tools and browse assist failed; answer from knowledge only. Do not call tools.'
+                    : 'Tools failed on this host; answer from knowledge only. Do not call tools.',
+                userContent: input.userText,
+              });
+              loop = {
+                content: plain.content,
+                toolCallsMade: [],
+                artifacts: [],
+                inputTokens: plain.inputTokens,
+                outputTokens: plain.outputTokens,
+                latencyMs: plain.latencyMs,
+              };
+              resolved = true;
+            } catch (plainError) {
+              lastError = plainError;
+              if (isLookup && browseAssisted === false) {
+                throw new GatewayError('unavailable', {
+                  ...(plainError instanceof GatewayError ? plainError.details : {}),
+                  kind: 'browse_unavailable',
+                });
+              }
+              throw plainError;
+            }
           }
         }
+      }
+
+      if (!resolved || !loop) {
+        throw lastError instanceof Error
+          ? lastError
+          : new GatewayError('invalid_response', { kind: 'unresolved' });
+      }
+    } else {
+      try {
+        loop = await runToolLoopPhase();
+      } catch (toolError) {
+        lastError = toolError;
+        const retryableGateway =
+          toolError instanceof GatewayError &&
+          (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
+        if (!retryableGateway) throw toolError;
+        phase = 'plain_retry';
+        const plain = await plainInvoke({
+          systemExtra: 'Tools failed on this host; answer from knowledge only. Do not call tools.',
+          userContent: input.userText,
+        });
+        loop = {
+          content: plain.content,
+          toolCallsMade: [],
+          artifacts: [],
+          inputTokens: plain.inputTokens,
+          outputTokens: plain.outputTokens,
+          latencyMs: plain.latencyMs,
+        };
       }
     }
 
     if (!loop) {
-      throw new GatewayError('invalid_response');
+      throw new GatewayError('invalid_response', { kind: 'unresolved', contentChars: 0 });
     }
 
     const content = appendArtifacts(loop.content, loop.artifacts).trim();
     if (!content) {
+      phase = 'empty_content';
+      const hint = formatDebugHint({
+        phase,
+        browseAssisted,
+        contentChars: 0,
+        tools: loop.toolCallsMade.join(',') || 'none',
+      });
       await finish({
         actualMicros: noProviderFee ? 0 : null,
         status: 'blocked',
-        summary: 'Model returned empty chat content.',
+        summary: `Model returned empty chat content. ${hint}`.slice(0, 500),
         failureCode: 'invalid_response',
         result: loop,
       });
@@ -409,7 +538,12 @@ export async function attemptCompanyCredentialChat(input: {
           : 'The model returned an empty reply. No assistant content was stored.',
         'invalid_response',
         String(runId),
-        { costMicros: noProviderFee ? 0 : null, reservedMicros: reservationMicros, noProviderFee }
+        {
+          costMicros: noProviderFee ? 0 : null,
+          reservedMicros: reservationMicros,
+          noProviderFee,
+          debugHint: hint,
+        }
       );
     }
 
@@ -417,7 +551,10 @@ export async function attemptCompanyCredentialChat(input: {
     await finish({
       actualMicros: settled,
       status: 'completed',
-      summary: `Chat completed${loop.toolCallsMade.length ? ` with tools: ${loop.toolCallsMade.join(',')}` : ''}${browseAssisted ? ' (Nucleas browse assist)' : ''}.`,
+      summary: `Chat completed${loop.toolCallsMade.length ? ` with tools: ${loop.toolCallsMade.join(',')}` : ''}${browseAssisted ? ' (Nucleas browse assist)' : ''} phase=${phase}.`.slice(
+        0,
+        500
+      ),
       result: loop,
     });
     return {
@@ -433,10 +570,15 @@ export async function attemptCompanyCredentialChat(input: {
     };
   } catch (error) {
     const failureCode = error instanceof GatewayError ? error.code : classifyProbeFailure(error);
+    const hint = formatDebugHint({
+      phase: 'failed',
+      ...gatewayDebugParts(error),
+      probe: failureCode,
+    });
     await finish({
       actualMicros: noProviderFee ? 0 : null,
       status: 'blocked',
-      summary: 'Chat model/tool call failed after admission.',
+      summary: `Chat model/tool call failed after admission. ${hint}`.slice(0, 500),
       failureCode,
     }).catch(() => undefined);
 
@@ -446,7 +588,9 @@ export async function attemptCompanyCredentialChat(input: {
         credentials: 'Remote authentication was rejected.',
         rate_limit: 'The remote provider rate-limited this request.',
         unavailable: freeCredential
-          ? 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
+          ? error.details?.kind === 'browse_unavailable'
+            ? 'Nucleas web search could not ground this answer and the local model did not return usable text. Try again or pick another model.'
+            : 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
           : 'The remote model endpoint was unreachable or returned an error.',
         invalid_response: freeCredential
           ? 'This free/local host returned an invalid response. Check that the model id is loaded and the endpoint accepts the request (including tools if used). Browse may have run on Nucleas without usable model text.'
@@ -457,12 +601,14 @@ export async function attemptCompanyCredentialChat(input: {
         costMicros: noProviderFee ? 0 : null,
         reservedMicros: reservationMicros,
         noProviderFee,
+        debugHint: hint,
       });
     }
     return statusTurn('The model call failed.', failureCode, String(runId), {
       costMicros: noProviderFee ? 0 : null,
       reservedMicros: reservationMicros,
       noProviderFee,
+      debugHint: hint,
     });
   }
 }

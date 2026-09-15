@@ -10,7 +10,18 @@ import {
 } from '@nucleas/ai-contracts';
 import { z } from 'zod';
 
+export type GatewayErrorDetails = {
+  kind: string;
+  httpStatus?: number;
+  finishReason?: string | null;
+  contentChars?: number;
+  hasToolCalls?: boolean;
+  hasReasoning?: boolean;
+};
+
 export class GatewayError extends Error {
+  readonly details?: GatewayErrorDetails;
+
   constructor(
     public readonly code:
       | 'configuration'
@@ -18,9 +29,11 @@ export class GatewayError extends Error {
       | 'rate_limit'
       | 'unavailable'
       | 'invalid_response'
-      | 'cancelled'
+      | 'cancelled',
+    details?: GatewayErrorDetails
   ) {
     super(`Model gateway: ${code}`);
+    this.details = details;
   }
 }
 
@@ -39,6 +52,7 @@ const responseSchema = z.object({
       z.object({
         message: z.object({
           content: z.string().max(128000).nullable().optional(),
+          reasoning_content: z.string().max(128000).nullable().optional(),
           tool_calls: z.array(z.unknown()).optional(),
         }),
         finish_reason: z.string().nullable().optional(),
@@ -185,8 +199,41 @@ function parseOrInvalidResponse<T>(parse: () => T): T {
   try {
     return parse();
   } catch {
-    throw new GatewayError('invalid_response');
+    throw new GatewayError('invalid_response', { kind: 'schema' });
   }
+}
+
+/** Strip common thinking wrappers; keep remaining visible text. */
+export function stripThinkTags(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
+/** Prefer message content; fall back to reasoning_content for Qwen-style hosts. */
+export function visibleAssistantText(message: {
+  content?: string | null;
+  reasoning_content?: string | null;
+}): { text: string; hasReasoning: boolean } {
+  const rawContent = message.content?.trim() ?? '';
+  const rawReasoning = message.reasoning_content?.trim() ?? '';
+  if (rawContent) {
+    const stripped = stripThinkTags(rawContent);
+    return { text: stripped || rawContent, hasReasoning: Boolean(rawReasoning) };
+  }
+  if (rawReasoning) {
+    const stripped = stripThinkTags(rawReasoning);
+    return { text: stripped || rawReasoning, hasReasoning: true };
+  }
+  return { text: '', hasReasoning: false };
+}
+
+function httpGatewayError(status: number): GatewayError {
+  if (status === 401 || status === 403) {
+    return new GatewayError('credentials', { kind: 'http', httpStatus: status });
+  }
+  if (status === 429) {
+    return new GatewayError('rate_limit', { kind: 'http', httpStatus: status });
+  }
+  return new GatewayError('unavailable', { kind: 'http', httpStatus: status });
 }
 
 /** Called only by a server-side, budget-authorized dispatcher; never directly by a browser route. */
@@ -219,20 +266,24 @@ export async function invokeModel(
     });
     if (!response.ok) {
       await response.body?.cancel();
-      if (response.status === 401 || response.status === 403) throw new GatewayError('credentials');
-      if (response.status === 429) throw new GatewayError('rate_limit');
-      throw new GatewayError('unavailable');
+      throw httpGatewayError(response.status);
     }
     const parsed = responseSchema.parse(await readBoundedJson(response, 512000));
     const choice = parsed.choices[0]!;
-    const content = choice.message.content?.trim() ?? '';
+    const visible = visibleAssistantText(choice.message);
     // Plain chat: accept truncated replies when there is visible text. Ignore unexpected
     // tool_calls when content exists (local hosts often emit them without a tools request).
-    if (!content) {
-      throw new GatewayError('invalid_response');
+    if (!visible.text) {
+      throw new GatewayError('invalid_response', {
+        kind: 'empty_content',
+        finishReason: choice.finish_reason ?? null,
+        contentChars: 0,
+        hasToolCalls: Boolean(choice.message.tool_calls?.length),
+        hasReasoning: visible.hasReasoning,
+      });
     }
     return {
-      content: choice.message.content!,
+      content: visible.text,
       model: config.model,
       inputTokens: parsed.usage?.prompt_tokens ?? null,
       outputTokens: parsed.usage?.completion_tokens ?? null,
@@ -241,8 +292,8 @@ export async function invokeModel(
     };
   } catch (error) {
     if (error instanceof GatewayError) throw error;
-    if (options.signal?.aborted) throw new GatewayError('cancelled');
-    throw new GatewayError('unavailable');
+    if (options.signal?.aborted) throw new GatewayError('cancelled', { kind: 'cancelled' });
+    throw new GatewayError('unavailable', { kind: 'transport' });
   } finally {
     clearTimeout(timeout);
     options.signal?.removeEventListener('abort', cancel);
@@ -262,7 +313,7 @@ export async function invokeModelWithTools(
   const input = parseOrInvalidResponse(() => modelToolRequestSchema.parse(request));
   const controller = new AbortController();
   const cancel = () => controller.abort();
-  if (options.signal?.aborted) throw new GatewayError('cancelled');
+  if (options.signal?.aborted) throw new GatewayError('cancelled', { kind: 'cancelled' });
   options.signal?.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(cancel, config.timeoutMs ?? 60000);
   const started = Date.now();
@@ -283,20 +334,24 @@ export async function invokeModelWithTools(
     });
     if (!response.ok) {
       await response.body?.cancel();
-      if (response.status === 401 || response.status === 403) throw new GatewayError('credentials');
-      if (response.status === 429) throw new GatewayError('rate_limit');
-      throw new GatewayError('unavailable');
+      throw httpGatewayError(response.status);
     }
     const parsed = responseSchema.parse(await readBoundedJson(response, 512000));
     const choice = parsed.choices[0]!;
     const toolCalls = parseToolCalls(choice.message.tool_calls);
-    const content = (choice.message.content ?? '').trim();
-    if (!toolCalls.length && !content) throw new GatewayError('invalid_response');
-    if (choice.finish_reason === 'length' && !toolCalls.length) {
-      throw new GatewayError('invalid_response');
+    const visible = visibleAssistantText(choice.message);
+    if (!toolCalls.length && !visible.text) {
+      throw new GatewayError('invalid_response', {
+        kind: 'empty_content',
+        finishReason: choice.finish_reason ?? null,
+        contentChars: 0,
+        hasToolCalls: false,
+        hasReasoning: visible.hasReasoning,
+      });
     }
+    // Accept truncated text-only replies (plain path already does); only empty+no-tools fails above.
     return {
-      content,
+      content: visible.text,
       toolCalls,
       model: config.model,
       inputTokens: parsed.usage?.prompt_tokens ?? null,
@@ -306,8 +361,8 @@ export async function invokeModelWithTools(
     };
   } catch (error) {
     if (error instanceof GatewayError) throw error;
-    if (options.signal?.aborted) throw new GatewayError('cancelled');
-    throw new GatewayError('unavailable');
+    if (options.signal?.aborted) throw new GatewayError('cancelled', { kind: 'cancelled' });
+    throw new GatewayError('unavailable', { kind: 'transport' });
   } finally {
     clearTimeout(timeout);
     options.signal?.removeEventListener('abort', cancel);

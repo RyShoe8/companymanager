@@ -128,19 +128,18 @@ describe('invokeModelWithTools', () => {
     expect(JSON.parse(String(fetcher.mock.calls[0]![1]!.body))).toHaveProperty('tools');
   });
 
-  it('text-only invokeModel still rejects tool_calls', async () => {
-    await expect(
-      invokeModel(
-        config,
-        { role: 'architect', messages: [{ role: 'user', content: 'hi' }], maxOutputTokens: 50 },
-        {
-          fetcher: vi.fn<typeof fetch>().mockResolvedValue(
-            Response.json({
-              choices: [{ message: { content: 'x', tool_calls: [{}] }, finish_reason: 'tool_calls' }],
-            })
-          ),
-        }
-      )
-    ).rejects.toMatchObject({ code: 'invalid_response' });
+  it('text-only invokeModel accepts unexpected tool_calls when content exists', async () => {
+    const result = await invokeModel(
+      config,
+      { role: 'architect', messages: [{ role: 'user', content: 'hi' }], maxOutputTokens: 50 },
+      {
+        fetcher: vi.fn<typeof fetch>().mockResolvedValue(
+          Response.json({
+            choices: [{ message: { content: 'x', tool_calls: [{}] }, finish_reason: 'tool_calls' }],
+          })
+        ),
+      }
+    );
+    expect(result.content).toBe('x');
   });
 });

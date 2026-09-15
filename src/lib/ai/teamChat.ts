@@ -29,6 +29,8 @@ export type TeamChatTurn = {
   role: TeamMessageRole;
   text: string;
   failureCategory?: string;
+  /** Compact safe diagnostic for status turns (no secrets). */
+  debugHint?: string;
   runId?: string;
   /** Settled cost when known; null when usage unknown after a paid run. */
   costMicros?: number | null;

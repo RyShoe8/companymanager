@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   completionLimitBody,
   invokeModel,
+  invokeModelWithTools,
   usesMaxCompletionTokens,
   validateGatewayConfiguration,
   type GatewayConfiguration,
@@ -84,7 +85,39 @@ describe('remote inference gateway', () => {
             Response.json({ choices: [{ message: { content: '', tool_calls: [{}] }, finish_reason: 'tool_calls' }] })
           ),
       })
-    ).rejects.toMatchObject({ code: 'invalid_response' });
+    ).rejects.toMatchObject({ code: 'invalid_response', details: { kind: 'empty_content' } });
+  });
+
+  it('accepts reasoning_content when plain content is empty', async () => {
+    const result = await invokeModel(config, request, {
+      fetcher: vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          choices: [
+            {
+              message: { content: '', reasoning_content: 'Hello from reasoning.' },
+              finish_reason: 'stop',
+            },
+          ],
+        })
+      ),
+    });
+    expect(result.content).toBe('Hello from reasoning.');
+  });
+
+  it('strips think tags from plain content', async () => {
+    const result = await invokeModel(config, request, {
+      fetcher: vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          choices: [
+            {
+              message: { content: '<think>secret</think>\nVisible answer' },
+              finish_reason: 'stop',
+            },
+          ],
+        })
+      ),
+    });
+    expect(result.content).toBe('Visible answer');
   });
   it('does not dispatch an already cancelled request', async () => {
     const controller = new AbortController(); controller.abort(); const fetcher = vi.fn<typeof fetch>();
@@ -94,5 +127,31 @@ describe('remote inference gateway', () => {
   it('preserves reported zero usage, separately from unknown', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ ...output, usage: { prompt_tokens: 0, completion_tokens: 3 } }));
     expect(await invokeModel(config, request, { fetcher })).toMatchObject({ inputTokens: 0, outputTokens: 3 });
+  });
+
+  it('accepts truncated tool replies when content is present', async () => {
+    const result = await invokeModelWithTools(
+      config,
+      {
+        role: 'architect',
+        messages: [{ role: 'user', content: 'hi' }],
+        maxOutputTokens: 100,
+        tools: [
+          {
+            type: 'function',
+            function: { name: 'web_search', description: 'Search', parameters: { type: 'object', properties: {} } },
+          },
+        ],
+      },
+      {
+        fetcher: vi.fn<typeof fetch>().mockResolvedValue(
+          Response.json({
+            choices: [{ message: { content: 'partial answer' }, finish_reason: 'length' }],
+          })
+        ),
+      }
+    );
+    expect(result.content).toBe('partial answer');
+    expect(result.toolCalls).toEqual([]);
   });
 });

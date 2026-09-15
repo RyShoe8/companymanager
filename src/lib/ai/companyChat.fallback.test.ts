@@ -101,14 +101,14 @@ beforeEach(() => {
 });
 
 describe('attemptCompanyCredentialChat free tools', () => {
-  it('runs the tool loop for free credentials (including image tool by default)', async () => {
-    mocks.toolLoop.mockResolvedValue({
-      content: 'tool reply',
-      toolCallsMade: ['web_search'],
-      artifacts: [],
+  it('prefers plain invoke for free greetings without the tool loop', async () => {
+    mocks.invokeModel.mockResolvedValue({
+      content: 'plain hello',
+      model: 'local',
       inputTokens: 1,
       outputTokens: 2,
       latencyMs: 5,
+      finishReason: 'stop',
     });
 
     const turn = await attemptCompanyCredentialChat({
@@ -122,22 +122,49 @@ describe('attemptCompanyCredentialChat free tools', () => {
       model: 'local',
     });
 
-    expect(mocks.toolLoop).toHaveBeenCalled();
-    expect(mocks.toolLoop.mock.calls[0]?.[0]).toMatchObject({ includeImageTool: true });
-    expect(mocks.invokeModel).not.toHaveBeenCalled();
-    expect(turn).toMatchObject({ role: 'assistant', text: 'tool reply', noProviderFee: true });
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
+    expect(mocks.invokeModel).toHaveBeenCalled();
+    expect(turn).toMatchObject({ role: 'assistant', text: 'plain hello', noProviderFee: true });
   });
 
-  it('retries plain invokeModel when the free host rejects tools', async () => {
-    mocks.toolLoop.mockRejectedValue(new GatewayError('invalid_response'));
-    mocks.invokeModel.mockResolvedValue({
-      content: 'plain local reply',
-      model: 'local',
+  it('uses the tool loop for free image-style asks', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'drew something',
+      toolCallsMade: ['image_generate'],
+      artifacts: [],
       inputTokens: 1,
       outputTokens: 2,
       latencyMs: 5,
-      finishReason: 'stop',
     });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'please generate an image of a cat',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(mocks.toolLoop.mock.calls[0]?.[0]).toMatchObject({ includeImageTool: true });
+    expect(turn).toMatchObject({ role: 'assistant', text: 'drew something', noProviderFee: true });
+  });
+
+  it('falls back to plain when free plain-first fails and tools also fail', async () => {
+    mocks.invokeModel
+      .mockRejectedValueOnce(new GatewayError('invalid_response'))
+      .mockResolvedValue({
+        content: 'plain local reply',
+        model: 'local',
+        inputTokens: 1,
+        outputTokens: 2,
+        latencyMs: 5,
+        finishReason: 'stop',
+      });
+    mocks.toolLoop.mockRejectedValue(new GatewayError('invalid_response'));
 
     const turn = await attemptCompanyCredentialChat({
       systemPrompt: 'You are helpful.',
@@ -211,15 +238,17 @@ describe('attemptCompanyCredentialChat free tools', () => {
         note: 'Sparse.',
         hits: [{ title: 'Final', url: 'https://example.com/f', snippet: 'Result' }],
       });
+    mocks.invokeModel
+      .mockRejectedValueOnce(new GatewayError('invalid_response'))
+      .mockResolvedValue({
+        content: 'Grounded from Nucleas search.',
+        model: 'local',
+        inputTokens: 1,
+        outputTokens: 2,
+        latencyMs: 5,
+        finishReason: 'stop',
+      });
     mocks.toolLoop.mockRejectedValue(new Error('unexpected tool schema'));
-    mocks.invokeModel.mockResolvedValue({
-      content: 'Grounded from Nucleas search.',
-      model: 'local',
-      inputTokens: 1,
-      outputTokens: 2,
-      latencyMs: 5,
-      finishReason: 'stop',
-    });
 
     const turn = await attemptCompanyCredentialChat({
       systemPrompt: 'You are helpful.',
@@ -240,18 +269,52 @@ describe('attemptCompanyCredentialChat free tools', () => {
       toolsUsed: ['web_search'],
       noProviderFee: true,
     });
+    expect(turn.text).not.toMatch(/model call failed/i);
   });
 
-  it('retries plain invokeModel when free tools fail with a non-GatewayError', async () => {
-    mocks.toolLoop.mockRejectedValue(new Error('unexpected tool schema'));
+  it('degrades to plain knowledge when Nucleas search throws on a lookup', async () => {
+    mocks.webSearch.mockRejectedValue(new Error('ddg unavailable'));
     mocks.invokeModel.mockResolvedValue({
-      content: 'plain after unknown tool failure',
+      content: 'Answer from model knowledge.',
       model: 'local',
       inputTokens: 1,
       outputTokens: 2,
       latencyMs: 5,
       finishReason: 'stop',
     });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'who are the top 5 scorers for Arsenal all time?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+    });
+
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      text: 'Answer from model knowledge.',
+      noProviderFee: true,
+    });
+    expect(turn.text).not.toMatch(/model call failed/i);
+  });
+
+  it('retries plain invokeModel when free tools fail with a non-GatewayError', async () => {
+    mocks.invokeModel
+      .mockRejectedValueOnce(new GatewayError('invalid_response'))
+      .mockResolvedValue({
+        content: 'plain after unknown tool failure',
+        model: 'local',
+        inputTokens: 1,
+        outputTokens: 2,
+        latencyMs: 5,
+        finishReason: 'stop',
+      });
+    mocks.toolLoop.mockRejectedValue(new Error('unexpected tool schema'));
 
     const turn = await attemptCompanyCredentialChat({
       systemPrompt: 'You are helpful.',
@@ -293,6 +356,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
       failureCategory: 'invalid_response',
       noProviderFee: true,
     });
+    expect(turn.debugHint).toMatch(/code=invalid_response/);
     expect(turn.text).toMatch(/invalid response/i);
     expect(turn.text).not.toMatch(/commercial/i);
     expect(turn.text).not.toMatch(/image generation/i);

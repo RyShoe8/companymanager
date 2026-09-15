@@ -23,6 +23,7 @@ function turnPayload(turn: {
   role: 'user' | 'assistant' | 'status';
   text: string;
   failureCategory?: string;
+  debugHint?: string;
   runId?: string;
   costMicros?: number | null;
   reservedMicros?: number | null;
@@ -42,6 +43,7 @@ function turnPayload(turn: {
     role: turn.role,
     text: turn.text,
     failureCategory: turn.failureCategory ?? null,
+    debugHint: turn.debugHint ?? null,
     runId: turn.runId ?? null,
     costMicros: turn.costMicros ?? null,
     reservedMicros: turn.reservedMicros ?? null,
