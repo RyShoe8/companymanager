@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { imageSearch, researchSearch, webSearch } from '@/lib/ai/tools/webSearch';
+import {
+  buildResearchQueries,
+  imageSearch,
+  researchSearch,
+  scoreResearchHit,
+  webSearch,
+} from '@/lib/ai/tools/webSearch';
 
 const emptyInstantAnswer = {
   AbstractText: '',
@@ -10,6 +16,40 @@ const emptyInstantAnswer = {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+describe('buildResearchQueries', () => {
+  it('rewrites club all-time scorers questions for Wikipedia', () => {
+    expect(buildResearchQueries("who are Arsenal's all time top scorers?")).toEqual({
+      primary: 'Arsenal all-time top goalscorers',
+      wikipedia: 'List of Arsenal F.C. records and statistics',
+    });
+  });
+});
+
+describe('scoreResearchHit', () => {
+  it('prefers club records pages over UEFA top-scorer lists', () => {
+    const query = "who are Arsenal's all time top scorers?";
+    const records = scoreResearchHit(
+      {
+        title: 'List of Arsenal F.C. records and statistics',
+        url: 'https://en.wikipedia.org/wiki/List_of_Arsenal_F.C._records_and_statistics',
+        snippet: 'Thierry Henry is the club record goalscorer',
+        provider: 'wikipedia',
+      },
+      query
+    );
+    const uefa = scoreResearchHit(
+      {
+        title: 'List of UEFA Champions League top scorers',
+        url: 'https://en.wikipedia.org/wiki/List_of_UEFA_Champions_League_top_scorers',
+        snippet: 'Champions League all-time top scorers',
+        provider: 'wikipedia',
+      },
+      query
+    );
+    expect(records).toBeGreaterThan(uefa);
+  });
 });
 
 describe('webSearch / researchSearch', () => {
@@ -43,7 +83,7 @@ describe('webSearch / researchSearch', () => {
     await expect(webSearch('arsenal', { signal: controller.signal })).rejects.toThrow(/cancelled/i);
   });
 
-  it('uses Wikipedia when Instant Answer is empty', async () => {
+  it('uses Wikipedia records page for Arsenal all-time scorers', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json(emptyInstantAnswer))
@@ -54,6 +94,10 @@ describe('webSearch / researchSearch', () => {
               {
                 title: 'List of Arsenal F.C. records and statistics',
                 snippet: 'Thierry Henry is the club&#039;s record goalscorer',
+              },
+              {
+                title: 'List of UEFA Champions League top scorers',
+                snippet: 'Champions League all-time top scorers',
               },
             ],
           },
@@ -70,14 +114,29 @@ describe('webSearch / researchSearch', () => {
             },
           },
         })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          title: 'List of UEFA Champions League top scorers',
+          extract: 'UEFA Champions League all-time top scorers.',
+          content_urls: {
+            desktop: {
+              page: 'https://en.wikipedia.org/wiki/List_of_UEFA_Champions_League_top_scorers',
+            },
+          },
+        })
       );
 
-    const result = await webSearch('top 5 Arsenal all time goal scorers', { fetcher });
-    expect(result.hits.length).toBeGreaterThanOrEqual(1);
-    expect(result.hits[0]?.url).toMatch(/wikipedia\.org\/wiki\/List_of_Arsenal/i);
+    const result = await webSearch("who are Arsenal's all time top scorers?", { fetcher });
+    expect(result.hits[0]?.url).toMatch(/List_of_Arsenal_F\.C\._records_and_statistics/i);
     expect(result.hits[0]?.snippet).toMatch(/Thierry Henry/i);
     expect(result.providersTried).toContain('wikipedia');
-    expect(result.note).toMatch(/wikipedia/i);
+    const wikiSearchCall = fetcher.mock.calls.find((call) =>
+      String(call[0]).includes('action=query&list=search')
+    );
+    expect(String(wikiSearchCall?.[0])).toMatch(
+      /List%20of%20Arsenal%20F\.C\.%20records%20and%20statistics/i
+    );
   });
 
   it('flattens nested Instant Answer RelatedTopics', async () => {
@@ -113,19 +172,32 @@ describe('webSearch / researchSearch', () => {
     expect(result.note).toMatch(/duckduckgo_ia/i);
   });
 
-  it('calls Brave when configured and earlier providers are sparse', async () => {
+  it('still calls Brave after Wikipedia returns hits', async () => {
     vi.stubEnv('BRAVE_SEARCH_API_KEY', 'brave-test-key');
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json(emptyInstantAnswer))
-      .mockRejectedValueOnce(new Error('wiki down'))
+      .mockResolvedValueOnce(
+        Response.json({
+          query: {
+            search: [{ title: 'Noise season', snippet: 'season page' }],
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          title: 'Noise season',
+          extract: 'A season article.',
+          content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Noise_season' } },
+        })
+      )
       .mockResolvedValueOnce(
         Response.json({
           web: {
             results: [
               {
                 title: 'Arsenal scorers',
-                url: 'https://example.com/arsenal',
+                url: 'https://www.transfermarkt.com/arsenal/topscorer',
                 description: 'All-time list',
               },
             ],
@@ -133,10 +205,9 @@ describe('webSearch / researchSearch', () => {
         })
       );
 
-    const result = await webSearch('arsenal scorers', { fetcher });
-    expect(result.hits[0]?.provider).toBe('brave');
-    expect(result.hits[0]?.url).toBe('https://example.com/arsenal');
-    expect(result.providersTried).toContain('brave');
+    const result = await webSearch('arsenal scorers', { fetcher, limit: 2 });
+    expect(result.providersTried).toEqual(expect.arrayContaining(['wikipedia', 'brave']));
+    expect(result.hits.some((hit) => hit.provider === 'brave')).toBe(true);
     const braveCall = fetcher.mock.calls.find((call) => String(call[0]).includes('api.search.brave.com'));
     expect(braveCall?.[1]?.headers).toMatchObject({ 'X-Subscription-Token': 'brave-test-key' });
   });

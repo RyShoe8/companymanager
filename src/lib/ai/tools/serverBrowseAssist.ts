@@ -35,6 +35,7 @@ export function formatWebSearchContext(input: {
 }): string {
   const lines = [
     'Web search results (use these; do not invent facts beyond them):',
+    'Prefer club/team “records and statistics” pages over UEFA/competition-wide top-scorer lists when the question is about a specific club.',
     `Query: ${input.query}`,
     input.note ? `Note: ${input.note}` : '',
     input.providersTried?.length ? `Providers tried: ${input.providersTried.join(', ')}` : '',

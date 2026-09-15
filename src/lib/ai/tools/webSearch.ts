@@ -75,6 +75,76 @@ function mergeHits(target: WebSearchHit[], incoming: WebSearchHit[], limit: numb
   }
 }
 
+const QUERY_NOISE =
+  /\b(who|what|when|where|which|whom|whose|are|is|was|were|do|does|did|the|a|an|me|please|tell|about|for|of|in|on|to|my|our|their|give|list|show)\b/gi;
+
+/** Turn chatty questions into search-friendly primary + Wikipedia queries. */
+export function buildResearchQueries(raw: string): { primary: string; wikipedia: string } {
+  const trimmed = raw.trim().slice(0, 200);
+  const clubScorers = trimmed.match(
+    /\b([A-Za-z][A-Za-z0-9.&'-]{1,40})(?:'s)?\s+(?:all[- ]?time\s+)?(?:top\s+)?(?:\d+\s+)?(?:goal\s*)?scorers?\b/i
+  );
+  if (clubScorers?.[1]) {
+    const club = clubScorers[1].replace(/'s$/i, '').replace(/\.$/, '').trim();
+    if (club.length >= 3) {
+      return {
+        primary: `${club} all-time top goalscorers`,
+        wikipedia: `List of ${club} F.C. records and statistics`,
+      };
+    }
+  }
+  const cleaned = trimmed
+    .replace(/[?¿!.,;:]+/g, ' ')
+    .replace(QUERY_NOISE, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const primary = cleaned || trimmed;
+  if (/\b(all[- ]?time|top\s+\d+|ranking|standings|records?|statistics)\b/i.test(trimmed)) {
+    return {
+      primary,
+      wikipedia: `${primary} records and statistics`,
+    };
+  }
+  return { primary, wikipedia: primary };
+}
+
+function queryTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3 && !/^(the|and|for|are|was|who|what|all|time|top)$/.test(t));
+}
+
+/** Prefer club-record pages over UEFA/season noise for ranking-style questions. */
+export function scoreResearchHit(hit: WebSearchHit, originalQuery: string): number {
+  const hay = `${hit.title} ${hit.snippet} ${hit.url}`.toLowerCase();
+  const tokens = queryTokens(originalQuery);
+  let score = 0;
+  for (const token of tokens) {
+    if (hay.includes(token)) score += 3;
+  }
+  if (/records and statistics/i.test(hit.title) || /records_and_statistics/i.test(hit.url)) score += 12;
+  if (/goalscorer|top scorers|all[- ]?time/i.test(hay)) score += 4;
+  if (/list of uefa|champions league top scorers|europa league top scorers/i.test(hay)) score -= 18;
+  if (/\/\d{4}[–-]\d{2,4}[ _]/.test(hit.url) || /\b20\d{2}[–-]\d{2}\b.*season/i.test(hit.title)) {
+    score -= 10;
+  }
+  if (hit.provider === 'brave' || hit.provider === 'google_cse') score += 2;
+  if (hit.provider === 'wikipedia' && /records and statistics/i.test(hit.title)) score += 4;
+  score += Math.min((hit.snippet?.length ?? 0) / 80, 3);
+  return score;
+}
+
+function rankResearchHits(hits: WebSearchHit[], originalQuery: string, limit: number): WebSearchHit[] {
+  return [...hits]
+    .map((hit) => ({ hit, score: scoreResearchHit(hit, originalQuery) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((row) => row.hit);
+}
+
 function collectInstantAnswerTopics(
   topics: InstantAnswerTopic[] | undefined,
   hits: WebSearchHit[],
@@ -432,7 +502,7 @@ function buildNote(providersTried: string[], providersWithHits: string[], hitCou
 }
 
 /**
- * Multi-provider research search. Cascades until `limit` unique hits or providers are exhausted.
+ * Multi-provider research search. Collects from all enabled providers, then ranks.
  * Never throws except when the caller signal is already aborted / cancelled.
  */
 export async function researchSearch(
@@ -458,6 +528,7 @@ export async function researchSearch(
   }
   const limit = Math.min(Math.max(options.limit ?? 5, 1), 8);
   const depth = options.depth ?? 'lite';
+  const queries = buildResearchQueries(q);
   const controller = new AbortController();
   const cancel = () => controller.abort();
   if (options.signal?.aborted) throw new Error('Search cancelled.');
@@ -468,45 +539,53 @@ export async function researchSearch(
   const providersTried: string[] = [];
   const providersWithHits: string[] = [];
   const toolsUsed: string[] = ['web_search'];
-  const hits: WebSearchHit[] = [];
+  const pool: WebSearchHit[] = [];
+  const poolCap = Math.max(limit * 3, 12);
 
   try {
-    const providers: Array<{ name: string; enabled: boolean; run: () => Promise<WebSearchHit[]> }> = [
+    const floorCap = Math.min(2, limit);
+    const providers: Array<{
+      name: string;
+      enabled: boolean;
+      run: () => Promise<WebSearchHit[]>;
+    }> = [
       {
         name: 'duckduckgo_ia',
         enabled: true,
-        run: () => duckDuckGoInstantAnswer(q, limit, opts),
+        run: () => duckDuckGoInstantAnswer(queries.primary, floorCap, opts),
       },
       {
         name: 'wikipedia',
         enabled: true,
-        run: () => wikipediaSearch(q, limit, opts),
+        run: () => wikipediaSearch(queries.wikipedia, floorCap, opts),
       },
       {
         name: 'brave',
         enabled: isBraveSearchConfigured(),
-        run: () => braveWebSearch(q, limit, opts),
+        run: () => braveWebSearch(queries.primary, limit, opts),
       },
       {
         name: 'google_cse',
         enabled: isGoogleCseConfigured(),
-        run: () => googleCseSearch(q, limit, opts),
+        run: () => googleCseSearch(queries.primary, limit, opts),
       },
       {
         name: 'searxng',
         enabled: isSearxngConfigured(),
-        run: () => searxngSearch(q, limit, opts),
+        run: () => searxngSearch(queries.primary, limit, opts),
       },
     ];
 
     for (const provider of providers) {
-      if (!provider.enabled || hits.length >= limit) continue;
+      if (!provider.enabled) continue;
       providersTried.push(provider.name);
       const found = await runProvider(provider.name, provider.run, controller.signal);
-      const before = hits.length;
-      mergeHits(hits, found, limit);
-      if (hits.length > before) providersWithHits.push(provider.name);
+      const before = pool.length;
+      mergeHits(pool, found, poolCap);
+      if (pool.length > before) providersWithHits.push(provider.name);
     }
+
+    const hits = rankResearchHits(pool, q, limit);
 
     let fetchCount = 0;
     if (depth === 'standard' && hits.length) {
@@ -527,7 +606,11 @@ export async function researchSearch(
             } catch {
               /* keep fetch extract if any */
             }
-          } else if ((page.thin || page.escalateHint) && isBrowserWorkerConfigured() && (hit.extract?.length ?? 0) < 280) {
+          } else if (
+            (page.thin || page.escalateHint) &&
+            isBrowserWorkerConfigured() &&
+            (hit.extract?.length ?? 0) < 280
+          ) {
             try {
               const rendered = await browserNavigate(hit.url, { fetcher, signal: controller.signal });
               if (rendered.text.trim().length > (hit.extract?.length ?? 0)) {
@@ -545,10 +628,16 @@ export async function researchSearch(
       }
     }
 
+    const noteParts = [
+      buildNote(providersTried, providersWithHits, hits.length),
+      queries.wikipedia !== q ? `Wiki query: ${queries.wikipedia}.` : '',
+      queries.primary !== q ? `Web query: ${queries.primary}.` : '',
+    ].filter(Boolean);
+
     return {
       query: q,
-      hits: hits.slice(0, limit),
-      note: buildNote(providersTried, providersWithHits, hits.length),
+      hits,
+      note: noteParts.join(' '),
       providersTried,
       toolsUsed,
       hitCount: hits.length,
