@@ -29,6 +29,10 @@ describe('companyChatAdmissionMessage', () => {
     expect(text).toMatch(/reservation/i);
   });
 
+  it('explains shared spacing for rate_limit', () => {
+    expect(companyChatAdmissionMessage('rate_limit')).toMatch(/Minimum seconds between attempts/);
+  });
+
   it('keeps a fallback for unknown codes', () => {
     expect(companyChatAdmissionMessage('provider' as 'configuration')).toBe('Chat could not be admitted.');
   });

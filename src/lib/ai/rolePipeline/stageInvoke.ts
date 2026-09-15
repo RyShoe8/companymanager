@@ -7,7 +7,7 @@ import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
 import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
-import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
+import { DISPATCH_USAGE_ID } from '@/lib/ai/control/dispatchLimits';
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
@@ -42,19 +42,7 @@ async function admitStageCall(input: {
       { $set: { token: lockToken, expiresAt: new Date(now.getTime() + STAGE_LOCK_MS) } },
       { upsert: true, session }
     );
-    if (
-      !(await reserveDispatch(
-        {
-          dailyRequestLimit: policy.dailyRequestLimit,
-          minimumIntervalSeconds: policy.minimumIntervalSeconds,
-        },
-        now,
-        session
-      ))
-    ) {
-      await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).session(session);
-      throw new GatewayError('rate_limit');
-    }
+    // Company profile stages use the org's provider; do not consume shared remote spacing counters.
 
     const [run] = await AiRun.create(
       [

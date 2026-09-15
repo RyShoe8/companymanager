@@ -6,7 +6,7 @@ import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
 import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
-import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
+import { DISPATCH_USAGE_ID } from '@/lib/ai/control/dispatchLimits';
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
@@ -94,19 +94,8 @@ export async function attemptCompanyCredentialChat(input: {
         { $set: { token: lockToken, expiresAt: new Date(now.getTime() + LOCK_MS) } },
         { upsert: true, session }
       );
-      if (
-        !(await reserveDispatch(
-          {
-            dailyRequestLimit: policy.dailyRequestLimit,
-            minimumIntervalSeconds: policy.minimumIntervalSeconds,
-          },
-          now,
-          session
-        ))
-      ) {
-        await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).session(session);
-        throw new GatewayError('rate_limit');
-      }
+      // Company credentials call the org's own provider (OpenAI, local host, etc.).
+      // Do not consume platform shared remote spacing/daily counters meant for the Nucleas shared endpoint.
 
       const [run] = await AiRun.create(
         [
