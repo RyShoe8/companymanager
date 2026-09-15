@@ -708,7 +708,12 @@ export default function IdeChatPane({
         return;
       }
       setActivityFailed(true);
-      setError(err instanceof Error ? err.message : 'Chat request failed.');
+      const raw = err instanceof Error ? err.message : 'Chat request failed.';
+      setError(
+        /failed to fetch|networkerror|network error/i.test(raw)
+          ? 'Connection dropped before the reply finished (often a timeout). Wait a moment and try again.'
+          : raw
+      );
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       if (generation === sendGenerationRef.current) {

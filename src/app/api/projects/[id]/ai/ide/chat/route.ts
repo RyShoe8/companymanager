@@ -23,6 +23,7 @@ import {
 import { isMongoDuplicateKeyError, isMongoNetworkError, MONGO_NETWORK_USER_MESSAGE } from '@/lib/utils/mongoErrors';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 type Context = { params: Promise<{ id: string }> };
 
 function turnPayload(turn: {

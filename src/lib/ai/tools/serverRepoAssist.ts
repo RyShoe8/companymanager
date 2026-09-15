@@ -5,7 +5,9 @@ import { extractChatHeuristicText } from '@/lib/ai/tools/serverBrowseAssist';
 const PATH_HINT =
   /\b(rule|rules|task.?rule|planMode|ideChat|prompt|\.cursor|nucleas|architecture|companyChat|teamChat)\b/i;
 
-const SEED_DIRS = ['', 'src', 'src/lib', 'src/lib/ide', 'src/lib/ai', '.cursor', '.cursor/rules'];
+/** Short seed list — keep GitHub calls ≤ ~6 (4 trees + 2 reads). */
+const SEED_DIRS = ['', 'src/lib/ide', 'src/lib/ai', '.cursor'];
+const MAX_FILES = 2;
 
 export type RepoAssistResult = {
   ok: boolean;
@@ -36,24 +38,37 @@ export async function gatherRepoAssistContext(input: {
   const candidateFiles: { path: string; score: number }[] = [];
   const treeLines: string[] = [];
 
-  for (const dir of SEED_DIRS) {
-    const tree = await listIdeTree(input.organizationId, input.projectId, dir);
-    toolsUsed.push('repo_tree');
-    if (!tree.ok) {
-      if (dir === '') {
-        return {
-          ok: false,
-          note: tree.reason,
-          toolsUsed: [...new Set(toolsUsed)],
-          contextBlock: [
-            'Repository dig (Nucleas):',
-            `Note: ${tree.reason}`,
-            'No repo tree available. Tell the user to bind a GitHub repository or connect the GitHub App for this project.',
-          ].join('\n'),
-        };
-      }
-      continue;
-    }
+  const rootTree = await listIdeTree(input.organizationId, input.projectId, '');
+  toolsUsed.push('repo_tree');
+  if (!rootTree.ok) {
+    return {
+      ok: false,
+      note: rootTree.reason,
+      toolsUsed: [...new Set(toolsUsed)],
+      contextBlock: [
+        'Repository dig (Nucleas):',
+        `Note: ${rootTree.reason}`,
+        'No repo tree available. Tell the user to bind a GitHub repository or connect the GitHub App for this project.',
+      ].join('\n'),
+    };
+  }
+
+  const nestedDirs = SEED_DIRS.filter((dir) => dir !== '');
+  const nestedTrees = await Promise.all(
+    nestedDirs.map(async (dir) => ({
+      dir,
+      tree: await listIdeTree(input.organizationId, input.projectId, dir),
+    }))
+  );
+  for (const _ of nestedDirs) toolsUsed.push('repo_tree');
+
+  const allTrees: { dir: string; tree: Awaited<ReturnType<typeof listIdeTree>> }[] = [
+    { dir: '', tree: rootTree },
+    ...nestedTrees,
+  ];
+
+  for (const { dir, tree } of allTrees) {
+    if (!tree.ok) continue;
     treeLines.push(`Tree path="${dir || '/'}" branch=${tree.branch}:`);
     for (const entry of tree.entries.slice(0, 80)) {
       treeLines.push(`  ${entry.type}\t${entry.path}`);
@@ -65,7 +80,7 @@ export async function gatherRepoAssistContext(input: {
   }
 
   candidateFiles.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
-  const uniquePaths = [...new Set(candidateFiles.map((c) => c.path))].slice(0, 4);
+  const uniquePaths = [...new Set(candidateFiles.map((c) => c.path))].slice(0, MAX_FILES);
 
   const fileBlocks: string[] = [];
   for (const path of uniquePaths) {

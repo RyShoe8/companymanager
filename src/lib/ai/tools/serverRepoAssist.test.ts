@@ -30,7 +30,7 @@ describe('gatherRepoAssistContext', () => {
     expect(result.toolsUsed).toContain('repo_tree');
   });
 
-  it('reads scored rules-related files from the tree', async () => {
+  it('reads at most two scored rules-related files from parallel seed trees', async () => {
     mocks.listTree.mockImplementation(async (_org: string, _proj: unknown, path = '') => {
       if (path === '') {
         return {
@@ -49,6 +49,7 @@ describe('gatherRepoAssistContext', () => {
           entries: [
             { name: 'planModePrompt.ts', path: 'src/lib/ide/planModePrompt.ts', type: 'file', sha: '3' },
             { name: 'loadTaskRules.ts', path: 'src/lib/ide/loadTaskRules.ts', type: 'file', sha: '4' },
+            { name: 'ideChatStream.ts', path: 'src/lib/ide/ideChatStream.ts', type: 'file', sha: '5' },
           ],
         };
       }
@@ -70,5 +71,7 @@ describe('gatherRepoAssistContext', () => {
     expect(result.ok).toBe(true);
     expect(result.toolsUsed).toEqual(expect.arrayContaining(['repo_tree', 'repo_read']));
     expect(result.contextBlock).toMatch(/loadTaskRules|planModePrompt/);
+    expect(mocks.readFile).toHaveBeenCalledTimes(2);
+    expect(mocks.listTree.mock.calls.length).toBeLessThanOrEqual(4);
   });
 });
