@@ -1,5 +1,7 @@
 import { beforeEach } from 'vitest';
 
+process.env.NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || 'synthetic-test-secret-for-vitest-32-chars';
+
 const storage = new Map<string, string>();
 
 function installBrowserStorage(): void {

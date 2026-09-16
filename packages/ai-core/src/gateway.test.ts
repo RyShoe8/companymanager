@@ -3,6 +3,7 @@ import {
   completionLimitBody,
   invokeModel,
   invokeModelWithTools,
+  toolCallReasoningBody,
   usesMaxCompletionTokens,
   validateGatewayConfiguration,
   type GatewayConfiguration,
@@ -48,6 +49,10 @@ describe('remote inference gateway', () => {
     expect(usesMaxCompletionTokens('gpt-4o-mini')).toBe(false);
     expect(completionLimitBody('o3', 256)).toEqual({ max_completion_tokens: 256 });
     expect(completionLimitBody('gpt-4.1', 256)).toEqual({ max_tokens: 256 });
+    expect(toolCallReasoningBody('gpt-5.6-sol')).toEqual({ reasoning_effort: 'none' });
+    expect(toolCallReasoningBody('openai/gpt-5.4')).toEqual({ reasoning_effort: 'none' });
+    expect(toolCallReasoningBody('gpt-4o-mini')).toEqual({});
+    expect(toolCallReasoningBody('o3-mini')).toEqual({});
   });
   it.each(['http://llm.rogly.net/v1', 'https://user:secret@llm.rogly.net/v1', 'https://llm.rogly.net/v1?token=secret'])('rejects unsafe endpoint configuration', endpoint => {
     expect(() => validateGatewayConfiguration({ ...config, endpoint })).toThrow();

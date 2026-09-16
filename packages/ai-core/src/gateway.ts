@@ -129,6 +129,17 @@ export function completionLimitBody(
     : { max_tokens: maxOutputTokens };
 }
 
+/**
+ * GPT-5/6 series defaults to reasoning; OpenAI /v1/chat/completions requires
+ * `reasoning_effort: 'none'` when function tools are provided.
+ */
+export function toolCallReasoningBody(
+  model: string
+): { reasoning_effort: 'none' } | Record<string, never> {
+  const id = modelIdBase(model);
+  return /^gpt-[56]/.test(id) ? { reasoning_effort: 'none' } : {};
+}
+
 /** Derive OpenAI-compatible images generations URL from a chat-completions endpoint. */
 export function imagesUrlFromChatEndpoint(endpoint: string): URL {
   const url = validateGatewayConfiguration({
@@ -328,6 +339,7 @@ export async function invokeModelWithTools(
         model: config.model,
         messages: input.messages,
         ...completionLimitBody(config.model, input.maxOutputTokens),
+        ...toolCallReasoningBody(config.model),
         tools: input.tools,
         stream: false,
       }),
