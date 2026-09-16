@@ -94,4 +94,63 @@ describe('runIdeToolLoop message compaction', () => {
     expect(result.content).toBe('Final answer after compaction');
     expect(round).toBe(7);
   });
+
+  it('preserves the active user prompt and system prompt when compacting messages with prior history', async () => {
+    let round = 0;
+    mockInvokeModelWithTools.mockImplementation(async (_gateway, req) => {
+      round++;
+      if (round > 5) {
+        // After compaction, messages[0] must be the system prompt, and messages[1] must be the active user task
+        expect(req.messages[0]).toMatchObject({ role: 'system', content: 'System prompt' });
+        expect(req.messages[1]).toMatchObject({ role: 'user', content: 'Active user blog request' });
+        // The old history request must NOT be at index 1
+        expect(req.messages[1].content).not.toBe('Old history request about notifications');
+      }
+
+      if (round <= 6) {
+        return {
+          content: `Round ${round}`,
+          toolCalls: [
+            { id: `c_${round}_1`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+            { id: `c_${round}_2`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+            { id: `c_${round}_3`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+            { id: `c_${round}_4`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+          ],
+          latencyMs: 10,
+        };
+      }
+
+      return {
+        content: 'Finished plan for blog',
+        toolCalls: [],
+        latencyMs: 10,
+      };
+    });
+
+    const result = await runIdeToolLoop({
+      gateway: {
+        endpoint: 'https://llm.example.com/v1/chat/completions',
+        bearerToken: 'secret',
+        model: 'gpt-5.6-sol',
+        protocol: 'openai-chat',
+      },
+      messages: [
+        { role: 'system', content: 'System prompt' },
+        { role: 'user', content: 'Old history request about notifications' },
+        { role: 'assistant', content: 'Old notification answer' },
+        { role: 'user', content: 'Active user blog request' },
+      ],
+      maxOutputTokens: 1000,
+      includeImageTool: false,
+      includeRepoTools: true,
+      maxRounds: 10,
+      organizationId: 'test-org',
+      projectId: new Types.ObjectId(),
+      userId: 'test-user',
+      runId: new Types.ObjectId(),
+    });
+
+    expect(result.content).toBe('Finished plan for blog');
+  });
 });
+

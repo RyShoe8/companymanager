@@ -56,6 +56,14 @@ export async function runIdeToolLoop(input: {
     DEEP_REPO_MAX_ROUNDS
   );
   const messages: LoopMessage[] = [...input.messages];
+  const initialSystemMessage =
+    input.messages.find((m) => m.role === 'system') ?? {
+      role: 'system' as const,
+      content: 'You are an AI assistant.',
+    };
+  const initialTaskMessage =
+    [...input.messages].reverse().find((m) => m.role === 'user') ??
+    input.messages[input.messages.length - 1];
   const artifacts: ToolArtifact[] = [];
   const toolCallsMade: string[] = [];
   let inputTokens: number | null = null;
@@ -68,7 +76,7 @@ export async function runIdeToolLoop(input: {
       if (input.signal?.aborted) throw new GatewayError('cancelled');
 
       // Message compaction to prevent exceeding gateway 40-message limit (F14)
-      // Must preserve assistant-tool turn pairing so orphan tool messages are never created
+      // Must preserve assistant-tool turn pairing and anchor on the actual user task message
       if (messages.length > 24) {
         const targetTailStart = Math.max(2, messages.length - 12);
         let splitIdx = targetTailStart;
@@ -83,7 +91,6 @@ export async function runIdeToolLoop(input: {
         }
 
         if (splitIdx > 2 && splitIdx < messages.length && messages[splitIdx].role === 'assistant') {
-          const head = messages.slice(0, 2);
           const middle = messages.slice(2, splitIdx);
           const tail = messages.slice(splitIdx);
           const toolSummaries: string[] = [];
@@ -106,7 +113,12 @@ export async function runIdeToolLoop(input: {
               ? `[Prior investigation evidence: ${toolSummaries.slice(-8).join('; ')}]`
               : '[Earlier tool exchanges compacted for budget]';
           messages.length = 0;
-          messages.push(...head, { role: 'user', content: compactedSummary }, ...tail);
+          messages.push(
+            initialSystemMessage,
+            initialTaskMessage,
+            { role: 'user', content: compactedSummary },
+            ...tail
+          );
         }
       }
 

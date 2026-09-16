@@ -765,7 +765,11 @@ export async function attemptCompanyCredentialChat(input: {
           resolved = true;
         } catch (toolError) {
           lastError = toolError;
-          if (input.stopOnUpstreamFailure) throw toolError;
+          const isUnsupportedToolHost =
+            freeCredential &&
+            toolError instanceof GatewayError &&
+            (toolError.details?.httpStatus === 400 || toolError.code === 'invalid_response');
+          if (input.stopOnUpstreamFailure && !isUnsupportedToolHost) throw toolError;
           phase = 'browse_assist_retry';
           let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
           try {
