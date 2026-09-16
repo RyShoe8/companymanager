@@ -152,3 +152,16 @@ export function formatImageSearchContext(result: ImageSearchResult): string {
 export function userTextWithBrowseContext(userText: string, searchBlock: string): string {
   return `${userText.trim().slice(0, 4000)}\n\n${searchBlock}`.slice(0, 12000);
 }
+
+/**
+ * User message after a Nucleas repo dig. Much larger than web browse so file
+ * bodies survive (plainInvoke allows 48k free / 24k paid).
+ */
+export function userTextWithRepoContext(
+  userText: string,
+  digBlock: string,
+  options?: { maxChars?: number }
+): string {
+  const maxChars = options?.maxChars ?? 48_000;
+  return `${userText.trim().slice(0, 6000)}\n\n${digBlock}`.slice(0, maxChars);
+}

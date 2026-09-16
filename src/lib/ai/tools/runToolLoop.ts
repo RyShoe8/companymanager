@@ -77,7 +77,7 @@ export async function runIdeToolLoop(input: {
 
     if (!result.toolCalls.length) {
       return {
-        content: result.content.trim().slice(0, 6000),
+        content: result.content.trim().slice(0, 16000),
         toolCallsMade,
         artifacts,
         inputTokens,

@@ -138,20 +138,25 @@ export async function POST(request: NextRequest, context: Context) {
     const userRequestId = randomUUID();
     const stream = wantsNdjsonStream(request, input.stream);
 
-    const persistPair = async (reply: ReturnType<typeof turnPayload>) => {
-      const historyPersisted = await appendIdeChatTurns({
-        organizationId: access.organizationId,
-        projectId: access.project._id,
-        userId: access.userId,
-        mode,
-        modelProfileId: input.modelProfileId,
-        model: input.model,
+    const persistScope = {
+      organizationId: access.organizationId,
+      projectId: access.project._id,
+      userId: access.userId,
+      mode,
+      modelProfileId: input.modelProfileId,
+      model: input.model,
+    };
+
+    const persistUserTurn = async () =>
+      appendIdeChatTurns({
+        ...persistScope,
+        turns: [{ requestId: userRequestId, role: 'user', text: input.text }],
+      });
+
+    const persistAssistantTurn = async (reply: ReturnType<typeof turnPayload>) =>
+      appendIdeChatTurns({
+        ...persistScope,
         turns: [
-          {
-            requestId: userRequestId,
-            role: 'user',
-            text: input.text,
-          },
           {
             requestId: reply.requestId,
             role: reply.role,
@@ -167,10 +172,10 @@ export async function POST(request: NextRequest, context: Context) {
           },
         ],
       });
-      return historyPersisted;
-    };
 
     const runChat = async (onStage?: IdeChatStageCallback) => {
+      const userPersisted = await persistUserTurn();
+
       if (isIdeDirectMode(mode)) {
         const turn = await attemptDirectModelChat({
           projectName: access.project.name,
@@ -187,7 +192,7 @@ export async function POST(request: NextRequest, context: Context) {
           onStage,
         });
         const payload = turnPayload(turn);
-        const historyPersisted = await persistPair(payload);
+        const assistantPersisted = await persistAssistantTurn(payload);
         return {
           turn: payload,
           mode,
@@ -195,7 +200,7 @@ export async function POST(request: NextRequest, context: Context) {
           modelProfileId: input.modelProfileId,
           model: input.model,
           rulesApplied: ruleTexts.length,
-          historyPersisted,
+          historyPersisted: userPersisted && assistantPersisted,
         };
       }
 
@@ -217,13 +222,13 @@ export async function POST(request: NextRequest, context: Context) {
         onStage,
       });
       const payload = turnPayload(turn);
-      const historyPersisted = await persistPair(payload);
+      const assistantPersisted = await persistAssistantTurn(payload);
       return {
         turn: payload,
         mode,
         employee,
         rulesApplied: ruleTexts.length,
-        historyPersisted,
+        historyPersisted: userPersisted && assistantPersisted,
       };
     };
 

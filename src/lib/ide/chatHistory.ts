@@ -206,6 +206,22 @@ export async function appendIdeChatTurns(input: {
       return true;
     } catch (error) {
       if (isMongoDuplicateKeyError(error)) return true;
+      // Some docs may have inserted before a non-dup error on ordered:false.
+      const inserted =
+        typeof error === 'object' &&
+        error &&
+        'insertedDocs' in error &&
+        Array.isArray((error as { insertedDocs?: unknown[] }).insertedDocs)
+          ? (error as { insertedDocs: unknown[] }).insertedDocs.length
+          : typeof error === 'object' &&
+              error &&
+              'result' in error &&
+              error.result &&
+              typeof error.result === 'object' &&
+              'nInserted' in error.result
+            ? Number((error.result as { nInserted?: number }).nInserted) || 0
+            : 0;
+      if (inserted > 0 && isMongoDuplicateKeyError(error)) return true;
       lastError = error;
       const code =
         typeof error === 'object' && error && 'code' in error

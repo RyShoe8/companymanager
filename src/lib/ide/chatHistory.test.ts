@@ -182,6 +182,22 @@ describe('appendIdeChatTurns', () => {
     );
   });
 
+  it('returns true when insertMany hits a duplicate-key BulkWriteError', async () => {
+    mocks.insertMany.mockRejectedValue({
+      code: 11000,
+      writeErrors: [{ code: 11000, index: 0 }],
+    });
+    await expect(
+      appendIdeChatTurns({
+        organizationId: 'org',
+        projectId,
+        userId,
+        mode: 'product',
+        turns: [{ requestId: 'u1', role: 'user', text: 'hello' }],
+      })
+    ).resolves.toBe(true);
+  });
+
   it('returns false when persist fails after retry without plan', async () => {
     mocks.insertMany.mockRejectedValue(new Error('unavailable'));
     await expect(

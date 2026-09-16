@@ -137,23 +137,29 @@ export async function POST(request: NextRequest) {
     const userRequestId = randomUUID();
     const stream = wantsNdjsonStream(request, input.stream);
 
+    const persistScope = {
+      organizationId: access.organizationId,
+      projectId,
+      userId: access.userId,
+      mode: input.mode,
+      modelProfileId: input.modelProfileId,
+      model: input.model,
+    };
+
+    const persistUserTurn = async () =>
+      appendIdeChatTurns({
+        ...persistScope,
+        turns: [{ requestId: userRequestId, role: 'user', text: input.text }],
+      });
+
     const persistAndPayload = async (
-      turn: Awaited<ReturnType<typeof attemptDirectModelChat>>
+      turn: Awaited<ReturnType<typeof attemptDirectModelChat>>,
+      userPersisted: boolean
     ) => {
       const payload = turnPayload(turn);
-      const historyPersisted = await appendIdeChatTurns({
-        organizationId: access.organizationId,
-        projectId,
-        userId: access.userId,
-        mode: input.mode,
-        modelProfileId: input.modelProfileId,
-        model: input.model,
+      const assistantPersisted = await appendIdeChatTurns({
+        ...persistScope,
         turns: [
-          {
-            requestId: userRequestId,
-            role: 'user',
-            text: input.text,
-          },
           {
             requestId: payload.requestId,
             role: payload.role,
@@ -169,11 +175,12 @@ export async function POST(request: NextRequest) {
           },
         ],
       });
-      return { payload, historyPersisted };
+      return { payload, historyPersisted: userPersisted && assistantPersisted };
     };
 
     if (stream) {
       return ndjsonResponse(async (send) => {
+        const userPersisted = await persistUserTurn();
         const turn = await attemptDirectModelChat({
           projectName: 'Free Chat',
           organizationId: access.organizationId,
@@ -189,7 +196,7 @@ export async function POST(request: NextRequest) {
           signal: request.signal,
           onStage: (stage, status) => send({ type: 'stage', stage, status }),
         });
-        const { payload, historyPersisted } = await persistAndPayload(turn);
+        const { payload, historyPersisted } = await persistAndPayload(turn, userPersisted);
         send({
           type: 'turn',
           turn: payload,
@@ -204,6 +211,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const userPersisted = await persistUserTurn();
     const turn = await attemptDirectModelChat({
       projectName: 'Free Chat',
       organizationId: access.organizationId,
@@ -211,14 +219,14 @@ export async function POST(request: NextRequest) {
       userId: access.userId,
       userText: input.text,
       priorTurns: input.history,
-      modelProfileId: input.modelProfileId,
-      model: input.model,
+      modelProfileId: input.modelProfileId!,
+      model: input.model!,
       ruleTexts: [],
       interactionMode: input.interactionMode,
       includeRepoTools: false,
       signal: request.signal,
     });
-    const { payload, historyPersisted } = await persistAndPayload(turn);
+    const { payload, historyPersisted } = await persistAndPayload(turn, userPersisted);
     return aiResponse({
       turn: payload,
       mode: input.mode,

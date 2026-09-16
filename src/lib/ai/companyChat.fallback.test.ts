@@ -451,6 +451,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
       note: 'Read 2 file(s).',
       toolsUsed: ['repo_tree', 'repo_read'],
       contextBlock: 'Repository dig: task rules in IdeTaskRulesPanel',
+      evidenceBlock: 'File loadTaskRules.ts:\nexport async function loadIdeTaskRuleTexts',
     });
     mocks.invokeModel.mockResolvedValue({
       content: 'Task rules live in IdeTaskRulesPanel and loadIdeTaskRuleTexts.',
@@ -874,6 +875,7 @@ describe('attemptCompanyCredentialChat commercial', () => {
       note: 'Read 3 file(s).',
       toolsUsed: ['repo_tree', 'repo_read'],
       contextBlock: 'Repository dig: loadTaskRules injects rule texts',
+      evidenceBlock: 'File loadTaskRules.ts:\nexport async function loadIdeTaskRuleTexts',
     });
     mocks.invokeModel.mockResolvedValue({
       content: 'Rules are prompt-injected project docs loaded by loadIdeTaskRuleTexts.',

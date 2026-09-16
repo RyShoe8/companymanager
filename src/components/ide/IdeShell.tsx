@@ -13,7 +13,12 @@ import type { IdeChatMode } from '@/lib/ide/modes';
 import type { IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
 import {
   readStoredIdeChatMode,
+  readStoredIdeLayout,
+  readStoredIdeProjectId,
+  syncIdeProjectUrl,
   writeStoredIdeChatMode,
+  writeStoredIdeLayout,
+  writeStoredIdeProjectId,
 } from '@/lib/ide/chatSelectionStorage';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
 import { microsToDollars } from '@/lib/ai/settingsSchema';
@@ -83,6 +88,34 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const prevBusyRef = useRef(false);
   const expandedPathsRef = useRef(expandedPaths);
   expandedPathsRef.current = expandedPaths;
+  const restorePathRef = useRef<string | null>(null);
+  const skipLayoutWriteRef = useRef(false);
+
+  // URL project wins; otherwise restore last project from localStorage.
+  useEffect(() => {
+    if (initialProjectId) {
+      writeStoredIdeProjectId(initialProjectId);
+      syncIdeProjectUrl(initialProjectId);
+      return;
+    }
+    const stored = readStoredIdeProjectId();
+    if (stored && stored !== IDE_FREE_CHAT_SCOPE) {
+      setProjectId(stored);
+      syncIdeProjectUrl(stored);
+      return;
+    }
+    writeStoredIdeProjectId(IDE_FREE_CHAT_SCOPE);
+  }, [initialProjectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    writeStoredIdeProjectId(projectId);
+    syncIdeProjectUrl(projectId);
+  }, [projectId]);
+
+  const onProjectChange = useCallback((next: string | null) => {
+    setProjectId(next ?? IDE_FREE_CHAT_SCOPE);
+  }, []);
 
   useEffect(() => {
     try {
@@ -265,16 +298,53 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   }, []);
 
   useEffect(() => {
+    if (!projectId) return;
+    skipLayoutWriteRef.current = true;
+    const layout = freeChat ? null : readStoredIdeLayout(projectId);
     setActivePath(null);
     setFileContent('');
     setOriginalContent('');
     setActivePlan(null);
-    setCenterView('file');
     setChildrenByPath({});
-    setExpandedPaths({});
     setLoadingPaths({});
-    void loadRoot();
-  }, [projectId, hasBinding, loadRoot]);
+    if (layout) {
+      setTreeCollapsed(layout.treeCollapsed);
+      setExpandedPaths(layout.expandedPaths);
+      setRulesOpen(layout.rulesOpen);
+      setCenterView(layout.centerView === 'plan' ? 'plan' : 'file');
+      restorePathRef.current = layout.activePath;
+    } else {
+      setTreeCollapsed(false);
+      setExpandedPaths({});
+      setRulesOpen(false);
+      setCenterView('file');
+      restorePathRef.current = null;
+    }
+    void loadRoot().finally(() => {
+      skipLayoutWriteRef.current = false;
+    });
+  }, [projectId, hasBinding, loadRoot, freeChat]);
+
+  // Reopen last file after tree/binding is ready (fresh from API — no dirty buffer).
+  useEffect(() => {
+    const path = restorePathRef.current;
+    if (!path || !projectId || freeChat || !hasBinding || treeLoading) return;
+    restorePathRef.current = null;
+    void openFile(path);
+    // openFile is stable enough for restore; avoid depending on its identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, freeChat, hasBinding, treeLoading, rootEntries]);
+
+  useEffect(() => {
+    if (!projectId || freeChat || skipLayoutWriteRef.current) return;
+    writeStoredIdeLayout(projectId, {
+      treeCollapsed,
+      expandedPaths,
+      activePath,
+      rulesOpen,
+      centerView,
+    });
+  }, [projectId, freeChat, treeCollapsed, expandedPaths, activePath, rulesOpen, centerView]);
 
   useEffect(() => {
     if (!projectId) {
@@ -323,7 +393,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
         <h1 className="text-sm font-semibold text-text-primary">IDE</h1>
         <IdeProjectRepoSwitcher
           projectId={projectId}
-          onProjectChange={setProjectId}
+          onProjectChange={onProjectChange}
           onRepositoryChange={setRepository}
         />
         {activePlan ? (

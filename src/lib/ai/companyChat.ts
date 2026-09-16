@@ -27,6 +27,7 @@ import {
   looksLikeWebLookupQuery,
   resolveAssistSearchQuery,
   userTextWithBrowseContext,
+  userTextWithRepoContext,
 } from '@/lib/ai/tools/serverBrowseAssist';
 import { imageHitsToArtifacts, mergeImageArtifacts } from '@/lib/ai/tools/imageSearchArtifacts';
 import { formatRepoAssistContext, gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
@@ -504,7 +505,9 @@ export async function attemptCompanyCredentialChat(input: {
       browseAssisted = true;
       const plain = await plainInvokeAfterAssist({
         systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran repo_tree/repo_read; ground your answer in the provided repository dig. Do not claim tools failed. If the dig says the repo is unbound, tell the user to bind GitHub / connect the GitHub App.`,
-        userContent: userTextWithBrowseContext(input.userText, formatRepoAssistContext(dig)),
+        userContent: userTextWithRepoContext(input.userText, formatRepoAssistContext(dig), {
+          maxChars: freeCredential ? 48_000 : 24_000,
+        }),
       });
       return {
         content: plain.content,

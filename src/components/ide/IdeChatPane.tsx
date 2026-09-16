@@ -12,8 +12,10 @@ import {
 } from '@/lib/ide/modes';
 import {
   readStoredIdeDirectSelection,
+  readStoredIdeDraft,
   readStoredIdeInteractionMode,
   writeStoredIdeDirectSelection,
+  writeStoredIdeDraft,
   writeStoredIdeInteractionMode,
 } from '@/lib/ide/chatSelectionStorage';
 import {
@@ -178,6 +180,7 @@ export default function IdeChatPane({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [historyPersistFailed, setHistoryPersistFailed] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [catalog, setCatalog] = useState<{ id: string; label: string; models: CatalogModel[] }[]>([]);
@@ -298,12 +301,26 @@ export default function IdeChatPane({
   }, [projectId, mode, directProfileId, directModel]);
 
   useEffect(() => {
+    if (!historyScopeKey || historyScopeKey.endsWith(':direct:pending')) {
+      setDraft('');
+      return;
+    }
+    setDraft(readStoredIdeDraft(historyScopeKey));
+  }, [historyScopeKey]);
+
+  useEffect(() => {
+    if (!historyScopeKey || historyScopeKey.endsWith(':direct:pending')) return;
+    writeStoredIdeDraft(historyScopeKey, draft);
+  }, [historyScopeKey, draft]);
+
+  useEffect(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     sendGenerationRef.current += 1;
     const generation = ++historyGenerationRef.current;
     setBusy(false);
     setError('');
+    setHistoryPersistFailed(false);
     setPlanReadyFlag(false);
     setActivityFailed(false);
     setLastToolsUsed([]);
@@ -693,7 +710,12 @@ export default function IdeChatPane({
         onPlanReady?.(turn.plan);
       }
       if (historyPersisted === false) {
-        setError('Reply ready, but this turn was not saved to project history. Try sending again if it disappears after refresh.');
+        setHistoryPersistFailed(true);
+        setError(
+          'Reply ready, but this turn was not saved to project history. It may disappear after you leave the IDE — try sending again.'
+        );
+      } else if (historyPersisted === true) {
+        setHistoryPersistFailed(false);
       }
     } catch (err) {
       if (generation !== sendGenerationRef.current) return;
@@ -1112,6 +1134,15 @@ export default function IdeChatPane({
         })}
         <div ref={bottomRef} />
       </div>
+      {historyPersistFailed ? (
+        <div
+          className="mx-3 mb-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-200"
+          role="status"
+        >
+          Chat history did not save to this project. Leave/return may lose this thread until a turn
+          saves successfully.
+        </div>
+      ) : null}
       {error ? <p className="px-3 text-xs text-red-500">{error}</p> : null}
       <div className="border-t border-border p-2">
         <div

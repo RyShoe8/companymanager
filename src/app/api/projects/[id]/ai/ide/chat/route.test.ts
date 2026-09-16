@@ -19,13 +19,14 @@ vi.mock('@/lib/ai/control/access', async (importOriginal) => ({
 vi.mock('@/lib/ide/chatHistory', () => ({
   loadIdeChatHistory: mocks.history,
   appendIdeChatTurns: mocks.append,
+  clearIdeChatTurnPlan: vi.fn(),
 }));
 vi.mock('@/lib/ai/teamChat', () => ({ attemptTeamChatReply: mocks.team }));
 vi.mock('@/lib/ai/ideDirectChat', () => ({ attemptDirectModelChat: mocks.direct }));
 vi.mock('@/lib/ide/loadTaskRules', () => ({ loadIdeTaskRuleTexts: mocks.rules }));
 
 import { AiHttpError } from '@/lib/ai/control/access';
-import { GET } from '@/app/api/projects/[id]/ai/ide/chat/route';
+import { GET, POST } from '@/app/api/projects/[id]/ai/ide/chat/route';
 
 const projectId = 'a'.repeat(24);
 
@@ -38,6 +39,7 @@ beforeEach(() => {
   });
   mocks.history.mockResolvedValue([{ requestId: 't1', role: 'user', text: 'hi' }]);
   mocks.rules.mockResolvedValue([]);
+  mocks.append.mockResolvedValue(true);
 });
 
 describe('GET /api/projects/[id]/ai/ide/chat', () => {
@@ -88,5 +90,42 @@ describe('GET /api/projects/[id]/ai/ide/chat', () => {
     const response = await GET(request, { params: Promise.resolve({ id: projectId }) });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ mode: 'product', turns: [] });
+  });
+});
+
+describe('POST /api/projects/[id]/ai/ide/chat', () => {
+  it('persists the user turn before the orchestra and the assistant after', async () => {
+    mocks.team.mockResolvedValue({
+      requestId: 'a1',
+      role: 'assistant',
+      text: 'Rules are prompt-injected.',
+      toolsUsed: ['repo_tree', 'repo_read'],
+    });
+
+    const request = new NextRequest(
+      `https://nucleas.test/api/projects/${projectId}/ai/ide/chat`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'product',
+          text: 'how does our rules system work?',
+          history: [],
+          interactionMode: 'chat',
+        }),
+      }
+    );
+    const response = await POST(request, { params: Promise.resolve({ id: projectId }) });
+    expect(response.status).toBe(200);
+    expect(mocks.append).toHaveBeenCalledTimes(2);
+    expect(mocks.append.mock.calls[0]?.[0]?.turns).toEqual([
+      expect.objectContaining({ role: 'user', text: 'how does our rules system work?' }),
+    ]);
+    expect(mocks.append.mock.calls[1]?.[0]?.turns).toEqual([
+      expect.objectContaining({ role: 'assistant', text: 'Rules are prompt-injected.' }),
+    ]);
+    expect(mocks.team).toHaveBeenCalled();
+    const body = await response.json();
+    expect(body.historyPersisted).toBe(true);
   });
 });

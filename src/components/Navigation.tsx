@@ -1,14 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { BLOG_SHORT_NAME } from '@/lib/blog/blogConstants';
 import Dropdown from '@/components/ui/Dropdown';
 import Modal from '@/components/ui/Modal';
 import ProfileModal from '@/components/ProfileModal';
 import OrganizationModal from '@/components/OrganizationModal';
 import { PAGE_GUTTER_CLASS } from '@/lib/ui/mobileLayout';
+import { ideHrefForNavigation } from '@/lib/ide/chatSelectionStorage';
 
 const MARKETING_PAGES = ['/', '/about', '/contact', '/pricing', '/terms', '/privacy'];
 
@@ -137,6 +138,12 @@ function FeaturesDropdown({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const navigateToIde = (event: MouseEvent) => {
+    event.preventDefault();
+    router.push(ideHrefForNavigation());
+  };
   const [user, setUser] = useState<{
     name: string;
     email: string;
@@ -361,10 +368,7 @@ export default function Navigation() {
                     }
                     onClick={
                       link.href === '/ide'
-                        ? (event) => {
-                            event.preventDefault();
-                            window.location.assign('/ide');
-                          }
+                        ? navigateToIde
                         : undefined
                     }
                     className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')
@@ -537,8 +541,7 @@ export default function Navigation() {
                     onClick={(event) => {
                       setMobileMenuOpen(false);
                       if (link.href === '/ide') {
-                        event.preventDefault();
-                        window.location.assign('/ide');
+                        navigateToIde(event);
                       }
                     }}
                     className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${pathname === link.href || pathname?.startsWith(link.href + '/')

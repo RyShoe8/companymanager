@@ -20,6 +20,8 @@ const RULES_PRIORITY_PATHS = [
   'src/lib/ai/ideDirectChat.ts',
 ];
 
+const PRIORITY_PATH_SET = new Set(RULES_PRIORITY_PATHS);
+
 /**
  * Seed dirs listed in parallel. Root '' is fetched separately first (bind check).
  * Wider coverage so scoring can pick across IDE / AI / API / UI / cursor rules.
@@ -40,7 +42,9 @@ const SEED_DIRS = [
 ];
 const MAX_FILES = 20;
 const PER_FILE_CHARS = 2500;
-const TREE_CHARS = 8000;
+const PRIORITY_FILE_CHARS = 12_000;
+const TREE_CHARS_WITH_READS = 2000;
+const TREE_CHARS_TREE_ONLY = 8000;
 const FILES_CHARS = 40_000;
 const CONTEXT_CHARS = 48_000;
 
@@ -49,6 +53,8 @@ export type RepoAssistResult = {
   note: string;
   toolsUsed: string[];
   contextBlock: string;
+  /** Compact excerpts for Reviewer (file bodies only, no tree). */
+  evidenceBlock: string;
 };
 
 function scorePath(path: string, query: string): number {
@@ -84,6 +90,10 @@ function pickReadPaths(query: string, candidateFiles: { path: string; score: num
   return ordered;
 }
 
+function fileCharBudget(path: string): number {
+  return PRIORITY_PATH_SET.has(path) ? PRIORITY_FILE_CHARS : PER_FILE_CHARS;
+}
+
 /** Nucleas-side repo dig for hosts that struggle with tool calling. */
 export async function gatherRepoAssistContext(input: {
   organizationId: string;
@@ -107,6 +117,7 @@ export async function gatherRepoAssistContext(input: {
         `Note: ${rootTree.reason}`,
         'No repo tree available. Tell the user to bind a GitHub repository or connect the GitHub App for this project.',
       ].join('\n'),
+      evidenceBlock: '',
     };
   }
 
@@ -136,8 +147,6 @@ export async function gatherRepoAssistContext(input: {
     }
   }
 
-  // Priority paths may not appear in shallow seed listings — still try to read them
-  // when the query is about rules/architecture (GitHub getContent by path).
   const uniquePaths = pickReadPaths(query, candidateFiles);
 
   const reads = await Promise.all(
@@ -154,12 +163,11 @@ export async function gatherRepoAssistContext(input: {
   for (const { path, file } of reads) {
     if (!file.ok) {
       readErrors.push(`${path}: ${file.reason}`);
-      fileBlocks.push(`File ${path}: ${file.reason}`);
       continue;
     }
     okReads += 1;
     fileBlocks.push(
-      `File ${file.path} (branch ${file.branch}):\n${file.content.slice(0, PER_FILE_CHARS)}`
+      `File ${file.path} (branch ${file.branch}):\n${file.content.slice(0, fileCharBudget(path))}`
     );
   }
 
@@ -168,23 +176,50 @@ export async function gatherRepoAssistContext(input: {
       ? `File reads failed (${readErrors.slice(0, 3).join('; ')}). Report that GitHub bind/read error to the user. Do not invent file contents or claim repository tools are generally unavailable.`
       : 'No high-confidence rule/architecture files were read from the tree. List what is missing and suggest binding the GitHub repo or reconnecting the GitHub App if reads are blocked. Do not invent file contents.';
 
+  const errorHeader =
+    readErrors.length > 0
+      ? `Read errors:\n${readErrors
+          .slice(0, 8)
+          .map((line) => `- ${line}`)
+          .join('\n')}`
+      : '';
+
+  const filesSection =
+    okReads > 0
+      ? fileBlocks.join('\n\n').slice(0, FILES_CHARS)
+      : readErrors.length > 0
+        ? emptyReadGuidance
+        : emptyReadGuidance;
+
+  const treeBudget = okReads > 0 ? TREE_CHARS_WITH_READS : TREE_CHARS_TREE_ONLY;
+  const treeAppendix = treeLines.join('\n').slice(0, treeBudget);
+
+  // Evidence first (file bodies), tree last — so truncation never drops code.
   const contextBlock = [
     'Repository dig results (use these; do not invent file contents beyond them):',
     `Query focus: ${query}`,
-    treeLines.join('\n').slice(0, TREE_CHARS),
-    okReads > 0 || readErrors.length > 0
-      ? fileBlocks.join('\n\n').slice(0, FILES_CHARS)
-      : emptyReadGuidance,
+    errorHeader,
+    filesSection,
+    okReads > 0 ? `Tree appendix (filenames only):\n${treeAppendix}` : treeAppendix,
   ]
     .filter(Boolean)
     .join('\n\n')
     .slice(0, CONTEXT_CHARS);
+
+  const evidenceBlock = [
+    errorHeader,
+    okReads > 0 ? fileBlocks.join('\n\n').slice(0, 24_000) : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 24_000);
 
   return {
     ok: true,
     note: okReads > 0 ? `Read ${okReads} file(s).` : 'Tree only; no scored files.',
     toolsUsed: [...new Set(toolsUsed)],
     contextBlock,
+    evidenceBlock,
   };
 }
 

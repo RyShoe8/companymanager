@@ -84,6 +84,12 @@ describe('gatherRepoAssistContext', () => {
     expect(result.toolsUsed).toEqual(expect.arrayContaining(['repo_tree', 'repo_read']));
     expect(result.contextBlock).toMatch(/loadTaskRules/);
     expect(result.contextBlock).toMatch(/taskRuleSchema/);
+    // File bodies must appear before the tree appendix.
+    const fileIdx = result.contextBlock.indexOf('File src/lib/ide/loadTaskRules.ts');
+    const treeIdx = result.contextBlock.indexOf('Tree appendix');
+    expect(fileIdx).toBeGreaterThan(-1);
+    expect(treeIdx).toBeGreaterThan(fileIdx);
+    expect(result.evidenceBlock).toMatch(/loadTaskRules/);
     expect(mocks.readFile.mock.calls.length).toBeLessThanOrEqual(20);
     expect(mocks.readFile.mock.calls.length).toBeGreaterThanOrEqual(2);
     const readPaths = mocks.readFile.mock.calls.map((c: unknown[]) => c[2] as string);

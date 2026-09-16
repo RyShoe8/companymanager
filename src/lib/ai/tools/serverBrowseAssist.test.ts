@@ -9,6 +9,7 @@ import {
   looksLikeWebLookupQuery,
   resolveAssistSearchQuery,
   userTextWithBrowseContext,
+  userTextWithRepoContext,
   wantsLookupScreenshots,
 } from '@/lib/ai/tools/serverBrowseAssist';
 
@@ -170,5 +171,20 @@ describe('userTextWithBrowseContext', () => {
     expect(userTextWithBrowseContext('Who scored most?', 'Web search results:\n1. A')).toContain(
       'Web search results'
     );
+  });
+
+  it('caps browse context at 12k', () => {
+    const dig = 'X'.repeat(20_000);
+    expect(userTextWithBrowseContext('q', dig).length).toBeLessThanOrEqual(12_000);
+  });
+});
+
+describe('userTextWithRepoContext', () => {
+  it('keeps file bodies past the browse 12k cap', () => {
+    const dig = `File src/lib/ide/loadTaskRules.ts:\n${'code'.repeat(4000)}`;
+    const packed = userTextWithRepoContext('how do rules work?', dig, { maxChars: 48_000 });
+    expect(packed.length).toBeGreaterThan(12_000);
+    expect(packed).toContain('loadTaskRules');
+    expect(packed).toContain('codecode');
   });
 });

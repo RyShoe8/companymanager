@@ -21,6 +21,8 @@ import {
   toolProfileForOrchestraStage,
 } from '@/lib/ide/planModePrompt';
 import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
+import { looksLikeProjectInternalQuery } from '@/lib/ai/tools/serverBrowseAssist';
+import { gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
 import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { AiRolePipeline } from '@/lib/models/AiRolePipeline';
 import {
@@ -547,6 +549,23 @@ export async function attemptTeamChatReply(input: {
 
   let reviewerTurn: TeamChatTurn | null = null;
   if (reviewerBinding) {
+    let digEvidence = '';
+    const needsRepoEvidence =
+      looksLikeProjectInternalQuery(input.userText) ||
+      (workerTurn.toolsUsed ?? []).some((name) => name === 'repo_read' || name === 'repo_tree');
+    if (needsRepoEvidence) {
+      try {
+        const dig = await gatherRepoAssistContext({
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          userText: input.userText,
+        });
+        digEvidence = (dig.evidenceBlock || dig.contextBlock).slice(0, 24_000);
+      } catch {
+        digEvidence = '';
+      }
+    }
+
     reviewerTurn = await runStage({
       stage: 'reviewer',
       binding: reviewerBinding,
@@ -558,7 +577,10 @@ export async function attemptTeamChatReply(input: {
         plannerTurn.text.slice(0, 4000),
         '',
         'Worker output:',
-        workerTurn.text.slice(0, 5000),
+        workerTurn.text.slice(0, 20_000),
+        digEvidence
+          ? `\n\nNucleas repository dig excerpts (authoritative; explain from these):\n${digEvidence}`
+          : '',
       ].join('\n'),
       priorTurns: [],
     });
