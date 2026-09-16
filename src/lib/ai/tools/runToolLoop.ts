@@ -68,31 +68,46 @@ export async function runIdeToolLoop(input: {
       if (input.signal?.aborted) throw new GatewayError('cancelled');
 
       // Message compaction to prevent exceeding gateway 40-message limit (F14)
-      if (messages.length > 30) {
-        const head = messages.slice(0, 2);
-        const tail = messages.slice(-10);
-        const middle = messages.slice(2, -10);
-        const toolSummaries: string[] = [];
-        for (const msg of middle) {
-          if (msg.role === 'tool' && msg.content) {
-            try {
-              const parsed = JSON.parse(msg.content) as Record<string, unknown>;
-              if (parsed.path) {
-                toolSummaries.push(`Inspected ${parsed.path}`);
-              } else if (parsed.query) {
-                toolSummaries.push(`Searched for "${parsed.query}"`);
-              }
-            } catch {
-              toolSummaries.push(String(msg.content).slice(0, 80));
-            }
+      // Must preserve assistant-tool turn pairing so orphan tool messages are never created
+      if (messages.length > 24) {
+        const targetTailStart = Math.max(2, messages.length - 12);
+        let splitIdx = targetTailStart;
+        while (splitIdx < messages.length && messages[splitIdx].role !== 'assistant') {
+          splitIdx++;
+        }
+        if (splitIdx >= messages.length - 2) {
+          splitIdx = targetTailStart;
+          while (splitIdx > 2 && messages[splitIdx].role !== 'assistant') {
+            splitIdx--;
           }
         }
-        const compactedSummary =
-          toolSummaries.length > 0
-            ? `[Prior investigation evidence: ${toolSummaries.slice(-6).join('; ')}]`
-            : '[Earlier tool exchanges compacted for budget]';
-        messages.length = 0;
-        messages.push(...head, { role: 'user', content: compactedSummary }, ...tail);
+
+        if (splitIdx > 2 && splitIdx < messages.length && messages[splitIdx].role === 'assistant') {
+          const head = messages.slice(0, 2);
+          const middle = messages.slice(2, splitIdx);
+          const tail = messages.slice(splitIdx);
+          const toolSummaries: string[] = [];
+          for (const msg of middle) {
+            if (msg.role === 'tool' && msg.content) {
+              try {
+                const parsed = JSON.parse(msg.content) as Record<string, unknown>;
+                if (parsed.path) {
+                  toolSummaries.push(`Inspected ${parsed.path}`);
+                } else if (parsed.query) {
+                  toolSummaries.push(`Searched for "${parsed.query}"`);
+                }
+              } catch {
+                toolSummaries.push(String(msg.content).slice(0, 80));
+              }
+            }
+          }
+          const compactedSummary =
+            toolSummaries.length > 0
+              ? `[Prior investigation evidence: ${toolSummaries.slice(-8).join('; ')}]`
+              : '[Earlier tool exchanges compacted for budget]';
+          messages.length = 0;
+          messages.push(...head, { role: 'user', content: compactedSummary }, ...tail);
+        }
       }
 
       const result = await invokeModelWithTools(

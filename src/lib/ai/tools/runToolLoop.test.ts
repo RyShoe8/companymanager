@@ -1,0 +1,97 @@
+import { describe, expect, it, vi } from 'vitest';
+import { Types } from 'mongoose';
+
+vi.mock('server-only', () => ({}));
+vi.mock('@/lib/models/AiControl', () => ({
+  AiRunEvent: {
+    create: vi.fn().mockResolvedValue({}),
+  },
+}));
+
+const mockInvokeModelWithTools = vi.fn();
+vi.mock('@nucleas/ai-core/gateway', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@nucleas/ai-core/gateway')>();
+  return {
+    ...actual,
+    invokeModelWithTools: (...args: unknown[]) => mockInvokeModelWithTools(...args),
+  };
+});
+
+vi.mock('@/lib/ai/tools/executeTool', () => ({
+  executeIdeTool: vi.fn().mockResolvedValue({
+    content: JSON.stringify({ ok: true, path: 'src/file.ts' }),
+    artifacts: [],
+  }),
+}));
+
+import { runIdeToolLoop } from '@/lib/ai/tools/runToolLoop';
+
+describe('runIdeToolLoop message compaction', () => {
+  it('compacts messages when count > 24 while maintaining assistant-tool pairing without orphan tool messages', async () => {
+    let round = 0;
+    mockInvokeModelWithTools.mockImplementation(async (_gateway, req) => {
+      // Validate that in every outbound request, no tool message appears without a preceding assistant with tool_calls
+      const msgs = req.messages;
+      for (let i = 0; i < msgs.length; i++) {
+        if (msgs[i].role === 'tool') {
+          // Look backwards for the parent assistant message
+          let foundParent = false;
+          for (let j = i - 1; j >= 0; j--) {
+            if (msgs[j].role === 'assistant') {
+              if (msgs[j].tool_calls?.some((tc: { id: string }) => tc.id === msgs[i].tool_call_id)) {
+                foundParent = true;
+              }
+              break;
+            }
+          }
+          expect(foundParent).toBe(true);
+        }
+      }
+
+      round++;
+      if (round <= 6) {
+        // Return 4 parallel tool calls per round to quickly grow message count past 24
+        return {
+          content: `Round ${round}`,
+          toolCalls: [
+            { id: `c_${round}_1`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+            { id: `c_${round}_2`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+            { id: `c_${round}_3`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+            { id: `c_${round}_4`, type: 'function', function: { name: 'repo_read', arguments: '{}' } },
+          ],
+          latencyMs: 10,
+        };
+      }
+
+      return {
+        content: 'Final answer after compaction',
+        toolCalls: [],
+        latencyMs: 10,
+      };
+    });
+
+    const result = await runIdeToolLoop({
+      gateway: {
+        endpoint: 'https://llm.example.com/v1/chat/completions',
+        bearerToken: 'secret',
+        model: 'gpt-5.6-sol',
+        protocol: 'openai-chat',
+      },
+      messages: [
+        { role: 'system', content: 'System prompt' },
+        { role: 'user', content: 'User prompt' },
+      ],
+      maxOutputTokens: 1000,
+      includeImageTool: false,
+      includeRepoTools: true,
+      maxRounds: 10,
+      organizationId: 'test-org',
+      projectId: new Types.ObjectId(),
+      userId: 'test-user',
+      runId: new Types.ObjectId(),
+    });
+
+    expect(result.content).toBe('Final answer after compaction');
+    expect(round).toBe(7);
+  });
+});
