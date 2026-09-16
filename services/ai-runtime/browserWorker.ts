@@ -68,7 +68,7 @@ async function navigate(url: string, maxChars: number) {
         newPage: () => Promise<{
           goto: (u: string, o: { waitUntil: string; timeout: number }) => Promise<unknown>;
           title: () => Promise<string>;
-          evaluate: <T>(fn: () => T) => Promise<T>;
+          evaluate: <T>(fn: (() => T) | string) => Promise<T>;
           url: () => string;
         }>;
         close: () => Promise<void>;
