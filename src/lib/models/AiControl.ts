@@ -112,8 +112,11 @@ jobSchema.index({ status: 1, leaseExpiresAt: 1 });
 jobSchema.index({ runId: 1 }, { unique: true });
 jobSchema.index({ active: 1, status: 1, inputClearedAt: 1, _id: 1 });
 const dispatchLockSchema = new Schema({
-  _id: { type: String, required: true }, token: { type: String, required: true },
+  _id: { type: String, required: true },
+  token: { type: String, required: true },
   expiresAt: { type: Date, required: true },
+  /** Holder AiRun id — used to steal locks after Stop when the run is no longer live. */
+  runId: { type: Schema.Types.ObjectId, ref: 'AiRun' },
 });
 const dispatchUsageSchema = new Schema({
   _id: { type: String, required: true },

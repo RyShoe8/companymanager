@@ -7,9 +7,14 @@ import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
 import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
-import { DISPATCH_USAGE_ID } from '@/lib/ai/control/dispatchLimits';
+import {
+  assertDispatchLockClaimable,
+  claimDispatchLock,
+  releaseDispatchLock,
+  watchAbortReleaseDispatchLock,
+} from '@/lib/ai/control/dispatchLock';
 import { aiTransaction } from '@/lib/ai/control/transaction';
-import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
+import { AiBudget, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
 
 const STAGE_LOCK_MS = 90000;
@@ -35,14 +40,7 @@ async function admitStageCall(input: {
   return aiTransaction(async (session) => {
     const policy = await getPipelineInferencePolicy(input.organizationId, String(input.projectId), session);
     const now = new Date();
-    const lock = await AiDispatchLock.findById(DISPATCH_USAGE_ID).session(session);
-    if (lock && lock.expiresAt > now) throw new GatewayError('unavailable');
-    await AiDispatchLock.updateOne(
-      { _id: DISPATCH_USAGE_ID },
-      { $set: { token: lockToken, expiresAt: new Date(now.getTime() + STAGE_LOCK_MS) } },
-      { upsert: true, session }
-    );
-    // Company profile stages use the org's provider; do not consume shared remote spacing counters.
+    await assertDispatchLockClaimable(now, session);
 
     const [run] = await AiRun.create(
       [
@@ -59,6 +57,14 @@ async function admitStageCall(input: {
       ],
       { session }
     );
+
+    await claimDispatchLock({
+      token: lockToken,
+      expiresAt: new Date(now.getTime() + STAGE_LOCK_MS),
+      runId: run._id,
+      session,
+    });
+    // Company profile stages use the org's provider; do not consume shared remote spacing counters.
 
     const period = now.toISOString().slice(0, 7);
     const budgetIds: Types.ObjectId[] = [];
@@ -155,7 +161,7 @@ async function finishStageCall(input: {
       }
     });
   } finally {
-    await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: input.lockToken }).catch(() => undefined);
+    await releaseDispatchLock(input.lockToken);
   }
 }
 
@@ -184,6 +190,7 @@ export async function invokeProfileStage(input: {
     model: input.model,
     inputDigestSource: input.messages.map((item) => item.content).join('\n'),
   });
+  const stopWatchingAbort = watchAbortReleaseDispatchLock(input.signal, admitted.lockToken);
 
   try {
     if (input.signal?.aborted) throw new GatewayError('cancelled');
@@ -198,6 +205,7 @@ export async function invokeProfileStage(input: {
     );
     const content = result.content.trim();
     if (!content) {
+      stopWatchingAbort();
       await finishStageCall({
         organizationId: input.organizationId,
         projectId: input.projectId,
@@ -214,6 +222,7 @@ export async function invokeProfileStage(input: {
       throw new GatewayError('invalid_response');
     }
     const settled = admitted.policy.noProviderFee ? 0 : null;
+    stopWatchingAbort();
     await finishStageCall({
       organizationId: input.organizationId,
       projectId: input.projectId,
@@ -235,6 +244,7 @@ export async function invokeProfileStage(input: {
       profile: admitted.profile,
     };
   } catch (error) {
+    stopWatchingAbort();
     const code = error instanceof GatewayError ? error.code : 'unavailable';
     await finishStageCall({
       organizationId: input.organizationId,

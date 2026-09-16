@@ -267,4 +267,41 @@ describe('attemptTeamChatReply full orchestra', () => {
     expect(turn.toolsUsed).toEqual(['repo_read']);
     expect(turn.costMicros).toBe(10 + 5 + 8 + 5 + 8);
   });
+
+  it('skips worker and later stages when aborted after planner', async () => {
+    const controller = new AbortController();
+    mocks.companyChat.mockImplementation(async (args: { systemPrompt: string }) => {
+      if (args.systemPrompt.includes('Pipeline stage: planner')) {
+        controller.abort();
+        return {
+          requestId: 'p',
+          role: 'assistant',
+          text: 'Briefing only',
+          toolsUsed: [],
+          costMicros: 10,
+          reservedMicros: 0,
+          noProviderFee: false,
+          runId: 'r'.repeat(24),
+        };
+      }
+      throw new Error('should not start later stages');
+    });
+
+    const turn = await attemptTeamChatReply({
+      employee: 'product',
+      projectName: 'Nucleas',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'u'.repeat(24),
+      userText: 'plan a blog',
+      priorTurns: [],
+      interactionMode: 'plan',
+      signal: controller.signal,
+    });
+
+    expect(mocks.companyChat).toHaveBeenCalledTimes(1);
+    expect(turn.role).toBe('status');
+    expect(turn.failureCategory).toBe('cancelled');
+    expect(turn.text).toMatch(/cancelled/i);
+  });
 });

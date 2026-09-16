@@ -11,7 +11,12 @@ import { digestValue } from '@nucleas/ai-core/planning';
 import { getPipelineInferencePolicy } from '@/lib/ai/control/config';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
 import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
-import { DISPATCH_USAGE_ID } from '@/lib/ai/control/dispatchLimits';
+import {
+  assertDispatchLockClaimable,
+  claimDispatchLock,
+  releaseDispatchLock,
+  watchAbortReleaseDispatchLock,
+} from '@/lib/ai/control/dispatchLock';
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { classifyProbeFailure } from '@/lib/ai/probeDiagnostics';
 import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
@@ -32,7 +37,7 @@ import {
 import { imageHitsToArtifacts, mergeImageArtifacts } from '@/lib/ai/tools/imageSearchArtifacts';
 import { formatRepoAssistContext, gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
 import { estimateCostMicros } from '@/lib/ai/pricing/modelRates';
-import { AiBudget, AiDispatchLock, AiRun, AiRunEvent } from '@/lib/models/AiControl';
+import { AiBudget, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
 import type { ToolArtifact } from '@/lib/ai/tools/executeTool';
 
@@ -188,13 +193,7 @@ export async function attemptCompanyCredentialChat(input: {
       );
       reservationMicros = freeCredential ? 0 : policy.reservationMicros;
       const now = new Date();
-      const lock = await AiDispatchLock.findById(DISPATCH_USAGE_ID).session(session);
-      if (lock && lock.expiresAt > now) throw new GatewayError('unavailable');
-      await AiDispatchLock.updateOne(
-        { _id: DISPATCH_USAGE_ID },
-        { $set: { token: lockToken, expiresAt: new Date(now.getTime() + LOCK_MS) } },
-        { upsert: true, session }
-      );
+      await assertDispatchLockClaimable(now, session);
       // Company credentials call the org's own provider (OpenAI, local host, etc.).
       // Do not consume platform shared remote spacing/daily counters meant for the Nucleas shared endpoint.
 
@@ -213,6 +212,13 @@ export async function attemptCompanyCredentialChat(input: {
         ],
         { session }
       );
+
+      await claimDispatchLock({
+        token: lockToken,
+        expiresAt: new Date(now.getTime() + LOCK_MS),
+        runId: run._id,
+        session,
+      });
 
       if (reservationMicros > 0) {
         const period = now.toISOString().slice(0, 7);
@@ -241,7 +247,7 @@ export async function attemptCompanyCredentialChat(input: {
     policy = admitted.policy;
     reservationMicros = admitted.reservationMicros;
   } catch (error) {
-    await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).catch(() => undefined);
+    await releaseDispatchLock(lockToken);
     if (error instanceof GatewayError) {
       return statusTurn(companyChatAdmissionMessage(error.code), error.code);
     }
@@ -256,6 +262,7 @@ export async function attemptCompanyCredentialChat(input: {
   // Company credentials: only free/local are truly no-fee. Platform Admin "no provider fee"
   // applies to the shared remote endpoint, not org OpenAI/Anthropic keys.
   const noProviderFee = freeCredential;
+  const stopWatchingAbort = watchAbortReleaseDispatchLock(input.signal, lockToken);
 
   async function finish(args: {
     actualMicros: number | null;
@@ -303,8 +310,9 @@ export async function attemptCompanyCredentialChat(input: {
         }
       });
     } finally {
+      stopWatchingAbort();
       // Always clear the shared lock, even if settle/Mongo fails mid-finish.
-      await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).catch(() => undefined);
+      await releaseDispatchLock(lockToken);
     }
   }
 

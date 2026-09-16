@@ -6,7 +6,12 @@ import { GatewayError, invokeModel } from '@nucleas/ai-core/gateway';
 import { digestValue } from '@nucleas/ai-core/planning';
 import { reserveRunBudget, settleRunBudget } from '@/lib/ai/control/budgets';
 import { decrementFreePoolRemaining } from '@/lib/ai/control/freePool';
-import { DISPATCH_USAGE_ID, reserveDispatch } from '@/lib/ai/control/dispatchLimits';
+import { reserveDispatch } from '@/lib/ai/control/dispatchLimits';
+import {
+  assertDispatchLockClaimable,
+  claimDispatchLock,
+  releaseDispatchLock,
+} from '@/lib/ai/control/dispatchLock';
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { readSettings, platformSettingsId } from '@/lib/ai/control/settings';
 import { defaultPlatformAiSettings, platformAiSettingsSchema } from '@/lib/ai/settingsSchema';
@@ -24,7 +29,7 @@ import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
 import { parseReviewerGate } from '@/lib/ide/parseReviewerGate';
 import { looksLikeProjectInternalQuery } from '@/lib/ai/tools/serverBrowseAssist';
 import { gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
-import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
+import { AiBudget, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { AiRolePipeline } from '@/lib/models/AiRolePipeline';
 import {
   aiEmployees,
@@ -232,18 +237,7 @@ async function admitTeamChat(input: {
     return await aiTransaction(async (session) => {
       const policy = await getChatInferencePolicy(input.organizationId, String(input.projectId), session);
       const now = new Date();
-      const lock = await AiDispatchLock.findById(DISPATCH_USAGE_ID).session(session);
-      if (lock && lock.expiresAt > now) {
-        return {
-          ok: false as const,
-          turn: statusTurn('Shared inference is busy. Try again after the current request finishes.', 'unavailable'),
-        };
-      }
-      await AiDispatchLock.updateOne(
-        { _id: DISPATCH_USAGE_ID },
-        { $set: { token: lockToken, expiresAt: new Date(now.getTime() + CHAT_LOCK_MS) } },
-        { upsert: true, session }
-      );
+      await assertDispatchLockClaimable(now, session);
       if (
         !(await reserveDispatch(
           {
@@ -254,7 +248,6 @@ async function admitTeamChat(input: {
           session
         ))
       ) {
-        await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: lockToken }).session(session);
         return {
           ok: false as const,
           turn: statusTurn(
@@ -280,6 +273,13 @@ async function admitTeamChat(input: {
         ],
         { session }
       );
+
+      await claimDispatchLock({
+        token: lockToken,
+        expiresAt: new Date(now.getTime() + CHAT_LOCK_MS),
+        runId: run._id,
+        session,
+      });
 
       const period = now.toISOString().slice(0, 7);
       const budgetIds: Types.ObjectId[] = [];
@@ -316,13 +316,14 @@ async function admitTeamChat(input: {
       return { ok: true as const, admitted: { runId: run._id, lockToken, policy } };
     });
   } catch (error) {
+    await releaseDispatchLock(lockToken);
     if (error instanceof GatewayError) {
       const messages: Record<GatewayError['code'], string> = {
         configuration:
           'Chat inference needs remote connection, processing enabled, and a positive reservation within budget ceilings.',
         credentials: 'Remote authentication was rejected before the model was called.',
         rate_limit: 'Shared inference limits blocked this chat request.',
-        unavailable: 'Chat inference is temporarily unavailable.',
+        unavailable: 'Another AI run currently holds the shared dispatch lock. Retry shortly.',
         invalid_response: 'Chat inference configuration is invalid.',
         cancelled: 'Chat admission was cancelled.',
       };
@@ -387,7 +388,7 @@ async function finishTeamChatRun(input: {
       }
     });
   } finally {
-    await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token: input.lockToken }).catch(() => undefined);
+    await releaseDispatchLock(input.lockToken);
   }
 }
 
@@ -503,6 +504,9 @@ export async function attemptTeamChatReply(input: {
     userText: string;
     priorTurns: { role: TeamMessageRole; text: string }[];
   }): Promise<TeamChatTurn> {
+    if (input.signal?.aborted) {
+      return statusTurn('The chat request was cancelled before completion.', 'cancelled');
+    }
     const toolProfile = toolProfileForOrchestraStage(args.stage, interactionMode);
     const allowTools = toolProfile !== 'none';
     const systemPrompt = [
@@ -544,6 +548,10 @@ export async function attemptTeamChatReply(input: {
     );
   }
 
+  if (input.signal?.aborted) {
+    return statusTurn('The chat request was cancelled before completion.', 'cancelled');
+  }
+
   const plannerTurn = await runStage({
     stage: 'planner',
     binding: plannerBinding,
@@ -554,6 +562,14 @@ export async function attemptTeamChatReply(input: {
 
   /** Circuit breaker: max Worker↔Reviewer continue passes (accuracy over speed). */
   const MAX_COMPLETION_PASSES = 6;
+
+  if (input.signal?.aborted) {
+    return statusTurn('The chat request was cancelled before completion.', 'cancelled', plannerTurn.runId, {
+      costMicros: plannerTurn.costMicros,
+      reservedMicros: plannerTurn.reservedMicros,
+      noProviderFee: plannerTurn.noProviderFee,
+    });
+  }
 
   let workerTurn = await runStage({
     stage: 'worker',
@@ -591,6 +607,14 @@ export async function attemptTeamChatReply(input: {
 
   if (reviewerBinding) {
     for (let pass = 0; pass < MAX_COMPLETION_PASSES; pass += 1) {
+      if (input.signal?.aborted) {
+        const costs = mergeTurnCosts(assistantStages);
+        return statusTurn('The chat request was cancelled before completion.', 'cancelled', workerTurn.runId, {
+          costMicros: costs.costMicros,
+          reservedMicros: costs.reservedMicros,
+          noProviderFee: costs.noProviderFee,
+        });
+      }
       reviewerTurn = await runStage({
         stage: 'reviewer',
         binding: reviewerBinding,
@@ -632,6 +656,15 @@ export async function attemptTeamChatReply(input: {
             .join('\n')
             .slice(0, 24_000);
         break;
+      }
+
+      if (input.signal?.aborted) {
+        const costs = mergeTurnCosts(assistantStages);
+        return statusTurn('The chat request was cancelled before completion.', 'cancelled', workerTurn.runId, {
+          costMicros: costs.costMicros,
+          reservedMicros: costs.reservedMicros,
+          noProviderFee: costs.noProviderFee,
+        });
       }
 
       workerTurn = await runStage({

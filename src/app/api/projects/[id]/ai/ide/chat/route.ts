@@ -21,6 +21,7 @@ import {
   type IdeChatStreamEvent,
 } from '@/lib/ide/ideChatStream';
 import { isMongoDuplicateKeyError, isMongoNetworkError, MONGO_NETWORK_USER_MESSAGE } from '@/lib/utils/mongoErrors';
+import { mergeAbortSignals } from '@/lib/ai/control/mergeAbortSignals';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -80,8 +81,11 @@ function wantsNdjsonStream(request: NextRequest, streamFlag?: boolean): boolean 
 }
 
 function ndjsonResponse(
-  run: (send: (event: IdeChatStreamEvent) => void) => Promise<void>
+  request: NextRequest,
+  run: (send: (event: IdeChatStreamEvent) => void, signal: AbortSignal) => Promise<void>
 ): Response {
+  const streamAbort = new AbortController();
+  const signal = mergeAbortSignals(request.signal, streamAbort.signal);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -89,12 +93,25 @@ function ndjsonResponse(
         controller.enqueue(encoder.encode(encodeIdeChatNdjsonLine(event)));
       };
       try {
-        await run(send);
+        await run(send, signal);
       } catch (error) {
-        send({ type: 'error', error: streamErrorMessage(error) });
+        if (!signal.aborted) {
+          try {
+            send({ type: 'error', error: streamErrorMessage(error) });
+          } catch {
+            // Client already disconnected.
+          }
+        }
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Already closed after cancel.
+        }
       }
+    },
+    cancel() {
+      streamAbort.abort();
     },
   });
   return new Response(stream, {
@@ -189,7 +206,7 @@ export async function POST(request: NextRequest, context: Context) {
       return ok;
     };
 
-    const runChat = async (onStage?: IdeChatStageCallback) => {
+    const runChat = async (signal: AbortSignal, onStage?: IdeChatStageCallback) => {
       const userPersisted = await persistUserTurn();
 
       if (isIdeDirectMode(mode)) {
@@ -204,7 +221,7 @@ export async function POST(request: NextRequest, context: Context) {
           model: input.model!,
           ruleTexts,
           interactionMode: input.interactionMode,
-          signal: request.signal,
+          signal,
           onStage,
         });
         const payload = turnPayload(turn);
@@ -234,7 +251,7 @@ export async function POST(request: NextRequest, context: Context) {
         priorTurns: input.history,
         ruleTexts,
         interactionMode: input.interactionMode,
-        signal: request.signal,
+        signal,
         onStage,
       });
       const payload = turnPayload(turn);
@@ -249,8 +266,8 @@ export async function POST(request: NextRequest, context: Context) {
     };
 
     if (stream) {
-      return ndjsonResponse(async (send) => {
-        const result = await runChat((stage, status) => send({ type: 'stage', stage, status }));
+      return ndjsonResponse(request, async (send, signal) => {
+        const result = await runChat(signal, (stage, status) => send({ type: 'stage', stage, status }));
         send({
           type: 'turn',
           turn: result.turn,
@@ -264,7 +281,7 @@ export async function POST(request: NextRequest, context: Context) {
       });
     }
 
-    const result = await runChat();
+    const result = await runChat(request.signal);
     return aiResponse(result);
   } catch (error) {
     return aiError(error);

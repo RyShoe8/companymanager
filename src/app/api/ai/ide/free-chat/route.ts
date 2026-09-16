@@ -14,6 +14,7 @@ import {
   type IdeChatStreamEvent,
 } from '@/lib/ide/ideChatStream';
 import { isMongoDuplicateKeyError, isMongoNetworkError, MONGO_NETWORK_USER_MESSAGE } from '@/lib/utils/mongoErrors';
+import { mergeAbortSignals } from '@/lib/ai/control/mergeAbortSignals';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -72,8 +73,11 @@ function wantsNdjsonStream(request: NextRequest, streamFlag?: boolean): boolean 
 }
 
 function ndjsonResponse(
-  run: (send: (event: IdeChatStreamEvent) => void) => Promise<void>
+  request: NextRequest,
+  run: (send: (event: IdeChatStreamEvent) => void, signal: AbortSignal) => Promise<void>
 ): Response {
+  const streamAbort = new AbortController();
+  const signal = mergeAbortSignals(request.signal, streamAbort.signal);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -81,12 +85,25 @@ function ndjsonResponse(
         controller.enqueue(encoder.encode(encodeIdeChatNdjsonLine(event)));
       };
       try {
-        await run(send);
+        await run(send, signal);
       } catch (error) {
-        send({ type: 'error', error: streamErrorMessage(error) });
+        if (!signal.aborted) {
+          try {
+            send({ type: 'error', error: streamErrorMessage(error) });
+          } catch {
+            // Client already disconnected.
+          }
+        }
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Already closed after cancel.
+        }
       }
+    },
+    cancel() {
+      streamAbort.abort();
     },
   });
   return new Response(stream, {
@@ -179,7 +196,7 @@ export async function POST(request: NextRequest) {
     };
 
     if (stream) {
-      return ndjsonResponse(async (send) => {
+      return ndjsonResponse(request, async (send, signal) => {
         const userPersisted = await persistUserTurn();
         const turn = await attemptDirectModelChat({
           projectName: 'Free Chat',
@@ -193,7 +210,7 @@ export async function POST(request: NextRequest) {
           ruleTexts: [],
           interactionMode: input.interactionMode,
           includeRepoTools: false,
-          signal: request.signal,
+          signal,
           onStage: (stage, status) => send({ type: 'stage', stage, status }),
         });
         const { payload, historyPersisted } = await persistAndPayload(turn, userPersisted);
