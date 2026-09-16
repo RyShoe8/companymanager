@@ -537,6 +537,8 @@ export async function attemptTeamChatReply(input: {
         forcePlain: toolProfile === 'none' || shouldForcePlainChat(interactionMode),
         forceToolLoop: toolProfile !== 'none',
         repoContextBlock,
+        maxOutputTokensOverride:
+          interactionMode === 'plan' || interactionMode === 'build' ? 8192 : undefined,
         signal: input.signal,
       })
     );

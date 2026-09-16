@@ -586,6 +586,45 @@ describe('attemptCompanyCredentialChat free tools', () => {
     });
   });
 
+  it('retries with a larger token budget after empty_content finishReason=length', async () => {
+    mocks.toolLoop.mockRejectedValue(
+      new GatewayError('invalid_response', {
+        kind: 'empty_content',
+        finishReason: 'length',
+        contentChars: 0,
+        hasToolCalls: false,
+        hasReasoning: false,
+      })
+    );
+    mocks.invokeModel.mockResolvedValue({
+      content: '```nucleas-plan\n{"title":"Blog","summary":"Add a blog","steps":["IA","UX"]}\n```',
+      inputTokens: 10,
+      outputTokens: 200,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'Planner stage.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'Plan a blog for Playbound with UX mockups.',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: true,
+      forceToolLoop: true,
+      maxOutputTokensOverride: 8192,
+    });
+
+    expect(turn.role).toBe('assistant');
+    expect(turn.text).toMatch(/nucleas-plan|Blog/);
+    expect(mocks.invokeModel).toHaveBeenCalled();
+    const invokeArg = mocks.invokeModel.mock.calls.at(-1)?.[1] as { maxOutputTokens?: number };
+    expect(invokeArg.maxOutputTokens).toBeGreaterThanOrEqual(8192);
+  });
+
   it('forces the tool loop when forceToolLoop is set even for short non-lookup asks', async () => {
     mocks.toolLoop.mockResolvedValue({
       content: 'Noted.',

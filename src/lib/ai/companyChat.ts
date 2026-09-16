@@ -100,6 +100,7 @@ type ChatPhase =
   | 'tool_loop'
   | 'browse_assist_retry'
   | 'plain_retry'
+  | 'length_retry'
   | 'empty_content';
 
 function formatDebugHint(parts: Record<string, string | number | boolean | null | undefined>): string {
@@ -152,6 +153,12 @@ export async function attemptCompanyCredentialChat(input: {
   forceToolLoop?: boolean;
   /** Pre-fetched repo dig from orchestra; skips proactive tryRepoAssistPlain. */
   repoContextBlock?: string;
+  /**
+   * Raise completion budget (Plan/Build drafts). Hard-capped in this function.
+   * Paid hosts also take max(policy.maxOutputTokens, this) so low Admin defaults
+   * cannot clip long-form plan output to empty finishReason=length replies.
+   */
+  maxOutputTokensOverride?: number;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
   let gateway: GatewayConfiguration;
@@ -321,11 +328,16 @@ export async function attemptCompanyCredentialChat(input: {
     .map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.text.slice(0, 2000) }));
 
   // Reasoning models count reasoning tokens against max_completion_tokens; keep headroom for visible text.
-  // Free/local hosts: 3072 (3× prior 1024), not clipped by older Admin defaults of 2048. Sol/o-series: 4096.
-  const chatTokenCap = usesMaxCompletionTokens(gateway.model) ? 4096 : 3072;
-  const maxOutputTokens = freeCredential
-    ? chatTokenCap
-    : Math.min(chatTokenCap, policy.maxOutputTokens);
+  // Plan/Build need large budgets; low Admin maxOutputTokens previously clipped paid hosts to empty length finishes.
+  const OUTPUT_HARD_CAP = 16_384;
+  const standardCap = usesMaxCompletionTokens(gateway.model) ? 8192 : 4096;
+  const requestedCap = Math.min(
+    OUTPUT_HARD_CAP,
+    Math.max(256, input.maxOutputTokensOverride ?? standardCap)
+  );
+  let maxOutputTokens = freeCredential
+    ? requestedCap
+    : Math.min(OUTPUT_HARD_CAP, Math.max(requestedCap, policy.maxOutputTokens));
 
   try {
     let loop: Awaited<ReturnType<typeof runIdeToolLoop>> | undefined;
@@ -534,6 +546,31 @@ export async function attemptCompanyCredentialChat(input: {
       return kind === 'empty_content' || finishReason === 'length';
     }
 
+    /** One retry with a larger completion budget when the host returns empty + finish_reason=length. */
+    async function retryPlainAfterLengthLimit(systemExtra: string): Promise<{
+      content: string;
+      toolCallsMade: string[];
+      artifacts: ToolArtifact[];
+      inputTokens: number | null;
+      outputTokens: number | null;
+      latencyMs: number;
+    }> {
+      phase = 'length_retry';
+      maxOutputTokens = Math.min(OUTPUT_HARD_CAP, Math.max(maxOutputTokens * 2, 8192));
+      const plain = await plainInvoke({
+        systemExtra: `${systemExtra} The previous attempt hit the output token limit before any visible text. Finish the full answer now in one shot. Do not call tools.`,
+        userContent: userTextForModel,
+      });
+      return {
+        content: plain.content,
+        toolCallsMade: [],
+        artifacts: [],
+        inputTokens: plain.inputTokens,
+        outputTokens: plain.outputTokens,
+        latencyMs: plain.latencyMs,
+      };
+    }
+
     async function runToolLoopPhase() {
       phase = 'tool_loop';
       const deepRepo =
@@ -575,18 +612,29 @@ export async function attemptCompanyCredentialChat(input: {
         };
       } catch (plainError) {
         lastError = plainError;
-        const retryBrowse =
-          freeCredential &&
-          (plainError instanceof GatewayError
-            ? plainError.code === 'unavailable' || plainError.code === 'invalid_response'
-            : isLookup || isImageLookup);
-        if (!retryBrowse) throw plainError;
-        phase = 'browse_assist_retry';
-        const assisted =
-          (await tryImageAssistPlain('Tools are disabled for this turn.')) ??
-          (await tryBrowseAssistPlain('Tools are disabled for this turn.'));
-        if (!assisted) throw plainError;
-        loop = assisted;
+        if (isEmptyLengthToolFailure(plainError)) {
+          try {
+            loop = await retryPlainAfterLengthLimit(
+              'Tools are disabled for this turn; answer from knowledge only.'
+            );
+          } catch (retryError) {
+            lastError = retryError;
+            throw retryError;
+          }
+        } else {
+          const retryBrowse =
+            freeCredential &&
+            (plainError instanceof GatewayError
+              ? plainError.code === 'unavailable' || plainError.code === 'invalid_response'
+              : isLookup || isImageLookup);
+          if (!retryBrowse) throw plainError;
+          phase = 'browse_assist_retry';
+          const assisted =
+            (await tryImageAssistPlain('Tools are disabled for this turn.')) ??
+            (await tryBrowseAssistPlain('Tools are disabled for this turn.'));
+          if (!assisted) throw plainError;
+          loop = assisted;
+        }
       }
     } else if (freeCredential) {
       let resolved = false;
@@ -711,13 +759,24 @@ export async function attemptCompanyCredentialChat(input: {
               resolved = true;
             } catch (plainError) {
               lastError = plainError;
-              if ((isLookup || isImageLookup) && browseAssisted === false) {
+              if (isEmptyLengthToolFailure(plainError) || isEmptyLengthToolFailure(toolError)) {
+                try {
+                  loop = await retryPlainAfterLengthLimit(
+                    'Write the complete answer from context you have. Do not invent missing file contents. Do not call tools.'
+                  );
+                  resolved = true;
+                } catch (retryError) {
+                  lastError = retryError;
+                  throw retryError;
+                }
+              } else if ((isLookup || isImageLookup) && browseAssisted === false) {
                 throw new GatewayError('unavailable', {
                   ...(plainError instanceof GatewayError ? plainError.details : {}),
                   kind: 'browse_unavailable',
                 });
+              } else {
+                throw plainError;
               }
-              throw plainError;
             }
           }
         }
@@ -751,22 +810,38 @@ export async function attemptCompanyCredentialChat(input: {
         }
         if (assisted) {
           loop = assisted;
+        } else if (isEmptyLengthToolFailure(toolError)) {
+          loop = await retryPlainAfterLengthLimit(
+            projectInternal
+              ? 'Write the complete answer from repository context you have. Do not invent file contents. Do not call tools.'
+              : 'Write the complete answer carefully. Do not invent repo file contents. Do not call tools.'
+          );
         } else {
           phase = 'plain_retry';
-          const plain = await plainInvoke({
-            systemExtra: projectInternal
-              ? 'Could not read the repository this turn; say what blocked it if known. Do not invent file contents. Do not call tools.'
-              : 'Could not complete tools this turn; answer carefully without inventing repo file contents. Do not call tools.',
-            userContent: userTextForModel,
-          });
-          loop = {
-            content: plain.content,
-            toolCallsMade: [],
-            artifacts: [],
-            inputTokens: plain.inputTokens,
-            outputTokens: plain.outputTokens,
-            latencyMs: plain.latencyMs,
-          };
+          try {
+            const plain = await plainInvoke({
+              systemExtra: projectInternal
+                ? 'Could not read the repository this turn; say what blocked it if known. Do not invent file contents. Do not call tools.'
+                : 'Could not complete tools this turn; answer carefully without inventing repo file contents. Do not call tools.',
+              userContent: userTextForModel,
+            });
+            loop = {
+              content: plain.content,
+              toolCallsMade: [],
+              artifacts: [],
+              inputTokens: plain.inputTokens,
+              outputTokens: plain.outputTokens,
+              latencyMs: plain.latencyMs,
+            };
+          } catch (plainError) {
+            if (isEmptyLengthToolFailure(plainError)) {
+              loop = await retryPlainAfterLengthLimit(
+                'Write the complete answer now. Do not call tools.'
+              );
+            } else {
+              throw plainError;
+            }
+          }
         }
       }
     }
@@ -867,8 +942,12 @@ export async function attemptCompanyCredentialChat(input: {
             : 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
           : 'The remote model endpoint was unreachable or returned an error.',
         invalid_response: freeCredential
-          ? 'This free/local host returned an invalid response. Check that the model id is loaded and the endpoint accepts the request (including tools if used). Browse may have run on Nucleas without usable model text.'
-          : 'The remote response could not be validated.',
+          ? error.details?.finishReason === 'length' || error.details?.kind === 'empty_content'
+            ? 'The model hit its output token limit before producing text (common on long Plan drafts). Try again — Nucleas retries with a larger budget automatically.'
+            : 'This free/local host returned an invalid response. Check that the model id is loaded and the endpoint accepts the request (including tools if used). Browse may have run on Nucleas without usable model text.'
+          : error.details?.finishReason === 'length' || error.details?.kind === 'empty_content'
+            ? 'The remote model hit its output token limit before producing text (common on long Plan drafts). Try again — Nucleas retries with a larger budget automatically.'
+            : 'The remote response could not be validated.',
         cancelled: 'The chat request was cancelled before completion.',
       };
       return statusTurn(messagesByCode[error.code], error.code, String(runId), {

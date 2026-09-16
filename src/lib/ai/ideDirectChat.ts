@@ -69,6 +69,9 @@ export async function attemptDirectModelChat(input: {
       includeRepoTools: includeRepo,
       toolProfile: includeRepo ? toolProfile : 'full',
       forcePlain: shouldForcePlainChat(interactionMode),
+      forceToolLoop: includeRepo && (interactionMode === 'plan' || interactionMode === 'build'),
+      maxOutputTokensOverride:
+        interactionMode === 'plan' || interactionMode === 'build' ? 8192 : undefined,
       signal: input.signal,
     })
   );

@@ -91,7 +91,7 @@ export default function AiSettingsPage() {
         <section className="space-y-3"><h2 className="text-lg font-semibold">Shared server load limits</h2>
           {([['dailyRequestLimit', 'Maximum attempts per UTC day', 1, 10000],
             ['minimumIntervalSeconds', 'Minimum seconds between attempts', 1, 86400],
-            ['maxOutputTokens', 'Maximum output tokens per request', 256, 4096]] as const).map(([key, label, min, max]) =>
+            ['maxOutputTokens', 'Maximum output tokens per request', 256, 16384]] as const).map(([key, label, min, max]) =>
             <label className="block" key={key}>{label}<input className={field} type="number" required min={min} max={max} step={1}
               value={values[key]} onChange={event => setValues({ ...values, [key]: Number(event.target.value) })} /></label>)}
           <p className="text-sm text-text-secondary">Shared across all organizations. Limited requests stay queued and can be cancelled. Failed or interrupted attempts count; editing settings does not reset usage. These bounds do not guarantee the remote server’s capacity. Confirm limits with its owner before increasing them.</p>
