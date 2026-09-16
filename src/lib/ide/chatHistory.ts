@@ -1,15 +1,12 @@
 import 'server-only';
 import { Types } from 'mongoose';
 import type { IdeChatMode } from '@/lib/ide/modes';
-import { ideChatModes, isIdeDirectMode, isIdeWorkerMode } from '@/lib/ide/modes';
+import { isIdeDirectMode } from '@/lib/ide/modes';
 import type { IdePlanDocument } from '@/lib/ide/idePlan';
 import { AiIdeChatTurn } from '@/lib/models/AiIdeChatTurn';
 import { isMongoDuplicateKeyError } from '@/lib/utils/mongoErrors';
 
 const HISTORY_LIMIT = 50;
-const WORKER_HISTORY_MODES = ideChatModes
-  .map((item) => item.id)
-  .filter((id): id is Exclude<IdeChatMode, 'direct'> => isIdeWorkerMode(id));
 
 let indexesReady: Promise<void> | undefined;
 
@@ -28,6 +25,7 @@ export type IdePersistedTurn = {
   role: 'user' | 'assistant' | 'status';
   text: string;
   failureCategory?: string | null;
+  debugHint?: string | null;
   runId?: string | null;
   costMicros?: number | null;
   reservedMicros?: number | null;
@@ -92,6 +90,7 @@ function toInsertDocs(
     role: turn.role,
     text: (turn.text || ' ').slice(0, 24000),
     ...(turn.failureCategory ? { failureCategory: turn.failureCategory } : {}),
+    ...(turn.debugHint ? { debugHint: turn.debugHint.slice(0, 400) } : {}),
     ...(turn.runId ? { runId: turn.runId } : {}),
     ...(turn.costMicros != null ? { costMicros: turn.costMicros } : {}),
     ...(turn.reservedMicros != null ? { reservedMicros: turn.reservedMicros } : {}),
@@ -136,10 +135,7 @@ export async function loadIdeChatHistory(input: {
   }
   await ensureIdeChatIndexes();
   const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
-  // Worker tabs share one project transcript across all worker roles.
-  // Also include Direct turns for the same project: Free Chat has one stable
-  // thread, but project chats were often saved under Direct when mode stuck
-  // after Free→Project, which made Product/Engineering look empty on refresh.
+  // Each worker owns its transcript. Direct additionally scopes by credential/model.
   const filter = isIdeDirectMode(keys.mode)
     ? {
         organizationId: input.organizationId,
@@ -153,7 +149,7 @@ export async function loadIdeChatHistory(input: {
         organizationId: input.organizationId,
         projectId: input.projectId,
         createdByUserId: new Types.ObjectId(input.userId),
-        mode: { $in: [...WORKER_HISTORY_MODES, 'direct'] },
+        mode: keys.mode,
       };
   const rows = await AiIdeChatTurn.find(filter)
     .sort({ _id: -1 })
@@ -168,6 +164,7 @@ export async function loadIdeChatHistory(input: {
       role: row.role as IdePersistedTurn['role'],
       text: row.text,
       failureCategory: row.failureCategory ?? null,
+      debugHint: row.debugHint ?? null,
       runId: row.runId ?? null,
       costMicros: row.costMicros ?? null,
       reservedMicros: row.reservedMicros ?? null,
@@ -302,6 +299,7 @@ export async function findExistingIdeAssistantTurn(input: {
     role: 'assistant',
     text: row.text,
     failureCategory: row.failureCategory ?? null,
+    debugHint: row.debugHint ?? null,
     runId: row.runId ?? null,
     costMicros: row.costMicros ?? null,
     reservedMicros: row.reservedMicros ?? null,

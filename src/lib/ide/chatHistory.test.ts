@@ -80,6 +80,7 @@ describe('loadIdeChatHistory', () => {
                     requestId: 'r2',
                     role: 'assistant',
                     text: 'hi',
+                    debugHint: 'code=unavailable kind=http httpStatus=400',
                     createdAt: new Date('2026-01-02'),
                   },
                   {
@@ -105,39 +106,42 @@ describe('loadIdeChatHistory', () => {
       organizationId: 'org',
       projectId,
       createdByUserId: new Types.ObjectId(userId),
-      mode: { $in: ['marketing', 'product', 'support', 'engineering', 'researcher', 'direct'] },
+      mode: 'engineering',
     });
     expect(turns.map((item) => item.requestId)).toEqual(['r1', 'r2']);
+    expect(turns[1].debugHint).toBe('code=unavailable kind=http httpStatus=400');
   });
 
-  it('includes Direct turns when loading a Product worker thread', async () => {
-    mocks.find.mockReturnValue({
+  it.each(['marketing', 'product', 'support', 'engineering', 'researcher', 'direct'] as const)('restricts %s history to its own thread', async (mode) => {
+    const rows = ['marketing', 'product', 'support', 'engineering', 'researcher', 'direct'].map((storedMode) => ({
+      requestId: storedMode, mode: storedMode, role: 'user', text: storedMode,
+      directProfileId: 'profile-a', directModel: 'model-a',
+    }));
+    rows.push({ requestId: 'other-direct', mode: 'direct', role: 'user', text: 'other', directProfileId: 'profile-b', directModel: 'model-b' });
+    mocks.find.mockImplementation((filter) => ({
       sort: () => ({
         limit: () => ({
           maxTimeMS: () => ({
             lean: () =>
-              Promise.resolve([
-                {
-                  requestId: 'd1',
-                  role: 'user',
-                  text: 'saved while mode was Direct',
-                  mode: 'direct',
-                  createdAt: new Date('2026-01-01'),
-                },
-              ]),
+              Promise.resolve(rows.filter((row) => row.mode === filter.mode &&
+                (filter.directProfileId === undefined || row.directProfileId === filter.directProfileId) &&
+                (filter.directModel === undefined || row.directModel === filter.directModel))),
           }),
         }),
       }),
-    });
-    await loadIdeChatHistory({
+    }));
+    const turns = await loadIdeChatHistory({
       organizationId: 'org',
       projectId,
       userId,
-      mode: 'product',
+      mode,
+      modelProfileId: 'profile-a',
+      model: 'model-a',
     });
+    expect(turns.map((turn) => turn.requestId)).toEqual([mode]);
     expect(mocks.find).toHaveBeenCalledWith(
       expect.objectContaining({
-        mode: { $in: expect.arrayContaining(['product', 'direct']) },
+        mode,
       })
     );
   });
@@ -192,7 +196,7 @@ describe('appendIdeChatTurns', () => {
         model: 'gpt',
         turns: [
           { requestId: 'u1', role: 'user', text: 'hello' },
-          { requestId: 'a1', role: 'assistant', text: 'world' },
+          { requestId: 'a1', role: 'assistant', text: 'world', debugHint: 'kind=http httpStatus=400' },
         ],
       })
     ).resolves.toBe(true);
@@ -208,6 +212,7 @@ describe('appendIdeChatTurns', () => {
         expect.objectContaining({
           requestId: 'a1',
           role: 'assistant',
+          debugHint: 'kind=http httpStatus=400',
         }),
       ],
       { ordered: false }

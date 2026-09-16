@@ -69,6 +69,14 @@ describe('wantsLookupScreenshots', () => {
 });
 
 describe('looksLikeProjectInternalQuery', () => {
+  it('recognizes product questions about the selected project without hardcoding its name', () => {
+    const ask = 'What is the biggest missing feature that PlayBound could add to enhance it for users?';
+    expect(looksLikeProjectInternalQuery(ask, 'Playbound.club')).toBe(true);
+    expect(looksLikeProjectInternalQuery(ask, 'Other project')).toBe(false);
+    expect(looksLikeProjectInternalQuery('What features should our Hearth app add?', 'Hearth')).toBe(true);
+    expect(looksLikeProjectInternalQuery('What features does hearthstone have?', 'Hearth')).toBe(false);
+    expect(looksLikeProjectInternalQuery('Who scored most for Arsenal?', 'Playbound.club')).toBe(false);
+  });
   it('matches rules/codebase phrasing', () => {
     expect(looksLikeProjectInternalQuery('how does our rules system work exactly?')).toBe(true);
     expect(looksLikeProjectInternalQuery('what does our rules system do and how exactly does it work?')).toBe(

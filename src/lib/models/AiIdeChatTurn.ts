@@ -62,6 +62,7 @@ const schema = new Schema(
     role: { type: String, enum: ['user', 'assistant', 'status'] as const, required: true },
     text: { type: String, required: true, maxlength: 24000 },
     failureCategory: { type: String, maxlength: 64 },
+    debugHint: { type: String, maxlength: 400 },
     runId: { type: String, maxlength: 64 },
     costMicros: { type: Number },
     reservedMicros: { type: Number },

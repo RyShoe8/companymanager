@@ -183,6 +183,7 @@ export async function attemptCompanyCredentialChat(input: {
   modelProfileId: string;
   model: string;
   includeImageTool?: boolean;
+  projectName?: string;
   /** When false, omit GitHub repo tools (Free Chat). Default true. */
   includeRepoTools?: boolean;
   /** Restrict tool catalog. Plan mode should use `repo`. */
@@ -390,10 +391,10 @@ export async function attemptCompanyCredentialChat(input: {
     let lastError: unknown;
     const usePlain = Boolean(input.forcePlain) || input.toolProfile === 'none';
     const isImageLookup = looksLikeImageSearchQuery(input.userText);
-    const isLookup = !isImageLookup && looksLikeWebLookupQuery(input.userText);
+    const projectInternal = looksLikeProjectInternalQuery(input.userText, input.projectName);
+    const isLookup = !projectInternal && !isImageLookup && looksLikeWebLookupQuery(input.userText);
     const toolNeedy = looksLikeToolNeedyQuery(input.userText);
     const repoToolsOn = input.includeRepoTools !== false;
-    const projectInternal = looksLikeProjectInternalQuery(input.userText);
     const repoContextBlock = input.repoContextBlock?.trim() ?? '';
     const userTextForModel = repoContextBlock
       ? userTextWithRepoContext(input.userText, repoContextBlock, {
@@ -823,12 +824,10 @@ export async function attemptCompanyCredentialChat(input: {
                   lastError = retryError;
                   throw retryError;
                 }
-              } else if ((isLookup || isImageLookup) && browseAssisted === false) {
-                throw new GatewayError('unavailable', {
-                  ...(plainError instanceof GatewayError ? plainError.details : {}),
-                  kind: 'browse_unavailable',
-                });
               } else {
+                // Preserve authentication, rate-limit, HTTP, and transport failures.
+                // No assist result does not mean that web search failed (project
+                // chat intentionally skips web assist).
                 throw plainError;
               }
             }
@@ -1016,9 +1015,9 @@ export async function attemptCompanyCredentialChat(input: {
         credentials: 'Remote authentication was rejected.',
         rate_limit: 'The remote provider rate-limited this request.',
         unavailable: freeCredential
-          ? error.details?.kind === 'browse_unavailable'
-            ? 'Nucleas web search could not ground this answer and the local model did not return usable text. Try again or pick another model.'
-            : 'Local/free model host did not respond successfully. Check that the credential endpoint is publicly reachable over HTTPS and the model id is loaded.'
+          ? error.details?.httpStatus
+            ? `Local model gateway returned HTTP ${error.details.httpStatus}. Check the saved model ID and the provider/router logs for this request.`
+            : 'Local model request failed before a usable response was received. See the diagnostic details below; this does not establish that web search failed.'
           : 'The remote model endpoint was unreachable or returned an error.',
         invalid_response: freeCredential
           ? error.details?.finishReason === 'length' || error.details?.kind === 'empty_content'

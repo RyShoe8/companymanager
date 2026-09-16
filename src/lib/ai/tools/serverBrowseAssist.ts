@@ -31,10 +31,18 @@ export function extractChatHeuristicText(text: string): string {
 }
 
 /** Nucleas/project-internal asks that should use repo_tree/repo_read, not plain-first or web assist. */
-export function looksLikeProjectInternalQuery(text: string): boolean {
+export function looksLikeProjectInternalQuery(text: string, projectName?: string): boolean {
   const q = extractChatHeuristicText(text);
   if (q.length < 8) return false;
-  return PROJECT_INTERNAL.test(q);
+  if (PROJECT_INTERNAL.test(q)) return true;
+  // A project may be named after its domain (Playbound.club) while users omit
+  // the suffix. Require both the project name and product-development intent.
+  const name = projectName?.trim().toLowerCase().replace(/\.[a-z]{2,}$/i, '');
+  if (!name || name.length < 3) return false;
+  const tokens = q.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const nameTokens = name.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const namedProject = nameTokens.length > 0 && (` ${tokens.join(' ')} `).includes(` ${nameTokens.join(' ')} `);
+  return namedProject && /\b(features?|enhance|improve|missing|roadmap|implement|build|users?|code)\b/i.test(q);
 }
 
 /** Lightweight heuristic: open-ended factual / research asks that benefit from web_search. */
@@ -165,4 +173,3 @@ export function userTextWithRepoContext(
   const maxUserChars = Math.min(options?.maxUserChars ?? 12_000, 16_000);
   return `${userText.trim().slice(0, maxUserChars)}\n\n${digBlock}`.slice(0, maxChars);
 }
-

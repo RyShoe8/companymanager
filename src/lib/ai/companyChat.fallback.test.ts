@@ -68,6 +68,44 @@ vi.mock('@/lib/models/AiControl', () => ({
 
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 
+describe('Direct local gateway diagnostics and project context', () => {
+  it.each([
+    ['credentials', 401], ['rate_limit', 429], ['unavailable', 400], ['unavailable', 503],
+  ] as const)('preserves %s HTTP %i rather than inventing a web-search failure', async (code, httpStatus) => {
+    mocks.toolLoop.mockRejectedValue(new GatewayError(code, { kind: 'http', httpStatus }));
+    mocks.invokeModel.mockRejectedValue(new GatewayError(code, { kind: 'http', httpStatus }));
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'Assistant', organizationId: 'org', projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24), userText: 'What feature could PlayBound add?',
+      priorTurns: [], modelProfileId: 'b'.repeat(24), model: 'qwen3-vl-8b-thinking-fp8',
+      includeRepoTools: true,
+    });
+    expect(turn.failureCategory).toBe(code);
+    expect(turn.debugHint).toContain('kind=http');
+    expect(turn.debugHint).toContain('httpStatus=' + httpStatus);
+    expect(turn.text).not.toContain('web search could not ground');
+    expect(mocks.webSearch).not.toHaveBeenCalled();
+  });
+
+  it('grounds a named-project feature question in repository context before asking the local model', async () => {
+    mocks.repoAssist.mockResolvedValue({ contextBlock: 'Verified repository evidence', toolsUsed: ['repo_tree', 'repo_read'] });
+    mocks.invokeModel.mockResolvedValue({ content: 'A grounded suggestion', inputTokens: 3, outputTokens: 4, latencyMs: 5 });
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'Assistant', organizationId: 'org', projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24), userText: 'What is the biggest missing feature that PlayBound could add to enhance it for users?',
+      projectName: 'Playbound.club', priorTurns: [], modelProfileId: 'b'.repeat(24),
+      model: 'qwen3-vl-8b-thinking-fp8', includeRepoTools: true,
+    });
+    expect(turn.role).toBe('assistant');
+    expect(turn.toolsUsed).toEqual(['repo_tree', 'repo_read']);
+    expect(mocks.repoAssist).toHaveBeenCalledTimes(1);
+    expect(mocks.webSearch).not.toHaveBeenCalled();
+    expect(mocks.toolLoop).not.toHaveBeenCalled();
+    expect(mocks.invokeModel.mock.calls[0][1].messages.at(-1).content).toContain('Verified repository evidence');
+  });
+});
+
+
 it('does not restart an orchestra tool loop after an upstream 504', async () => {
   mocks.toolLoop.mockRejectedValueOnce(new GatewayError('unavailable', { kind: 'http', httpStatus: 504 }));
   const turn = await attemptCompanyCredentialChat({
@@ -823,8 +861,8 @@ describe('attemptCompanyCredentialChat free tools', () => {
       role: 'status',
       failureCategory: 'unavailable',
     });
-    expect(turn.text).toMatch(/Local\/free model host/);
-    expect(turn.text).toMatch(/HTTPS/);
+    expect(turn.text).toMatch(/Local model request failed/);
+    expect(turn.text).toMatch(/diagnostic details/);
   });
 });
 

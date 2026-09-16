@@ -65,6 +65,7 @@ export async function attemptDirectModelChat(input: {
       priorTurns: input.priorTurns,
       modelProfileId: input.modelProfileId,
       model: input.model,
+      projectName: includeRepo ? input.projectName : undefined,
       includeImageTool: toolProfile === 'full',
       includeRepoTools: includeRepo,
       toolProfile: includeRepo ? toolProfile : 'full',

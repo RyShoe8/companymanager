@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
             role: payload.role,
             text: payload.text,
             failureCategory: payload.failureCategory ?? null,
+            debugHint: payload.debugHint ?? null,
             runId: payload.runId ?? null,
             costMicros: payload.costMicros ?? null,
             reservedMicros: payload.reservedMicros ?? null,

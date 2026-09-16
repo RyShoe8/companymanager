@@ -1,14 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { buildDioramaDesks, ideChatThreadCacheKey } from '@/lib/ide/ideChatThreadCache';
 import { runSceneFromState } from '@/lib/ide/runScenePhases';
+import { ideChatModes } from '@/lib/ide/modes';
 
 describe('ideChatThreadCacheKey', () => {
-  it('shares one worker transcript key per project', () => {
+  it('never shares cached turns or draft keys across roles, projects, or Direct selections', () => {
+    const keys = ['projA', 'projB'].flatMap((projectId) => [
+      ...ideChatModes.map(({ id: mode }) => ideChatThreadCacheKey({ projectId, mode, modelProfileId: 'a', model: 'one' })),
+      ideChatThreadCacheKey({ projectId, mode: 'direct', modelProfileId: 'b', model: 'one' }),
+      ideChatThreadCacheKey({ projectId, mode: 'direct', modelProfileId: 'a', model: 'two' }),
+    ]);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).not.toContain('projA:worker');
+  });
+  it('isolates each worker transcript per project', () => {
     expect(
       ideChatThreadCacheKey({ projectId: 'projA', mode: 'product', modelProfileId: 'x', model: 'y' })
-    ).toBe('projA:worker');
-    expect(ideChatThreadCacheKey({ projectId: 'projA', mode: 'engineering' })).toBe('projA:worker');
-    expect(ideChatThreadCacheKey({ projectId: 'projB', mode: 'product' })).toBe('projB:worker');
+    ).toBe('projA:worker:product');
+    expect(ideChatThreadCacheKey({ projectId: 'projA', mode: 'engineering' })).toBe('projA:worker:engineering');
+    expect(ideChatThreadCacheKey({ projectId: 'projB', mode: 'product' })).toBe('projB:worker:product');
   });
 
   it('keys Direct by project, profile, and model', () => {

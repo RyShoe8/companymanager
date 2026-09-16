@@ -181,6 +181,7 @@ export default function IdeChatPane({
 }: Props) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState('');
+  const [draftScopeKey, setDraftScopeKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [historyPersistFailed, setHistoryPersistFailed] = useState(false);
@@ -309,10 +310,11 @@ export default function IdeChatPane({
       if (!directProfileId.trim() || !directModel.trim()) return `${projectId}:direct:pending`;
       return `${projectId}:direct:${directProfileId}:${directModel}`;
     }
-    return `${projectId}:worker`;
+    return ideChatThreadCacheKey({ projectId, mode });
   }, [projectId, mode, directProfileId, directModel]);
 
   useEffect(() => {
+    setDraftScopeKey(historyScopeKey);
     if (!historyScopeKey || historyScopeKey.endsWith(':direct:pending')) {
       setDraft('');
       return;
@@ -321,9 +323,9 @@ export default function IdeChatPane({
   }, [historyScopeKey]);
 
   useEffect(() => {
-    if (!historyScopeKey || historyScopeKey.endsWith(':direct:pending')) return;
+    if (draftScopeKey !== historyScopeKey || !historyScopeKey || historyScopeKey.endsWith(':direct:pending')) return;
     writeStoredIdeDraft(historyScopeKey, draft);
-  }, [historyScopeKey, draft]);
+  }, [historyScopeKey, draft, draftScopeKey]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -346,6 +348,7 @@ export default function IdeChatPane({
     });
     const cached = threadCacheRef.current.get(cacheKey);
     if (cached?.length) {
+      turnsRef.current = cached;
       setTurns(cached);
       const latestPlan = [...cached].reverse().find((turn) => turn.plan)?.plan ?? null;
       if (latestPlan) {
@@ -354,9 +357,12 @@ export default function IdeChatPane({
       } else {
         onPlanReady?.(null);
       }
+    } else {
+      // Never display or send the previous thread while this thread loads (or fails).
+      turnsRef.current = [];
+      setTurns([]);
+      onPlanReady?.(null);
     }
-    // Free Chat waits on `:direct:pending` instead of wiping; do the same for
-    // workers — never blank a visible thread before the GET settles.
 
     if (!projectId || !chatScopeReady || historyScopeKey.endsWith(':direct:pending')) {
       if (!cached?.length && historyScopeKey.endsWith(':direct:pending')) {

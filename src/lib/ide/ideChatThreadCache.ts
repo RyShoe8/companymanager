@@ -10,8 +10,7 @@ export function ideChatThreadCacheKey(input: {
   model?: string;
 }): string {
   const project = input.projectId.trim() || '_none';
-  // All worker role tabs share one project transcript.
-  if (!isIdeDirectMode(input.mode)) return `${project}:worker`;
+  if (!isIdeDirectMode(input.mode)) return `${project}:worker:${input.mode}`;
   return `${project}:direct:${input.modelProfileId?.trim() ?? ''}:${input.model?.trim() ?? ''}`;
 }
 
