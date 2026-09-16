@@ -13,7 +13,7 @@ const CODE_HEAVY =
   /\b(refactor|typescript|javascript|python|bugfix|stack\s*trace|compile)\b/i;
 /** Project / codebase questions should use repo tools, not proactive web_search. */
 const PROJECT_INTERNAL =
-  /\b(rules?\s+system|task\s+rules?|codebase|architecture|\.cursor|nucleas|repo(?:sitory)?|our\s+rules|this\s+(?:project|repo|codebase))\b/i;
+  /\b(rules?\s+system|task\s+rules?|codebase|architecture|how\s+do\s+we\s+handle|context\s+in\s+(?:our|the)\s+IDE|IDE\s+context|\.cursor|nucleas|repo(?:sitory)?|our\s+rules|this\s+(?:project|repo|codebase))\b/i;
 const IMAGE_GENERATE =
   /\b(generate|draw|create|make)\b.*\b(image|picture|photo|illustration|art)\b|\b(image|picture|photo)\b.*\b(generate|draw|create|make)\b/i;
 const IMAGE_FIND =

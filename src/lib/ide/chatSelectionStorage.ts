@@ -1,6 +1,11 @@
 import { isIdeChatMode, normalizeIdeChatMode, type IdeChatMode } from '@/lib/ide/modes';
 import { isIdeInteractionMode, type IdeInteractionMode } from '@/lib/ide/idePlan';
-import { isIdeFreeChatScope } from '@/lib/ide/freeChat';
+import { IDE_FREE_CHAT_SCOPE, isIdeFreeChatScope } from '@/lib/ide/freeChat';
+import {
+  clearClientIdeProjectCookie,
+  isRealIdeProjectId,
+  setClientIdeProjectCookie,
+} from '@/lib/ide/ideProjectCookie';
 
 const MODE_KEY_PREFIX = 'nucleas.ide.chatMode.';
 const DIRECT_KEY_PREFIX = 'nucleas.ide.directSelection.';
@@ -62,28 +67,38 @@ function sessionRemove(key: string): void {
   }
 }
 
-const OBJECT_ID_RE = /^[a-f0-9]{24}$/i;
-
 export function isStoredIdeProjectId(value: string | null | undefined): value is string {
-  if (!value) return false;
-  return isIdeFreeChatScope(value) || OBJECT_ID_RE.test(value);
+  return isRealIdeProjectId(value);
 }
 
+/** Last real Mongo project id (never __free_chat__). */
 export function readStoredIdeProjectId(): string | null {
   const raw = storageGet(LAST_PROJECT_KEY)?.trim() ?? '';
-  return isStoredIdeProjectId(raw) ? raw : null;
+  return isRealIdeProjectId(raw) ? raw : null;
 }
 
+/** Persist only real project ids — Free Chat must not clobber last project. */
 export function writeStoredIdeProjectId(projectId: string): void {
   const id = projectId.trim();
-  if (!isStoredIdeProjectId(id)) return;
+  if (!isRealIdeProjectId(id)) return;
   storageSet(LAST_PROJECT_KEY, id);
+  setClientIdeProjectCookie(id);
+}
+
+/** URL query → localStorage → Free Chat. */
+export function resolveInitialIdeProjectId(urlProjectId?: string): string {
+  if (urlProjectId && isRealIdeProjectId(urlProjectId)) return urlProjectId.trim();
+  if (typeof window !== 'undefined') {
+    const stored = readStoredIdeProjectId();
+    if (stored) return stored;
+  }
+  return IDE_FREE_CHAT_SCOPE;
 }
 
 /** Soft-nav target for IDE (preserves last project). */
 export function ideHrefForNavigation(): string {
   const id = readStoredIdeProjectId();
-  if (!id || isIdeFreeChatScope(id)) return '/ide';
+  if (!id) return '/ide';
   return `/ide?projectId=${encodeURIComponent(id)}`;
 }
 
@@ -91,9 +106,20 @@ export function syncIdeProjectUrl(projectId: string): void {
   if (typeof window === 'undefined') return;
   const next = isIdeFreeChatScope(projectId)
     ? '/ide'
-    : `/ide?projectId=${encodeURIComponent(projectId)}`;
+    : isRealIdeProjectId(projectId)
+      ? `/ide?projectId=${encodeURIComponent(projectId.trim())}`
+      : '/ide';
   if (`${window.location.pathname}${window.location.search}` === next) return;
   window.history.replaceState(window.history.state, '', next);
+}
+
+export function markExplicitFreeChatSelection(): void {
+  try {
+    window.localStorage.removeItem(LAST_PROJECT_KEY);
+  } catch {
+    /* ignore */
+  }
+  clearClientIdeProjectCookie();
 }
 
 export function readStoredIdeLayout(projectId: string): IdeLayoutSnapshot | null {

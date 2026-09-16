@@ -446,6 +446,37 @@ export async function attemptTeamChatReply(input: {
     );
   }
 
+  let repoContextBlock: string | undefined;
+  if (looksLikeProjectInternalQuery(input.userText)) {
+    try {
+      const dig = await gatherRepoAssistContext({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        userText: input.userText,
+      });
+      if (!dig.ok && dig.okReads === 0) {
+        return statusTurn(
+          dig.note ||
+            'Repository is unavailable for this project. Bind a GitHub repository or connect the GitHub App, then retry.',
+          'unavailable'
+        );
+      }
+      if (dig.okReads === 0 && !dig.evidenceBlock.trim()) {
+        return statusTurn(
+          `Could not read repository files (${dig.note}). Bind GitHub or reconnect the GitHub App, then retry.`,
+          'unavailable'
+        );
+      }
+      const block = (dig.evidenceBlock || dig.contextBlock).trim();
+      if (block) repoContextBlock = block.slice(0, 48_000);
+    } catch {
+      return statusTurn(
+        'Repository dig failed before orchestra could start. Check GitHub bind/App connection and retry.',
+        'unavailable'
+      );
+    }
+  }
+
   const role = aiEmployees.find((item) => item.id === input.employee)!;
   const ruleBlock =
     input.ruleTexts && input.ruleTexts.length > 0
@@ -504,6 +535,7 @@ export async function attemptTeamChatReply(input: {
         toolProfile,
         forcePlain: toolProfile === 'none' || shouldForcePlainChat(interactionMode),
         forceToolLoop: toolProfile !== 'none',
+        repoContextBlock,
         signal: input.signal,
       })
     );
@@ -549,23 +581,6 @@ export async function attemptTeamChatReply(input: {
 
   let reviewerTurn: TeamChatTurn | null = null;
   if (reviewerBinding) {
-    let digEvidence = '';
-    const needsRepoEvidence =
-      looksLikeProjectInternalQuery(input.userText) ||
-      (workerTurn.toolsUsed ?? []).some((name) => name === 'repo_read' || name === 'repo_tree');
-    if (needsRepoEvidence) {
-      try {
-        const dig = await gatherRepoAssistContext({
-          organizationId: input.organizationId,
-          projectId: input.projectId,
-          userText: input.userText,
-        });
-        digEvidence = (dig.evidenceBlock || dig.contextBlock).slice(0, 24_000);
-      } catch {
-        digEvidence = '';
-      }
-    }
-
     reviewerTurn = await runStage({
       stage: 'reviewer',
       binding: reviewerBinding,
@@ -578,9 +593,6 @@ export async function attemptTeamChatReply(input: {
         '',
         'Worker output:',
         workerTurn.text.slice(0, 20_000),
-        digEvidence
-          ? `\n\nNucleas repository dig excerpts (authoritative; explain from these):\n${digEvidence}`
-          : '',
       ].join('\n'),
       priorTurns: [],
     });

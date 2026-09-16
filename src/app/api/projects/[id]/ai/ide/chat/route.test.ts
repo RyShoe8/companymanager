@@ -128,4 +128,45 @@ describe('POST /api/projects/[id]/ai/ide/chat', () => {
     const body = await response.json();
     expect(body.historyPersisted).toBe(true);
   });
+
+  it('POST product mode then GET returns user and assistant turns', async () => {
+    const persisted: { requestId: string; role: string; text: string }[] = [];
+    mocks.append.mockImplementation(async (args: { turns: typeof persisted }) => {
+      persisted.push(...args.turns);
+      return true;
+    });
+    mocks.history.mockImplementation(async () => [...persisted]);
+    mocks.team.mockResolvedValue({
+      requestId: 'a2',
+      role: 'assistant',
+      text: 'Context loads from Mongo.',
+      toolsUsed: [],
+    });
+
+    const postRequest = new NextRequest(
+      `https://nucleas.test/api/projects/${projectId}/ai/ide/chat`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'product',
+          text: 'how do we handle context in our IDE?',
+          history: [],
+          interactionMode: 'chat',
+        }),
+      }
+    );
+    const postResponse = await POST(postRequest, { params: Promise.resolve({ id: projectId }) });
+    expect(postResponse.status).toBe(200);
+
+    const getRequest = new NextRequest(
+      `https://nucleas.test/api/projects/${projectId}/ai/ide/chat?mode=product`
+    );
+    const getResponse = await GET(getRequest, { params: Promise.resolve({ id: projectId }) });
+    expect(getResponse.status).toBe(200);
+    const getBody = await getResponse.json();
+    expect(getBody.turns.length).toBeGreaterThanOrEqual(2);
+    expect(getBody.turns.some((t: { role: string }) => t.role === 'user')).toBe(true);
+    expect(getBody.turns.some((t: { role: string }) => t.role === 'assistant')).toBe(true);
+  });
 });

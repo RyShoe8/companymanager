@@ -12,9 +12,10 @@ import IdeTaskRulesPanel from '@/components/ide/IdeTaskRulesPanel';
 import type { IdeChatMode } from '@/lib/ide/modes';
 import type { IdePlanDocument, IdeRunActivity } from '@/lib/ide/idePlan';
 import {
+  markExplicitFreeChatSelection,
   readStoredIdeChatMode,
   readStoredIdeLayout,
-  readStoredIdeProjectId,
+  resolveInitialIdeProjectId,
   syncIdeProjectUrl,
   writeStoredIdeChatMode,
   writeStoredIdeLayout,
@@ -50,9 +51,17 @@ function formatSpend(micros: number): string {
   return `$${microsToDollars(micros)}`;
 }
 
+function initialModeForProject(projectId: string): IdeChatMode {
+  if (isIdeFreeChatScope(projectId)) return 'direct';
+  if (typeof window !== 'undefined') {
+    return readStoredIdeChatMode(projectId) ?? 'engineering';
+  }
+  return 'engineering';
+}
+
 export default function IdeShell({ initialProjectId }: { initialProjectId?: string }) {
-  const [projectId, setProjectId] = useState<string | null>(
-    initialProjectId ?? IDE_FREE_CHAT_SCOPE
+  const [projectId, setProjectId] = useState<string | null>(() =>
+    resolveInitialIdeProjectId(initialProjectId)
   );
   const freeChat = isIdeFreeChatScope(projectId);
   const [repository, setRepository] = useState<RepositorySnapshot | null>(null);
@@ -67,14 +76,9 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [activePath, setActivePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
-  const [mode, setMode] = useState<IdeChatMode>(() => {
-    const initial = initialProjectId ?? IDE_FREE_CHAT_SCOPE;
-    if (isIdeFreeChatScope(initial)) return 'direct';
-    if (typeof window !== 'undefined') {
-      return readStoredIdeChatMode(initial) ?? 'engineering';
-    }
-    return 'engineering';
-  });
+  const [mode, setMode] = useState<IdeChatMode>(() =>
+    initialModeForProject(resolveInitialIdeProjectId(initialProjectId))
+  );
   const [rulesOpen, setRulesOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(352);
   const [centerView, setCenterView] = useState<'file' | 'plan'>('file');
@@ -91,30 +95,20 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const restorePathRef = useRef<string | null>(null);
   const skipLayoutWriteRef = useRef(false);
 
-  // URL project wins; otherwise restore last project from localStorage.
-  useEffect(() => {
-    if (initialProjectId) {
-      writeStoredIdeProjectId(initialProjectId);
-      syncIdeProjectUrl(initialProjectId);
-      return;
-    }
-    const stored = readStoredIdeProjectId();
-    if (stored && stored !== IDE_FREE_CHAT_SCOPE) {
-      setProjectId(stored);
-      syncIdeProjectUrl(stored);
-      return;
-    }
-    writeStoredIdeProjectId(IDE_FREE_CHAT_SCOPE);
-  }, [initialProjectId]);
-
   useEffect(() => {
     if (!projectId) return;
+    if (isIdeFreeChatScope(projectId)) {
+      syncIdeProjectUrl(projectId);
+      return;
+    }
     writeStoredIdeProjectId(projectId);
     syncIdeProjectUrl(projectId);
   }, [projectId]);
 
   const onProjectChange = useCallback((next: string | null) => {
-    setProjectId(next ?? IDE_FREE_CHAT_SCOPE);
+    const id = next ?? IDE_FREE_CHAT_SCOPE;
+    if (isIdeFreeChatScope(id)) markExplicitFreeChatSelection();
+    setProjectId(id);
   }, []);
 
   useEffect(() => {
@@ -485,6 +479,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
         </div>
         <IdeChatPane
           projectId={projectId}
+          chatScopeReady={Boolean(projectId)}
           mode={mode}
           onModeChange={onModeChange}
           onOpenRules={freeChat ? undefined : () => setRulesOpen(true)}

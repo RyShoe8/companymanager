@@ -147,14 +147,27 @@ export async function POST(request: NextRequest, context: Context) {
       model: input.model,
     };
 
-    const persistUserTurn = async () =>
-      appendIdeChatTurns({
+    const logPersistFailure = (which: 'user' | 'assistant', ok: boolean) => {
+      if (ok) return;
+      console.error('[ide/chat] history persist failed', {
+        which,
+        projectId: String(access.project._id),
+        mode,
+        userId: access.userId,
+      });
+    };
+
+    const persistUserTurn = async () => {
+      const ok = await appendIdeChatTurns({
         ...persistScope,
         turns: [{ requestId: userRequestId, role: 'user', text: input.text }],
       });
+      logPersistFailure('user', ok);
+      return ok;
+    };
 
-    const persistAssistantTurn = async (reply: ReturnType<typeof turnPayload>) =>
-      appendIdeChatTurns({
+    const persistAssistantTurn = async (reply: ReturnType<typeof turnPayload>) => {
+      const ok = await appendIdeChatTurns({
         ...persistScope,
         turns: [
           {
@@ -172,6 +185,9 @@ export async function POST(request: NextRequest, context: Context) {
           },
         ],
       });
+      logPersistFailure('assistant', ok);
+      return ok;
+    };
 
     const runChat = async (onStage?: IdeChatStageCallback) => {
       const userPersisted = await persistUserTurn();

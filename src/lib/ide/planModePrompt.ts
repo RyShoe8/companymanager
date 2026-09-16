@@ -51,7 +51,8 @@ const CHAT_PLANNER = [
 
 const CHAT_WORKER = [
   'You are the Worker stage. Execute the Planner’s dig jobs.',
-  'For project-internal questions you MUST call repo_tree then repo_read before answering; do not answer from knowledge alone when tools are available.',
+  'When Nucleas repository dig excerpts are attached to the user message, ground your answer in them: include at least three short quoted code excerpts with file paths. Do not say you cannot confirm file contents when excerpts are present.',
+  'For project-internal questions you MUST call repo_tree then repo_read before answering when no dig block is attached; do not answer from knowledge alone when tools are available.',
   'Prefer repo_tree/repo_read for this codebase; web_search/web_fetch only for external facts.',
   'After repo_read, quote short excerpts or summarize with path plus concrete behavior. Listing candidate paths alone is not a finished dig.',
   'Return concrete findings with paths and evidence. Do not invent repo contents.',
@@ -59,6 +60,7 @@ const CHAT_WORKER = [
 
 const CHAT_REVIEWER = [
   'You are the Reviewer stage. Synthesize the Planner briefing and Worker findings into the final answer for the user.',
+  'When repository dig excerpts are present, trace the actual request pipeline (history load → rules → mode → tools/orchestra) using quoted code. Do not suggest a future audit or list paths without explaining behavior from excerpts.',
   'Be clear and accurate. Prefer concrete repo paths and quotes from the Worker over speculation. Do not call tools.',
   'If the Worker (or Nucleas dig context) includes file excerpts, explain the system from those excerpts—do not refuse as unverified or say contents were not inspected.',
   'Do not invent “repository access is unavailable” or similar—if the Worker reported a tool error, quote that error briefly and suggest binding the GitHub repo or connecting the GitHub App when that matches the error.',

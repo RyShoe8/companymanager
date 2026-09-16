@@ -8,6 +8,9 @@ const PATH_HINT =
 const RULES_QUERY =
   /\b(rules?\s+system|task\s+rules?|how\s+(?:do|does)\s+(?:our|the)\s+rules|rule\s+schema|loadTaskRules)\b/i;
 
+const IDE_CONTEXT_QUERY =
+  /\b(context\s+in\s+(?:our|the)\s+IDE|how\s+do\s+we\s+handle|IDE\s+chat|chat\s+history|ide\s+context|persist(?:ence)?|restore\s+session)\b/i;
+
 /** Known rules/architecture files — read first when the query is about rules. */
 const RULES_PRIORITY_PATHS = [
   'src/lib/ide/taskRuleSchema.ts',
@@ -20,7 +23,18 @@ const RULES_PRIORITY_PATHS = [
   'src/lib/ai/ideDirectChat.ts',
 ];
 
-const PRIORITY_PATH_SET = new Set(RULES_PRIORITY_PATHS);
+const IDE_CONTEXT_PATHS = [
+  'src/lib/ide/chatHistory.ts',
+  'src/lib/ide/ideDirectChat.ts',
+  'src/lib/ide/ideChatStream.ts',
+  'src/lib/ide/loadTaskRules.ts',
+  'src/lib/ai/tools/runToolLoop.ts',
+  'src/lib/ai/tools/executeTool.ts',
+  'src/lib/ide/chatSelectionStorage.ts',
+  'src/components/ide/IdeChatPane.tsx',
+];
+
+const PRIORITY_PATH_SET = new Set([...RULES_PRIORITY_PATHS, ...IDE_CONTEXT_PATHS]);
 
 /**
  * Seed dirs listed in parallel. Root '' is fetched separately first (bind check).
@@ -51,6 +65,7 @@ const CONTEXT_CHARS = 48_000;
 export type RepoAssistResult = {
   ok: boolean;
   note: string;
+  okReads: number;
   toolsUsed: string[];
   contextBlock: string;
   /** Compact excerpts for Reviewer (file bodies only, no tree). */
@@ -80,6 +95,9 @@ function pickReadPaths(query: string, candidateFiles: { path: string; score: num
 
   if (RULES_QUERY.test(query) || PATH_HINT.test(query)) {
     for (const path of RULES_PRIORITY_PATHS) push(path);
+  }
+  if (IDE_CONTEXT_QUERY.test(query)) {
+    for (const path of IDE_CONTEXT_PATHS) push(path);
   }
 
   const scored = [...candidateFiles].sort(
@@ -111,6 +129,7 @@ export async function gatherRepoAssistContext(input: {
     return {
       ok: false,
       note: rootTree.reason,
+      okReads: 0,
       toolsUsed: [...new Set(toolsUsed)],
       contextBlock: [
         'Repository dig (Nucleas):',
@@ -217,6 +236,7 @@ export async function gatherRepoAssistContext(input: {
   return {
     ok: true,
     note: okReads > 0 ? `Read ${okReads} file(s).` : 'Tree only; no scored files.',
+    okReads,
     toolsUsed: [...new Set(toolsUsed)],
     contextBlock,
     evidenceBlock,

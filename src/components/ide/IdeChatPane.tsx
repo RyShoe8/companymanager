@@ -149,6 +149,8 @@ type Pipeline = {
 
 type Props = {
   projectId: string | null;
+  /** When false, defer history GET until project scope is restored (avoids free-chat ledger). */
+  chatScopeReady?: boolean;
   mode: IdeChatMode;
   onModeChange: (mode: IdeChatMode) => void;
   onOpenRules?: () => void;
@@ -166,6 +168,7 @@ const field = 'w-full rounded border border-border bg-background p-2 text-sm tex
 
 export default function IdeChatPane({
   projectId,
+  chatScopeReady = true,
   mode,
   onModeChange,
   onOpenRules,
@@ -208,6 +211,7 @@ export default function IdeChatPane({
   const abortRef = useRef<AbortController | null>(null);
   const sendGenerationRef = useRef(0);
   const historyGenerationRef = useRef(0);
+  const [historyRefetchNonce, setHistoryRefetchNonce] = useState(0);
   const turnsRef = useRef<ChatTurn[]>([]);
   const threadCacheRef = useRef<Map<string, ChatTurn[]>>(new Map());
   turnsRef.current = turns;
@@ -347,7 +351,7 @@ export default function IdeChatPane({
       onPlanReady?.(null);
     }
 
-    if (!projectId || historyScopeKey.endsWith(':direct:pending')) {
+    if (!projectId || !chatScopeReady || historyScopeKey.endsWith(':direct:pending')) {
       setHistoryLoading(false);
       return;
     }
@@ -399,7 +403,7 @@ export default function IdeChatPane({
     })();
 
     return () => controller.abort();
-  }, [historyScopeKey]);
+  }, [historyScopeKey, chatScopeReady, historyRefetchNonce]);
 
   useEffect(() => {
     return () => {
@@ -608,7 +612,7 @@ export default function IdeChatPane({
     modeForRequest: IdeInteractionMode;
     appendUserTurn: boolean;
   }) {
-    if (!projectId || busy || historyLoading) return;
+    if (!projectId || !chatScopeReady || busy || historyLoading) return;
     if (isIdeDirectMode(mode) && (!directProfileId || !directModel.trim())) {
       setError('Pick a company and model for Direct chat.');
       return;
@@ -711,11 +715,15 @@ export default function IdeChatPane({
       }
       if (historyPersisted === false) {
         setHistoryPersistFailed(true);
+        const scopeHint = isIdeFreeChatScope(projectId)
+          ? 'scope: Free Chat'
+          : `scope: project ${projectId}, mode ${mode}`;
         setError(
-          'Reply ready, but this turn was not saved to project history. It may disappear after you leave the IDE — try sending again.'
+          `Reply ready, but this turn was not saved to project history (${scopeHint}). It may disappear after you leave the IDE — try sending again.`
         );
       } else if (historyPersisted === true) {
         setHistoryPersistFailed(false);
+        setHistoryRefetchNonce((n) => n + 1);
       }
     } catch (err) {
       if (generation !== sendGenerationRef.current) return;

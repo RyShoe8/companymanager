@@ -78,6 +78,7 @@ describe('looksLikeProjectInternalQuery', () => {
       true
     );
     expect(looksLikeProjectInternalQuery('Explain the codebase architecture')).toBe(true);
+    expect(looksLikeProjectInternalQuery('how do we handle context in our IDE?')).toBe(true);
   });
 
   it('matches orchestra-wrapped Worker text even when the briefing exceeds 500 chars', () => {

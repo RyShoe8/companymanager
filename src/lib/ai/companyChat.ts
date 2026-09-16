@@ -150,6 +150,8 @@ export async function attemptCompanyCredentialChat(input: {
   forcePlain?: boolean;
   /** Free credentials: skip plain_first and run the tool loop (orchestra dig stages). */
   forceToolLoop?: boolean;
+  /** Pre-fetched repo dig from orchestra; skips proactive tryRepoAssistPlain. */
+  repoContextBlock?: string;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
   let gateway: GatewayConfiguration;
@@ -336,6 +338,12 @@ export async function attemptCompanyCredentialChat(input: {
     const toolNeedy = looksLikeToolNeedyQuery(input.userText);
     const repoToolsOn = input.includeRepoTools !== false;
     const projectInternal = looksLikeProjectInternalQuery(input.userText);
+    const repoContextBlock = input.repoContextBlock?.trim() ?? '';
+    const userTextForModel = repoContextBlock
+      ? userTextWithRepoContext(input.userText, repoContextBlock, {
+          maxChars: freeCredential ? 48_000 : 24_000,
+        })
+      : input.userText;
     /**
      * Prefer the tool loop for paid hosts and project IDE (repo_*).
      * Free Chat without repo tools: Nucleas assist covers web/image digs; only force the
@@ -533,7 +541,7 @@ export async function attemptCompanyCredentialChat(input: {
         messages: [
           { role: 'system', content: input.systemPrompt },
           ...history,
-          { role: 'user', content: input.userText.slice(0, 6000) },
+          { role: 'user', content: userTextForModel.slice(0, 6000) },
         ],
         maxOutputTokens,
         includeImageTool: input.includeImageTool !== false,
@@ -552,7 +560,7 @@ export async function attemptCompanyCredentialChat(input: {
       try {
         const plain = await plainInvoke({
           systemExtra: 'Tools are disabled for this turn; answer from knowledge only. Do not call tools.',
-          userContent: input.userText,
+          userContent: userTextForModel,
         });
         loop = {
           content: plain.content,
@@ -611,7 +619,12 @@ export async function attemptCompanyCredentialChat(input: {
         }
       }
 
-      if (!resolved && (projectInternal || Boolean(input.forceToolLoop)) && repoToolsOn) {
+      if (
+        !resolved &&
+        !repoContextBlock &&
+        (projectInternal || Boolean(input.forceToolLoop)) &&
+        repoToolsOn
+      ) {
         try {
           const assisted = await tryRepoAssistPlain(
             'Prefer Nucleas repo dig for this project-internal question.'
@@ -630,7 +643,7 @@ export async function attemptCompanyCredentialChat(input: {
         try {
           const plain = await plainInvoke({
             systemExtra: 'Answer directly and briefly. Do not call tools.',
-            userContent: input.userText,
+            userContent: userTextForModel,
           });
           loop = {
             content: plain.content,
@@ -656,9 +669,11 @@ export async function attemptCompanyCredentialChat(input: {
           let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
           try {
             assisted =
-              (await tryRepoAssistPlain(
-                'Nucleas already inspected the repository; answer from the dig results. Do not claim tools failed.'
-              )) ??
+              (repoContextBlock
+                ? null
+                : await tryRepoAssistPlain(
+                    'Nucleas already inspected the repository; answer from the dig results. Do not claim tools failed.'
+                  )) ??
               (await tryImageAssistPlain(
                 'Nucleas already gathered image results; answer from them. Do not claim tools failed.'
               )) ??
@@ -680,7 +695,7 @@ export async function attemptCompanyCredentialChat(input: {
                   projectInternal || browseAssisted
                     ? 'Could not read the repository this turn; say what blocked it if known. Do not invent file contents. Do not call tools.'
                     : 'Could not complete tools this turn; answer carefully without inventing repo file contents. Do not call tools.',
-                userContent: input.userText,
+                userContent: userTextForModel,
               });
               loop = {
                 content: plain.content,
@@ -722,9 +737,11 @@ export async function attemptCompanyCredentialChat(input: {
         phase = 'browse_assist_retry';
         let assisted: Awaited<ReturnType<typeof tryRepoAssistPlain>> = null;
         try {
-          assisted = await tryRepoAssistPlain(
-            'Nucleas already inspected the repository; answer from the dig results. Do not claim tools failed.'
-          );
+          assisted = repoContextBlock
+            ? null
+            : await tryRepoAssistPlain(
+                'Nucleas already inspected the repository; answer from the dig results. Do not claim tools failed.'
+              );
         } catch (assistError) {
           lastError = assistError;
           assisted = null;
@@ -737,7 +754,7 @@ export async function attemptCompanyCredentialChat(input: {
             systemExtra: projectInternal
               ? 'Could not read the repository this turn; say what blocked it if known. Do not invent file contents. Do not call tools.'
               : 'Could not complete tools this turn; answer carefully without inventing repo file contents. Do not call tools.',
-            userContent: input.userText,
+            userContent: userTextForModel,
           });
           loop = {
             content: plain.content,

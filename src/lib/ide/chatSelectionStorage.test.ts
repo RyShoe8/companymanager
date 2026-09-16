@@ -6,6 +6,7 @@ import {
   readStoredIdeDraft,
   readStoredIdeLayout,
   readStoredIdeProjectId,
+  resolveInitialIdeProjectId,
   writeStoredIdeChatMode,
   writeStoredIdeDirectSelection,
   writeStoredIdeDraft,
@@ -88,7 +89,19 @@ describe('chatSelectionStorage', () => {
     expect(readStoredIdeProjectId()).toBe(id);
     expect(ideHrefForNavigation()).toBe(`/ide?projectId=${id}`);
     writeStoredIdeProjectId(IDE_FREE_CHAT_SCOPE);
-    expect(ideHrefForNavigation()).toBe('/ide');
+    expect(readStoredIdeProjectId()).toBe(id);
+    expect(ideHrefForNavigation()).toBe(`/ide?projectId=${id}`);
+  });
+
+  it('resolveInitialIdeProjectId prefers URL then stored real project', () => {
+    stubStorage();
+    const stored = 'c'.repeat(24);
+    const url = 'd'.repeat(24);
+    store.set('nucleas.ide.lastProjectId', stored);
+    expect(resolveInitialIdeProjectId(url)).toBe(url);
+    expect(resolveInitialIdeProjectId()).toBe(stored);
+    store.delete('nucleas.ide.lastProjectId');
+    expect(resolveInitialIdeProjectId()).toBe(IDE_FREE_CHAT_SCOPE);
   });
 
   it('persists layout snapshot per project', () => {

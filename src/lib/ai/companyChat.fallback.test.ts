@@ -448,6 +448,7 @@ describe('attemptCompanyCredentialChat free tools', () => {
   it('uses Nucleas repo assist for project-internal rules questions on free credentials', async () => {
     mocks.repoAssist.mockResolvedValue({
       ok: true,
+      okReads: 2,
       note: 'Read 2 file(s).',
       toolsUsed: ['repo_tree', 'repo_read'],
       contextBlock: 'Repository dig: task rules in IdeTaskRulesPanel',
@@ -483,6 +484,34 @@ describe('attemptCompanyCredentialChat free tools', () => {
       noProviderFee: true,
       costMicros: 0,
     });
+  });
+
+  it('skips proactive repo assist when repoContextBlock is provided', async () => {
+    mocks.toolLoop.mockResolvedValue({
+      content: 'IDE context loads via chatHistory.',
+      toolCallsMade: ['repo_read'],
+      artifacts: [],
+      inputTokens: 1,
+      outputTokens: 2,
+      latencyMs: 1,
+    });
+
+    await attemptCompanyCredentialChat({
+      systemPrompt: 'Worker stage.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'how do we handle context in our IDE?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'local',
+      includeRepoTools: true,
+      forceToolLoop: true,
+      repoContextBlock: 'File chatHistory.ts:\nexport async function loadIdeChatHistory',
+    });
+
+    expect(mocks.repoAssist).not.toHaveBeenCalled();
+    expect(mocks.toolLoop).toHaveBeenCalled();
   });
 
   it('falls back to the tool loop for project-internal asks when repo assist fails', async () => {
@@ -872,6 +901,7 @@ describe('attemptCompanyCredentialChat commercial', () => {
     mocks.toolLoop.mockRejectedValue(new GatewayError('unavailable'));
     mocks.repoAssist.mockResolvedValue({
       ok: true,
+      okReads: 3,
       note: 'Read 3 file(s).',
       toolsUsed: ['repo_tree', 'repo_read'],
       contextBlock: 'Repository dig: loadTaskRules injects rule texts',

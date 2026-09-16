@@ -354,7 +354,7 @@ export default function Navigation() {
                 appNavLinks.map((link) => (
                   <Link
                     key={link.href}
-                    href={link.href}
+                    href={link.href === '/ide' ? ideHrefForNavigation() : link.href}
                     data-tour={
                       link.href === '/ide'
                         ? 'nav-ide'
@@ -526,7 +526,7 @@ export default function Navigation() {
                 appNavLinks.map((link) => (
                   <Link
                     key={link.href}
-                    href={link.href}
+                    href={link.href === '/ide' ? ideHrefForNavigation() : link.href}
                     data-tour={
                       link.href === '/ide'
                         ? 'nav-ide'

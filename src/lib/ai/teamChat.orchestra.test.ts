@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 
 const mocks = vi.hoisted(() => ({
   companyChat: vi.fn(),
+  repoDig: vi.fn(),
   findPipeline: vi.fn(),
   findObjectives: vi.fn(),
   findRuns: vi.fn(),
@@ -40,6 +41,9 @@ vi.mock('@/lib/ai/control/config', () => ({
     organizationLimitMicros: 100000,
     projectLimitMicros: 50000,
   }),
+}));
+vi.mock('@/lib/ai/tools/serverRepoAssist', () => ({
+  gatherRepoAssistContext: (...args: unknown[]) => mocks.repoDig(...args),
 }));
 
 import { attemptTeamChatReply } from '@/lib/ai/teamChat';
@@ -86,6 +90,14 @@ describe('attemptTeamChatReply full orchestra', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.repoDig.mockResolvedValue({
+      ok: true,
+      okReads: 2,
+      note: 'Read 2 file(s).',
+      toolsUsed: ['repo_tree', 'repo_read'],
+      contextBlock: 'File loadTaskRules.ts:\nexport async function loadIdeTaskRuleTexts',
+      evidenceBlock: 'File loadTaskRules.ts:\nexport async function loadIdeTaskRuleTexts',
+    });
     mocks.readSettings.mockResolvedValue({ value: readySettings });
     mocks.findObjectives.mockReturnValue(leanChain([]));
     mocks.findRuns.mockReturnValue(leanChain([]));
@@ -165,5 +177,11 @@ describe('attemptTeamChatReply full orchestra', () => {
       ['reviewer', 'start'],
       ['reviewer', 'end'],
     ]);
+    expect(mocks.repoDig).toHaveBeenCalledTimes(1);
+    for (const call of mocks.companyChat.mock.calls) {
+      expect(call[0]).toMatchObject({
+        repoContextBlock: expect.stringContaining('loadTaskRules'),
+      });
+    }
   });
 });
