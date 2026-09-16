@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect, useRef, type MouseEvent } from 'react';
+import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { BLOG_SHORT_NAME } from '@/lib/blog/blogConstants';
 import Dropdown from '@/components/ui/Dropdown';
 import Modal from '@/components/ui/Modal';
@@ -140,7 +140,7 @@ export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const navigateToIde = (event: MouseEvent) => {
+  const navigateToIde = (event: ReactMouseEvent) => {
     event.preventDefault();
     router.push(ideHrefForNavigation());
   };
