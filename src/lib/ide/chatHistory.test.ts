@@ -104,8 +104,6 @@ describe('loadIdeChatHistory', () => {
       projectId,
       createdByUserId: new Types.ObjectId(userId),
       mode: { $in: ['marketing', 'product', 'support', 'engineering', 'researcher'] },
-      directProfileId: '',
-      directModel: '',
     });
     expect(turns.map((item) => item.requestId)).toEqual(['r1', 'r2']);
   });

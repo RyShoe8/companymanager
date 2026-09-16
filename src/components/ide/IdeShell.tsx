@@ -51,7 +51,8 @@ function formatSpend(micros: number): string {
   return `$${microsToDollars(micros)}`;
 }
 
-function initialModeForProject(projectId: string): IdeChatMode {
+/** Sync mode for a project scope — Free Chat is always Direct; projects default to Engineering. */
+function modeForProject(projectId: string): IdeChatMode {
   if (isIdeFreeChatScope(projectId)) return 'direct';
   if (typeof window !== 'undefined') {
     return readStoredIdeChatMode(projectId) ?? 'engineering';
@@ -77,7 +78,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [fileContent, setFileContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [mode, setMode] = useState<IdeChatMode>(() =>
-    initialModeForProject(resolveInitialIdeProjectId(initialProjectId))
+    modeForProject(resolveInitialIdeProjectId(initialProjectId))
   );
   const [rulesOpen, setRulesOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(352);
@@ -102,8 +103,17 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
 
   const onProjectChange = useCallback((next: string | null) => {
     const id = next ?? IDE_FREE_CHAT_SCOPE;
-    if (isIdeFreeChatScope(id)) markExplicitFreeChatSelection();
-    else writeStoredIdeProjectId(id);
+    if (isIdeFreeChatScope(id)) {
+      markExplicitFreeChatSelection();
+      setMode('direct');
+    } else {
+      writeStoredIdeProjectId(id);
+      // Restore mode in the same render as projectId so IdeChatPane does not GET
+      // Free Chat's leftover Direct scope against the real project (empty thread).
+      const restored = modeForProject(id);
+      setMode(restored);
+      writeStoredIdeChatMode(id, restored);
+    }
     setProjectId(id);
     syncIdeProjectUrl(id);
   }, []);
@@ -126,8 +136,10 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
       setMode('direct');
       return;
     }
-    const stored = readStoredIdeChatMode(projectId);
-    if (stored) setMode(stored);
+    // Always apply default when unset — `if (stored)` left Free→Project stuck on Direct.
+    const restored = modeForProject(projectId);
+    setMode(restored);
+    writeStoredIdeChatMode(projectId, restored);
   }, [projectId, freeChat]);
 
   const onModeChange = useCallback(

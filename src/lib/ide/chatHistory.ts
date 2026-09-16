@@ -136,17 +136,25 @@ export async function loadIdeChatHistory(input: {
   }
   await ensureIdeChatIndexes();
   const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
-  const modeFilter = isIdeDirectMode(keys.mode)
-    ? { mode: keys.mode }
-    : { mode: { $in: WORKER_HISTORY_MODES } };
-  const rows = await AiIdeChatTurn.find({
-    organizationId: input.organizationId,
-    projectId: input.projectId,
-    createdByUserId: new Types.ObjectId(input.userId),
-    ...modeFilter,
-    directProfileId: keys.directProfileId,
-    directModel: keys.directModel,
-  })
+  // Worker tabs share one transcript ($in all worker modes). Do not filter
+  // directProfileId/directModel — those keys are Direct-only; requiring '' misses
+  // older docs or accidental non-empty values and returns an empty thread.
+  const filter = isIdeDirectMode(keys.mode)
+    ? {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        createdByUserId: new Types.ObjectId(input.userId),
+        mode: keys.mode,
+        directProfileId: keys.directProfileId,
+        directModel: keys.directModel,
+      }
+    : {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        createdByUserId: new Types.ObjectId(input.userId),
+        mode: { $in: WORKER_HISTORY_MODES },
+      };
+  const rows = await AiIdeChatTurn.find(filter)
     .sort({ _id: -1 })
     .limit(limit)
     .maxTimeMS(3000)

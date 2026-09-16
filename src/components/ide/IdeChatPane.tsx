@@ -382,6 +382,11 @@ export default function IdeChatPane({
             setTurns(existing);
             return;
           }
+          // Do not cache [] — avoids locking in a soft-empty GET after Free→Project races.
+          setTurns([]);
+          setPlanReadyFlag(false);
+          onPlanReady?.(null);
+          return;
         }
         threadCacheRef.current.set(cacheKey, loaded);
         setTurns(loaded);
