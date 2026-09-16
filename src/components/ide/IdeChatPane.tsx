@@ -163,7 +163,7 @@ type Props = {
 };
 
 const CHAT_MIN_WIDTH = 280;
-const CHAT_MAX_WIDTH = 720;
+const CHAT_MAX_WIDTH = 820;
 const field = 'w-full rounded border border-border bg-background p-2 text-sm text-text-primary';
 
 export default function IdeChatPane({

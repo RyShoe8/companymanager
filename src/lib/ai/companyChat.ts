@@ -536,6 +536,8 @@ export async function attemptCompanyCredentialChat(input: {
 
     async function runToolLoopPhase() {
       phase = 'tool_loop';
+      const deepRepo =
+        repoToolsOn && (projectInternal || Boolean(input.forceToolLoop) || Boolean(repoContextBlock));
       return runIdeToolLoop({
         gateway,
         messages: [
@@ -547,6 +549,7 @@ export async function attemptCompanyCredentialChat(input: {
         includeImageTool: input.includeImageTool !== false,
         includeRepoTools: input.includeRepoTools !== false,
         toolProfile: input.toolProfile ?? 'full',
+        maxRounds: deepRepo ? 32 : undefined,
         organizationId: input.organizationId,
         projectId: input.projectId,
         userId: input.userId,

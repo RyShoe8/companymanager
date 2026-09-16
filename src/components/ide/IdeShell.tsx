@@ -96,19 +96,16 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const skipLayoutWriteRef = useRef(false);
 
   useEffect(() => {
-    if (!projectId) return;
-    if (isIdeFreeChatScope(projectId)) {
-      syncIdeProjectUrl(projectId);
-      return;
-    }
+    if (!projectId || isIdeFreeChatScope(projectId)) return;
     writeStoredIdeProjectId(projectId);
-    syncIdeProjectUrl(projectId);
   }, [projectId]);
 
   const onProjectChange = useCallback((next: string | null) => {
     const id = next ?? IDE_FREE_CHAT_SCOPE;
     if (isIdeFreeChatScope(id)) markExplicitFreeChatSelection();
+    else writeStoredIdeProjectId(id);
     setProjectId(id);
+    syncIdeProjectUrl(id);
   }, []);
 
   useEffect(() => {
@@ -116,7 +113,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
       const stored = window.localStorage.getItem('nucleas.ide.chatWidth');
       if (!stored) return;
       const parsed = Number(stored);
-      if (Number.isFinite(parsed) && parsed >= 280 && parsed <= 720) {
+      if (Number.isFinite(parsed) && parsed >= 280 && parsed <= 820) {
         setChatWidth(parsed);
       }
     } catch {

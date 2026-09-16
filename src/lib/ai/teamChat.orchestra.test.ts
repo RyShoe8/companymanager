@@ -184,4 +184,87 @@ describe('attemptTeamChatReply full orchestra', () => {
       });
     }
   });
+
+  it('on needs_more runs another Worker pass then accepts', async () => {
+    const stages: string[] = [];
+    mocks.companyChat.mockImplementation(async (args: { systemPrompt: string; userText: string }) => {
+      if (args.systemPrompt.includes('Pipeline stage: planner')) {
+        stages.push('planner');
+        return {
+          requestId: 'p',
+          role: 'assistant',
+          text: 'Dig history and rules.',
+          toolsUsed: [],
+          costMicros: 10,
+          reservedMicros: 0,
+          noProviderFee: false,
+        };
+      }
+      if (args.systemPrompt.includes('Pipeline stage: worker')) {
+        stages.push('worker');
+        const continuePass = /needs_more/i.test(args.userText);
+        return {
+          requestId: continuePass ? 'w2' : 'w1',
+          role: 'assistant',
+          text: continuePass
+            ? 'Quoted chatHistory appendIdeChatTurns persists user+assistant turns.'
+            : 'Only saw rules panel.',
+          toolsUsed: ['repo_read'],
+          costMicros: 5,
+          reservedMicros: 0,
+          noProviderFee: true,
+        };
+      }
+      stages.push('reviewer');
+      const pass = stages.filter((s) => s === 'reviewer').length;
+      if (pass === 1) {
+        return {
+          requestId: 'r1',
+          role: 'assistant',
+          text: [
+            'Need history persistence evidence.',
+            '```nucleas-gate',
+            '{"status":"needs_more","jobs":["read src/lib/ide/chatHistory.ts and quote appendIdeChatTurns"],"reason":"no history"}',
+            '```',
+          ].join('\n'),
+          toolsUsed: [],
+          costMicros: 8,
+          reservedMicros: 0,
+          noProviderFee: false,
+        };
+      }
+      return {
+        requestId: 'r2',
+        role: 'assistant',
+        text: [
+          'Chat history is stored via appendIdeChatTurns in chatHistory.ts.',
+          '```nucleas-gate',
+          '{"status":"accept"}',
+          '```',
+        ].join('\n'),
+        toolsUsed: [],
+        costMicros: 8,
+        reservedMicros: 0,
+        noProviderFee: false,
+      };
+    });
+
+    const turn = await attemptTeamChatReply({
+      employee: 'product',
+      projectName: 'Nucleas',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'u'.repeat(24),
+      userText: 'how do we store context in our IDE?',
+      priorTurns: [],
+      interactionMode: 'chat',
+    });
+
+    expect(stages).toEqual(['planner', 'worker', 'reviewer', 'worker', 'reviewer']);
+    expect(turn.role).toBe('assistant');
+    expect(turn.text).toBe('Chat history is stored via appendIdeChatTurns in chatHistory.ts.');
+    expect(turn.text).not.toMatch(/nucleas-gate/);
+    expect(turn.toolsUsed).toEqual(['repo_read']);
+    expect(turn.costMicros).toBe(10 + 5 + 8 + 5 + 8);
+  });
 });

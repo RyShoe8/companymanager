@@ -1,11 +1,12 @@
 import { z } from 'zod';
 
+/** Relative repo paths; allow Next.js dynamic segments like `[id]`. Block traversal. */
 const pathSchema = z
   .string()
   .trim()
   .min(1)
   .max(500)
-  .regex(/^(?!\/)(?!.*\.\.\/)[A-Za-z0-9._/-]+$/, 'Invalid repository path.');
+  .regex(/^(?!\/)(?!.*\.\.\/)[A-Za-z0-9._\[\]@/-]+$/, 'Invalid repository path.');
 
 export const idePublishFileSchema = z
   .object({

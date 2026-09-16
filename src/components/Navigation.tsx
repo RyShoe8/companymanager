@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { BLOG_SHORT_NAME } from '@/lib/blog/blogConstants';
 import Dropdown from '@/components/ui/Dropdown';
@@ -138,11 +138,10 @@ function FeaturesDropdown({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function Navigation() {
   const pathname = usePathname();
-  const router = useRouter();
 
   const navigateToIde = (event: ReactMouseEvent) => {
     event.preventDefault();
-    router.push(ideHrefForNavigation());
+    window.location.assign(ideHrefForNavigation());
   };
   const [user, setUser] = useState<{
     name: string;

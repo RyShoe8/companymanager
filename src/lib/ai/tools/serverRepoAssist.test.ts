@@ -99,4 +99,35 @@ describe('gatherRepoAssistContext', () => {
     expect(mocks.listTree.mock.calls.length).toBeGreaterThan(4);
     expect(mocks.listTree.mock.calls.length).toBeLessThanOrEqual(12);
   });
+
+  it('uses src/lib/ai/ideDirectChat.ts for IDE context digs (not ide/ideDirectChat)', async () => {
+    mocks.listTree.mockResolvedValue({ ok: true, branch: 'main', entries: [] });
+    mocks.readFile.mockImplementation(async (_org: string, _proj: unknown, path: string) => {
+      if (path.includes('ide/ideDirectChat')) {
+        return { ok: false, reason: 'Unable to read the file from GitHub.' };
+      }
+      return {
+        ok: true,
+        path,
+        branch: 'main',
+        content: `// contents of ${path}`,
+        sha: 'x',
+      };
+    });
+
+    const result = await gatherRepoAssistContext({
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userText: 'how do we store context in our IDE?',
+    });
+
+    const readPaths = mocks.readFile.mock.calls.map((c: unknown[]) => c[2] as string);
+    expect(readPaths).toContain('src/lib/ai/ideDirectChat.ts');
+    expect(readPaths).not.toContain('src/lib/ide/ideDirectChat.ts');
+    expect(readPaths).toContain('src/app/api/projects/[id]/ai/ide/chat/route.ts');
+    expect(readPaths).toContain('src/lib/ide/chatHistory.ts');
+    expect(result.okReads).toBeGreaterThanOrEqual(4);
+    expect(result.contextBlock).toMatch(/ideDirectChat/);
+    expect(result.contextBlock).toMatch(/seed/i);
+  });
 });

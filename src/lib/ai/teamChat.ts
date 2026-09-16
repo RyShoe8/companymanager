@@ -21,6 +21,7 @@ import {
   toolProfileForOrchestraStage,
 } from '@/lib/ide/planModePrompt';
 import { parseNucleasPlan } from '@/lib/ide/parseNucleasPlan';
+import { parseReviewerGate } from '@/lib/ide/parseReviewerGate';
 import { looksLikeProjectInternalQuery } from '@/lib/ai/tools/serverBrowseAssist';
 import { gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
 import { AiBudget, AiDispatchLock, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
@@ -549,7 +550,10 @@ export async function attemptTeamChatReply(input: {
   });
   if (plannerTurn.role !== 'assistant') return plannerTurn;
 
-  const workerTurn = await runStage({
+  /** Circuit breaker: max Worker↔Reviewer continue passes (accuracy over speed). */
+  const MAX_COMPLETION_PASSES = 6;
+
+  let workerTurn = await runStage({
     stage: 'worker',
     binding: workerBinding,
     userText: [
@@ -579,33 +583,105 @@ export async function attemptTeamChatReply(input: {
     if (parsed) plan = parsed.plan;
   }
 
+  const assistantStages: TeamChatTurn[] = [plannerTurn, workerTurn];
   let reviewerTurn: TeamChatTurn | null = null;
+  let finalChatAnswer: string | null = null;
+
   if (reviewerBinding) {
-    reviewerTurn = await runStage({
-      stage: 'reviewer',
-      binding: reviewerBinding,
-      userText: [
-        'User request:',
-        input.userText.slice(0, 2000),
-        '',
-        'Planner output:',
-        plannerTurn.text.slice(0, 4000),
-        '',
-        'Worker output:',
-        workerTurn.text.slice(0, 20_000),
-      ].join('\n'),
-      priorTurns: [],
-    });
+    for (let pass = 0; pass < MAX_COMPLETION_PASSES; pass += 1) {
+      reviewerTurn = await runStage({
+        stage: 'reviewer',
+        binding: reviewerBinding,
+        userText: [
+          'User request:',
+          input.userText.slice(0, 2000),
+          '',
+          'Planner output:',
+          plannerTurn.text.slice(0, 4000),
+          '',
+          'Worker output:',
+          workerTurn.text.slice(0, 20_000),
+          '',
+          'Decide accept vs needs_more. End with a nucleas-gate fence (all interaction modes).',
+        ].join('\n'),
+        priorTurns: [],
+      });
+      assistantStages.push(reviewerTurn);
+      if (reviewerTurn.role !== 'assistant' || !reviewerTurn.text.trim()) break;
+
+      const gate = parseReviewerGate(reviewerTurn.text);
+      if (gate.status === 'accept') {
+        finalChatAnswer = gate.answer.trim() || reviewerTurn.text.trim();
+        break;
+      }
+
+      if (pass >= MAX_COMPLETION_PASSES - 1) {
+        // Circuit breaker: return best effort from last Worker + Reviewer prose.
+        finalChatAnswer =
+          [
+            workerTurn.text.trim(),
+            '',
+            '---',
+            'Analysis stopped after the safety continue limit before the Reviewer fully accepted.',
+            gate.reason ? `Still missing: ${gate.reason}` : '',
+            gate.jobs.length ? `Remaining jobs: ${gate.jobs.join('; ')}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+            .slice(0, 24_000);
+        break;
+      }
+
+      workerTurn = await runStage({
+        stage: 'worker',
+        binding: workerBinding,
+        userText: [
+          'User request:',
+          input.userText.slice(0, 4000),
+          '',
+          'Planner briefing / jobs:',
+          plannerTurn.text.slice(0, 1200),
+          '',
+          'Reviewer needs_more — execute these jobs completely with repo_tree/repo_read and quoted evidence:',
+          ...gate.jobs.map((job, index) => `${index + 1}. ${job}`),
+          gate.reason ? `Reason: ${gate.reason}` : '',
+          '',
+          'Prior Worker findings (continue from these; do not discard):',
+          workerTurn.text.slice(0, 12_000),
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        priorTurns: [],
+      });
+      assistantStages.push(workerTurn);
+      if (workerTurn.role !== 'assistant') {
+        const costs = mergeTurnCosts(assistantStages);
+        return {
+          ...workerTurn,
+          toolsUsed: costs.toolsUsed,
+          artifacts: costs.artifacts,
+          costMicros: costs.costMicros,
+          reservedMicros: costs.reservedMicros,
+          noProviderFee: costs.noProviderFee,
+        };
+      }
+    }
   }
 
-  const stages = [plannerTurn, workerTurn, ...(reviewerTurn ? [reviewerTurn] : [])];
-  const costs = mergeTurnCosts(stages.filter((t) => t.role === 'assistant'));
+  const costs = mergeTurnCosts(assistantStages.filter((t) => t.role === 'assistant'));
+
+  function reviewerUserFacingText(raw: string): string {
+    if (finalChatAnswer) return finalChatAnswer.trim();
+    const gate = parseReviewerGate(raw);
+    if (gate.status === 'accept') return gate.answer.trim();
+    return raw.replace(/```nucleas-gate\s*[\s\S]*?```/i, '').trim() || raw.trim();
+  }
 
   if (reviewerTurn?.role === 'assistant' && reviewerTurn.text.trim()) {
     if (interactionMode === 'chat') {
       return {
         ...reviewerTurn,
-        text: reviewerTurn.text.trim(),
+        text: reviewerUserFacingText(reviewerTurn.text),
         toolsUsed: costs.toolsUsed,
         artifacts: costs.artifacts,
         costMicros: costs.costMicros,
@@ -615,33 +691,45 @@ export async function attemptTeamChatReply(input: {
       };
     }
 
-    const workerBody =
-      interactionMode === 'plan' && plan
-        ? parseNucleasPlan(plannerTurn.text)?.displayText ?? plannerTurn.text.trim()
-        : workerTurn.text.trim();
+    if (interactionMode === 'plan' && plan) {
+      const display = parseNucleasPlan(plannerTurn.text)?.displayText ?? plannerTurn.text.trim();
+      return {
+        ...workerTurn,
+        text: [
+          display,
+          '',
+          '---',
+          '**Worker verification:**',
+          workerTurn.text.trim(),
+          '',
+          '---',
+          `**Reviewer (${reviewerBinding!.model}):**`,
+          reviewerUserFacingText(reviewerTurn.text),
+        ].join('\n'),
+        toolsUsed: costs.toolsUsed,
+        artifacts: costs.artifacts,
+        costMicros: costs.costMicros,
+        reservedMicros: costs.reservedMicros,
+        noProviderFee: costs.noProviderFee,
+        plan,
+      };
+    }
+
     return {
       ...workerTurn,
-      text: `${workerBody}\n\n---\n**Reviewer (${reviewerBinding!.model}):**\n${reviewerTurn.text.trim()}`,
+      text: [
+        workerTurn.text.trim(),
+        '',
+        '---',
+        `**Reviewer (${reviewerBinding!.model}):**`,
+        reviewerUserFacingText(reviewerTurn.text),
+      ].join('\n'),
       toolsUsed: costs.toolsUsed,
       artifacts: costs.artifacts,
       costMicros: costs.costMicros,
       reservedMicros: costs.reservedMicros,
       noProviderFee: costs.noProviderFee,
       ...(plan ? { plan } : {}),
-    };
-  }
-
-  if (interactionMode === 'plan' && plan) {
-    const display = parseNucleasPlan(plannerTurn.text)?.displayText ?? plannerTurn.text.trim();
-    return {
-      ...workerTurn,
-      text: `${display}\n\n---\n**Worker findings:**\n${workerTurn.text.trim()}`,
-      toolsUsed: costs.toolsUsed,
-      artifacts: costs.artifacts,
-      costMicros: costs.costMicros,
-      reservedMicros: costs.reservedMicros,
-      noProviderFee: costs.noProviderFee,
-      plan,
     };
   }
 

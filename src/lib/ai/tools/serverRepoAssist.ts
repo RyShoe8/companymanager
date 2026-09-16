@@ -25,9 +25,11 @@ const RULES_PRIORITY_PATHS = [
 
 const IDE_CONTEXT_PATHS = [
   'src/lib/ide/chatHistory.ts',
-  'src/lib/ide/ideDirectChat.ts',
+  'src/lib/ai/ideDirectChat.ts',
   'src/lib/ide/ideChatStream.ts',
   'src/lib/ide/loadTaskRules.ts',
+  'src/app/api/projects/[id]/ai/ide/chat/route.ts',
+  'src/lib/ai/teamChat.ts',
   'src/lib/ai/tools/runToolLoop.ts',
   'src/lib/ai/tools/executeTool.ts',
   'src/lib/ide/chatSelectionStorage.ts',
@@ -54,7 +56,9 @@ const SEED_DIRS = [
   '.cursor',
   '.cursor/rules',
 ];
-const MAX_FILES = 20;
+
+/** Per-request seed dig size (server load). Further reading happens via Worker tool loop + completion gate. */
+const BATCH_SIZE = 20;
 const PER_FILE_CHARS = 2500;
 const PRIORITY_FILE_CHARS = 12_000;
 const TREE_CHARS_WITH_READS = 2000;
@@ -83,12 +87,16 @@ function scorePath(path: string, query: string): number {
   return score;
 }
 
-function pickReadPaths(query: string, candidateFiles: { path: string; score: number }[]): string[] {
+function pickReadPaths(
+  query: string,
+  candidateFiles: { path: string; score: number }[],
+  limit: number
+): string[] {
   const ordered: string[] = [];
   const seen = new Set<string>();
 
   const push = (path: string) => {
-    if (seen.has(path) || ordered.length >= MAX_FILES) return;
+    if (seen.has(path) || ordered.length >= limit) return;
     seen.add(path);
     ordered.push(path);
   };
@@ -110,6 +118,41 @@ function pickReadPaths(query: string, candidateFiles: { path: string; score: num
 
 function fileCharBudget(path: string): number {
   return PRIORITY_PATH_SET.has(path) ? PRIORITY_FILE_CHARS : PER_FILE_CHARS;
+}
+
+async function readPathsBatch(
+  organizationId: string,
+  projectId: Types.ObjectId,
+  paths: string[]
+): Promise<{
+  fileBlocks: string[];
+  readErrors: string[];
+  okReads: number;
+  toolsUsed: string[];
+}> {
+  const toolsUsed: string[] = [];
+  const reads = await Promise.all(
+    paths.map(async (path) => {
+      const file = await readIdeFile(organizationId, projectId, path);
+      return { path, file };
+    })
+  );
+  for (const _ of paths) toolsUsed.push('repo_read');
+
+  const fileBlocks: string[] = [];
+  const readErrors: string[] = [];
+  let okReads = 0;
+  for (const { path, file } of reads) {
+    if (!file.ok) {
+      readErrors.push(`${path}: ${file.reason}`);
+      continue;
+    }
+    okReads += 1;
+    fileBlocks.push(
+      `File ${file.path} (branch ${file.branch}):\n${file.content.slice(0, fileCharBudget(path))}`
+    );
+  }
+  return { fileBlocks, readErrors, okReads, toolsUsed };
 }
 
 /** Nucleas-side repo dig for hosts that struggle with tool calling. */
@@ -166,49 +209,34 @@ export async function gatherRepoAssistContext(input: {
     }
   }
 
-  const uniquePaths = pickReadPaths(query, candidateFiles);
+  const uniquePaths = pickReadPaths(query, candidateFiles, BATCH_SIZE);
+  const first = await readPathsBatch(input.organizationId, input.projectId, uniquePaths);
+  toolsUsed.push(...first.toolsUsed);
 
-  const reads = await Promise.all(
-    uniquePaths.map(async (path) => {
-      const file = await readIdeFile(input.organizationId, input.projectId, path);
-      return { path, file };
-    })
-  );
-  for (const _ of uniquePaths) toolsUsed.push('repo_read');
-
-  const fileBlocks: string[] = [];
-  const readErrors: string[] = [];
-  let okReads = 0;
-  for (const { path, file } of reads) {
-    if (!file.ok) {
-      readErrors.push(`${path}: ${file.reason}`);
-      continue;
-    }
-    okReads += 1;
-    fileBlocks.push(
-      `File ${file.path} (branch ${file.branch}):\n${file.content.slice(0, fileCharBudget(path))}`
-    );
-  }
+  const fileBlocks = first.fileBlocks;
+  const readErrors = first.readErrors;
+  const okReads = first.okReads;
 
   const emptyReadGuidance =
     readErrors.length > 0
-      ? `File reads failed (${readErrors.slice(0, 3).join('; ')}). Report that GitHub bind/read error to the user. Do not invent file contents or claim repository tools are generally unavailable.`
+      ? `File reads failed (${readErrors.slice(0, 3).join('; ')}). Report that exact error to the user. Do not invent file contents or claim repository tools are generally unavailable. Additional files may still be readable via repo_read.`
       : 'No high-confidence rule/architecture files were read from the tree. List what is missing and suggest binding the GitHub repo or reconnecting the GitHub App if reads are blocked. Do not invent file contents.';
 
   const errorHeader =
     readErrors.length > 0
       ? `Read errors:\n${readErrors
-          .slice(0, 8)
+          .slice(0, 12)
           .map((line) => `- ${line}`)
           .join('\n')}`
       : '';
 
   const filesSection =
     okReads > 0
-      ? fileBlocks.join('\n\n').slice(0, FILES_CHARS)
-      : readErrors.length > 0
-        ? emptyReadGuidance
-        : emptyReadGuidance;
+      ? [
+          fileBlocks.join('\n\n').slice(0, FILES_CHARS),
+          'This dig is a seed. If anything is still missing, keep using repo_tree/repo_read until the question is fully answered with quoted evidence.',
+        ].join('\n\n')
+      : emptyReadGuidance;
 
   const treeBudget = okReads > 0 ? TREE_CHARS_WITH_READS : TREE_CHARS_TREE_ONLY;
   const treeAppendix = treeLines.join('\n').slice(0, treeBudget);

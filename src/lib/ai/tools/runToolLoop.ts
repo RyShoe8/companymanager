@@ -7,7 +7,9 @@ import { AiRunEvent } from '@/lib/models/AiControl';
 import { executeIdeTool, type ToolArtifact } from '@/lib/ai/tools/executeTool';
 import { ideChatToolDefinitions, type IdeToolProfile } from '@/lib/ai/tools/definitions';
 
-const MAX_ROUNDS = 6;
+const DEFAULT_MAX_ROUNDS = 6;
+/** Circuit breaker only — deep digs continue until the model stops calling tools or this fires. */
+const DEEP_REPO_MAX_ROUNDS = 32;
 
 export type ToolLoopResult = {
   content: string;
@@ -32,6 +34,8 @@ export async function runIdeToolLoop(input: {
   includeImageTool: boolean;
   includeRepoTools?: boolean;
   toolProfile?: IdeToolProfile;
+  /** Cap concurrent tool-loop iterations (batching), not total analysis ambition. */
+  maxRounds?: number;
   organizationId: string;
   projectId: Types.ObjectId;
   userId: string;
@@ -46,6 +50,10 @@ export async function runIdeToolLoop(input: {
   if (!tools.length) {
     throw new GatewayError('invalid_response', { kind: 'no_tools' });
   }
+  const maxRounds = Math.min(
+    Math.max(input.maxRounds ?? DEFAULT_MAX_ROUNDS, 1),
+    DEEP_REPO_MAX_ROUNDS
+  );
   const messages: LoopMessage[] = [...input.messages];
   const artifacts: ToolArtifact[] = [];
   const toolCallsMade: string[] = [];
@@ -54,7 +62,7 @@ export async function runIdeToolLoop(input: {
   let latencyMs = 0;
   let sequence = 100;
 
-  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+  for (let round = 0; round < maxRounds; round += 1) {
     if (input.signal?.aborted) throw new GatewayError('cancelled');
     const result = await invokeModelWithTools(
       input.gateway,
