@@ -43,6 +43,9 @@ import { AiProjectRepository } from '@/lib/models/AiProjectRepository';
 import { getArtifactContent } from '@/lib/ai/control/artifactQueries';
 import { AiExecutionProbe, runExecutionProbe } from '@/lib/ai/control/executionProbe';
 
+import { AiModelProfile, AiRolePipeline } from '@/lib/models/AiRolePipeline';
+import { encryptModelSecret } from '@/lib/ai/modelSecrets';
+
 // Never read .env.local, use production MongoDB, or invoke a real model in this suite.
 vi.mock('@/lib/db/mongodb', () => ({ default: async () => mongoose }));
 vi.mock('@/lib/auth/middleware', () => ({ requireAuth: vi.fn() }));
@@ -51,13 +54,20 @@ const digestEmail = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/services/workspaceDigestEmail', () => ({ sendWorkspaceDigestEmail: digestEmail }));
 vi.mock('@nucleas/ai-core/gateway', async importOriginal => {
   const actual = await importOriginal<typeof import('@nucleas/ai-core/gateway')>();
-  return { ...actual, invokeModel: model };
+  return {
+    ...actual,
+    invokeModel: model,
+    invokeModelWithTools: async (...args: unknown[]) => {
+      const res = await model(...args);
+      return { toolCalls: [], ...res };
+    },
+  };
 });
 
 let replica: MongoMemoryReplSet;
 let access: AiAccess;
 let objective: InstanceType<typeof AiObjective>;
-const models = [WorkspaceNotificationEvent, WorkspaceNotificationPreference, AiDispatchUsage, AiRunAcknowledgement, AiSettings, AiSettingsAudit, AiPlanningJob, AiDispatchLock, AiBudgetReservation, AiBudget, AiRunEvent, AiRun, AiPlan, AiObjective, Project, Employee, User];
+const models = [AiModelProfile, AiRolePipeline, WorkspaceNotificationEvent, WorkspaceNotificationPreference, AiDispatchUsage, AiRunAcknowledgement, AiSettings, AiSettingsAudit, AiPlanningJob, AiDispatchLock, AiBudgetReservation, AiBudget, AiRunEvent, AiRun, AiPlan, AiObjective, Project, Employee, User];
 const response: ModelResult = { content: JSON.stringify({ summary: 'Synthetic plan', tasks: [{ key: 'test', name: 'Add a regression', acceptanceCriteria: ['Test passes'], dependsOn: [] }] }),
   model: 'synthetic-model', inputTokens: 20, outputTokens: 30, latencyMs: 10, finishReason: 'stop' };
 
@@ -194,11 +204,31 @@ describe('durable planning on a real isolated replica set', () => {
     expect(model).not.toHaveBeenCalled();
   });
   it('admits governed chat and stores an assistant turn without inventing content on failure paths', async () => {
+    const profile = await AiModelProfile.create({
+      key: 'product-profile-' + randomUUID(),
+      label: 'Product Model',
+      provider: 'openai',
+      tier: 'commercial',
+      protocol: 'openai-chat',
+      endpoint: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      secretCiphertext: encryptModelSecret('sk-test-key-12345'),
+      secretLast4: '2345',
+      enabled: true,
+    });
+    await AiRolePipeline.create({
+      organizationId: access.organizationId,
+      employee: 'product',
+      planner: { modelProfileId: profile._id, model: 'gpt-4o' },
+      worker: { modelProfileId: profile._id, model: 'gpt-4o' },
+      reviewer: { modelProfileId: profile._id, model: 'gpt-4o' },
+      enabled: true,
+    });
     model.mockResolvedValue({
-      content: 'Prioritize the launch checklist.',
+      content: 'Prioritize the launch checklist.\n```nucleas-gate\n{"status":"accept"}\n```',
       model: 'synthetic-model',
-      inputTokens: 4,
-      outputTokens: 6,
+      inputTokens: null,
+      outputTokens: null,
       latencyMs: 5,
       finishReason: 'stop',
     });
@@ -216,9 +246,9 @@ describe('durable planning on a real isolated replica set', () => {
     expect(await response.json()).toMatchObject({
       reply: { role: 'assistant', text: 'Prioritize the launch checklist.' },
     });
-    expect(model).toHaveBeenCalledOnce();
+    expect(model).toHaveBeenCalled();
     expect(await AiTeamRequest.countDocuments({ role: 'assistant' })).toBe(1);
-    expect(await AiRun.countDocuments({ status: 'completed' })).toBe(1);
+    expect(await AiRun.countDocuments({ status: 'completed' })).toBeGreaterThanOrEqual(1);
     // Unknown provider usage retains reservations for reconciliation (noProviderFee is false in fixture).
     expect(await AiBudgetReservation.countDocuments({ state: 'reserved' })).toBeGreaterThan(0);
   });
@@ -684,7 +714,7 @@ describe('durable planning on a real isolated replica set', () => {
   it('keeps throttled jobs queued and cancellable without sending another request', async () => {
     await queuePlanning(access, String(objective._id), randomUUID());
     await processPlanningQueue();
-    expect(model.mock.calls[0][1].maxOutputTokens).toBe(2048);
+    expect(model.mock.calls[0][1].maxOutputTokens).toBe(3072);
     const next = await queuePlanning(access, String(objective._id), randomUUID());
     expect((await processPlanningQueue()).status).toBe('throttled');
     expect(model).toHaveBeenCalledTimes(1);

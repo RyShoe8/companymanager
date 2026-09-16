@@ -27,3 +27,29 @@ export function createInstallationOctokit(installationId: string): Octokit {
     },
   });
 }
+
+/** Verify that the specified installation has access to owner/repo. */
+export async function verifyInstallationRepositoryAccess(
+  installationId: string,
+  owner: string,
+  repo: string
+): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const octokit = createInstallationOctokit(installationId);
+    const { data } = await octokit.repos.get({ owner, repo });
+    if (!data) {
+      return { ok: false, reason: 'Repository not accessible with this GitHub installation.' };
+    }
+    return { ok: true };
+  } catch (error) {
+    const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 0;
+    if (status === 404) {
+      return { ok: false, reason: 'Repository not found or GitHub App is not installed on this repository.' };
+    }
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : 'Failed to verify GitHub installation repository access.',
+    };
+  }
+}
+

@@ -32,7 +32,7 @@ describe('shared inference limits', () => {
     delete legacy.dailyRequestLimit; delete legacy.minimumIntervalSeconds; delete legacy.maxOutputTokens;
     expect(platformAiSettingsSchema.parse(legacy)).toMatchObject({ ...limits, maxOutputTokens: 3072 });
   });
-  it.each([{ dailyRequestLimit: 0 }, { minimumIntervalSeconds: 0 }, { maxOutputTokens: 4097 }, { dailyRequestLimit: 1.5 }])('rejects invalid limits %j', value => {
+  it.each([{ dailyRequestLimit: 0 }, { minimumIntervalSeconds: 0 }, { maxOutputTokens: 8193 }, { dailyRequestLimit: 1.5 }])('rejects invalid limits %j', value => {
     expect(platformAiSettingsSchema.safeParse({ ...defaultPlatformAiSettings, ...value }).success).toBe(false);
   });
   it('applies the output cap to the actual request and rejects out-of-range caps', () => {

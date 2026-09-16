@@ -39,15 +39,41 @@ export async function executeIdeTool(input: {
   organizationId: string;
   projectId: Types.ObjectId;
   userId: string;
+  allowedTools?: Set<string>;
   signal?: AbortSignal;
 }): Promise<ToolExecutionResult> {
+  if (input.allowedTools && !input.allowedTools.has(input.name)) {
+    return {
+      content: JSON.stringify({
+        ok: false,
+        error: `Tool "${input.name}" is not permitted for the active tool profile.`,
+      }),
+      artifacts: [],
+    };
+  }
+
   const args = parseArgs(input.argumentsJson);
   const artifacts: ToolArtifact[] = [];
 
   if (input.name === 'repo_tree') {
     const path = typeof args.path === 'string' ? args.path : '';
     const result = await listIdeTree(input.organizationId, input.projectId, path);
-    return { content: JSON.stringify(result).slice(0, 12000), artifacts };
+    if (!result.ok) {
+      return { content: JSON.stringify({ ok: false, error: result.reason }), artifacts };
+    }
+    const entries = (result.entries ?? []).slice(0, 200).map((e) => ({
+      path: e.path.slice(0, 500),
+      type: e.type,
+    }));
+    return {
+      content: JSON.stringify({
+        ok: true,
+        path,
+        entries,
+        truncated: (result.entries ?? []).length > 200,
+      }),
+      artifacts,
+    };
   }
 
   if (input.name === 'repo_read') {
@@ -55,17 +81,74 @@ export async function executeIdeTool(input: {
     if (!path.trim()) throw new Error('repo_read requires a path.');
     const result = await readIdeFile(input.organizationId, input.projectId, path);
     if (!result.ok) {
-      return { content: JSON.stringify(result).slice(0, 4000), artifacts };
+      return { content: JSON.stringify({ ok: false, error: result.reason }), artifacts };
     }
+    const fullContent = result.content;
+    const lines = fullContent.split('\n');
+    const totalLines = lines.length;
+    const totalChars = fullContent.length;
+
+    const maxChars = Math.min(Math.max(Number(args.maxChars) || 8000, 500), 10000);
+    const startLineArg =
+      typeof args.startLine === 'number' && args.startLine > 0
+        ? Math.floor(args.startLine)
+        : undefined;
+    const lineCountArg =
+      typeof args.lineCount === 'number' && args.lineCount > 0
+        ? Math.floor(args.lineCount)
+        : undefined;
+    const offsetArg =
+      typeof args.offset === 'number' && args.offset >= 0
+        ? Math.floor(args.offset)
+        : undefined;
+
+    let extracted: string;
+    let effectiveStartLine = 1;
+    let effectiveEndLine = totalLines;
+    let isTruncated = false;
+
+    if (startLineArg !== undefined) {
+      effectiveStartLine = Math.min(startLineArg, totalLines);
+      const count =
+        lineCountArg ?? Math.max(1, Math.min(200, totalLines - effectiveStartLine + 1));
+      const slicedLines = lines.slice(
+        effectiveStartLine - 1,
+        effectiveStartLine - 1 + count
+      );
+      effectiveEndLine = effectiveStartLine + slicedLines.length - 1;
+      let text = slicedLines.join('\n');
+      if (text.length > maxChars) {
+        text = text.slice(0, maxChars);
+        isTruncated = true;
+      }
+      extracted = text;
+      isTruncated = isTruncated || effectiveEndLine < totalLines;
+    } else if (offsetArg !== undefined) {
+      const offset = Math.min(offsetArg, totalChars);
+      extracted = fullContent.slice(offset, offset + maxChars);
+      isTruncated = offset + extracted.length < totalChars;
+    } else {
+      if (fullContent.length > maxChars) {
+        extracted = fullContent.slice(0, maxChars);
+        isTruncated = true;
+      } else {
+        extracted = fullContent;
+      }
+    }
+
     return {
       content: JSON.stringify({
         ok: true,
         path: result.path,
         branch: result.branch,
         sha: result.sha,
-        content: result.content.slice(0, 100000),
-        truncated: result.content.length > 100000,
-      }).slice(0, 12000),
+        content: extracted,
+        totalLines,
+        totalChars,
+        startLine: startLineArg,
+        endLine: effectiveEndLine,
+        truncated: isTruncated,
+      }),
       artifacts,
     };
   }
@@ -81,8 +164,17 @@ export async function executeIdeTool(input: {
       organizationId: input.organizationId,
     });
     const fromPages = imageHitsToArtifacts(result.pageImages ?? []);
+    const hits = (result.hits ?? []).slice(0, 10).map((hit) => ({
+      title: hit.title?.slice(0, 200),
+      url: hit.url?.slice(0, 500),
+      snippet: hit.snippet?.slice(0, 1000),
+    }));
     return {
-      content: JSON.stringify(result).slice(0, 12000),
+      content: JSON.stringify({
+        ok: true,
+        query: result.query,
+        hits,
+      }),
       artifacts: fromPages,
     };
   }
@@ -93,8 +185,17 @@ export async function executeIdeTool(input: {
       signal: input.signal,
       organizationId: input.organizationId,
     });
+    const hits = (result.hits ?? []).slice(0, 10).map((h) => ({
+      title: h.title?.slice(0, 200),
+      imageUrl: h.imageUrl?.slice(0, 1000),
+      contextUrl: h.contextUrl?.slice(0, 1000),
+    }));
     return {
-      content: JSON.stringify(result).slice(0, 12000),
+      content: JSON.stringify({
+        ok: true,
+        query: result.query,
+        hits,
+      }),
       artifacts: imageHitsToArtifacts(result.hits),
     };
   }

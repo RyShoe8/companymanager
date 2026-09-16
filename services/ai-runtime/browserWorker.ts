@@ -34,29 +34,8 @@ function readBody(req: http.IncomingMessage, maxBytes: number): Promise<string> 
   });
 }
 
-function isSafeHttpsUrl(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    if (url.protocol !== 'https:') return false;
-    if (url.username || url.password) return false;
-    const host = url.hostname.toLowerCase();
-    if (
-      host === 'localhost' ||
-      host.endsWith('.localhost') ||
-      host.endsWith('.local') ||
-      host === '127.0.0.1' ||
-      host === '::1' ||
-      host.startsWith('10.') ||
-      host.startsWith('192.168.') ||
-      host.startsWith('169.254.')
-    ) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { isSafePublicHttpsUrl } from '../../src/lib/ai/tools/ssrf';
+
 
 async function navigate(url: string, maxChars: number) {
   // Dynamic load so the Next app typechecks without playwright installed in-tree.
@@ -108,17 +87,21 @@ async function navigate(url: string, maxChars: number) {
       }
       return { text, images };
     })()`) as { text?: string; images?: string[] };
+    const finalUrl = page.url();
+    if (!isSafePublicHttpsUrl(finalUrl)) {
+      throw new Error('Unsafe redirected URL.');
+    }
     const seen = new Set<string>();
     const images: string[] = [];
     for (const src of scraped.images ?? []) {
       const key = src.toLowerCase();
-      if (seen.has(key) || !isSafeHttpsUrl(src)) continue;
+      if (seen.has(key) || !isSafePublicHttpsUrl(src)) continue;
       seen.add(key);
       images.push(src.slice(0, 4000));
       if (images.length >= 12) break;
     }
     return {
-      url: page.url(),
+      url: finalUrl,
       title: title.slice(0, 200),
       text: String(scraped.text ?? '')
         .replace(/\s+/g, ' ')
@@ -157,7 +140,7 @@ export function startBrowserWorkerServer() {
       const raw = await readBody(req, 16_000);
       const body = JSON.parse(raw) as { url?: string; maxChars?: number };
       const url = typeof body.url === 'string' ? body.url : '';
-      if (!isSafeHttpsUrl(url)) {
+      if (!isSafePublicHttpsUrl(url)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Unsafe URL' }));
         return;

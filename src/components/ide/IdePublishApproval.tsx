@@ -8,6 +8,7 @@ type Props = {
   path: string | null;
   originalContent: string;
   content: string;
+  expectedSha?: string | null;
   dirty: boolean;
   onPublished: () => void;
 };
@@ -18,6 +19,7 @@ export default function IdePublishApproval({
   path,
   originalContent,
   content,
+  expectedSha,
   dirty,
   onPublished,
 }: Props) {
@@ -39,7 +41,7 @@ export default function IdePublishApproval({
         body: JSON.stringify({
           confirm: true,
           message: message.trim() || `Update ${path}`,
-          files: [{ path, content }],
+          files: [{ path, content, ...(expectedSha ? { expectedSha } : {}) }],
         }),
       });
       const body = await response.json();

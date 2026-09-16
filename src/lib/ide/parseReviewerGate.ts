@@ -26,7 +26,8 @@ function asStringArray(value: unknown): string[] {
 
 /**
  * Parse a nucleas-gate fence from Reviewer output.
- * Missing/invalid fence → treat entire text as an accepted final answer (compat).
+ * Fail-closed: Only explicit status === "accept" with valid structure is accepted.
+ * Missing, malformed, or unknown statuses fall through to needs_more.
  */
 export function parseReviewerGate(raw: string): ReviewerGate {
   const text = raw.trim();
@@ -36,22 +37,53 @@ export function parseReviewerGate(raw: string): ReviewerGate {
 
   const match = text.match(FENCE_RE);
   if (!match?.[1]) {
-    return { status: 'accept', answer: text.slice(0, 24_000) };
+    return {
+      status: 'needs_more',
+      jobs: [
+        'Missing ```nucleas-gate decision block. Synthesize evidence and provide explicit {"status":"accept"} or {"status":"needs_more","jobs":[...]} gate.',
+      ],
+      reason: 'missing_gate_fence',
+    };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(match[1].trim());
   } catch {
-    return { status: 'accept', answer: text.replace(FENCE_RE, '').trim().slice(0, 24_000) || text.slice(0, 24_000) };
+    return {
+      status: 'needs_more',
+      jobs: [
+        'Invalid JSON in ```nucleas-gate fence. Provide valid JSON: {"status":"accept"} or {"status":"needs_more","jobs":[...]}',
+      ],
+      reason: 'malformed_gate_json',
+    };
   }
 
-  if (!parsed || typeof parsed !== 'object') {
-    return { status: 'accept', answer: text.replace(FENCE_RE, '').trim().slice(0, 24_000) };
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {
+      status: 'needs_more',
+      jobs: ['Invalid format in ```nucleas-gate. Expected JSON object with status field.'],
+      reason: 'invalid_gate_object',
+    };
   }
 
   const record = parsed as Record<string, unknown>;
   const status = typeof record.status === 'string' ? record.status.trim().toLowerCase() : '';
+
+  if (status === 'accept') {
+    const withoutFence = text.replace(FENCE_RE, '').trim();
+    if (!withoutFence) {
+      return {
+        status: 'needs_more',
+        jobs: ['Accepted gate provided but user-facing answer is empty. Provide the complete verified answer.'],
+        reason: 'empty_accepted_answer',
+      };
+    }
+    return {
+      status: 'accept',
+      answer: withoutFence.slice(0, 24_000),
+    };
+  }
 
   if (status === 'needs_more') {
     const jobs = asStringArray(record.jobs);
@@ -69,9 +101,12 @@ export function parseReviewerGate(raw: string): ReviewerGate {
     return { status: 'needs_more', jobs, reason };
   }
 
-  const withoutFence = text.replace(FENCE_RE, '').trim();
+  // Unknown or reject status: treat strictly as needs_more
   return {
-    status: 'accept',
-    answer: (withoutFence || text.replace(FENCE_RE, '').trim() || text).slice(0, 24_000),
+    status: 'needs_more',
+    jobs: [
+      `Reviewer returned non-accept gate status "${status || 'unknown'}". Complete the remaining verification tasks.`,
+    ],
+    reason: `status_${status || 'unknown'}`,
   };
 }

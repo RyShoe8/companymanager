@@ -643,14 +643,16 @@ export default function IdeChatPane({
     if (args.modeForRequest === 'plan') setPlanReadyFlag(false);
     if (args.modeForRequest === 'build') setPlanReadyFlag(false);
 
-    let historyBase = turnsRef.current;
+    const priorTurns = turnsRef.current;
+    const userRequestId = crypto.randomUUID();
+    let historyBase = priorTurns;
     if (args.appendUserTurn) {
       const userTurn: ChatTurn = {
-        requestId: crypto.randomUUID(),
+        requestId: userRequestId,
         role: 'user',
         text: args.text,
       };
-      historyBase = [...turnsRef.current, userTurn];
+      historyBase = [...priorTurns, userTurn];
       setTurns(historyBase);
     }
 
@@ -660,10 +662,10 @@ export default function IdeChatPane({
     const generation = ++sendGenerationRef.current;
 
     try {
-      const history = historyBase
+      const history = priorTurns
         .filter((turn) => turn.role === 'user' || turn.role === 'assistant')
         .slice(-8)
-        .map((turn) => ({ role: turn.role, text: turn.text }));
+        .map((turn) => ({ role: turn.role, text: turn.text.slice(0, 6000) }));
       const response = await fetch(ideChatEndpoint(projectId), {
         method: 'POST',
         headers: {
@@ -672,9 +674,10 @@ export default function IdeChatPane({
         },
         body: JSON.stringify({
           mode,
-          text: args.text,
+          text: args.text.slice(0, 6000),
           history,
           interactionMode: args.modeForRequest,
+          clientRequestId: userRequestId,
           stream: true,
           ...(isIdeDirectMode(mode)
             ? { modelProfileId: directProfileId, model: directModel }
@@ -784,11 +787,9 @@ export default function IdeChatPane({
     const building: IdePlanDocument = { ...plan, status: 'building' };
     onPlanReady?.(building);
     setPlanReadyFlag(false);
-    const text = [
-      'Approved — please build this plan now.',
-      '',
-      plan.markdown,
-    ].join('\n');
+    const header = `Approved plan: "${plan.title || 'Implementation Plan'}"\nAdvisory implementation: Generate code recommendations and patches for this approved plan. Note: Build mode provides code advisory; repository changes require manual editor review and publishing.`;
+    const snippet = plan.markdown.length > 4000 ? `${plan.markdown.slice(0, 4000)}\n\n[...plan continues...]` : plan.markdown;
+    const text = `${header}\n\n${snippet}`.slice(0, 5900);
     void postChat({ text, modeForRequest: 'build', appendUserTurn: true });
   }
 

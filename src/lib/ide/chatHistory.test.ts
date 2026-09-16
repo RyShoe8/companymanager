@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   insertMany: vi.fn(),
   updateOne: vi.fn(),
   createIndexes: vi.fn(),
+  countDocuments: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -15,6 +16,7 @@ vi.mock('@/lib/models/AiIdeChatTurn', () => ({
     insertMany: mocks.insertMany,
     updateOne: mocks.updateOne,
     createIndexes: mocks.createIndexes,
+    countDocuments: mocks.countDocuments,
   },
 }));
 
@@ -179,7 +181,7 @@ describe('appendIdeChatTurns', () => {
   });
 
   it('persists Direct turns with profile and model keys', async () => {
-    mocks.insertMany.mockResolvedValue([]);
+    mocks.insertMany.mockResolvedValue([{ requestId: 'u1' }, { requestId: 'a1' }]);
     await expect(
       appendIdeChatTurns({
         organizationId: 'org',
@@ -217,6 +219,7 @@ describe('appendIdeChatTurns', () => {
       code: 11000,
       writeErrors: [{ code: 11000, index: 0 }],
     });
+    mocks.countDocuments.mockResolvedValue(1);
     await expect(
       appendIdeChatTurns({
         organizationId: 'org',

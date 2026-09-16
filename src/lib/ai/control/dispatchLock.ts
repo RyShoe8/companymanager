@@ -7,8 +7,8 @@ import { AiDispatchLock, AiRun } from '@/lib/models/AiControl';
 const LIVE_RUN_STATUSES = new Set(['queued', 'running']);
 
 /**
- * If another holder has an unexpired lock tied to a live run, throw unavailable.
- * Missing runId or a finished/cancelled/blocked run is treated as stealable.
+ * If another holder has an unexpired lock tied to a live run or without an associated run, throw unavailable.
+ * Only an unexpired lock whose associated run has completed/failed/cancelled is treated as stealable.
  */
 export async function assertDispatchLockClaimable(
   now: Date,
@@ -18,7 +18,9 @@ export async function assertDispatchLockClaimable(
   if (!lock || lock.expiresAt <= now) return;
 
   const holderRunId = lock.runId;
-  if (!holderRunId) return;
+  if (!holderRunId) {
+    throw new GatewayError('unavailable', { kind: 'dispatch_lock_held' });
+  }
 
   const run = await AiRun.findById(holderRunId).select('status').session(session ?? null).lean();
   if (!run || !LIVE_RUN_STATUSES.has(String(run.status))) return;
@@ -45,22 +47,38 @@ export async function claimDispatchLock(input: {
   );
 }
 
+export async function renewDispatchLock(input: {
+  token: string;
+  expiresAt: Date;
+}): Promise<boolean> {
+  const res = await AiDispatchLock.updateOne(
+    { _id: DISPATCH_USAGE_ID, token: input.token },
+    { $set: { expiresAt: input.expiresAt } }
+  );
+  return res.matchedCount > 0;
+}
+
 export async function releaseDispatchLock(token: string): Promise<void> {
   await AiDispatchLock.deleteOne({ _id: DISPATCH_USAGE_ID, token }).catch(() => undefined);
 }
 
 /**
- * Delete the lock as soon as Stop/disconnect aborts — do not wait for budget settle.
+ * On abort, shorten the lock expiry to a grace period rather than deleting immediately,
+ * ensuring any in-flight remote generation drains before a new dispatch starts.
  * Returns an unsubscribe that removes the listener (e.g. after normal finish).
  */
 export function watchAbortReleaseDispatchLock(
   signal: AbortSignal | undefined,
-  token: string
+  token: string,
+  graceMs = 5000
 ): () => void {
   if (!signal) return () => undefined;
 
   const onAbort = () => {
-    void releaseDispatchLock(token);
+    void AiDispatchLock.updateOne(
+      { _id: DISPATCH_USAGE_ID, token },
+      { $set: { expiresAt: new Date(Date.now() + graceMs) } }
+    ).catch(() => undefined);
   };
 
   if (signal.aborted) {

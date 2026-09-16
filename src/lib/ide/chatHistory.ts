@@ -90,7 +90,7 @@ function toInsertDocs(
     directModel: keys.directModel,
     requestId: turn.requestId,
     role: turn.role,
-    text: (turn.text || ' ').slice(0, 8000),
+    text: (turn.text || ' ').slice(0, 24000),
     ...(turn.failureCategory ? { failureCategory: turn.failureCategory } : {}),
     ...(turn.runId ? { runId: turn.runId } : {}),
     ...(turn.costMicros != null ? { costMicros: turn.costMicros } : {}),
@@ -113,7 +113,7 @@ function toInsertDocs(
             title: turn.plan.title.slice(0, 200),
             summary: (turn.plan.summary || ' ').slice(0, 2000),
             steps: turn.plan.steps.slice(0, 40).map((step) => step.slice(0, 500)),
-            markdown: turn.plan.markdown.slice(0, 8000),
+            markdown: turn.plan.markdown.slice(0, 24000),
             status: turn.plan.status,
           },
         }
@@ -211,32 +211,37 @@ export async function appendIdeChatTurns(input: {
   let lastError: unknown;
   for (const docs of attempts) {
     try {
-      await AiIdeChatTurn.insertMany(docs, { ordered: false });
-      return true;
+      const inserted = await AiIdeChatTurn.insertMany(docs, { ordered: false });
+      if (Array.isArray(inserted) && inserted.length === docs.length) {
+        return true;
+      }
+      if (typeof AiIdeChatTurn.countDocuments === 'function') {
+        const requestIds = docs.map((d) => d.requestId);
+        const count = await AiIdeChatTurn.countDocuments({
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          requestId: { $in: requestIds },
+        });
+        if (count === docs.length) return true;
+        lastError = new Error(`Partial insert: expected ${docs.length}, found ${count}`);
+      } else {
+        lastError = new Error(`Expected ${docs.length} documents inserted, got ${Array.isArray(inserted) ? inserted.length : 0}`);
+      }
     } catch (error) {
-      if (isMongoDuplicateKeyError(error)) return true;
-      // Some docs may have inserted before a non-dup error on ordered:false.
-      const inserted =
-        typeof error === 'object' &&
-        error &&
-        'insertedDocs' in error &&
-        Array.isArray((error as { insertedDocs?: unknown[] }).insertedDocs)
-          ? (error as { insertedDocs: unknown[] }).insertedDocs.length
-          : typeof error === 'object' &&
-              error &&
-              'result' in error &&
-              error.result &&
-              typeof error.result === 'object' &&
-              'nInserted' in error.result
-            ? Number((error.result as { nInserted?: number }).nInserted) || 0
-            : 0;
-      if (inserted > 0 && isMongoDuplicateKeyError(error)) return true;
+      if (isMongoDuplicateKeyError(error)) {
+        if (typeof AiIdeChatTurn.countDocuments === 'function') {
+          const requestIds = docs.map((d) => d.requestId);
+          const count = await AiIdeChatTurn.countDocuments({
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            requestId: { $in: requestIds },
+          });
+          if (count === docs.length) return true;
+        } else {
+          return true;
+        }
+      }
       lastError = error;
-      const code =
-        typeof error === 'object' && error && 'code' in error
-          ? (error as { code?: number }).code
-          : undefined;
-      if (code === 11000) return true;
     }
   }
 
@@ -271,3 +276,40 @@ export async function clearIdeChatTurnPlan(input: {
   );
   return (result.matchedCount ?? 0) > 0;
 }
+
+/** Find an already-persisted assistant turn for this request ID (idempotent retries). */
+export async function findExistingIdeAssistantTurn(input: {
+  organizationId: string;
+  projectId: Types.ObjectId;
+  userId: string;
+  requestId: string;
+}): Promise<IdePersistedTurn | null> {
+  const requestId = input.requestId.trim();
+  if (!requestId) return null;
+  await ensureIdeChatIndexes();
+  const row = await AiIdeChatTurn.findOne({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    createdByUserId: new Types.ObjectId(input.userId),
+    requestId,
+    role: 'assistant',
+  })
+    .maxTimeMS(3000)
+    .lean();
+  if (!row) return null;
+  return {
+    requestId: row.requestId,
+    role: 'assistant',
+    text: row.text,
+    failureCategory: row.failureCategory ?? null,
+    runId: row.runId ?? null,
+    costMicros: row.costMicros ?? null,
+    reservedMicros: row.reservedMicros ?? null,
+    noProviderFee: row.noProviderFee ?? false,
+    toolsUsed: row.toolsUsed ?? [],
+    artifacts: (row.artifacts as any) ?? [],
+    plan: mapPlan(row.plan),
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+  };
+}
+

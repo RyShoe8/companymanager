@@ -14,7 +14,12 @@ import {
 } from '@/lib/ide/modes';
 import { ideChatSchema } from '@/lib/ide/ideChatSchema';
 import { loadIdeTaskRuleTexts } from '@/lib/ide/loadTaskRules';
-import { appendIdeChatTurns, clearIdeChatTurnPlan, loadIdeChatHistory } from '@/lib/ide/chatHistory';
+import {
+  appendIdeChatTurns,
+  clearIdeChatTurnPlan,
+  findExistingIdeAssistantTurn,
+  loadIdeChatHistory,
+} from '@/lib/ide/chatHistory';
 import {
   encodeIdeChatNdjsonLine,
   type IdeChatStageCallback,
@@ -152,8 +157,47 @@ export async function POST(request: NextRequest, context: Context) {
     const input = ideChatSchema.parse(await readAiBody(request));
     const mode = input.mode;
     const ruleTexts = await loadIdeTaskRuleTexts(access.organizationId, access.project._id, mode);
-    const userRequestId = randomUUID();
+    const userRequestId = input.clientRequestId?.trim() || randomUUID();
     const stream = wantsNdjsonStream(request, input.stream);
+
+    const existingAssistantTurn = await findExistingIdeAssistantTurn({
+      organizationId: access.organizationId,
+      projectId: access.project._id,
+      userId: access.userId,
+      requestId: userRequestId,
+    });
+    if (existingAssistantTurn) {
+      const payload = turnPayload({
+        requestId: existingAssistantTurn.requestId,
+        role: existingAssistantTurn.role,
+        text: existingAssistantTurn.text,
+        failureCategory: existingAssistantTurn.failureCategory ?? undefined,
+        runId: existingAssistantTurn.runId ?? undefined,
+        costMicros: existingAssistantTurn.costMicros ?? undefined,
+        reservedMicros: existingAssistantTurn.reservedMicros ?? undefined,
+        noProviderFee: existingAssistantTurn.noProviderFee ?? undefined,
+        toolsUsed: existingAssistantTurn.toolsUsed ?? undefined,
+        artifacts: (existingAssistantTurn.artifacts as any) ?? undefined,
+        plan: (existingAssistantTurn.plan as any) ?? undefined,
+      });
+      if (stream) {
+        return ndjsonResponse(request, async (send) => {
+          send({
+            type: 'turn',
+            turn: payload,
+            mode,
+            rulesApplied: ruleTexts.length,
+            historyPersisted: true,
+          });
+        });
+      }
+      return aiResponse({
+        turn: payload,
+        mode,
+        rulesApplied: ruleTexts.length,
+        historyPersisted: true,
+      });
+    }
 
     const persistScope = {
       organizationId: access.organizationId,
@@ -206,19 +250,56 @@ export async function POST(request: NextRequest, context: Context) {
       return ok;
     };
 
-    const runChat = async (signal: AbortSignal, onStage?: IdeChatStageCallback) => {
-      const userPersisted = await persistUserTurn();
+    const deadlineController = new AbortController();
+    const deadlineTimeout = setTimeout(() => {
+      deadlineController.abort(new Error('Serverless execution deadline approaching (260s limit).'));
+    }, 260_000);
 
-      if (isIdeDirectMode(mode)) {
-        const turn = await attemptDirectModelChat({
+    try {
+      const runChat = async (incomingSignal: AbortSignal, onStage?: IdeChatStageCallback) => {
+        const signal = mergeAbortSignals(incomingSignal, deadlineController.signal);
+        const userPersisted = await persistUserTurn();
+
+        if (isIdeDirectMode(mode)) {
+          const turn = await attemptDirectModelChat({
+            projectName: access.project.name,
+            organizationId: access.organizationId,
+            projectId: access.project._id,
+            userId: access.userId,
+            userText: input.text,
+            priorTurns: input.history,
+            modelProfileId: input.modelProfileId!,
+            model: input.model!,
+            ruleTexts,
+            interactionMode: input.interactionMode,
+            signal,
+            onStage,
+          });
+          const payload = turnPayload(turn);
+          const assistantPersisted = await persistAssistantTurn(payload);
+          return {
+            turn: payload,
+            mode,
+            employee: null as string | null,
+            modelProfileId: input.modelProfileId,
+            model: input.model,
+            rulesApplied: ruleTexts.length,
+            historyPersisted: userPersisted && assistantPersisted,
+          };
+        }
+
+        if (!isIdeWorkerMode(mode)) {
+          throw new AiHttpError(400, 'Invalid IDE worker mode.');
+        }
+        const employee = employeeForIdeMode(mode);
+        const turn = await attemptTeamChatReply({
+          employee,
           projectName: access.project.name,
           organizationId: access.organizationId,
           projectId: access.project._id,
           userId: access.userId,
           userText: input.text,
           priorTurns: input.history,
-          modelProfileId: input.modelProfileId!,
-          model: input.model!,
           ruleTexts,
           interactionMode: input.interactionMode,
           signal,
@@ -229,60 +310,33 @@ export async function POST(request: NextRequest, context: Context) {
         return {
           turn: payload,
           mode,
-          employee: null as string | null,
-          modelProfileId: input.modelProfileId,
-          model: input.model,
+          employee,
           rulesApplied: ruleTexts.length,
           historyPersisted: userPersisted && assistantPersisted,
         };
-      }
-
-      if (!isIdeWorkerMode(mode)) {
-        throw new AiHttpError(400, 'Invalid IDE worker mode.');
-      }
-      const employee = employeeForIdeMode(mode);
-      const turn = await attemptTeamChatReply({
-        employee,
-        projectName: access.project.name,
-        organizationId: access.organizationId,
-        projectId: access.project._id,
-        userId: access.userId,
-        userText: input.text,
-        priorTurns: input.history,
-        ruleTexts,
-        interactionMode: input.interactionMode,
-        signal,
-        onStage,
-      });
-      const payload = turnPayload(turn);
-      const assistantPersisted = await persistAssistantTurn(payload);
-      return {
-        turn: payload,
-        mode,
-        employee,
-        rulesApplied: ruleTexts.length,
-        historyPersisted: userPersisted && assistantPersisted,
       };
-    };
 
-    if (stream) {
-      return ndjsonResponse(request, async (send, signal) => {
-        const result = await runChat(signal, (stage, status) => send({ type: 'stage', stage, status }));
-        send({
-          type: 'turn',
-          turn: result.turn,
-          mode: result.mode,
-          employee: result.employee,
-          modelProfileId: 'modelProfileId' in result ? result.modelProfileId : undefined,
-          model: 'model' in result ? result.model : undefined,
-          rulesApplied: result.rulesApplied,
-          historyPersisted: result.historyPersisted,
+      if (stream) {
+        return ndjsonResponse(request, async (send, signal) => {
+          const result = await runChat(signal, (stage, status) => send({ type: 'stage', stage, status }));
+          send({
+            type: 'turn',
+            turn: result.turn,
+            mode: result.mode,
+            employee: result.employee,
+            modelProfileId: 'modelProfileId' in result ? result.modelProfileId : undefined,
+            model: 'model' in result ? result.model : undefined,
+            rulesApplied: result.rulesApplied,
+            historyPersisted: result.historyPersisted,
+          });
         });
-      });
-    }
+      }
 
-    const result = await runChat(request.signal);
-    return aiResponse(result);
+      const result = await runChat(request.signal);
+      return aiResponse(result);
+    } finally {
+      clearTimeout(deadlineTimeout);
+    }
   } catch (error) {
     return aiError(error);
   }

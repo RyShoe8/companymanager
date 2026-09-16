@@ -12,6 +12,7 @@ export const idePublishFileSchema = z
   .object({
     path: pathSchema,
     content: z.string().max(500_000),
+    expectedSha: z.string().trim().max(100).nullable().optional(),
   })
   .strict();
 

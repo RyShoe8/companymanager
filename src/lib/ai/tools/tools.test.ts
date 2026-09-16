@@ -142,4 +142,53 @@ describe('invokeModelWithTools', () => {
     );
     expect(result.content).toBe('x');
   });
+
+  it('rejects tools not in allowedTools set without dispatching', async () => {
+    const { executeIdeTool } = await import('@/lib/ai/tools/executeTool');
+    const res = await executeIdeTool({
+      name: 'image_generate',
+      argumentsJson: JSON.stringify({ prompt: 'test' }),
+      gateway: config,
+      organizationId: 'org',
+      projectId: new (await import('mongoose')).Types.ObjectId(),
+      userId: 'user',
+      allowedTools: new Set(['repo_read', 'repo_tree']),
+    });
+    expect(JSON.parse(res.content)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('not permitted'),
+    });
+    expect(res.artifacts).toEqual([]);
+  });
+
+  it('pages repo_read and returns valid JSON with metadata', async () => {
+    const { executeIdeTool } = await import('@/lib/ai/tools/executeTool');
+    const ideCommitPush = await import('@/lib/ai/ideCommitPush');
+    vi.spyOn(ideCommitPush, 'readIdeFile').mockResolvedValue({
+      ok: true,
+      path: 'src/index.ts',
+      branch: 'main',
+      sha: 'sha123',
+      content: Array.from({ length: 50 }, (_, i) => `line ${i + 1}`).join('\n'),
+    });
+
+    const res = await executeIdeTool({
+      name: 'repo_read',
+      argumentsJson: JSON.stringify({ path: 'src/index.ts', startLine: 10, lineCount: 5 }),
+      gateway: config,
+      organizationId: 'org',
+      projectId: new (await import('mongoose')).Types.ObjectId(),
+      userId: 'user',
+    });
+
+    const parsed = JSON.parse(res.content);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.content).toContain('line 10');
+    expect(parsed.content).toContain('line 14');
+    expect(parsed.content).not.toContain('line 15');
+    expect(parsed.startLine).toBe(10);
+    expect(parsed.endLine).toBe(14);
+    expect(parsed.totalLines).toBe(50);
+  });
 });
+

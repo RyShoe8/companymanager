@@ -41,7 +41,42 @@ import { AiBudget, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import type { TeamChatTurn } from '@/lib/ai/teamChat';
 import type { ToolArtifact } from '@/lib/ai/tools/executeTool';
 
-const LOCK_MS = 90000;
+const LOCK_MS = 180000;
+
+export function budgetContextMessages<T extends { role: string; content?: string }>(
+  messages: T[],
+  maxTotalChars = 48000,
+  maxSingleMessageChars = 32000
+): T[] {
+  const budgeted = messages.map((m) => {
+    if (!m.content || m.content.length <= maxSingleMessageChars) return m;
+    return { ...m, content: m.content.slice(0, maxSingleMessageChars) };
+  });
+
+  let total = budgeted.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
+  if (total <= maxTotalChars) return budgeted;
+
+  for (let i = 1; i < budgeted.length - 1 && total > maxTotalChars; i++) {
+    const m = budgeted[i];
+    if (m.content && m.content.length > 500) {
+      const excess = total - maxTotalChars;
+      const reduceBy = Math.min(excess, m.content.length - 500);
+      budgeted[i] = { ...m, content: m.content.slice(0, m.content.length - reduceBy) };
+      total -= reduceBy;
+    }
+  }
+
+  if (total > maxTotalChars && budgeted.length > 0) {
+    const lastIdx = budgeted.length - 1;
+    const lastMsg = budgeted[lastIdx];
+    if (lastMsg.content) {
+      const excess = total - maxTotalChars;
+      budgeted[lastIdx] = { ...lastMsg, content: lastMsg.content.slice(0, Math.max(0, lastMsg.content.length - excess)) };
+    }
+  }
+
+  return budgeted;
+}
 
 function settleChatCostMicros(input: {
   noProviderFee: boolean;
@@ -164,6 +199,7 @@ export async function attemptCompanyCredentialChat(input: {
    * cannot clip long-form plan output to empty finishReason=length replies.
    */
   maxOutputTokensOverride?: number;
+  stopOnUpstreamFailure?: boolean;
   signal?: AbortSignal;
 }): Promise<TeamChatTurn> {
   let gateway: GatewayConfiguration;
@@ -337,7 +373,7 @@ export async function attemptCompanyCredentialChat(input: {
 
   // Reasoning models count reasoning tokens against max_completion_tokens; keep headroom for visible text.
   // Plan/Build need large budgets; low Admin maxOutputTokens previously clipped paid hosts to empty length finishes.
-  const OUTPUT_HARD_CAP = 16_384;
+  const OUTPUT_HARD_CAP = 8192;
   const standardCap = usesMaxCompletionTokens(gateway.model) ? 8192 : 4096;
   const requestedCap = Math.min(
     OUTPUT_HARD_CAP,
@@ -361,7 +397,8 @@ export async function attemptCompanyCredentialChat(input: {
     const repoContextBlock = input.repoContextBlock?.trim() ?? '';
     const userTextForModel = repoContextBlock
       ? userTextWithRepoContext(input.userText, repoContextBlock, {
-          maxChars: freeCredential ? 48_000 : 24_000,
+          maxChars: 30_000,
+          maxUserChars: 12_000,
         })
       : input.userText;
     /**
@@ -384,18 +421,20 @@ export async function attemptCompanyCredentialChat(input: {
       systemExtra: string;
       userContent: string;
     }) {
+      const rawMessages = [
+        {
+          role: 'system' as const,
+          content: `${input.systemPrompt} ${args.systemExtra}`,
+        },
+        ...history,
+        { role: 'user' as const, content: args.userContent },
+      ];
+      const budgeted = budgetContextMessages(rawMessages);
       return invokeModel(
         gateway,
         {
           role: 'architect',
-          messages: [
-            {
-              role: 'system',
-              content: `${input.systemPrompt} ${args.systemExtra}`,
-            },
-            ...history,
-            { role: 'user', content: args.userContent.slice(0, freeCredential ? 48_000 : 24_000) },
-          ],
+          messages: budgeted as [{ role: 'system' | 'user' | 'assistant'; content: string }, ...{ role: 'system' | 'user' | 'assistant'; content: string }[]],
           maxOutputTokens,
         },
         { signal: input.signal }
@@ -534,7 +573,7 @@ export async function attemptCompanyCredentialChat(input: {
       const plain = await plainInvokeAfterAssist({
         systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran repo_tree/repo_read; ground your answer in the provided repository dig. Do not claim tools failed. If the dig says the repo is unbound, tell the user to bind GitHub / connect the GitHub App.`,
         userContent: userTextWithRepoContext(input.userText, formatRepoAssistContext(dig), {
-          maxChars: freeCredential ? 48_000 : 24_000,
+          maxChars: 30_000,
         }),
       });
       return {
@@ -564,7 +603,7 @@ export async function attemptCompanyCredentialChat(input: {
       latencyMs: number;
     }> {
       phase = 'length_retry';
-      maxOutputTokens = Math.min(OUTPUT_HARD_CAP, Math.max(maxOutputTokens * 2, 8192));
+      maxOutputTokens = Math.min(OUTPUT_HARD_CAP, Math.max(maxOutputTokens * 2, 4096));
       const plain = await plainInvoke({
         systemExtra: `${systemExtra} The previous attempt hit the output token limit before any visible text. Finish the full answer now in one shot. Do not call tools.`,
         userContent: userTextForModel,
@@ -583,13 +622,15 @@ export async function attemptCompanyCredentialChat(input: {
       phase = 'tool_loop';
       const deepRepo =
         repoToolsOn && (projectInternal || Boolean(input.forceToolLoop) || Boolean(repoContextBlock));
+      const rawMessages = [
+        { role: 'system' as const, content: input.systemPrompt },
+        ...history,
+        { role: 'user' as const, content: userTextForModel },
+      ];
+      const budgeted = budgetContextMessages(rawMessages);
       return runIdeToolLoop({
         gateway,
-        messages: [
-          { role: 'system', content: input.systemPrompt },
-          ...history,
-          { role: 'user', content: userTextForModel.slice(0, 6000) },
-        ],
+        messages: budgeted,
         maxOutputTokens,
         includeImageTool: input.includeImageTool !== false,
         includeRepoTools: input.includeRepoTools !== false,
@@ -724,6 +765,7 @@ export async function attemptCompanyCredentialChat(input: {
           resolved = true;
         } catch (toolError) {
           lastError = toolError;
+          if (input.stopOnUpstreamFailure) throw toolError;
           phase = 'browse_assist_retry';
           let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
           try {
@@ -800,6 +842,7 @@ export async function attemptCompanyCredentialChat(input: {
         loop = await runToolLoopPhase();
       } catch (toolError) {
         lastError = toolError;
+        if (input.stopOnUpstreamFailure) throw toolError;
         const retryableGateway =
           toolError instanceof GatewayError &&
           (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
@@ -926,20 +969,44 @@ export async function attemptCompanyCredentialChat(input: {
       toolsUsed: loop.toolCallsMade,
     };
   } catch (error) {
+    const errorUsage = (error as { usage?: { inputTokens?: number; outputTokens?: number } })?.usage;
     const failureCode = error instanceof GatewayError ? error.code : classifyProbeFailure(error);
     const hint = formatDebugHint({
       phase: 'failed',
       ...gatewayDebugParts(error),
       probe: failureCode,
     });
+    const errorCost = noProviderFee
+      ? 0
+      : errorUsage
+      ? settleChatCostMicros({
+          noProviderFee,
+          model: gateway.model,
+          inputTokens: errorUsage.inputTokens,
+          outputTokens: errorUsage.outputTokens,
+        })
+      : null;
     await finish({
-      actualMicros: noProviderFee ? 0 : null,
+      actualMicros: errorCost,
       status: 'blocked',
       summary: `Chat model/tool call failed after admission. ${hint}`.slice(0, 500),
       failureCode,
     }).catch(() => undefined);
 
     if (error instanceof GatewayError) {
+      if (error.details?.httpStatus === 504) {
+        return statusTurn(
+          'HTTP 504 (upstream timeout): The upstream model gateway timed out. Please try again.',
+          error.code,
+          String(runId),
+          {
+            costMicros: errorCost,
+            reservedMicros: reservationMicros,
+            noProviderFee,
+            debugHint: hint,
+          }
+        );
+      }
       const messagesByCode: Record<GatewayError['code'], string> = {
         configuration: 'Inference is not configured for this chat.',
         credentials: 'Remote authentication was rejected.',
@@ -959,14 +1026,14 @@ export async function attemptCompanyCredentialChat(input: {
         cancelled: 'The chat request was cancelled before completion.',
       };
       return statusTurn(messagesByCode[error.code], error.code, String(runId), {
-        costMicros: noProviderFee ? 0 : null,
+        costMicros: errorCost,
         reservedMicros: reservationMicros,
         noProviderFee,
         debugHint: hint,
       });
     }
     return statusTurn('The model call failed.', failureCode, String(runId), {
-      costMicros: noProviderFee ? 0 : null,
+      costMicros: errorCost,
       reservedMicros: reservationMicros,
       noProviderFee,
       debugHint: hint,

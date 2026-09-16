@@ -50,6 +50,7 @@ export async function runIdeToolLoop(input: {
   if (!tools.length) {
     throw new GatewayError('invalid_response', { kind: 'no_tools' });
   }
+  const allowedToolNames = new Set(tools.map((tool) => tool.function.name));
   const maxRounds = Math.min(
     Math.max(input.maxRounds ?? DEFAULT_MAX_ROUNDS, 1),
     DEEP_REPO_MAX_ROUNDS
@@ -62,100 +63,164 @@ export async function runIdeToolLoop(input: {
   let latencyMs = 0;
   let sequence = 100;
 
-  for (let round = 0; round < maxRounds; round += 1) {
-    if (input.signal?.aborted) throw new GatewayError('cancelled');
-    const result = await invokeModelWithTools(
-      input.gateway,
-      {
-        role: 'architect',
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.content ?? null,
-          ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
-          ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
-        })),
-        maxOutputTokens: input.maxOutputTokens,
-        tools,
-      },
-      { signal: input.signal }
-    );
-    latencyMs += result.latencyMs;
-    if (result.inputTokens != null) inputTokens = (inputTokens ?? 0) + result.inputTokens;
-    if (result.outputTokens != null) outputTokens = (outputTokens ?? 0) + result.outputTokens;
+  try {
+    for (let round = 0; round < maxRounds; round += 1) {
+      if (input.signal?.aborted) throw new GatewayError('cancelled');
 
-    if (!result.toolCalls.length) {
-      return {
-        content: result.content.trim().slice(0, 16000),
-        toolCallsMade,
-        artifacts,
+      // Message compaction to prevent exceeding gateway 40-message limit (F14)
+      if (messages.length > 30) {
+        const head = messages.slice(0, 2);
+        const tail = messages.slice(-10);
+        const middle = messages.slice(2, -10);
+        const toolSummaries: string[] = [];
+        for (const msg of middle) {
+          if (msg.role === 'tool' && msg.content) {
+            try {
+              const parsed = JSON.parse(msg.content) as Record<string, unknown>;
+              if (parsed.path) {
+                toolSummaries.push(`Inspected ${parsed.path}`);
+              } else if (parsed.query) {
+                toolSummaries.push(`Searched for "${parsed.query}"`);
+              }
+            } catch {
+              toolSummaries.push(String(msg.content).slice(0, 80));
+            }
+          }
+        }
+        const compactedSummary =
+          toolSummaries.length > 0
+            ? `[Prior investigation evidence: ${toolSummaries.slice(-6).join('; ')}]`
+            : '[Earlier tool exchanges compacted for budget]';
+        messages.length = 0;
+        messages.push(...head, { role: 'user', content: compactedSummary }, ...tail);
+      }
+
+      const result = await invokeModelWithTools(
+        input.gateway,
+        {
+          role: 'architect',
+          messages: messages.map((message) => ({
+            role: message.role,
+            content: message.content ?? null,
+            ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+            ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
+          })),
+          maxOutputTokens: input.maxOutputTokens,
+          tools,
+        },
+        { signal: input.signal }
+      );
+      latencyMs += result.latencyMs;
+      if (result.inputTokens != null) inputTokens = (inputTokens ?? 0) + result.inputTokens;
+      if (result.outputTokens != null) outputTokens = (outputTokens ?? 0) + result.outputTokens;
+
+      if (!result.toolCalls.length) {
+        return {
+          content: result.content.trim().slice(0, 16000),
+          toolCallsMade,
+          artifacts,
+          inputTokens,
+          outputTokens,
+          latencyMs,
+        };
+      }
+
+      messages.push({
+        role: 'assistant',
+        content: result.content || null,
+        tool_calls: result.toolCalls,
+      });
+
+      for (const call of result.toolCalls) {
+        toolCallsMade.push(call.function.name);
+        sequence += 1;
+
+        // F07: Verify server-side tool profile authorization before dispatch
+        if (!allowedToolNames.has(call.function.name)) {
+          await AiRunEvent.create({
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            runId: input.runId,
+            sequence,
+            type: 'tool.rejected',
+            summary: `Tool ${call.function.name} unauthorized for profile`.slice(0, 2000),
+          }).catch(() => undefined);
+
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify({
+              ok: false,
+              error: `Tool "${call.function.name}" is not permitted for the active tool profile.`,
+            }),
+          });
+          continue;
+        }
+
+        await AiRunEvent.create({
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          runId: input.runId,
+          sequence,
+          type: 'tool.requested',
+          summary: `Tool ${call.function.name}`.slice(0, 2000),
+        }).catch(() => undefined);
+
+        let toolContent: string;
+        try {
+          const executed = await executeIdeTool({
+            name: call.function.name,
+            argumentsJson: call.function.arguments,
+            gateway: input.gateway,
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            userId: input.userId,
+            allowedTools: allowedToolNames,
+            signal: input.signal,
+          });
+          artifacts.push(...executed.artifacts);
+          toolContent = executed.content;
+          sequence += 1;
+          await AiRunEvent.create({
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            runId: input.runId,
+            sequence,
+            type: 'tool.completed',
+            summary: `Tool ${call.function.name} completed`.slice(0, 2000),
+          }).catch(() => undefined);
+        } catch (error) {
+          toolContent = JSON.stringify({
+            error: error instanceof Error ? error.message.slice(0, 500) : 'Tool failed.',
+          });
+          sequence += 1;
+          await AiRunEvent.create({
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            runId: input.runId,
+            sequence,
+            type: 'tool.failed',
+            summary: `Tool ${call.function.name} failed`.slice(0, 2000),
+          }).catch(() => undefined);
+        }
+
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: toolContent.slice(0, 12000),
+        });
+      }
+    }
+
+    throw new GatewayError('invalid_response');
+  } catch (err) {
+    if (err && typeof err === 'object') {
+      (err as { usage?: { inputTokens: number | null; outputTokens: number | null; latencyMs: number } }).usage = {
         inputTokens,
         outputTokens,
         latencyMs,
       };
     }
-
-    messages.push({
-      role: 'assistant',
-      content: result.content || null,
-      tool_calls: result.toolCalls,
-    });
-
-    for (const call of result.toolCalls) {
-      toolCallsMade.push(call.function.name);
-      sequence += 1;
-      await AiRunEvent.create({
-        organizationId: input.organizationId,
-        projectId: input.projectId,
-        runId: input.runId,
-        sequence,
-        type: 'tool.requested',
-        summary: `Tool ${call.function.name}`.slice(0, 2000),
-      }).catch(() => undefined);
-
-      let toolContent: string;
-      try {
-        const executed = await executeIdeTool({
-          name: call.function.name,
-          argumentsJson: call.function.arguments,
-          gateway: input.gateway,
-          organizationId: input.organizationId,
-          projectId: input.projectId,
-          userId: input.userId,
-          signal: input.signal,
-        });
-        artifacts.push(...executed.artifacts);
-        toolContent = executed.content;
-        sequence += 1;
-        await AiRunEvent.create({
-          organizationId: input.organizationId,
-          projectId: input.projectId,
-          runId: input.runId,
-          sequence,
-          type: 'tool.completed',
-          summary: `Tool ${call.function.name} completed`.slice(0, 2000),
-        }).catch(() => undefined);
-      } catch (error) {
-        toolContent = JSON.stringify({
-          error: error instanceof Error ? error.message.slice(0, 500) : 'Tool failed.',
-        });
-        sequence += 1;
-        await AiRunEvent.create({
-          organizationId: input.organizationId,
-          projectId: input.projectId,
-          runId: input.runId,
-          sequence,
-          type: 'tool.failed',
-          summary: `Tool ${call.function.name} failed`.slice(0, 2000),
-        }).catch(() => undefined);
-      }
-
-      messages.push({
-        role: 'tool',
-        tool_call_id: call.id,
-        content: toolContent.slice(0, 12000),
-      });
-    }
+    throw err;
   }
-
-  throw new GatewayError('invalid_response');
 }

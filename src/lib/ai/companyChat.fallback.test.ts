@@ -68,6 +68,23 @@ vi.mock('@/lib/models/AiControl', () => ({
 
 import { attemptCompanyCredentialChat } from '@/lib/ai/companyChat';
 
+it('does not restart an orchestra tool loop after an upstream 504', async () => {
+  mocks.toolLoop.mockRejectedValueOnce(new GatewayError('unavailable', { kind: 'http', httpStatus: 504 }));
+  const turn = await attemptCompanyCredentialChat({
+    systemPrompt: 'Worker verification', organizationId: 'org', projectId: new Types.ObjectId(), userId: 'a'.repeat(24),
+    userText: 'Plan briefing ' + 'x'.repeat(7000) + 'VERIFY_LAST_STEP', priorTurns: [], modelProfileId: 'a'.repeat(24), model: 'local',
+    forceToolLoop: true, stopOnUpstreamFailure: true, toolProfile: 'repo', repoContextBlock: 'REPO_EVIDENCE',
+  });
+  expect(turn.role).toBe('status');
+  expect(turn.text).toContain('HTTP 504 (upstream timeout)');
+  expect(turn.debugHint).toContain('httpStatus=504');
+  expect(mocks.toolLoop).toHaveBeenCalledTimes(1);
+  expect(mocks.invokeModel).not.toHaveBeenCalled();
+  const message = mocks.toolLoop.mock.calls[0][0].messages.at(-1).content;
+  expect(message).toContain('VERIFY_LAST_STEP');
+  expect(message).toContain('REPO_EVIDENCE');
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.reserveBudget.mockResolvedValue(undefined);

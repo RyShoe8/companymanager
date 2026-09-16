@@ -80,6 +80,9 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   const [activePath, setActivePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
+  const [fileSha, setFileSha] = useState<string | null>(null);
+  const openFileAbortRef = useRef<AbortController | null>(null);
+  const openFileGenerationRef = useRef(0);
   const [mode, setMode] = useState<IdeChatMode>(() =>
     modeForProject(resolveInitialIdeProjectId(initialProjectId))
   );
@@ -105,13 +108,19 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
   }, [projectId]);
 
   const onProjectChange = useCallback((next: string | null) => {
+    if (activePath && fileContent !== originalContent) {
+      if (!window.confirm('You have unsaved edits in this file. Discard changes and switch project?')) {
+        return;
+      }
+    }
+    openFileAbortRef.current?.abort();
+    openFileGenerationRef.current += 1;
     const id = next ?? IDE_FREE_CHAT_SCOPE;
     if (isIdeFreeChatScope(id)) {
       markExplicitFreeChatSelection();
       setMode('direct');
+      writeStoredIdeChatMode(id, 'direct');
     } else {
-      writeStoredIdeProjectId(id);
-      // Restore mode in the same render as projectId so IdeChatPane does not GET
       // Free Chat's leftover Direct scope against the real project (empty thread).
       const restored = modeForProject(id);
       setMode(restored);
@@ -119,7 +128,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     }
     setProjectId(id);
     syncIdeProjectUrl(id);
-  }, []);
+  }, [activePath, fileContent, originalContent]);
 
   useEffect(() => {
     try {
@@ -306,11 +315,14 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
 
   useEffect(() => {
     if (!projectId) return;
+    openFileAbortRef.current?.abort();
+    openFileGenerationRef.current += 1;
     skipLayoutWriteRef.current = true;
     const layout = freeChat ? null : readStoredIdeLayout(projectId);
     setActivePath(null);
     setFileContent('');
     setOriginalContent('');
+    setFileSha(null);
     setActivePlan(null);
     setChildrenByPath({});
     setLoadingPaths({});
@@ -369,14 +381,38 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     }
   }, [runActivity.busy, projectId, freeChat, loadSpend]);
 
+  useEffect(() => {
+    if (!dirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty]);
+
   async function openFile(path: string) {
     if (!projectId || freeChat) return;
+    if (dirty && activePath && activePath !== path) {
+      if (!window.confirm(`You have unsaved changes in ${activePath}. Discard changes and open ${path}?`)) {
+        return;
+      }
+    }
+    const currentProjectId = projectId;
+    openFileAbortRef.current?.abort();
+    const controller = new AbortController();
+    openFileAbortRef.current = controller;
+    const generation = ++openFileGenerationRef.current;
+
     try {
       const response = await fetch(
-        `/api/projects/${encodeURIComponent(projectId)}/ai/ide/file?path=${encodeURIComponent(path)}`,
-        { cache: 'no-store' }
+        `/api/projects/${encodeURIComponent(currentProjectId)}/ai/ide/file?path=${encodeURIComponent(path)}`,
+        { cache: 'no-store', signal: controller.signal }
       );
       const body = await response.json();
+      if (generation !== openFileGenerationRef.current || controller.signal.aborted) return;
+      if (currentProjectId !== projectId) return;
+
       if (!response.ok || !body.ok) {
         setTreeReason(body.reason ?? body.error ?? 'Unable to open file.');
         return;
@@ -384,8 +420,10 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
       setActivePath(body.path);
       setFileContent(body.content ?? '');
       setOriginalContent(body.content ?? '');
+      setFileSha(body.sha ?? null);
       setCenterView('file');
     } catch (error) {
+      if (controller.signal.aborted) return;
       setTreeReason(error instanceof Error ? error.message : 'Unable to open file.');
     }
   }
@@ -477,6 +515,7 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
                   path={activePath}
                   originalContent={originalContent}
                   content={fileContent}
+                  expectedSha={fileSha}
                   dirty={dirty}
                   onPublished={() => {
                     if (activePath) {

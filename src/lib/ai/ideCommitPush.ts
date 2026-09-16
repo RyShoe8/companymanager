@@ -184,6 +184,39 @@ export async function commitAndPushToDefaultBranch(
   const repository = { owner, repo, defaultBranch };
 
   try {
+    // Optimistic concurrency check (F10): ensure no file has been modified since loaded
+    for (const file of input.files) {
+      if (file.expectedSha) {
+        try {
+          const existing = await octokit.repos.getContent({
+            owner,
+            repo,
+            path: file.path,
+            ref: defaultBranch,
+          });
+          const currentSha =
+            Array.isArray(existing.data) || !('sha' in existing.data)
+              ? null
+              : (existing.data as { sha: string }).sha;
+          if (currentSha && currentSha !== file.expectedSha) {
+            return {
+              status: 'blocked',
+              reason: `Conflict: ${file.path} has been modified since it was loaded. Reload the file and review changes before publishing.`,
+              commitSha: null,
+              repository,
+            };
+          }
+        } catch (err) {
+          const status =
+            err && typeof err === 'object' && 'status' in err ? Number(err.status) : 0;
+          if (status !== 404) {
+            // Re-throw unexpected GitHub errors
+            throw err;
+          }
+        }
+      }
+    }
+
     const ref = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
     const baseSha = ref.data.object.sha;
     const baseCommit = await octokit.git.getCommit({ owner, repo, commit_sha: baseSha });

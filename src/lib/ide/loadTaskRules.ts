@@ -5,7 +5,7 @@ import { taskRuleModeQueryValues } from '@/lib/ide/modes';
 import { AiProjectTaskRule } from '@/lib/models/AiProjectTaskRule';
 
 const MAX_RULES = 24;
-const MAX_CHARS = 12_000;
+const MAX_CHARS = 16_000;
 
 /** Load enabled project task rules for `all` + active IDE mode, bounded for system prompt size. */
 export async function loadIdeTaskRuleTexts(
@@ -28,10 +28,18 @@ export async function loadIdeTaskRuleTexts(
   const texts: string[] = [];
   let used = 0;
   for (const row of rows) {
-    const chunk = `Rule "${row.title}": ${row.body}`.slice(0, 2000);
-    if (used + chunk.length > MAX_CHARS) break;
-    texts.push(chunk);
-    used += chunk.length;
+    const full = `Rule "${row.title}": ${row.body}`;
+    if (used + full.length <= MAX_CHARS) {
+      texts.push(full);
+      used += full.length;
+    } else {
+      const remaining = MAX_CHARS - used;
+      if (remaining >= 200) {
+        texts.push(full.slice(0, remaining));
+        used += remaining;
+      }
+      break;
+    }
   }
   return texts;
 }

@@ -197,7 +197,7 @@ export async function buildTeamContextSummary(
   } catch {
     return unavailableContext(
       projectName,
-      'Enable Remote connection and Processing in Admin → AI Settings before IDE chat can run.',
+      'Budget or reservation limits prevent AI inference. Check Admin → AI Settings and project budgets.',
       settings,
       counts
     );
@@ -426,7 +426,7 @@ export async function attemptTeamChatReply(input: {
     employee: input.employee,
     enabled: true,
   })
-    .select('planner worker reviewer')
+    .select('planner worker reviewer maxWorkerRetries')
     .maxTimeMS(3000)
     .lean();
 
@@ -540,6 +540,7 @@ export async function attemptTeamChatReply(input: {
         toolProfile,
         forcePlain: toolProfile === 'none' || shouldForcePlainChat(interactionMode),
         forceToolLoop: toolProfile !== 'none',
+        stopOnUpstreamFailure: true,
         repoContextBlock,
         maxOutputTokensOverride:
           interactionMode === 'plan' || interactionMode === 'build' ? 8192 : undefined,
@@ -560,8 +561,30 @@ export async function attemptTeamChatReply(input: {
   });
   if (plannerTurn.role !== 'assistant') return plannerTurn;
 
-  /** Circuit breaker: max Worker↔Reviewer continue passes (accuracy over speed). */
-  const MAX_COMPLETION_PASSES = 6;
+  // Preserve paid planning work without exposing an unverified, approvable plan.
+  function interruptedStage(stage: 'Worker' | 'Reviewer', failed: TeamChatTurn, turns: TeamChatTurn[]): TeamChatTurn {
+    const costs = mergeTurnCosts(turns);
+    const draft = interactionMode === 'plan'
+      ? parseNucleasPlan(plannerTurn.text)?.displayText ?? plannerTurn.text.replace(/```nucleas-plan\s*[\s\S]*?```/gi, '').trim()
+      : '';
+    return {
+      ...failed,
+      role: 'status',
+      plan: undefined,
+      text: [
+        `${stage} stage (${stage === 'Worker' ? workerBinding!.model : reviewerBinding!.model}) did not complete.`,
+        failed.text,
+        ...(draft ? ['Planner draft preserved below — verification incomplete; not approved or ready to build.', draft] : []),
+      ].join('\n\n'),
+      ...costs,
+    };
+  }
+
+  /** Circuit breaker: Worker↔Reviewer continue passes based on pipeline setting (defaults to 5 retries = 6 passes). */
+  const maxWorkerRetries = typeof (pipeline as { maxWorkerRetries?: number } | null)?.maxWorkerRetries === 'number'
+    ? (pipeline as { maxWorkerRetries?: number })!.maxWorkerRetries!
+    : 5;
+  const maxCompletionPasses = Math.max(1, maxWorkerRetries + 1);
 
   if (input.signal?.aborted) {
     return statusTurn('The chat request was cancelled before completion.', 'cancelled', plannerTurn.runId, {
@@ -579,20 +602,12 @@ export async function attemptTeamChatReply(input: {
       input.userText.slice(0, 4000),
       '',
       'Planner briefing / jobs:',
-      plannerTurn.text.slice(0, 1500),
+      plannerTurn.text.slice(0, 16_000),
     ].join('\n'),
     priorTurns: [],
   });
   if (workerTurn.role !== 'assistant') {
-    const costs = mergeTurnCosts([plannerTurn, workerTurn]);
-    return {
-      ...workerTurn,
-      toolsUsed: costs.toolsUsed,
-      artifacts: costs.artifacts,
-      costMicros: costs.costMicros,
-      reservedMicros: costs.reservedMicros,
-      noProviderFee: costs.noProviderFee,
-    };
+    return interruptedStage('Worker', workerTurn, [plannerTurn, workerTurn]);
   }
 
   let plan: IdePlanDocument | undefined;
@@ -606,7 +621,7 @@ export async function attemptTeamChatReply(input: {
   let finalChatAnswer: string | null = null;
 
   if (reviewerBinding) {
-    for (let pass = 0; pass < MAX_COMPLETION_PASSES; pass += 1) {
+    for (let pass = 0; pass < maxCompletionPasses; pass += 1) {
       if (input.signal?.aborted) {
         const costs = mergeTurnCosts(assistantStages);
         return statusTurn('The chat request was cancelled before completion.', 'cancelled', workerTurn.runId, {
@@ -623,7 +638,7 @@ export async function attemptTeamChatReply(input: {
           input.userText.slice(0, 2000),
           '',
           'Planner output:',
-          plannerTurn.text.slice(0, 4000),
+          plannerTurn.text.slice(0, 16_000),
           '',
           'Worker output:',
           workerTurn.text.slice(0, 20_000),
@@ -633,7 +648,9 @@ export async function attemptTeamChatReply(input: {
         priorTurns: [],
       });
       assistantStages.push(reviewerTurn);
-      if (reviewerTurn.role !== 'assistant' || !reviewerTurn.text.trim()) break;
+      if (reviewerTurn.role !== 'assistant' || !reviewerTurn.text.trim()) {
+        return interruptedStage('Reviewer', reviewerTurn, assistantStages);
+      }
 
       const gate = parseReviewerGate(reviewerTurn.text);
       if (gate.status === 'accept') {
@@ -641,7 +658,8 @@ export async function attemptTeamChatReply(input: {
         break;
       }
 
-      if (pass >= MAX_COMPLETION_PASSES - 1) {
+      if (pass >= maxCompletionPasses - 1) {
+        plan = undefined; // A needs_more gate must never publish a ready-for-review plan.
         // Circuit breaker: return best effort from last Worker + Reviewer prose.
         finalChatAnswer =
           [
@@ -675,7 +693,7 @@ export async function attemptTeamChatReply(input: {
           input.userText.slice(0, 4000),
           '',
           'Planner briefing / jobs:',
-          plannerTurn.text.slice(0, 1200),
+          plannerTurn.text.slice(0, 16_000),
           '',
           'Reviewer needs_more — execute these jobs completely with repo_tree/repo_read and quoted evidence:',
           ...gate.jobs.map((job, index) => `${index + 1}. ${job}`),
@@ -690,20 +708,13 @@ export async function attemptTeamChatReply(input: {
       });
       assistantStages.push(workerTurn);
       if (workerTurn.role !== 'assistant') {
-        const costs = mergeTurnCosts(assistantStages);
-        return {
-          ...workerTurn,
-          toolsUsed: costs.toolsUsed,
-          artifacts: costs.artifacts,
-          costMicros: costs.costMicros,
-          reservedMicros: costs.reservedMicros,
-          noProviderFee: costs.noProviderFee,
-        };
+        return interruptedStage('Worker', workerTurn, assistantStages);
       }
     }
   }
 
   const costs = mergeTurnCosts(assistantStages.filter((t) => t.role === 'assistant'));
+  if (!reviewerBinding) plan = undefined;
 
   function reviewerUserFacingText(raw: string): string {
     if (finalChatAnswer) return finalChatAnswer.trim();

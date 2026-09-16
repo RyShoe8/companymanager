@@ -16,15 +16,17 @@ import {
 import { aiTransaction } from '@/lib/ai/control/transaction';
 import { AiBudget, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { gatewayFromModelProfile } from '@/lib/ai/rolePipeline/profiles';
+import { isFreeCredential } from '@/lib/ai/rolePipeline/modelMeta';
+import { estimateCostMicros } from '@/lib/ai/pricing/modelRates';
 
-const STAGE_LOCK_MS = 90000;
+const STAGE_LOCK_MS = 180000;
 
 type StageAdmission = {
   runId: Types.ObjectId;
   lockToken: string;
   policy: Awaited<ReturnType<typeof getPipelineInferencePolicy>>;
   gateway: GatewayConfiguration;
-  profile: { id: string; label: string; tier: string; model: string };
+  profile: { id: string; label: string; tier: string; model: string; provider?: string };
 };
 
 async function admitStageCall(input: {
@@ -204,6 +206,19 @@ export async function invokeProfileStage(input: {
       { signal: input.signal }
     );
     const content = result.content.trim();
+    const free = isFreeCredential({
+      provider: admitted.profile.provider ?? 'custom',
+      tier: admitted.profile.tier as any,
+    });
+    const noProviderFee = free || admitted.policy.noProviderFee;
+    const settled = noProviderFee
+      ? 0
+      : estimateCostMicros({
+          model: admitted.profile.model,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+        });
+
     if (!content) {
       stopWatchingAbort();
       await finishStageCall({
@@ -211,17 +226,16 @@ export async function invokeProfileStage(input: {
         projectId: input.projectId,
         runId: admitted.runId,
         lockToken: admitted.lockToken,
-        actualMicros: admitted.policy.noProviderFee ? 0 : null,
+        actualMicros: settled,
         status: 'blocked',
         summary: 'Stage model returned empty content.',
         failureCode: 'invalid_response',
-        noProviderFee: admitted.policy.noProviderFee,
+        noProviderFee,
         reservationMicros: admitted.policy.reservationMicros,
         result,
       });
       throw new GatewayError('invalid_response');
     }
-    const settled = admitted.policy.noProviderFee ? 0 : null;
     stopWatchingAbort();
     await finishStageCall({
       organizationId: input.organizationId,
@@ -231,7 +245,7 @@ export async function invokeProfileStage(input: {
       actualMicros: settled,
       status: 'completed',
       summary: 'Role pipeline stage completed.',
-      noProviderFee: admitted.policy.noProviderFee,
+      noProviderFee,
       reservationMicros: admitted.policy.reservationMicros,
       result,
     });
@@ -239,7 +253,7 @@ export async function invokeProfileStage(input: {
       content,
       costMicros: settled,
       reservedMicros: admitted.policy.reservationMicros,
-      noProviderFee: admitted.policy.noProviderFee,
+      noProviderFee,
       aiRunId: String(admitted.runId),
       profile: admitted.profile,
     };

@@ -78,14 +78,14 @@ describe('dispatchLock', () => {
     await expect(assertDispatchLockClaimable(new Date())).resolves.toBeUndefined();
   });
 
-  it('steals when holder runId is missing (orphaned lock)', async () => {
+  it('protects unexpired lock when holder runId is missing', async () => {
     mocks.findLock.mockReturnValue({
       session: () =>
         Promise.resolve({
           expiresAt: new Date(Date.now() + 60_000),
         }),
     });
-    await expect(assertDispatchLockClaimable(new Date())).resolves.toBeUndefined();
+    await expect(assertDispatchLockClaimable(new Date())).rejects.toBeInstanceOf(GatewayError);
   });
 
   it('rejects when holder run is still running', async () => {
@@ -123,12 +123,15 @@ describe('dispatchLock', () => {
     expect(mocks.deleteLock).toHaveBeenCalledWith({ _id: 'remote-planning-v1', token: 'tok' });
   });
 
-  it('releases the lock immediately on abort', async () => {
+  it('shortens the lock to a grace period on abort', async () => {
     const controller = new AbortController();
     const stop = watchAbortReleaseDispatchLock(controller.signal, 'abort-tok');
     controller.abort();
     await vi.waitFor(() => {
-      expect(mocks.deleteLock).toHaveBeenCalledWith({ _id: 'remote-planning-v1', token: 'abort-tok' });
+      expect(mocks.updateLock).toHaveBeenCalledWith(
+        { _id: 'remote-planning-v1', token: 'abort-tok' },
+        { $set: { expiresAt: expect.any(Date) } }
+      );
     });
     stop();
   });

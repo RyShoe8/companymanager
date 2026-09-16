@@ -19,6 +19,7 @@ vi.mock('@/lib/ai/control/access', async (importOriginal) => ({
 vi.mock('@/lib/ide/chatHistory', () => ({
   loadIdeChatHistory: mocks.history,
   appendIdeChatTurns: mocks.append,
+  findExistingIdeAssistantTurn: vi.fn().mockResolvedValue(null),
   clearIdeChatTurnPlan: vi.fn(),
 }));
 vi.mock('@/lib/ai/teamChat', () => ({ attemptTeamChatReply: mocks.team }));

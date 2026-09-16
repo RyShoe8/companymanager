@@ -6,6 +6,7 @@ import {
   githubAppConfigured,
   projectRepositorySchema,
 } from '@/lib/ai/githubPublish';
+import { verifyInstallationRepositoryAccess } from '@/lib/ai/githubAppClient';
 import { AiProjectRepository } from '@/lib/models/AiProjectRepository';
 
 export const dynamic = 'force-dynamic';
@@ -64,6 +65,27 @@ export async function PUT(request: NextRequest, context: Context) {
       throw error;
     });
     await indexes;
+
+    if (input.installationId) {
+      const foreignBinding = await AiProjectRepository.findOne({
+        installationId: input.installationId,
+        organizationId: { $ne: access.organizationId },
+      }).lean();
+      if (foreignBinding) {
+        throw new AiHttpError(403, 'This GitHub App installation is already associated with another organization.');
+      }
+
+      if (githubAppConfigured()) {
+        const verify = await verifyInstallationRepositoryAccess(
+          input.installationId,
+          input.owner,
+          input.repo
+        );
+        if (!verify.ok) {
+          throw new AiHttpError(400, verify.reason ?? 'GitHub App installation does not have access to this repository.');
+        }
+      }
+    }
 
     const row = await AiProjectRepository.findOneAndUpdate(
       { organizationId: access.organizationId, projectId: access.project._id },

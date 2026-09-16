@@ -43,6 +43,7 @@ export function parseNucleasPlan(raw: string): {
     `# ${title}`,
     summary ? summary : '',
     steps.length ? steps.map((step, index) => `${index + 1}. ${step}`).join('\n') : '',
+    withoutFence ? `## Details & Architecture\n\n${withoutFence}` : '',
   ].filter(Boolean);
 
   return {
@@ -50,9 +51,9 @@ export function parseNucleasPlan(raw: string): {
       title: title.slice(0, 200),
       summary: (summary || title).slice(0, 2000),
       steps: steps.map((step) => step.slice(0, 500)),
-      markdown: markdownParts.join('\n\n').slice(0, 8000),
+      markdown: markdownParts.join('\n\n').slice(0, 24000),
       status: 'ready_for_review',
     },
-    displayText: displayText.slice(0, 8000),
+    displayText: displayText.slice(0, 24000),
   };
 }

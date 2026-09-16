@@ -110,6 +110,40 @@ describe('attemptTeamChatReply full orchestra', () => {
     );
   });
 
+  it.each(['worker', 'reviewer'] as const)('preserves an unverified draft when %s fails without making it approvable', async failedStage => {
+    const draft = `Blog layout and integration. ${'detail '.repeat(1000)}End-of-briefing acceptance checks.\n\`\`\`nucleas-plan\n{"title":"Blog","summary":"Add blog","steps":["Add routes"]}\n\`\`\``;
+    mocks.companyChat.mockResolvedValueOnce({ requestId: 'p', role: 'assistant', text: draft, costMicros: 74000 });
+    if (failedStage === 'reviewer') mocks.companyChat.mockResolvedValueOnce({ requestId: 'w', role: 'assistant', text: 'Verified routes.', costMicros: 0 });
+    mocks.companyChat.mockResolvedValueOnce({ requestId: 'failed', role: 'status', text: 'Gateway returned HTTP 504.', failureCategory: 'unavailable', debugHint: 'httpStatus=504', costMicros: 0 });
+    const turn = await attemptTeamChatReply({ employee: 'product', projectName: 'Playbound', organizationId: 'org', projectId: new Types.ObjectId(), userId: 'u'.repeat(24), userText: 'plan a blog', priorTurns: [], interactionMode: 'plan' });
+    expect(turn.role).toBe('status');
+    expect(turn.plan).toBeUndefined();
+    expect(turn.text).toContain('Planner draft preserved');
+    expect(turn.text).toContain('Blog layout and integration');
+    expect(turn.text).toContain('504');
+    expect(turn.text).not.toContain('```nucleas-plan');
+    expect(turn.debugHint).toBe('httpStatus=504');
+    expect(turn.costMicros).toBe(74000);
+    expect(mocks.companyChat).toHaveBeenCalledTimes(failedStage === 'worker' ? 2 : 3);
+    expect(mocks.companyChat.mock.calls[1][0].userText).toContain('End-of-briefing acceptance checks');
+    expect(mocks.companyChat.mock.calls[1][0].stopOnUpstreamFailure).toBe(true);
+  });
+
+  it.each([true, false])('only exposes a plan when the reviewer accepts: %s', async accept => {
+    mocks.companyChat.mockImplementation(async ({ systemPrompt }: { systemPrompt: string }) => ({
+      requestId: 'stage', role: 'assistant', costMicros: 1,
+      text: systemPrompt.includes('Pipeline stage: planner')
+        ? 'Draft blog\n```nucleas-plan\n{"title":"Blog","summary":"Add blog","steps":["Add routes"]}\n```'
+        : systemPrompt.includes('Pipeline stage: worker') ? 'Read routes.'
+          : accept ? 'Verified.\n```nucleas-gate\n{"status":"accept"}\n```'
+            : 'Need evidence.\n```nucleas-gate\n{"status":"needs_more","jobs":["Read routes"]}\n```',
+    }));
+    const turn = await attemptTeamChatReply({ employee: 'product', projectName: 'Playbound', organizationId: 'org', projectId: new Types.ObjectId(), userId: 'a'.repeat(24), userText: 'plan a blog', priorTurns: [], interactionMode: 'plan' });
+    if (accept) expect(turn.plan?.status).toBe('ready_for_review');
+    else expect(turn.plan).toBeUndefined();
+    expect(mocks.companyChat).toHaveBeenCalledTimes(accept ? 3 : 13);
+  });
+
   it('runs planner → worker → reviewer on chat and returns the reviewer reply', async () => {
     const stages: string[] = [];
     mocks.companyChat
@@ -142,7 +176,7 @@ describe('attemptTeamChatReply full orchestra', () => {
         return {
           requestId: '3',
           role: 'assistant',
-          text: 'Here is how the rules system works…',
+          text: 'Here is how the rules system works…\n```nucleas-gate\n{"status":"accept"}\n```',
           toolsUsed: [],
           costMicros: 80,
           reservedMicros: 0,

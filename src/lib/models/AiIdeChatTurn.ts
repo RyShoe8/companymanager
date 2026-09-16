@@ -24,7 +24,7 @@ const planSchema = new Schema(
     title: { type: String, required: true, maxlength: 200 },
     summary: { type: String, required: true, maxlength: 2000 },
     steps: { type: [String], default: undefined },
-    markdown: { type: String, required: true, maxlength: 8000 },
+    markdown: { type: String, required: true, maxlength: 24000 },
     status: {
       type: String,
       enum: ['ready_for_review', 'approved', 'building'] as const,
@@ -41,12 +41,26 @@ const schema = new Schema(
     createdByUserId: { type: Schema.Types.ObjectId, required: true, immutable: true },
     mode: { type: String, enum: ideModes, required: true },
     /** Direct mode company credential; empty string for worker modes. */
-    directProfileId: { type: String, required: true, default: '', maxlength: 64 },
+    directProfileId: {
+      type: String,
+      required: function (this: { mode?: string }) {
+        return this.mode === 'direct';
+      },
+      default: '',
+      maxlength: 64,
+    },
     /** Direct mode model id; empty string for worker modes. */
-    directModel: { type: String, required: true, default: '', maxlength: 200 },
+    directModel: {
+      type: String,
+      required: function (this: { mode?: string }) {
+        return this.mode === 'direct';
+      },
+      default: '',
+      maxlength: 200,
+    },
     requestId: { type: String, required: true, maxlength: 80 },
     role: { type: String, enum: ['user', 'assistant', 'status'] as const, required: true },
-    text: { type: String, required: true, maxlength: 8000 },
+    text: { type: String, required: true, maxlength: 24000 },
     failureCategory: { type: String, maxlength: 64 },
     runId: { type: String, maxlength: 64 },
     costMicros: { type: Number },

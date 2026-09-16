@@ -44,8 +44,8 @@ describe('ide plan mode helpers', () => {
     expect(orchestraStagePrompt('planner', 'chat')).toMatch(/Lead deep investigation/);
     expect(orchestraStagePrompt('worker', 'chat')).toMatch(/Execute the Planner/);
     expect(orchestraStagePrompt('worker', 'chat')).toMatch(/quote short excerpts/i);
-    expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/Synthesize/);
-    expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/explain the system from those excerpts/i);
+    expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/nucleas-gate/);
+    expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/explain from those excerpts/i);
     expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/Do not invent/);
     expect(orchestraStagePrompt('planner', 'plan')).toMatch(/nucleas-plan/);
     expect(toolProfileForOrchestraStage('planner', 'chat')).toBe('repo');
@@ -78,6 +78,29 @@ describe('ide plan mode helpers', () => {
 
   it('returns null when the fence is missing', () => {
     expect(parseNucleasPlan('Just a chat reply.')).toBeNull();
+  });
+
+  it('preserves visual wireframes and architecture prose in plan markdown (F16)', () => {
+    const raw = [
+      '## Architecture Wireframe',
+      '```',
+      '+-------------------+',
+      '| [Header]          |',
+      '| [Sidebar] [Main]  |',
+      '+-------------------+',
+      '```',
+      '```nucleas-plan',
+      JSON.stringify({
+        title: 'Layout Overhaul',
+        summary: 'Redesign IDE layout',
+        steps: ['Header', 'Sidebar'],
+      }),
+      '```',
+    ].join('\n');
+    const parsed = parseNucleasPlan(raw);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.plan.markdown).toContain('+-------------------+');
+    expect(parsed!.plan.markdown).toContain('## Details & Architecture');
   });
 
   it('maps run-scene phases without network', () => {

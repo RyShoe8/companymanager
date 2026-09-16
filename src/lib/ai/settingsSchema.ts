@@ -15,7 +15,7 @@ export const platformAiSettingsSchema = z.object({
   model: z.string().trim().min(1).max(200), noProviderFee: z.boolean(),
   dailyRequestLimit: z.number().int().min(1).max(10000).default(48),
   minimumIntervalSeconds: z.number().int().min(1).max(86400).default(300),
-  maxOutputTokens: z.number().int().min(256).max(16384).default(3072),
+  maxOutputTokens: z.number().int().min(256).max(8192).default(3072),
   reservationMicros: micros, organizationLimitMicros: micros, projectLimitMicros: micros,
   /** Complimentary Nucleas credit ceiling (display / funding reference). */
   freePoolLimitMicros: micros.default(0),

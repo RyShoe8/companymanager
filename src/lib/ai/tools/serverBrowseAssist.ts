@@ -147,21 +147,22 @@ export function formatImageSearchContext(result: ImageSearchResult): string {
   }
   return lines.join('\n').slice(0, 10000);
 }
-
-/** User message for plain retry after Nucleas-side search. */
+/** User message for plain retry after Nucleas-side search. */
 export function userTextWithBrowseContext(userText: string, searchBlock: string): string {
   return `${userText.trim().slice(0, 4000)}\n\n${searchBlock}`.slice(0, 12000);
 }
 
 /**
  * User message after a Nucleas repo dig. Much larger than web browse so file
- * bodies survive (plainInvoke allows 48k free / 24k paid).
+ * bodies survive (gateway messages capped to 32k).
  */
 export function userTextWithRepoContext(
   userText: string,
   digBlock: string,
-  options?: { maxChars?: number }
+  options?: { maxChars?: number; maxUserChars?: number }
 ): string {
-  const maxChars = options?.maxChars ?? 48_000;
-  return `${userText.trim().slice(0, 6000)}\n\n${digBlock}`.slice(0, maxChars);
+  const maxChars = Math.min(options?.maxChars ?? 30_000, 32_000);
+  const maxUserChars = Math.min(options?.maxUserChars ?? 12_000, 16_000);
+  return `${userText.trim().slice(0, maxUserChars)}\n\n${digBlock}`.slice(0, maxChars);
 }
+
