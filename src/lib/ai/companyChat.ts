@@ -77,11 +77,11 @@ function statusTurn(
 
 function appendArtifacts(text: string, artifacts: ToolArtifact[]): string {
   if (!artifacts.length) return text;
-  const safe = artifacts.map((item) =>
-    item.assetId.startsWith('imgsearch:')
-      ? `- Image: ${item.name}`
-      : `- Generated image: ${item.name} (asset ${item.assetId})`
-  );
+  // Search/browse screenshots are shown only via turn.artifacts UI — do not inject
+  // markdown list lines (those become orphan captions / broken-image noise).
+  const generated = artifacts.filter((item) => !item.assetId.startsWith('imgsearch:'));
+  if (!generated.length) return text;
+  const safe = generated.map((item) => `- Generated image: ${item.name} (asset ${item.assetId})`);
   return `${text}\n\n${safe.join('\n')}`.slice(0, 8000);
 }
 
@@ -365,7 +365,7 @@ export async function attemptCompanyCredentialChat(input: {
               content: `${input.systemPrompt} ${args.systemExtra}`,
             },
             ...history,
-            { role: 'user', content: args.userContent.slice(0, 6000) },
+            { role: 'user', content: args.userContent.slice(0, freeCredential ? 48_000 : 24_000) },
           ],
           maxOutputTokens,
         },
@@ -441,7 +441,7 @@ export async function attemptCompanyCredentialChat(input: {
         imageHitsToArtifacts(search.pageImages ?? [])
       );
       const plain = await plainInvokeAfterAssist({
-        systemExtra: `${systemExtra} Answer directly in clear markdown (headings, bullet lists, [links](url)). Do not call tools. Nucleas already ran a full research stack (${toolsUsed.join(', ')}): search, page fetch, and image discovery${toolsUsed.includes('browser_navigate') ? ' plus Playwright page render' : ''}. Summarize those sources—never say you cannot browse, that tools were unavailable, or that no images were found when image results or thumbnails are present. Prefer compact facts and clickable source links; mention that screenshots appear as attached thumbnails when artifacts exist.`,
+        systemExtra: `${systemExtra} Answer directly in clear markdown (headings, bullet lists, [links](url)). Do not call tools. Do not use markdown image syntax (![alt](url))—screenshots render only as attached UI thumbnails. Nucleas already ran a full research stack (${toolsUsed.join(', ')}): search, page fetch, and image discovery${toolsUsed.includes('browser_navigate') ? ' plus Playwright page render' : ''}. Summarize those sources—never say you cannot browse, that tools were unavailable, or that no images were found when image results or thumbnails are present. Prefer compact facts and clickable source links.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
       return {
@@ -472,7 +472,7 @@ export async function attemptCompanyCredentialChat(input: {
       const block = formatImageSearchContext(search);
       const artifacts = imageHitsToArtifacts(search.hits);
       const plain = await plainInvokeAfterAssist({
-        systemExtra: `${systemExtra} Answer directly in clear markdown. Do not call tools. Nucleas already ran image_search; cite concrete image URLs when present and note that thumbnails are attached in the UI. Never invent URLs or claim no images if results/artifacts exist.`,
+        systemExtra: `${systemExtra} Answer directly in clear markdown. Do not call tools. Do not use markdown image syntax (![alt](url))—thumbnails are attached in the UI. Nucleas already ran image_search; you may mention image page/source links as normal [links](url). Never invent URLs or claim no images if results/artifacts exist.`,
         userContent: userTextWithBrowseContext(input.userText, block),
       });
       return {
@@ -493,7 +493,7 @@ export async function attemptCompanyCredentialChat(input: {
       outputTokens: number | null;
       latencyMs: number;
     } | null> {
-      if (!freeCredential || !repoToolsOn) return null;
+      if (!repoToolsOn) return null;
       if (!projectInternal && !input.forceToolLoop) return null;
       phase = 'repo_assist';
       const dig = await gatherRepoAssistContext({
@@ -502,10 +502,9 @@ export async function attemptCompanyCredentialChat(input: {
         userText: input.userText,
       });
       browseAssisted = true;
-      const block = formatRepoAssistContext(dig);
       const plain = await plainInvokeAfterAssist({
-        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran repo_tree/repo_read; ground your answer in the provided repository dig. If the dig says the repo is unbound, tell the user to bind GitHub / connect the GitHub App.`,
-        userContent: userTextWithBrowseContext(input.userText, block),
+        systemExtra: `${systemExtra} Answer directly. Do not call tools. Nucleas already ran repo_tree/repo_read; ground your answer in the provided repository dig. Do not claim tools failed. If the dig says the repo is unbound, tell the user to bind GitHub / connect the GitHub App.`,
+        userContent: userTextWithBrowseContext(input.userText, formatRepoAssistContext(dig)),
       });
       return {
         content: plain.content,
@@ -654,9 +653,15 @@ export async function attemptCompanyCredentialChat(input: {
           let assisted: Awaited<ReturnType<typeof tryBrowseAssistPlain>> = null;
           try {
             assisted =
-              (await tryRepoAssistPlain('Tools failed or returned empty on this host.')) ??
-              (await tryImageAssistPlain('Tools failed on this host.')) ??
-              (await tryBrowseAssistPlain('Tools failed on this host.'));
+              (await tryRepoAssistPlain(
+                'Nucleas already inspected the repository; answer from the dig results. Do not claim tools failed.'
+              )) ??
+              (await tryImageAssistPlain(
+                'Nucleas already gathered image results; answer from them. Do not claim tools failed.'
+              )) ??
+              (await tryBrowseAssistPlain(
+                'Nucleas already gathered web research; answer from it. Do not claim tools failed.'
+              ));
           } catch (assistError) {
             lastError = isEmptyLengthToolFailure(toolError) ? toolError : assistError;
             assisted = null;
@@ -669,9 +674,9 @@ export async function attemptCompanyCredentialChat(input: {
             try {
               const plain = await plainInvoke({
                 systemExtra:
-                  (isLookup || isImageLookup || projectInternal) && browseAssisted
-                    ? 'Tools and assist failed; answer from knowledge only. Do not call tools.'
-                    : 'Tools failed on this host; answer from knowledge only. Do not call tools.',
+                  projectInternal || browseAssisted
+                    ? 'Could not read the repository this turn; say what blocked it if known. Do not invent file contents. Do not call tools.'
+                    : 'Could not complete tools this turn; answer carefully without inventing repo file contents. Do not call tools.',
                 userContent: input.userText,
               });
               loop = {
@@ -711,19 +716,35 @@ export async function attemptCompanyCredentialChat(input: {
           toolError instanceof GatewayError &&
           (toolError.code === 'unavailable' || toolError.code === 'invalid_response');
         if (!retryableGateway) throw toolError;
-        phase = 'plain_retry';
-        const plain = await plainInvoke({
-          systemExtra: 'Tools failed on this host; answer from knowledge only. Do not call tools.',
-          userContent: input.userText,
-        });
-        loop = {
-          content: plain.content,
-          toolCallsMade: [],
-          artifacts: [],
-          inputTokens: plain.inputTokens,
-          outputTokens: plain.outputTokens,
-          latencyMs: plain.latencyMs,
-        };
+        phase = 'browse_assist_retry';
+        let assisted: Awaited<ReturnType<typeof tryRepoAssistPlain>> = null;
+        try {
+          assisted = await tryRepoAssistPlain(
+            'Nucleas already inspected the repository; answer from the dig results. Do not claim tools failed.'
+          );
+        } catch (assistError) {
+          lastError = assistError;
+          assisted = null;
+        }
+        if (assisted) {
+          loop = assisted;
+        } else {
+          phase = 'plain_retry';
+          const plain = await plainInvoke({
+            systemExtra: projectInternal
+              ? 'Could not read the repository this turn; say what blocked it if known. Do not invent file contents. Do not call tools.'
+              : 'Could not complete tools this turn; answer carefully without inventing repo file contents. Do not call tools.',
+            userContent: input.userText,
+          });
+          loop = {
+            content: plain.content,
+            toolCallsMade: [],
+            artifacts: [],
+            inputTokens: plain.inputTokens,
+            outputTokens: plain.outputTokens,
+            latencyMs: plain.latencyMs,
+          };
+        }
       }
     }
 

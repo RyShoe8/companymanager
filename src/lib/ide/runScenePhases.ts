@@ -28,24 +28,24 @@ export function deskActivityVerb(
   busy: boolean
 ): string | undefined {
   if (!busy) return undefined;
-  if (status === 'done') return 'done';
-  if (status === 'idle') return 'waiting';
+  if (status === 'done') return 'finished';
+  if (status === 'idle') return 'on standby…';
   if (role === 'planner') {
-    if (mode === 'plan') return 'drafting plan…';
-    if (mode === 'build') return 'briefing worker…';
-    return 'leading digs…';
+    if (mode === 'plan') return 'writing a plan…';
+    if (mode === 'build') return 'handing off…';
+    return 'planning…';
   }
   if (role === 'worker') {
-    if (mode === 'build') return 'building…';
-    if (mode === 'plan') return 'verifying repo…';
-    return 'reading repo…';
+    if (mode === 'build') return 'making changes…';
+    if (mode === 'plan') return 'checking the repo…';
+    return 'looking through the code…';
   }
   if (role === 'reviewer') {
-    if (mode === 'plan') return 'critiquing plan…';
-    if (mode === 'build') return 'checking work…';
-    return 'synthesizing…';
+    if (mode === 'plan') return 'reviewing the plan…';
+    if (mode === 'build') return 'reviewing changes…';
+    return 'writing the answer…';
   }
-  return 'typing…';
+  return 'working…';
 }
 
 function withDeskActivityLabels(
@@ -71,7 +71,7 @@ function floorLabel(input: {
     return input.desks && input.desks.length > 1 ? 'Team floor · quiet' : 'Standing by';
   }
   if (input.live === 'planner') return 'Team floor · planning';
-  if (input.live === 'worker') return input.mode === 'build' ? 'Team floor · building' : 'Team floor · digging';
+  if (input.live === 'worker') return input.mode === 'build' ? 'Team floor · building' : 'Team floor · researching';
   if (input.live === 'reviewer') return 'Team floor · reviewing';
   if (input.live === 'direct') return input.target ? `Working · ${input.target}` : 'Team floor · working';
   return 'Team floor · working';

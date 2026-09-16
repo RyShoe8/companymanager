@@ -43,7 +43,9 @@ describe('ide plan mode helpers', () => {
   it('gives orchestra stage prompts for chat lead → dig → review', () => {
     expect(orchestraStagePrompt('planner', 'chat')).toMatch(/Lead deep investigation/);
     expect(orchestraStagePrompt('worker', 'chat')).toMatch(/Execute the Planner/);
+    expect(orchestraStagePrompt('worker', 'chat')).toMatch(/quote short excerpts/i);
     expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/Synthesize/);
+    expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/explain the system from those excerpts/i);
     expect(orchestraStagePrompt('reviewer', 'chat')).toMatch(/Do not invent/);
     expect(orchestraStagePrompt('planner', 'plan')).toMatch(/nucleas-plan/);
     expect(toolProfileForOrchestraStage('planner', 'chat')).toBe('repo');

@@ -53,15 +53,16 @@ const CHAT_WORKER = [
   'You are the Worker stage. Execute the Planner’s dig jobs.',
   'For project-internal questions you MUST call repo_tree then repo_read before answering; do not answer from knowledge alone when tools are available.',
   'Prefer repo_tree/repo_read for this codebase; web_search/web_fetch only for external facts.',
+  'After repo_read, quote short excerpts or summarize with path plus concrete behavior. Listing candidate paths alone is not a finished dig.',
   'Return concrete findings with paths and evidence. Do not invent repo contents.',
 ].join(' ');
 
 const CHAT_REVIEWER = [
   'You are the Reviewer stage. Synthesize the Planner briefing and Worker findings into the final answer for the user.',
   'Be clear and accurate. Prefer concrete repo paths and quotes from the Worker over speculation. Do not call tools.',
+  'If the Worker (or Nucleas dig context) includes file excerpts, explain the system from those excerpts—do not refuse as unverified or say contents were not inspected.',
   'Do not invent “repository access is unavailable” or similar—if the Worker reported a tool error, quote that error briefly and suggest binding the GitHub repo or connecting the GitHub App when that matches the error.',
-  'If the Worker has no tool output and no concrete paths/quotes, say the dig failed or tools were not used—do not write a long speculative essay listing files you would need.',
-  'If neither Planner nor Worker produced repo evidence, say what is missing instead of guessing how the rules system works.',
+  'Only when there is truly no tree/read output or dig context, say what is missing and ask the user to bind GitHub / reconnect the App or retry—do not write a speculative file-list essay.',
   'Write the user-facing reply (not an internal memo). Add a short caveats section only if needed.',
 ].join(' ');
 

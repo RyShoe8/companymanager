@@ -3,11 +3,46 @@ import { listIdeTree, readIdeFile } from '@/lib/ai/ideCommitPush';
 import { extractChatHeuristicText } from '@/lib/ai/tools/serverBrowseAssist';
 
 const PATH_HINT =
-  /\b(rule|rules|task.?rule|planMode|ideChat|prompt|\.cursor|nucleas|architecture|companyChat|teamChat)\b/i;
+  /\b(rule|rules|task.?rule|taskRule|AiProjectTaskRule|IdeTaskRules|planMode|ideChat|prompt|\.cursor|nucleas|architecture|companyChat|teamChat)\b/i;
 
-/** Short seed list — keep GitHub calls ≤ ~6 (4 trees + 2 reads). */
-const SEED_DIRS = ['', 'src/lib/ide', 'src/lib/ai', '.cursor'];
-const MAX_FILES = 2;
+const RULES_QUERY =
+  /\b(rules?\s+system|task\s+rules?|how\s+(?:do|does)\s+(?:our|the)\s+rules|rule\s+schema|loadTaskRules)\b/i;
+
+/** Known rules/architecture files — read first when the query is about rules. */
+const RULES_PRIORITY_PATHS = [
+  'src/lib/ide/taskRuleSchema.ts',
+  'src/lib/ide/loadTaskRules.ts',
+  'src/lib/ide/modes.ts',
+  'src/lib/models/AiProjectTaskRule.ts',
+  'src/components/ide/IdeTaskRulesPanel.tsx',
+  'src/app/api/projects/[id]/ai/ide/chat/route.ts',
+  'src/lib/ai/teamChat.ts',
+  'src/lib/ai/ideDirectChat.ts',
+];
+
+/**
+ * Seed dirs listed in parallel. Root '' is fetched separately first (bind check).
+ * Wider coverage so scoring can pick across IDE / AI / API / UI / cursor rules.
+ */
+const SEED_DIRS = [
+  '',
+  'src',
+  'src/lib',
+  'src/lib/ide',
+  'src/lib/ai',
+  'src/lib/ai/tools',
+  'src/lib/models',
+  'src/components',
+  'src/components/ide',
+  'src/app/api/projects',
+  '.cursor',
+  '.cursor/rules',
+];
+const MAX_FILES = 20;
+const PER_FILE_CHARS = 2500;
+const TREE_CHARS = 8000;
+const FILES_CHARS = 40_000;
+const CONTEXT_CHARS = 48_000;
 
 export type RepoAssistResult = {
   ok: boolean;
@@ -27,7 +62,29 @@ function scorePath(path: string, query: string): number {
   return score;
 }
 
-/** Nucleas-side repo dig for free hosts that struggle with tool calling. */
+function pickReadPaths(query: string, candidateFiles: { path: string; score: number }[]): string[] {
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (path: string) => {
+    if (seen.has(path) || ordered.length >= MAX_FILES) return;
+    seen.add(path);
+    ordered.push(path);
+  };
+
+  if (RULES_QUERY.test(query) || PATH_HINT.test(query)) {
+    for (const path of RULES_PRIORITY_PATHS) push(path);
+  }
+
+  const scored = [...candidateFiles].sort(
+    (a, b) => b.score - a.score || a.path.localeCompare(b.path)
+  );
+  for (const item of scored) push(item.path);
+
+  return ordered;
+}
+
+/** Nucleas-side repo dig for hosts that struggle with tool calling. */
 export async function gatherRepoAssistContext(input: {
   organizationId: string;
   projectId: Types.ObjectId;
@@ -70,7 +127,7 @@ export async function gatherRepoAssistContext(input: {
   for (const { dir, tree } of allTrees) {
     if (!tree.ok) continue;
     treeLines.push(`Tree path="${dir || '/'}" branch=${tree.branch}:`);
-    for (const entry of tree.entries.slice(0, 80)) {
+    for (const entry of tree.entries.slice(0, 120)) {
       treeLines.push(`  ${entry.type}\t${entry.path}`);
       if (entry.type === 'file') {
         const score = scorePath(entry.path, query);
@@ -79,35 +136,53 @@ export async function gatherRepoAssistContext(input: {
     }
   }
 
-  candidateFiles.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
-  const uniquePaths = [...new Set(candidateFiles.map((c) => c.path))].slice(0, MAX_FILES);
+  // Priority paths may not appear in shallow seed listings — still try to read them
+  // when the query is about rules/architecture (GitHub getContent by path).
+  const uniquePaths = pickReadPaths(query, candidateFiles);
+
+  const reads = await Promise.all(
+    uniquePaths.map(async (path) => {
+      const file = await readIdeFile(input.organizationId, input.projectId, path);
+      return { path, file };
+    })
+  );
+  for (const _ of uniquePaths) toolsUsed.push('repo_read');
 
   const fileBlocks: string[] = [];
-  for (const path of uniquePaths) {
-    const file = await readIdeFile(input.organizationId, input.projectId, path);
-    toolsUsed.push('repo_read');
+  const readErrors: string[] = [];
+  let okReads = 0;
+  for (const { path, file } of reads) {
     if (!file.ok) {
+      readErrors.push(`${path}: ${file.reason}`);
       fileBlocks.push(`File ${path}: ${file.reason}`);
       continue;
     }
-    fileBlocks.push(`File ${file.path} (branch ${file.branch}):\n${file.content.slice(0, 3500)}`);
+    okReads += 1;
+    fileBlocks.push(
+      `File ${file.path} (branch ${file.branch}):\n${file.content.slice(0, PER_FILE_CHARS)}`
+    );
   }
+
+  const emptyReadGuidance =
+    readErrors.length > 0
+      ? `File reads failed (${readErrors.slice(0, 3).join('; ')}). Report that GitHub bind/read error to the user. Do not invent file contents or claim repository tools are generally unavailable.`
+      : 'No high-confidence rule/architecture files were read from the tree. List what is missing and suggest binding the GitHub repo or reconnecting the GitHub App if reads are blocked. Do not invent file contents.';
 
   const contextBlock = [
     'Repository dig results (use these; do not invent file contents beyond them):',
     `Query focus: ${query}`,
-    treeLines.join('\n').slice(0, 4000),
-    fileBlocks.length
-      ? fileBlocks.join('\n\n').slice(0, 10000)
-      : 'No high-confidence rule/architecture files were read. Use the tree listing and say what is missing.',
+    treeLines.join('\n').slice(0, TREE_CHARS),
+    okReads > 0 || readErrors.length > 0
+      ? fileBlocks.join('\n\n').slice(0, FILES_CHARS)
+      : emptyReadGuidance,
   ]
     .filter(Boolean)
     .join('\n\n')
-    .slice(0, 14000);
+    .slice(0, CONTEXT_CHARS);
 
   return {
     ok: true,
-    note: uniquePaths.length ? `Read ${uniquePaths.length} file(s).` : 'Tree only; no scored files.',
+    note: okReads > 0 ? `Read ${okReads} file(s).` : 'Tree only; no scored files.',
     toolsUsed: [...new Set(toolsUsed)],
     contextBlock,
   };

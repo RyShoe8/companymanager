@@ -92,10 +92,12 @@ describe('runSceneFromState desks', () => {
       desks,
       liveStage: 'worker',
     });
-    expect(scene.label).toMatch(/Team floor · digging/i);
-    expect(scene.desks?.find((d) => d.role === 'planner')?.activityLabel).toBe('done');
-    expect(scene.desks?.find((d) => d.role === 'worker')?.activityLabel).toBe('reading repo…');
-    expect(scene.desks?.find((d) => d.role === 'reviewer')?.activityLabel).toBe('waiting');
+    expect(scene.label).toMatch(/Team floor · researching/i);
+    expect(scene.desks?.find((d) => d.role === 'planner')?.activityLabel).toBe('finished');
+    expect(scene.desks?.find((d) => d.role === 'worker')?.activityLabel).toBe(
+      'looking through the code…'
+    );
+    expect(scene.desks?.find((d) => d.role === 'reviewer')?.activityLabel).toBe('on standby…');
   });
 
   it('labels busy reviewer from live stage', () => {
@@ -113,6 +115,8 @@ describe('runSceneFromState desks', () => {
       liveStage: 'reviewer',
     });
     expect(scene.label).toMatch(/Team floor · reviewing/i);
-    expect(scene.desks?.find((d) => d.role === 'reviewer')?.activityLabel).toBe('checking work…');
+    expect(scene.desks?.find((d) => d.role === 'reviewer')?.activityLabel).toBe(
+      'reviewing changes…'
+    );
   });
 });

@@ -859,9 +859,55 @@ describe('attemptCompanyCredentialChat commercial', () => {
 
     expect(mocks.toolLoop).toHaveBeenCalled();
     expect(mocks.invokeModel).toHaveBeenCalled();
+    expect(mocks.repoAssist).not.toHaveBeenCalled();
     expect(turn).toMatchObject({
       role: 'assistant',
       text: 'plain paid reply',
+      noProviderFee: false,
+    });
+  });
+
+  it('uses Nucleas repo assist after commercial tool-loop failure on project-internal asks', async () => {
+    mocks.toolLoop.mockRejectedValue(new GatewayError('unavailable'));
+    mocks.repoAssist.mockResolvedValue({
+      ok: true,
+      note: 'Read 3 file(s).',
+      toolsUsed: ['repo_tree', 'repo_read'],
+      contextBlock: 'Repository dig: loadTaskRules injects rule texts',
+    });
+    mocks.invokeModel.mockResolvedValue({
+      content: 'Rules are prompt-injected project docs loaded by loadIdeTaskRuleTexts.',
+      model: 'gpt',
+      inputTokens: 10,
+      outputTokens: 20,
+      latencyMs: 5,
+      finishReason: 'stop',
+    });
+
+    const turn = await attemptCompanyCredentialChat({
+      systemPrompt: 'You are helpful.',
+      organizationId: 'org',
+      projectId: new Types.ObjectId(),
+      userId: 'a'.repeat(24),
+      userText: 'how does our rules system work exactly?',
+      priorTurns: [],
+      modelProfileId: 'b'.repeat(24),
+      model: 'gpt',
+      includeRepoTools: true,
+    });
+
+    expect(mocks.toolLoop).toHaveBeenCalled();
+    expect(mocks.repoAssist).toHaveBeenCalled();
+    expect(mocks.invokeModel).toHaveBeenCalled();
+    const invokeArg = mocks.invokeModel.mock.calls[0]?.[1] as {
+      messages?: { role: string; content: string }[];
+    };
+    const system = String(invokeArg?.messages?.[0]?.content ?? '');
+    expect(system).toMatch(/Do not claim tools failed/i);
+    expect(system).not.toMatch(/Tools failed on this host/i);
+    expect(turn).toMatchObject({
+      role: 'assistant',
+      toolsUsed: ['repo_tree', 'repo_read'],
       noProviderFee: false,
     });
   });

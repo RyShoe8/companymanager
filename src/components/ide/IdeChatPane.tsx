@@ -1060,25 +1060,41 @@ export default function IdeChatPane({
                 </div>
               ) : null}
               {turn.artifacts?.length ? (
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-3 space-y-3">
                   {turn.artifacts.map((artifact) => (
-                    <button
+                    <figure
                       key={artifact.assetId}
-                      type="button"
-                      className="group relative max-w-full overflow-hidden rounded border border-border text-left"
-                      onClick={() => setPreviewImage({ src: artifact.url, title: artifact.name })}
-                      title="View full size"
+                      className="overflow-hidden rounded border border-border bg-background"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={artifact.url}
-                        alt={artifact.name}
-                        className="max-h-40 max-w-full object-contain transition group-hover:opacity-90"
-                      />
-                      <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
-                        Full size
-                      </span>
-                    </button>
+                      <figcaption className="border-b border-border px-2 py-1.5 text-[11px] text-text-secondary">
+                        {artifact.name}
+                      </figcaption>
+                      <button
+                        type="button"
+                        className="block w-full text-left"
+                        onClick={() => setPreviewImage({ src: artifact.url, title: artifact.name })}
+                        title="View full size"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={artifact.url}
+                          alt={artifact.name}
+                          className="max-h-56 w-full object-contain bg-black/5"
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </button>
+                      <div className="border-t border-border px-2 py-1">
+                        <button
+                          type="button"
+                          className="text-[11px] text-text-secondary underline underline-offset-2 hover:text-text-primary"
+                          onClick={() => setPreviewImage({ src: artifact.url, title: artifact.name })}
+                        >
+                          View full size
+                        </button>
+                      </div>
+                    </figure>
                   ))}
                 </div>
               ) : null}
@@ -1126,7 +1142,7 @@ export default function IdeChatPane({
               ? 'Select a project first'
               : interactionMode === 'plan'
                 ? 'What should the team plan? (Planner → Worker → Reviewer)'
-                : 'Ask the team… (Planner leads, Worker digs, Reviewer answers)'
+                : 'Ask the team… (Planner plans, Worker checks the code, Reviewer answers)'
           }
           value={draft}
           disabled={!projectId || busy || historyLoading}

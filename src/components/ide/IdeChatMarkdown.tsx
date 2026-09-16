@@ -4,6 +4,14 @@ import type { Components } from 'react-markdown';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+/** Drop markdown images — IDE chat shows screenshots via the artifact gallery only. */
+export function stripMarkdownImages(text: string): string {
+  return text
+    .replace(/!\[[^\]]*]\([^)]+\)/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const components: Components = {
   a: ({ href, children }) => (
     <a
@@ -37,17 +45,14 @@ const components: Components = {
       {children}
     </blockquote>
   ),
-  img: ({ src, alt }) =>
-    typeof src === 'string' && /^https:\/\//i.test(src) ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt ?? ''} className="my-2 max-h-48 max-w-full rounded border border-border object-contain" />
-    ) : null,
+  // Inline markdown images are stripped; keep a no-op so any residual never shows a broken icon.
+  img: () => null,
   hr: () => <hr className="my-3 border-border" />,
 };
 
 /** Compact GFM markdown for IDE chat turns (clickable links, no raw ** symbols). */
 export default function IdeChatMarkdown({ text }: { text: string }) {
-  const content = text.trim();
+  const content = stripMarkdownImages(text);
   if (!content) return null;
   return (
     <div className="text-sm text-text-primary">
