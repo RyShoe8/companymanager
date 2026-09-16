@@ -46,7 +46,7 @@ vi.mock('@/lib/ai/tools/serverRepoAssist', () => ({
   gatherRepoAssistContext: (...args: unknown[]) => mocks.repoDig(...args),
 }));
 
-import { attemptTeamChatReply } from '@/lib/ai/teamChat';
+import { attemptTeamChatReply, distillPlannerBriefing } from '@/lib/ai/teamChat';
 
 function leanChain(result: unknown) {
   return {
@@ -212,11 +212,12 @@ describe('attemptTeamChatReply full orchestra', () => {
       ['reviewer', 'end'],
     ]);
     expect(mocks.repoDig).toHaveBeenCalledTimes(1);
-    for (const call of mocks.companyChat.mock.calls) {
-      expect(call[0]).toMatchObject({
-        repoContextBlock: expect.stringContaining('loadTaskRules'),
-      });
-    }
+    const [plannerCall, workerCall, reviewerCall] = mocks.companyChat.mock.calls;
+    expect(plannerCall[0]).toMatchObject({
+      repoContextBlock: expect.stringContaining('loadTaskRules'),
+    });
+    expect(workerCall[0].repoContextBlock).toBeUndefined();
+    expect(reviewerCall[0].repoContextBlock).toBeUndefined();
   });
 
   it('on needs_more runs another Worker pass then accepts', async () => {
@@ -339,3 +340,35 @@ describe('attemptTeamChatReply full orchestra', () => {
     expect(turn.text).toMatch(/cancelled/i);
   });
 });
+
+describe('distillPlannerBriefing', () => {
+  it('distills structured nucleas-plan output for the worker', () => {
+    const raw = [
+      'Here is the architectural overview of the blog feature.',
+      'We will use MDX and dynamic routing.',
+      '```nucleas-plan',
+      JSON.stringify({
+        title: 'Add Blog System',
+        summary: 'Build MDX blog with SEO support.',
+        steps: ['Create /blog routes', 'Add markdown renderer', 'Write tests'],
+      }),
+      '```',
+    ].join('\n');
+
+    const distilled = distillPlannerBriefing(raw, 'plan');
+    expect(distilled).toContain('Plan Goal: Add Blog System');
+    expect(distilled).toContain('Summary: Build MDX blog with SEO support.');
+    expect(distilled).toContain('1. Create /blog routes');
+    expect(distilled).toContain('2. Add markdown renderer');
+    expect(distilled).toContain('3. Write tests');
+    expect(distilled).toContain('Here is the architectural overview');
+    expect(distilled).not.toContain('```nucleas-plan');
+  });
+
+  it('falls back cleanly when nucleas-plan is not present', () => {
+    const raw = 'Investigate Playbound database schema and report findings.';
+    const distilled = distillPlannerBriefing(raw, 'chat');
+    expect(distilled).toBe('Investigate Playbound database schema and report findings.');
+  });
+});
+

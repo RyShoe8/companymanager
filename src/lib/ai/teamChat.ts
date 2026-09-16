@@ -400,6 +400,38 @@ function costFields(policy: { reservationMicros: number; noProviderFee: boolean 
   };
 }
 
+/**
+ * Distill planner output for downstream worker and reviewer stages.
+ * Offloads context by stripping redundant JSON fences and structuring
+ * ordered verification jobs, preventing context explosion on local models.
+ */
+export function distillPlannerBriefing(
+  plannerText: string,
+  interactionMode: IdeInteractionMode
+): string {
+  if (interactionMode === 'plan') {
+    const parsed = parseNucleasPlan(plannerText);
+    if (parsed) {
+      const { plan, displayText } = parsed;
+      const stepLines = plan.steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
+      const cleanDetails =
+        displayText && displayText !== plan.summary ? displayText.slice(0, 8000).trim() : '';
+      return [
+        `Plan Goal: ${plan.title}`,
+        `Summary: ${plan.summary}`,
+        `\nVerification Jobs / Plan Steps to Ground with Repo Tools:\n${stepLines}`,
+        cleanDetails ? `\nKey Architectural Details:\n${cleanDetails}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+    }
+  }
+
+  // Fallback for non-plan or unparsed output: strip excessive fences and trim
+  return plannerText.replace(/```nucleas-plan\s*[\s\S]*?```/gi, '').trim().slice(0, 8000);
+}
+
 /** IDE / team role chat: always Planner → Worker → Reviewer on worker tabs. */
 export async function attemptTeamChatReply(input: {
   employee: AiEmployeeKey;
@@ -541,9 +573,17 @@ export async function attemptTeamChatReply(input: {
         forcePlain: toolProfile === 'none' || shouldForcePlainChat(interactionMode),
         forceToolLoop: toolProfile !== 'none',
         stopOnUpstreamFailure: true,
-        repoContextBlock,
+        repoContextBlock: args.stage === 'planner' ? repoContextBlock : undefined,
         maxOutputTokensOverride:
-          interactionMode === 'plan' || interactionMode === 'build' ? 8192 : undefined,
+          args.stage === 'planner'
+            ? interactionMode === 'plan' || interactionMode === 'build'
+              ? 8192
+              : undefined
+            : interactionMode === 'plan'
+              ? 2048
+              : interactionMode === 'build'
+                ? 4096
+                : undefined,
         signal: input.signal,
       })
     );
@@ -594,15 +634,17 @@ export async function attemptTeamChatReply(input: {
     });
   }
 
+  const distilledPlanner = distillPlannerBriefing(plannerTurn.text, interactionMode);
+
   let workerTurn = await runStage({
     stage: 'worker',
     binding: workerBinding,
     userText: [
       'User request:',
-      input.userText.slice(0, 4000),
+      input.userText.slice(0, 2000),
       '',
       'Planner briefing / jobs:',
-      plannerTurn.text.slice(0, 16_000),
+      distilledPlanner,
     ].join('\n'),
     priorTurns: [],
   });
@@ -635,13 +677,13 @@ export async function attemptTeamChatReply(input: {
         binding: reviewerBinding,
         userText: [
           'User request:',
-          input.userText.slice(0, 2000),
+          input.userText.slice(0, 1500),
           '',
-          'Planner output:',
-          plannerTurn.text.slice(0, 16_000),
+          'Planner briefing:',
+          distilledPlanner,
           '',
           'Worker output:',
-          workerTurn.text.slice(0, 20_000),
+          workerTurn.text.slice(0, 6000),
           '',
           'Decide accept vs needs_more. End with a nucleas-gate fence (all interaction modes).',
         ].join('\n'),
@@ -690,17 +732,17 @@ export async function attemptTeamChatReply(input: {
         binding: workerBinding,
         userText: [
           'User request:',
-          input.userText.slice(0, 4000),
+          input.userText.slice(0, 2000),
           '',
           'Planner briefing / jobs:',
-          plannerTurn.text.slice(0, 16_000),
+          distilledPlanner,
           '',
           'Reviewer needs_more — execute these jobs completely with repo_tree/repo_read and quoted evidence:',
           ...gate.jobs.map((job, index) => `${index + 1}. ${job}`),
           gate.reason ? `Reason: ${gate.reason}` : '',
           '',
           'Prior Worker findings (continue from these; do not discard):',
-          workerTurn.text.slice(0, 12_000),
+          workerTurn.text.slice(0, 4000),
         ]
           .filter(Boolean)
           .join('\n'),
