@@ -103,9 +103,41 @@ describe('loadIdeChatHistory', () => {
       organizationId: 'org',
       projectId,
       createdByUserId: new Types.ObjectId(userId),
-      mode: { $in: ['marketing', 'product', 'support', 'engineering', 'researcher'] },
+      mode: { $in: ['marketing', 'product', 'support', 'engineering', 'researcher', 'direct'] },
     });
     expect(turns.map((item) => item.requestId)).toEqual(['r1', 'r2']);
+  });
+
+  it('includes Direct turns when loading a Product worker thread', async () => {
+    mocks.find.mockReturnValue({
+      sort: () => ({
+        limit: () => ({
+          maxTimeMS: () => ({
+            lean: () =>
+              Promise.resolve([
+                {
+                  requestId: 'd1',
+                  role: 'user',
+                  text: 'saved while mode was Direct',
+                  mode: 'direct',
+                  createdAt: new Date('2026-01-01'),
+                },
+              ]),
+          }),
+        }),
+      }),
+    });
+    await loadIdeChatHistory({
+      organizationId: 'org',
+      projectId,
+      userId,
+      mode: 'product',
+    });
+    expect(mocks.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: { $in: expect.arrayContaining(['product', 'direct']) },
+      })
+    );
   });
 
   it('propagates query failures so the client can keep cached turns', async () => {

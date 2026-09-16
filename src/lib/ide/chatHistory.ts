@@ -136,9 +136,10 @@ export async function loadIdeChatHistory(input: {
   }
   await ensureIdeChatIndexes();
   const limit = Math.min(Math.max(input.limit ?? HISTORY_LIMIT, 1), 100);
-  // Worker tabs share one transcript ($in all worker modes). Do not filter
-  // directProfileId/directModel — those keys are Direct-only; requiring '' misses
-  // older docs or accidental non-empty values and returns an empty thread.
+  // Worker tabs share one project transcript across all worker roles.
+  // Also include Direct turns for the same project: Free Chat has one stable
+  // thread, but project chats were often saved under Direct when mode stuck
+  // after Free→Project, which made Product/Engineering look empty on refresh.
   const filter = isIdeDirectMode(keys.mode)
     ? {
         organizationId: input.organizationId,
@@ -152,7 +153,7 @@ export async function loadIdeChatHistory(input: {
         organizationId: input.organizationId,
         projectId: input.projectId,
         createdByUserId: new Types.ObjectId(input.userId),
-        mode: { $in: WORKER_HISTORY_MODES },
+        mode: { $in: [...WORKER_HISTORY_MODES, 'direct'] },
       };
   const rows = await AiIdeChatTurn.find(filter)
     .sort({ _id: -1 })

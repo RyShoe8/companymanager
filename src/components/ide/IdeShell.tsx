@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import IdeChatPane from '@/components/ide/IdeChatPane';
 import IdeEditor from '@/components/ide/IdeEditor';
 import IdeFileTree from '@/components/ide/IdeFileTree';
@@ -55,7 +55,10 @@ function formatSpend(micros: number): string {
 function modeForProject(projectId: string): IdeChatMode {
   if (isIdeFreeChatScope(projectId)) return 'direct';
   if (typeof window !== 'undefined') {
-    return readStoredIdeChatMode(projectId) ?? 'engineering';
+    const stored = readStoredIdeChatMode(projectId);
+    // Direct on a project is fine while using that tab, but do not restore it as the
+    // default after refresh — that opens an empty Direct thread while worker history exists.
+    if (stored && stored !== 'direct') return stored;
   }
   return 'engineering';
 }
@@ -131,12 +134,13 @@ export default function IdeShell({ initialProjectId }: { initialProjectId?: stri
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!projectId || freeChat) {
       setMode('direct');
       return;
     }
-    // Always apply default when unset — `if (stored)` left Free→Project stuck on Direct.
+    // Hydrate before IdeChatPane history fetch (same readiness idea as Free Chat
+    // waiting on Direct company/model) so we do not GET with a stale mode.
     const restored = modeForProject(projectId);
     setMode(restored);
     writeStoredIdeChatMode(projectId, restored);

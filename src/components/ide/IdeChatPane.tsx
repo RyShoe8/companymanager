@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { formatIdeCostUsd } from '@/lib/ide/costDisplay';
 import {
@@ -245,18 +245,26 @@ export default function IdeChatPane({
     setPipelines(body.pipelines ?? []);
   }, []);
 
+  useLayoutEffect(() => {
+    if (!projectId) {
+      setDirectProfileId('');
+      setDirectModel('');
+      return;
+    }
+    // Same as Free Chat: hydrate company/model before the history GET so we do not
+    // sit on `:direct:pending` (or fetch the wrong Direct thread) after refresh.
+    const stored = readStoredIdeDirectSelection(projectId);
+    setDirectProfileId(stored?.profileId ?? '');
+    setDirectModel(stored?.model ?? '');
+  }, [projectId]);
+
   useEffect(() => {
     if (!projectId) {
       setProfiles([]);
       setCatalog([]);
       setPipelines([]);
-      setDirectProfileId('');
-      setDirectModel('');
       return;
     }
-    const stored = readStoredIdeDirectSelection(projectId);
-    setDirectProfileId(stored?.profileId ?? '');
-    setDirectModel(stored?.model ?? '');
     void loadPipeline(projectId).catch(() => undefined);
   }, [projectId, loadPipeline]);
 
@@ -346,12 +354,15 @@ export default function IdeChatPane({
       } else {
         onPlanReady?.(null);
       }
-    } else if (!historyScopeKey.endsWith(':direct:pending')) {
-      setTurns([]);
-      onPlanReady?.(null);
     }
+    // Free Chat waits on `:direct:pending` instead of wiping; do the same for
+    // workers — never blank a visible thread before the GET settles.
 
     if (!projectId || !chatScopeReady || historyScopeKey.endsWith(':direct:pending')) {
+      if (!cached?.length && historyScopeKey.endsWith(':direct:pending')) {
+        setTurns([]);
+        onPlanReady?.(null);
+      }
       setHistoryLoading(false);
       return;
     }
@@ -408,7 +419,7 @@ export default function IdeChatPane({
     })();
 
     return () => controller.abort();
-  }, [historyScopeKey, chatScopeReady, historyRefetchNonce]);
+  }, [historyScopeKey, chatScopeReady, historyRefetchNonce, mode, projectId, directProfileId, directModel, onPlanReady]);
 
   useEffect(() => {
     return () => {
