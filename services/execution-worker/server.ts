@@ -4,11 +4,13 @@ import { mkdtemp, readdir, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { executionWorkerRequestSchema, executionWorkerResponseSchema, type ExecutionWorkerRequest } from '../../packages/ai-contracts/src/execution';
-import { assertWorkspacePath, deleteWorkspaceFile, readWorkspaceFile, runCommand, writeWorkspaceFile, type CommandEvidence } from './runtime';
+import { assertWorkspacePath, deleteWorkspaceFile, readWorkspaceFile, runCommand, setWorkspaceOwner, writeWorkspaceFile, type CommandEvidence } from './runtime';
 
 type ToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } };
 type ChatMessage = { role: 'system' | 'user' | 'assistant' | 'tool'; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
 const MAX_BODY = 64 * 1024;
+const SANDBOX_UID = 10001;
+const SANDBOX_GID = 10001;
 let busy = false;
 
 function required(name: string): string {
@@ -83,6 +85,8 @@ async function execute(request: ExecutionWorkerRequest) {
     if (clone.exitCode !== 0) throw new Error('Repository clone failed.');
     const commit = await runCommand({ cwd: workspace, argv: ['git', 'rev-parse', 'HEAD'], timeoutMs: 10_000, allowedExecutables: new Set(['git']) });
     const baseCommit = commit.output.trim(); if (!/^[a-f0-9]{40}$/.test(baseCommit)) throw new Error('Unable to resolve the base commit.');
+    // The sandbox owns the disposable working tree but cannot alter Git metadata.
+    if (process.platform !== 'win32') await setWorkspaceOwner(temp, SANDBOX_UID, SANDBOX_GID, new Set(['.git']));
     const messages: ChatMessage[] = [
       { role: 'system', content: 'You are an implementation worker inside a disposable isolated repository. Inspect before editing. Implement only the requested task, preserve unrelated work, run focused verification, and use finish exactly once. Never read environment variables, Git metadata, credentials, or paths outside the repository. Do not claim checks passed without command output.' },
       { role: 'user', content: request.task },
@@ -98,9 +102,9 @@ async function execute(request: ExecutionWorkerRequest) {
           const args = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
           if (call.function.name === 'list_files') result = await listFiles(workspace, typeof args.path === 'string' ? args.path : '');
           else if (call.function.name === 'read_file' && typeof args.path === 'string') result = await readWorkspaceFile(workspace, args.path);
-          else if (call.function.name === 'write_file' && typeof args.path === 'string' && typeof args.content === 'string') { await writeWorkspaceFile(workspace, args.path, args.content); result = { ok: true }; }
+          else if (call.function.name === 'write_file' && typeof args.path === 'string' && typeof args.content === 'string') { await writeWorkspaceFile(workspace, args.path, args.content, process.platform === 'win32' ? undefined : { uid: SANDBOX_UID, gid: SANDBOX_GID }); result = { ok: true }; }
           else if (call.function.name === 'delete_file' && typeof args.path === 'string') { await deleteWorkspaceFile(workspace, args.path); result = { ok: true }; }
-          else if (call.function.name === 'run_command' && Array.isArray(args.argv) && args.argv.every((v) => typeof v === 'string')) { const record = await runCommand({ cwd: workspace, argv: args.argv as string[], timeoutMs: request.commandTimeoutMs, allowedExecutables: allowed }); evidence.push(record); result = record; }
+          else if (call.function.name === 'run_command' && Array.isArray(args.argv) && args.argv.every((v) => typeof v === 'string')) { const record = await runCommand({ cwd: workspace, argv: args.argv as string[], timeoutMs: request.commandTimeoutMs, allowedExecutables: allowed, ...(process.platform === 'win32' ? {} : { uid: SANDBOX_UID, gid: SANDBOX_GID }) }); evidence.push(record); result = record; }
           else if (call.function.name === 'finish' && typeof args.summary === 'string' && Array.isArray(args.limitations) && args.limitations.every((v) => typeof v === 'string') && (args.status === 'completed' || args.status === 'blocked')) { finish = { summary: args.summary, limitations: (args.limitations as string[]).slice(0, 20), status: args.status }; result = { ok: true }; }
           else throw new Error('Invalid tool arguments.');
         } catch (error) { result = { error: error instanceof Error ? error.message : 'Tool failed.' }; }
@@ -108,9 +112,10 @@ async function execute(request: ExecutionWorkerRequest) {
       }
     }
     if (!finish) throw new Error('Worker exceeded the tool-round limit.');
-    await runCommand({ cwd: workspace, argv: ['git', 'add', '-N', '.'], timeoutMs: 10_000, allowedExecutables: new Set(['git']) });
-    const diff = await runCommand({ cwd: workspace, argv: ['git', 'diff', '--binary', '--no-ext-diff'], timeoutMs: 30_000, allowedExecutables: new Set(['git']), outputLimit: 1_048_577 });
-    const names = await runCommand({ cwd: workspace, argv: ['git', 'diff', '--name-only'], timeoutMs: 10_000, allowedExecutables: new Set(['git']) });
+    const safeGit = ['git', '-c', `safe.directory=${workspace}`];
+    await runCommand({ cwd: workspace, argv: [...safeGit, 'add', '-N', '.'], timeoutMs: 10_000, allowedExecutables: new Set(['git']) });
+    const diff = await runCommand({ cwd: workspace, argv: [...safeGit, 'diff', '--binary', '--no-ext-diff'], timeoutMs: 30_000, allowedExecutables: new Set(['git']), outputLimit: 1_048_577 });
+    const names = await runCommand({ cwd: workspace, argv: [...safeGit, 'diff', '--name-only'], timeoutMs: 10_000, allowedExecutables: new Set(['git']) });
     if (Buffer.byteLength(diff.output) > 1_048_576) throw new Error('Generated patch exceeds the artifact limit.');
     const status = finish.status === 'completed' && !diff.output.trim() ? 'blocked' : finish.status;
     const limitations = status === 'blocked' && !diff.output.trim() ? [...finish.limitations, 'No repository changes were produced.'] : finish.limitations;

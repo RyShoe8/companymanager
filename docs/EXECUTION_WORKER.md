@@ -4,7 +4,9 @@ Build mode can use a separately deployed disposable execution worker to edit a b
 
 ## Required deployment boundary
 
-Deploy `services/execution-worker/Dockerfile` on an isolated container host. The container must be disposable or reset between requests, run as a non-root user, enforce CPU/memory/process/time limits, and have no host mounts, Docker socket, cloud metadata access, cluster credentials, production secrets, or access to private service networks. Restrict outbound traffic to GitHub and the configured LiteLLM endpoint. Application command filtering is defense in depth; it is not the sandbox boundary.
+Deploy `services/execution-worker/Dockerfile` on an isolated container host. The container must be disposable or reset between requests, enforce CPU/memory/process/time limits, and have no host mounts, Docker socket, cloud metadata access, cluster credentials, Render API keys, Vercel credentials, production secrets, or access to private service networks. Restrict outbound traffic to GitHub and the configured LiteLLM endpoint. Application command filtering is defense in depth; it is not the sandbox boundary.
+
+The small controller starts with permission to drop repository commands to dedicated uid/gid `10001`. Every model-controlled command runs as that unprivileged identity with a rebuilt environment containing only `PATH`, disposable workspace paths, `CI`, `NO_COLOR`, and `NODE_ENV`. Git metadata remains controller-owned and is not writable by repository code. The sandbox identity cannot read the controller process environment through normal Linux process permissions. Do not weaken this by running the command uid as the controller uid, sharing a PID namespace with sensitive workloads, mounting host `/proc`, or adding broad Linux capabilities.
 
 The worker accepts one request at a time, clones one GitHub repository with a short-lived installation token, runs an argv-only tool loop, returns the exact Git patch and bounded command output, then deletes the workspace. It never commits, pushes, opens a pull request, deploys, or changes production.
 

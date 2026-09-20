@@ -24,4 +24,19 @@ describe('execution worker runtime', () => {
     const result = await runCommand({ cwd: root, argv: [process.execPath, '-e', 'process.stdout.write("ok")'], timeoutMs: 5000, allowedExecutables: new Set(['node']) });
     expect(result).toMatchObject({ exitCode: 0, timedOut: false, output: 'ok' });
   });
+  it('does not inherit controller secrets', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'nucleas-worker-env-'));
+    process.env.NUCLEAS_TEST_CONTROLLER_SECRET = 'must-not-leak';
+    try {
+      const result = await runCommand({
+        cwd: root,
+        argv: [process.execPath, '-e', 'process.stdout.write(process.env.NUCLEAS_TEST_CONTROLLER_SECRET ?? "missing")'],
+        timeoutMs: 5000,
+        allowedExecutables: new Set(['node']),
+      });
+      expect(result).toMatchObject({ exitCode: 0, timedOut: false, output: 'missing' });
+    } finally {
+      delete process.env.NUCLEAS_TEST_CONTROLLER_SECRET;
+    }
+  });
 });

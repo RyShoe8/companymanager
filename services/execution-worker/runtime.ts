@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chown, lstat, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export type CommandEvidence = { command: string[]; exitCode: number | null; timedOut: boolean; output: string };
@@ -38,7 +38,7 @@ export async function readWorkspaceFile(workspace: string, relative: string): Pr
   return readFile(target, 'utf8');
 }
 
-export async function writeWorkspaceFile(workspace: string, relative: string, content: string): Promise<void> {
+export async function writeWorkspaceFile(workspace: string, relative: string, content: string, owner?: { uid: number; gid: number }): Promise<void> {
   if (Buffer.byteLength(content) > 256_000) throw new Error('File exceeds the write limit.');
   const target = assertWorkspacePath(workspace, relative);
   await assertNoSymlinkParent(workspace, target);
@@ -49,6 +49,20 @@ export async function writeWorkspaceFile(workspace: string, relative: string, co
   }
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, content, 'utf8');
+  if (owner) await chown(target, owner.uid, owner.gid);
+}
+
+export async function setWorkspaceOwner(workspace: string, uid: number, gid: number, excludedDirectoryNames = new Set<string>()): Promise<void> {
+  const root = await realpath(workspace);
+  async function visit(current: string) {
+    const stat = await lstat(current);
+    if (stat.isSymbolicLink()) return;
+    if (current !== root && stat.isDirectory() && excludedDirectoryNames.has(path.basename(current))) return;
+    await chown(current, uid, gid);
+    if (!stat.isDirectory()) return;
+    for (const entry of await readdir(current)) await visit(path.join(current, entry));
+  }
+  await visit(root);
 }
 
 export async function deleteWorkspaceFile(workspace: string, relative: string): Promise<void> {
@@ -58,7 +72,7 @@ export async function deleteWorkspaceFile(workspace: string, relative: string): 
   await rm(target, { force: true });
 }
 
-export async function runCommand(input: { cwd: string; argv: string[]; timeoutMs: number; allowedExecutables: Set<string>; extraEnv?: Record<string, string>; outputLimit?: number }): Promise<CommandEvidence> {
+export async function runCommand(input: { cwd: string; argv: string[]; timeoutMs: number; allowedExecutables: Set<string>; extraEnv?: Record<string, string>; outputLimit?: number; uid?: number; gid?: number }): Promise<CommandEvidence> {
   if (!input.argv.length || input.argv.length > 33 || input.argv.some((part) => !part || part.length > 500 || /[\r\n\0]/.test(part))) throw new Error('Invalid command arguments.');
   const executable = path.basename(input.argv[0]).toLowerCase().replace(/\.cmd$|\.exe$/, '');
   if (!input.allowedExecutables.has(executable)) throw new Error(`Executable is not allowed: ${executable}`);
@@ -70,6 +84,7 @@ export async function runCommand(input: { cwd: string; argv: string[]; timeoutMs
       cwd: input.cwd, shell: false, windowsHide: true,
       env: { PATH: process.env.PATH ?? '', HOME: input.cwd, USERPROFILE: input.cwd, TMPDIR: input.cwd, CI: 'true', NO_COLOR: '1', NODE_ENV: 'test', ...input.extraEnv } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
+      ...(process.platform !== 'win32' && input.uid != null && input.gid != null ? { uid: input.uid, gid: input.gid } : {}),
     }) as ChildProcessWithoutNullStreams;
     child.stdin.end();
     const append = (chunk: Buffer) => { if (output.length < outputLimit) output += chunk.toString('utf8').slice(0, outputLimit - output.length); };
