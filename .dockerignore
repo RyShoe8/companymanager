@@ -1,0 +1,9 @@
+.git
+.next
+.vercel
+node_modules
+dist-worker
+coverage
+.env*
+*.log
+public/uploads

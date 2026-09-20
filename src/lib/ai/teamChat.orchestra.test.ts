@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   findObjectives: vi.fn(),
   findRuns: vi.fn(),
   readSettings: vi.fn(),
+  execute: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -44,6 +45,9 @@ vi.mock('@/lib/ai/control/config', () => ({
 }));
 vi.mock('@/lib/ai/tools/serverRepoAssist', () => ({
   gatherRepoAssistContext: (...args: unknown[]) => mocks.repoDig(...args),
+}));
+vi.mock('@/lib/ai/executionWorkerClient', () => ({
+  executeInRemoteSandbox: (...args: unknown[]) => mocks.execute(...args),
 }));
 
 import { attemptTeamChatReply, distillPlannerBriefing, isTrivialTeamChatRequest } from '@/lib/ai/teamChat';
@@ -99,6 +103,7 @@ describe('attemptTeamChatReply full orchestra', () => {
       evidenceBlock: 'File loadTaskRules.ts:\nexport async function loadIdeTaskRuleTexts',
     });
     mocks.readSettings.mockResolvedValue({ value: readySettings });
+    mocks.execute.mockResolvedValue(null);
     mocks.findObjectives.mockReturnValue(leanChain([]));
     mocks.findRuns.mockReturnValue(leanChain([]));
     mocks.findPipeline.mockReturnValue(
@@ -339,6 +344,26 @@ describe('attemptTeamChatReply full orchestra', () => {
     expect(turn.failureCategory).toBe('cancelled');
     expect(turn.text).toMatch(/cancelled/i);
   });
+
+  it('uses the isolated executor for Build mode and gives its evidence to the reviewer', async () => {
+    mocks.execute.mockResolvedValue({
+      protocolVersion: 1, requestId: '123e4567-e89b-12d3-a456-426614174000', artifactId: 'd'.repeat(24),
+      status: 'completed', summary: 'Implemented the feature.', baseCommit: 'a'.repeat(40),
+      patch: 'diff --git a/a.ts b/a.ts\n+export const ready = true;', changedFiles: ['a.ts'],
+      evidence: [{ command: ['npm', 'test'], exitCode: 0, timedOut: false, output: 'passed' }], limitations: [],
+    });
+    mocks.companyChat
+      .mockResolvedValueOnce({ requestId: 'p', role: 'assistant', text: 'Implement the feature.', costMicros: 10 })
+      .mockResolvedValueOnce({ requestId: 'r', role: 'assistant', text: 'Accepted.\n```nucleas-gate\n{"status":"accept"}\n```', costMicros: 5 });
+
+    const turn = await attemptTeamChatReply({ employee: 'engineering', projectName: 'Nucleas', organizationId: 'org', projectId: new Types.ObjectId(), userId: 'a'.repeat(24), userText: 'build the feature', priorTurns: [], interactionMode: 'build' });
+
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    expect(mocks.companyChat.mock.calls.map((call) => call[0].systemPrompt.match(/Pipeline stage: (planner|worker|reviewer)/)?.[1] ?? 'unknown')).toEqual(['planner', 'reviewer']);
+    expect(mocks.companyChat.mock.calls[1][0].userText).toContain('npm test: exit 0');
+    expect(turn.toolsUsed).toContain('sandbox_edit');
+    expect(turn.toolsUsed).toContain('command_execute');
+  });
 });
 
 describe('distillPlannerBriefing', () => {
@@ -378,5 +403,6 @@ describe('isTrivialTeamChatRequest', () => {
     expect(isTrivialTeamChatRequest('Plan a new blog', 'plan')).toBe(false);
     expect(isTrivialTeamChatRequest('How does authentication work?', 'chat')).toBe(false);
   });
+
 });
 

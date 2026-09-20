@@ -15,6 +15,8 @@ export async function GET() {
   try {
     return aiResponse({ settings: await readPlatformSettings(), secrets: {
       bearerTokenConfigured: !!process.env.NUCLEAS_AI_REMOTE_BEARER_TOKEN?.trim(), cronSecretConfigured: !!process.env.CRON_SECRET?.trim(),
+      executionWorkerUrlConfigured: !!process.env.NUCLEAS_EXECUTION_WORKER_URL?.trim(),
+      executionWorkerTokenConfigured: !!process.env.NUCLEAS_EXECUTION_WORKER_TOKEN?.trim(),
     } });
   } catch (error) { return aiError(error); }
 }

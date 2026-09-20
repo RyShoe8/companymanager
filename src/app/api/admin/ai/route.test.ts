@@ -30,7 +30,8 @@ describe('platform AI settings API', () => {
     vi.stubEnv('NUCLEAS_AI_REMOTE_BEARER_TOKEN', 'do-not-reveal'); vi.stubEnv('CRON_SECRET', 'also-private');
     const response = await GET(); const text = await response.text();
     expect(text).not.toContain('do-not-reveal'); expect(text).not.toContain('also-private');
-    expect(JSON.parse(text).secrets).toEqual({ bearerTokenConfigured: true, cronSecretConfigured: true });
+    expect(JSON.parse(text).secrets).toEqual({ bearerTokenConfigured: true, cronSecretConfigured: true,
+      executionWorkerUrlConfigured: false, executionWorkerTokenConfigured: false });
     expect(response.headers.get('cache-control')).toContain('no-store');
   });
   it('requires confirmation before forwarding the existing credential to another endpoint', async () => {

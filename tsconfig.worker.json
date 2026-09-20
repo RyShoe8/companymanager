@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist-worker",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "isolatedModules": false,
+    "incremental": false
+  },
+  "include": ["services/execution-worker/**/*.ts", "packages/ai-contracts/src/execution.ts"],
+  "exclude": ["services/execution-worker/**/*.test.ts"]
+}

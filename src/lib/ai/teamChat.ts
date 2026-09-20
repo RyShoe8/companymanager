@@ -31,6 +31,7 @@ import { looksLikeProjectInternalQuery } from '@/lib/ai/tools/serverBrowseAssist
 import { gatherRepoAssistContext } from '@/lib/ai/tools/serverRepoAssist';
 import { AiBudget, AiObjective, AiRun, AiRunEvent } from '@/lib/models/AiControl';
 import { AiRolePipeline } from '@/lib/models/AiRolePipeline';
+import { executeInRemoteSandbox } from '@/lib/ai/executionWorkerClient';
 import {
   aiEmployees,
   type AiEmployeeKey,
@@ -672,20 +673,44 @@ export async function attemptTeamChatReply(input: {
 
   const distilledPlanner = distillPlannerBriefing(plannerTurn.text, interactionMode);
 
-  let workerTurn = await runStage({
-    stage: 'worker',
-    binding: workerBinding,
-    userText: [
-      'User request:',
-      input.userText.slice(0, 2000),
-      '',
-      'Planner briefing / jobs:',
-      distilledPlanner,
-      '',
-      'Return one concise completion report covering all jobs. Include concrete evidence, checks performed, limitations, and anything still unverified. Do not narrate routine progress.',
-    ].join('\n'),
-    priorTurns: [],
-  });
+  const workerBrief = [
+    'User request:', input.userText.slice(0, 2000), '', 'Planner briefing / jobs:', distilledPlanner, '',
+    'Return one concise completion report covering all jobs. Include concrete evidence, checks performed, limitations, and anything still unverified. Do not narrate routine progress.',
+  ].join('\n');
+
+  let workerTurn: TeamChatTurn;
+  if (interactionMode === 'build') {
+    const execution = await withStage(input.onStage, 'worker', () =>
+      executeInRemoteSandbox({ organizationId: input.organizationId, projectId: input.projectId, userId: input.userId, task: workerBrief, signal: input.signal })
+    ).catch((error) => ({ error: error instanceof Error ? error.message : 'Sandbox execution failed.' }));
+    if (execution && 'error' in execution) {
+      workerTurn = statusTurn(execution.error, 'execution_unavailable');
+    } else if (execution) {
+      const checks = execution.evidence.map((item) => `${item.command.join(' ')}: ${item.timedOut ? 'timed out' : `exit ${item.exitCode}`}`).join('\n');
+      workerTurn = {
+        requestId: execution.requestId,
+        role: 'assistant',
+        runId: execution.artifactId,
+        noProviderFee: true,
+        costMicros: 0,
+        reservedMicros: 0,
+        toolsUsed: ['sandbox_edit', 'command_execute'],
+        text: [
+          execution.summary,
+          `Base commit: ${execution.baseCommit}`,
+          `Changed files:\n${execution.changedFiles.map((file) => `- ${file}`).join('\n') || '- none'}`,
+          checks ? `Checks:\n${checks}` : 'Checks: none recorded',
+          execution.limitations.length ? `Limitations:\n${execution.limitations.map((item) => `- ${item}`).join('\n')}` : '',
+          `Patch artifact: /api/projects/${String(input.projectId)}/ai/ide/executions/${execution.artifactId}`,
+          execution.patch ? `Patch excerpt:\n\`\`\`diff\n${execution.patch.slice(0, 3500)}\n\`\`\`` : '',
+        ].filter(Boolean).join('\n\n').slice(0, 8000),
+      };
+    } else {
+      workerTurn = await runStage({ stage: 'worker', binding: workerBinding, userText: workerBrief, priorTurns: [] });
+    }
+  } else {
+    workerTurn = await runStage({ stage: 'worker', binding: workerBinding, userText: workerBrief, priorTurns: [] });
+  }
   if (workerTurn.role !== 'assistant') {
     return interruptedStage('Worker', workerTurn, [plannerTurn, workerTurn]);
   }

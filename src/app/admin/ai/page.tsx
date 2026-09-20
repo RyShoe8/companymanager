@@ -11,7 +11,7 @@ const field = 'block w-full rounded border border-border bg-background p-2 text-
 const budgetFields = [['reservationMicros', 'Reservation per request'], ['organizationLimitMicros', 'Monthly ceiling per organization'],
   ['projectLimitMicros', 'Monthly ceiling per project']] as const;
 const freePoolFields = [['freePoolLimitMicros', 'Nucleas free pool limit'], ['freePoolRemainingMicros', 'Nucleas free pool remaining']] as const;
-type Snapshot = { settings: { revision: number; value: PlatformAiSettings }; secrets: { bearerTokenConfigured: boolean; cronSecretConfigured: boolean } };
+type Snapshot = { settings: { revision: number; value: PlatformAiSettings }; secrets: { bearerTokenConfigured: boolean; cronSecretConfigured: boolean; executionWorkerUrlConfigured: boolean; executionWorkerTokenConfigured: boolean } };
 
 export default function AiSettingsPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -87,6 +87,11 @@ export default function AiSettingsPage() {
           {values.endpoint !== snapshot.settings.value.endpoint && <label className="flex gap-2"><input type="checkbox" required checked={confirmEndpoint} onChange={event => setConfirmEndpoint(event.target.checked)} />I authorize this endpoint to receive the server bearer token and selected objective data.</label>}
           <p>Bearer token: {snapshot.secrets.bearerTokenConfigured ? 'configured' : 'missing'} · Cron secret: {snapshot.secrets.cronSecretConfigured ? 'configured' : 'missing'}</p>
           <p className="text-sm text-text-secondary">Secrets stay in Vercel and are never shown here. Setting a model does not test its availability.</p>
+        </section>
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Isolated code execution</h2>
+          <p>Worker URL: {snapshot.secrets.executionWorkerUrlConfigured ? 'configured' : 'missing'} · Dedicated transport secret: {snapshot.secrets.executionWorkerTokenConfigured ? 'configured' : 'missing'}</p>
+          <p className="text-sm text-text-secondary">When both are configured, IDE Build mode can edit a disposable clone and run bounded commands. The resulting patch is retained privately for 30 days. The worker cannot push, deploy, or access Nucleas production secrets.</p>
         </section>
         <section className="space-y-3"><h2 className="text-lg font-semibold">Shared server load limits</h2>
           {([['dailyRequestLimit', 'Maximum attempts per UTC day', 1, 10000],

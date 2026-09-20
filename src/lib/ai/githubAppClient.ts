@@ -28,6 +28,21 @@ export function createInstallationOctokit(installationId: string): Octokit {
   });
 }
 
+/** Mint a short-lived installation token for an isolated execution worker. Never persist or log it. */
+export async function createInstallationAccessToken(installationId: string): Promise<string> {
+  if (!githubAppConfigured()) throw new Error('GitHub App credentials are not configured.');
+  const installationIdNumber = Number(installationId);
+  if (!Number.isFinite(installationIdNumber) || installationIdNumber <= 0) throw new Error('Invalid GitHub App installation id.');
+  const auth = createAppAuth({
+    appId: process.env.GITHUB_APP_ID!.trim(),
+    privateKey: normalizePrivateKey(process.env.GITHUB_APP_PRIVATE_KEY!.trim()),
+    installationId: installationIdNumber,
+  });
+  const result = await auth({ type: 'installation' });
+  if (!('token' in result) || typeof result.token !== 'string' || !result.token) throw new Error('Unable to mint GitHub installation token.');
+  return result.token;
+}
+
 /** Verify that the specified installation has access to owner/repo. */
 export async function verifyInstallationRepositoryAccess(
   installationId: string,
