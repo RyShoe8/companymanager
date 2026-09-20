@@ -46,7 +46,7 @@ vi.mock('@/lib/ai/tools/serverRepoAssist', () => ({
   gatherRepoAssistContext: (...args: unknown[]) => mocks.repoDig(...args),
 }));
 
-import { attemptTeamChatReply, distillPlannerBriefing } from '@/lib/ai/teamChat';
+import { attemptTeamChatReply, distillPlannerBriefing, isTrivialTeamChatRequest } from '@/lib/ai/teamChat';
 
 function leanChain(result: unknown) {
   return {
@@ -141,7 +141,7 @@ describe('attemptTeamChatReply full orchestra', () => {
     const turn = await attemptTeamChatReply({ employee: 'product', projectName: 'Playbound', organizationId: 'org', projectId: new Types.ObjectId(), userId: 'a'.repeat(24), userText: 'plan a blog', priorTurns: [], interactionMode: 'plan' });
     if (accept) expect(turn.plan?.status).toBe('ready_for_review');
     else expect(turn.plan).toBeUndefined();
-    expect(mocks.companyChat).toHaveBeenCalledTimes(accept ? 3 : 13);
+    expect(mocks.companyChat).toHaveBeenCalledTimes(accept ? 3 : 5);
   });
 
   it('runs planner → worker → reviewer on chat and returns the reviewer reply', async () => {
@@ -369,6 +369,14 @@ describe('distillPlannerBriefing', () => {
     const raw = 'Investigate Playbound database schema and report findings.';
     const distilled = distillPlannerBriefing(raw, 'chat');
     expect(distilled).toBe('Investigate Playbound database schema and report findings.');
+  });
+});
+
+describe('isTrivialTeamChatRequest', () => {
+  it('routes only unmistakably simple chat turns directly', () => {
+    expect(isTrivialTeamChatRequest('Thanks!', 'chat')).toBe(true);
+    expect(isTrivialTeamChatRequest('Plan a new blog', 'plan')).toBe(false);
+    expect(isTrivialTeamChatRequest('How does authentication work?', 'chat')).toBe(false);
   });
 });
 

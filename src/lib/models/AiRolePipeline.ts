@@ -120,6 +120,7 @@ const stageEventSchema = new Schema(
     },
     modelProfileId: { type: Schema.Types.ObjectId, ref: 'AiModelProfile' },
     modelLabel: { type: String, maxlength: 120 },
+    modelTier: { type: String, enum: ['commercial', 'local_remote'] as const, default: null },
     subtaskId: { type: String, maxlength: 64, default: null },
     summary: { type: String, maxlength: 4000, default: '' },
     failureCode: { type: String, maxlength: 64, default: null },

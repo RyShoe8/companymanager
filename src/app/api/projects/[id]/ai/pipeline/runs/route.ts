@@ -4,6 +4,7 @@ import { aiError, aiResponse, readAiBody } from '@/lib/ai/control/http';
 import { pipelineRunCreateSchema } from '@/lib/ai/rolePipeline/schemas';
 import { runRolePipeline } from '@/lib/ai/rolePipeline/orchestrate';
 import { AiPipelineRun, AiPipelineStageEvent } from '@/lib/models/AiRolePipeline';
+import { pipelineRunMetrics } from '@/lib/ai/rolePipeline/metrics';
 
 export const dynamic = 'force-dynamic';
 type Context = { params: Promise<{ id: string }> };
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest, context: Context) {
         .limit(200)
         .maxTimeMS(3000)
         .lean();
+      const metrics = pipelineRunMetrics(events);
       return aiResponse({
         run: {
           id: String(run._id),
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest, context: Context) {
           totalCostMicros: run.totalCostMicros,
           createdAt: run.createdAt?.toISOString?.() ?? null,
           completedAt: run.completedAt?.toISOString?.() ?? null,
+          metrics,
         },
         events: events.map((event) => ({
           id: String(event._id),
@@ -45,6 +48,7 @@ export async function GET(request: NextRequest, context: Context) {
           stage: event.stage,
           status: event.status,
           modelLabel: event.modelLabel,
+          modelTier: event.modelTier,
           subtaskId: event.subtaskId,
           summary: event.summary,
           failureCode: event.failureCode,

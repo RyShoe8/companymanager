@@ -9,6 +9,7 @@ const navItems: { href: string; label: string; exact?: boolean }[] = [
   { href: '/admin/plans', label: 'Plans' },
   { href: '/admin/ai', label: 'AI Settings', exact: true },
   { href: '/admin/ai/models', label: 'AI API keys' },
+  { href: '/admin/ai/pricing', label: 'AI pricing' },
   { href: '/admin/ai/service-identities', label: 'AI identities' },
   { href: '/admin/onboarding', label: 'Onboarding' },
   { href: '/admin/blog', label: 'Blog' },

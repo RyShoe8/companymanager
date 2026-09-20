@@ -5,6 +5,7 @@ import { AiHttpError } from '@/lib/ai/control/access';
 import {
   plannerOutputSchema,
   reviewerOutputSchema,
+  workerEvidenceSchema,
 } from '@/lib/ai/rolePipeline/schemas';
 import { invokeProfileStage } from '@/lib/ai/rolePipeline/stageInvoke';
 import {
@@ -27,6 +28,18 @@ function extractJsonObject(text: string): unknown {
   }
 }
 
+function phaseBrief(plan: ReturnType<typeof plannerOutputSchema.parse>): string {
+  return JSON.stringify({
+    summary: plan.summary,
+    subtasks: plan.subtasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      instructions: task.instructions.slice(0, 700),
+      acceptanceChecks: task.acceptanceChecks.map((check) => check.slice(0, 180)),
+    })),
+  });
+}
+
 async function appendEvent(input: {
   organizationId: string;
   projectId: Types.ObjectId;
@@ -36,6 +49,7 @@ async function appendEvent(input: {
   status: 'running' | 'completed' | 'blocked' | 'cancelled';
   modelProfileId?: string;
   modelLabel?: string;
+  modelTier?: 'commercial' | 'local_remote';
   subtaskId?: string | null;
   summary: string;
   failureCode?: string | null;
@@ -53,6 +67,7 @@ async function appendEvent(input: {
     status: input.status,
     modelProfileId: input.modelProfileId,
     modelLabel: input.modelLabel,
+    modelTier: input.modelTier ?? null,
     subtaskId: input.subtaskId ?? null,
     summary: input.summary.slice(0, 4000),
     failureCode: input.failureCode ?? null,
@@ -150,6 +165,7 @@ export async function runRolePipeline(input: {
       status: 'completed',
       modelProfileId: planner.profile.id,
       modelLabel: `${planner.profile.label} · ${planner.profile.model}`,
+      modelTier: planner.profile.tier as 'commercial' | 'local_remote',
       summary: plan.summary.slice(0, 4000),
       costMicros: planner.costMicros,
       reservedMicros: planner.reservedMicros,
@@ -157,11 +173,12 @@ export async function runRolePipeline(input: {
       aiRunId: planner.aiRunId,
     });
 
-    for (const subtask of subtasks) {
-      let attempt = 0;
-      let notes = '';
-      let passed = false;
-      while (attempt <= pipeline.maxWorkerRetries) {
+    const bundledBrief = phaseBrief({ ...plan, subtasks });
+    let attempt = 0;
+    let corrections: string[] = [];
+    let acceptedSummary = '';
+
+    while (attempt <= pipeline.maxWorkerRetries) {
         attempt += 1;
         sequence += 1;
         await appendEvent({
@@ -172,8 +189,7 @@ export async function runRolePipeline(input: {
           stage: 'worker',
           status: 'running',
           modelProfileId: String(pipeline.worker.modelProfileId),
-          subtaskId: subtask.id,
-          summary: `Worker attempt ${attempt} for ${subtask.title}.`,
+          summary: `Worker phase attempt ${attempt} for ${subtasks.length} coordinated subtask(s).`,
         });
 
         const worker = await invokeProfileStage({
@@ -188,8 +204,10 @@ export async function runRolePipeline(input: {
               role: 'system',
               content: [
                 `You are the Worker for Nucleas role "${role.name}" on project "${input.projectName}".`,
-                'Execute only the given subtask. Do not claim to have changed live systems or browsed the web.',
-                notes ? `Reviewer notes from prior attempt: ${notes}` : '',
+                'Own the complete phase bundle: perform the subtasks in dependency order, verify them together, and report once.',
+                'Do not claim to have changed live systems, inspected files, used tools, or run checks unless that capability and evidence were actually available.',
+                'Return ONLY JSON with shape: {"summary":string,"completedSubtaskIds":string[],"changedFiles":string[],"checks":[{"command":string,"status":"passed"|"failed"|"not_run","evidence":string}],"limitations":string[]}.',
+                corrections.length ? `Reviewer corrections to address in one pass:\n- ${corrections.join('\n- ')}` : '',
               ]
                 .filter(Boolean)
                 .join(' '),
@@ -197,14 +215,14 @@ export async function runRolePipeline(input: {
             {
               role: 'user',
               content: [
-                `Subtask: ${subtask.title}`,
-                subtask.instructions,
-                `Acceptance checks:\n- ${subtask.acceptanceChecks.join('\n- ')}`,
+                `Phase plan:\n${bundledBrief}`,
+                'Complete the whole coherent phase before reporting. Preserve explicit limitations rather than inventing evidence.',
               ].join('\n\n'),
             },
           ],
         });
         bumpCost(worker.reservedMicros, worker.costMicros, worker.noProviderFee);
+        const evidence = workerEvidenceSchema.parse(extractJsonObject(worker.content));
         sequence += 1;
         await appendEvent({
           organizationId: input.organizationId,
@@ -215,8 +233,8 @@ export async function runRolePipeline(input: {
           status: 'completed',
           modelProfileId: worker.profile.id,
           modelLabel: `${worker.profile.label} · ${worker.profile.model}`,
-          subtaskId: subtask.id,
-          summary: worker.content.slice(0, 4000),
+          modelTier: worker.profile.tier as 'commercial' | 'local_remote',
+          summary: evidence.summary.slice(0, 4000),
           costMicros: worker.costMicros,
           reservedMicros: worker.reservedMicros,
           noProviderFee: worker.noProviderFee,
@@ -232,8 +250,7 @@ export async function runRolePipeline(input: {
           stage: 'reviewer',
           status: 'running',
           modelProfileId: String(pipeline.reviewer.modelProfileId),
-          subtaskId: subtask.id,
-          summary: `Reviewer checking ${subtask.title}.`,
+          summary: `Reviewer checking the complete ${subtasks.length}-subtask phase.`,
         });
 
         const reviewer = await invokeProfileStage({
@@ -248,17 +265,16 @@ export async function runRolePipeline(input: {
               role: 'system',
               content: [
                 `You are the Reviewer for Nucleas role "${role.name}".`,
-                'Return ONLY JSON: {"decision":"pass"|"retry"|"fail","notes":string}.',
-                'Use retry only when the worker output is fixable. Use fail when acceptance cannot be met.',
+                'Review the entire phase in one batch and map every acceptance check to concrete worker evidence.',
+                'Return ONLY JSON: {"decision":"pass"|"retry"|"fail","notes":string,"corrections":string[]}.',
+                'Use retry only for a bounded, fixable correction. Use fail when acceptance cannot be met or evidence is materially unavailable.',
               ].join(' '),
             },
             {
               role: 'user',
               content: [
-                `Subtask: ${subtask.title}`,
-                `Instructions: ${subtask.instructions}`,
-                `Acceptance checks:\n- ${subtask.acceptanceChecks.join('\n- ')}`,
-                `Worker output:\n${worker.content.slice(0, 5000)}`,
+                `Phase plan:\n${bundledBrief}`,
+                `Worker evidence report:\n${JSON.stringify(evidence)}`,
               ].join('\n\n'),
             },
           ],
@@ -275,7 +291,7 @@ export async function runRolePipeline(input: {
           status: review.decision === 'fail' ? 'blocked' : 'completed',
           modelProfileId: reviewer.profile.id,
           modelLabel: `${reviewer.profile.label} · ${reviewer.profile.model}`,
-          subtaskId: subtask.id,
+          modelTier: reviewer.profile.tier as 'commercial' | 'local_remote',
           summary: `${review.decision}: ${review.notes}`.slice(0, 4000),
           failureCode: review.decision === 'fail' ? 'review_failed' : null,
           costMicros: reviewer.costMicros,
@@ -285,7 +301,7 @@ export async function runRolePipeline(input: {
         });
 
         if (review.decision === 'pass') {
-          passed = true;
+          acceptedSummary = evidence.summary;
           break;
         }
         if (review.decision === 'fail' || attempt > pipeline.maxWorkerRetries) {
@@ -294,7 +310,7 @@ export async function runRolePipeline(input: {
             {
               $set: {
                 status: 'blocked',
-                summary: `Blocked on subtask ${subtask.id}: ${review.notes}`.slice(0, 4000),
+                summary: `Phase review blocked: ${review.notes}`.slice(0, 4000),
                 totalCostMicros: totalReserved || null,
                 completedAt: new Date(),
               },
@@ -303,32 +319,22 @@ export async function runRolePipeline(input: {
           return {
             runId: String(run._id),
             status: 'blocked',
-            summary: `Blocked on subtask ${subtask.id}: ${review.notes}`,
+            summary: `Phase review blocked: ${review.notes}`,
           };
         }
-        notes = review.notes;
-      }
-      if (!passed) {
-        await AiPipelineRun.updateOne(
-          { _id: run._id },
-          {
-            $set: {
-              status: 'blocked',
-              summary: `Retries exhausted for subtask ${subtask.id}`.slice(0, 4000),
-              totalCostMicros: totalReserved || null,
-              completedAt: new Date(),
-            },
-          }
-        );
-        return {
-          runId: String(run._id),
-          status: 'blocked',
-          summary: `Retries exhausted for subtask ${subtask.id}`,
-        };
-      }
+        corrections = review.corrections.length ? review.corrections : [review.notes];
     }
 
-    const summary = `Completed ${subtasks.length} subtask(s). ${plan.summary}`.slice(0, 4000);
+    if (!acceptedSummary) {
+      const summary = 'Phase correction limit reached before reviewer acceptance.';
+      await AiPipelineRun.updateOne(
+        { _id: run._id },
+        { $set: { status: 'blocked', summary, totalCostMicros: totalReserved || null, completedAt: new Date() } }
+      );
+      return { runId: String(run._id), status: 'blocked', summary };
+    }
+
+    const summary = `Completed and accepted ${subtasks.length} coordinated subtask(s). ${acceptedSummary}`.slice(0, 4000);
     await AiPipelineRun.updateOne(
       { _id: run._id },
       {

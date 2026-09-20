@@ -71,6 +71,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
     pathname.startsWith('/verify-email') ||
+    pathname.startsWith('/pending-approval') ||
     pathname === '/setup-organization' ||
     pathname === '/about' ||
     pathname === '/contact' ||

@@ -119,9 +119,31 @@ export const plannerOutputSchema = z
   })
   .strict();
 
+export const workerEvidenceSchema = z
+  .object({
+    summary: z.string().trim().min(1).max(4000),
+    completedSubtaskIds: z.array(z.string().trim().min(1).max(64)).min(1).max(8),
+    changedFiles: z.array(z.string().trim().min(1).max(500)).max(100).default([]),
+    checks: z
+      .array(
+        z
+          .object({
+            command: z.string().trim().min(1).max(1000),
+            status: z.enum(['passed', 'failed', 'not_run']),
+            evidence: z.string().trim().min(1).max(2000),
+          })
+          .strict()
+      )
+      .max(30)
+      .default([]),
+    limitations: z.array(z.string().trim().min(1).max(1000)).max(20).default([]),
+  })
+  .strict();
+
 export const reviewerOutputSchema = z
   .object({
     decision: z.enum(['pass', 'retry', 'fail']),
     notes: z.string().trim().min(1).max(4000),
+    corrections: z.array(z.string().trim().min(1).max(1000)).max(20).default([]),
   })
   .strict();

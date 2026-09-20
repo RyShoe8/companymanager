@@ -153,6 +153,11 @@ function RegisterForm() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-text-primary">
             {invitation ? 'Accept Invitation' : 'Create your account'}
           </h2>
+          {!invitation && (
+            <p className="mt-3 text-center text-sm text-text-secondary">
+              New registrations require approval from a Nucleas platform administrator before sign-in.
+            </p>
+          )}
           {invitation && (
             <div className="mt-4 bg-primary-light border border-primary/20 rounded-lg p-4">
               <p className="text-sm text-primary-dark">

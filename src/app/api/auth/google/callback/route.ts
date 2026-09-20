@@ -9,6 +9,7 @@ import {
   syncRegisteredUserToBrevoInBackground,
   syncUserToBrevoInBackground,
 } from '@/lib/services/brevoContactSync';
+import { effectiveRegistrationApproval, registrationApprovalForSignup } from '@/lib/auth/registrationApproval';
 
 /**
  * Handle Google OAuth callback
@@ -157,6 +158,7 @@ export async function GET(request: NextRequest) {
         organizationId: organizationId!,
         organizationSetupComplete: orgSetupComplete,
         emailVerified: true,
+        registrationApproval: registrationApprovalForSignup(Boolean(invitationToken)),
       });
 
       // If no invitation and not joining existing org, set organizationId to user's own ID
@@ -271,6 +273,13 @@ export async function GET(request: NextRequest) {
       if (userChanged) {
         await user.save();
       }
+    }
+
+    if (effectiveRegistrationApproval(user.registrationApproval) === 'pending') {
+      return NextResponse.redirect(new URL('/pending-approval', request.url));
+    }
+    if (effectiveRegistrationApproval(user.registrationApproval) === 'rejected') {
+      return NextResponse.redirect(new URL('/login?error=registration_rejected', request.url));
     }
 
     // Create session

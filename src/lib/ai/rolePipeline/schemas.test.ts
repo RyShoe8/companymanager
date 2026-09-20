@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   plannerOutputSchema,
   reviewerOutputSchema,
+  workerEvidenceSchema,
   modelProfileCreateSchema,
   rolePipelineUpsertSchema,
 } from '@/lib/ai/rolePipeline/schemas';
@@ -26,6 +27,18 @@ describe('role pipeline schemas', () => {
   it('accepts reviewer decisions', () => {
     expect(reviewerOutputSchema.parse({ decision: 'pass', notes: 'Looks good.' }).decision).toBe('pass');
     expect(reviewerOutputSchema.parse({ decision: 'retry', notes: 'Too long.' }).decision).toBe('retry');
+  });
+
+  it('accepts a bounded structured worker evidence report', () => {
+    const report = workerEvidenceSchema.parse({
+      summary: 'Implemented and verified the complete onboarding slice.',
+      completedSubtaskIds: ['t1', 't2'],
+      changedFiles: ['src/onboarding.ts'],
+      checks: [{ command: 'npm test -- onboarding', status: 'passed', evidence: '4 tests passed' }],
+      limitations: [],
+    });
+    expect(report.completedSubtaskIds).toEqual(['t1', 't2']);
+    expect(report.checks[0].status).toBe('passed');
   });
 
   it('requires endpoint for custom company credentials', () => {

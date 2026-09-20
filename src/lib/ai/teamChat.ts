@@ -432,7 +432,17 @@ export function distillPlannerBriefing(
   return plannerText.replace(/```nucleas-plan\s*[\s\S]*?```/gi, '').trim().slice(0, 8000);
 }
 
-/** IDE / team role chat: always Planner → Worker → Reviewer on worker tabs. */
+/** Keep only unmistakably low-risk conversational turns out of the premium orchestration loop. */
+export function isTrivialTeamChatRequest(text: string, mode: IdeInteractionMode): boolean {
+  if (mode !== 'chat') return false;
+  const normalized = text.trim().replace(/\s+/g, ' ');
+  if (!normalized || normalized.length > 160) return false;
+  return /^(?:hi|hello|hey|thanks|thank you|got it|okay|ok|sounds good|good morning|good afternoon|good evening)[.!?]*$/i.test(
+    normalized
+  );
+}
+
+/** IDE / team role chat: direct cheap-worker replies for trivial turns; otherwise Planner → Worker → Reviewer. */
 export async function attemptTeamChatReply(input: {
   employee: AiEmployeeKey;
   projectName: string;
@@ -477,6 +487,32 @@ export async function attemptTeamChatReply(input: {
     return statusTurn(
       `Configure a Worker company and model for ${input.employee} on AI Team before chatting.`,
       'configuration'
+    );
+  }
+
+  if (isTrivialTeamChatRequest(input.userText, interactionMode)) {
+    const role = aiEmployees.find((item) => item.id === input.employee)!;
+    return withStage(input.onStage, 'worker', () =>
+      attemptCompanyCredentialChat({
+        systemPrompt: [
+          `You are the ${role.name} AI Team member for the Nucleas project "${input.projectName}".`,
+          role.description,
+          'Answer this simple conversational turn directly and briefly. Do not claim to have inspected repositories, used tools, or changed project data.',
+        ].join(' '),
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        userId: input.userId,
+        userText: input.userText,
+        priorTurns: input.priorTurns.slice(-6),
+        modelProfileId: workerBinding.profileId,
+        model: workerBinding.model,
+        includeImageTool: false,
+        includeRepoTools: false,
+        toolProfile: 'none',
+        forcePlain: true,
+        stopOnUpstreamFailure: true,
+        signal: input.signal,
+      })
     );
   }
 
@@ -620,10 +656,10 @@ export async function attemptTeamChatReply(input: {
     };
   }
 
-  /** Circuit breaker: Worker↔Reviewer continue passes based on pipeline setting (defaults to 5 retries = 6 passes). */
+  /** Circuit breaker: one correction by default; additional retries must be explicitly configured. */
   const maxWorkerRetries = typeof (pipeline as { maxWorkerRetries?: number } | null)?.maxWorkerRetries === 'number'
     ? (pipeline as { maxWorkerRetries?: number })!.maxWorkerRetries!
-    : 5;
+    : 1;
   const maxCompletionPasses = Math.max(1, maxWorkerRetries + 1);
 
   if (input.signal?.aborted) {
@@ -645,6 +681,8 @@ export async function attemptTeamChatReply(input: {
       '',
       'Planner briefing / jobs:',
       distilledPlanner,
+      '',
+      'Return one concise completion report covering all jobs. Include concrete evidence, checks performed, limitations, and anything still unverified. Do not narrate routine progress.',
     ].join('\n'),
     priorTurns: [],
   });
@@ -685,7 +723,7 @@ export async function attemptTeamChatReply(input: {
           'Worker output:',
           workerTurn.text.slice(0, 6000),
           '',
-          'Decide accept vs needs_more. End with a nucleas-gate fence (all interaction modes).',
+          'Review all acceptance criteria in one batch. Decide accept vs needs_more. End with a nucleas-gate fence (all interaction modes).',
         ].join('\n'),
         priorTurns: [],
       });

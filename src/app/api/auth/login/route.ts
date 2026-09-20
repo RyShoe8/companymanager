@@ -12,6 +12,7 @@ import {
 } from '@/lib/auth/emailVerification';
 import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
 import { recaptchaFailureResponse, verifyRecaptchaToken } from '@/lib/recaptcha/verifyRecaptcha';
+import { effectiveRegistrationApproval } from '@/lib/auth/registrationApproval';
 
 export async function POST(request: NextRequest) {
   try {
@@ -115,6 +116,19 @@ export async function POST(request: NextRequest) {
           needsEmailVerification: true,
           email: user.email,
         },
+        { status: 403 }
+      );
+    }
+
+    if (effectiveRegistrationApproval(user.registrationApproval) === 'pending') {
+      return NextResponse.json(
+        { error: 'Your registration is awaiting approval from a Nucleas platform administrator.', awaitingApproval: true },
+        { status: 403 }
+      );
+    }
+    if (effectiveRegistrationApproval(user.registrationApproval) === 'rejected') {
+      return NextResponse.json(
+        { error: 'This registration was not approved. Contact Nucleas support if you believe this is an error.' },
         { status: 403 }
       );
     }

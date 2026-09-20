@@ -26,6 +26,7 @@ interface User {
   subscriptionPlanId: string | null;
   createdAt: string;
   isAdmin: boolean;
+  registrationApproval: 'pending' | 'approved' | 'rejected';
 }
 
 interface OrgGroup {
@@ -148,6 +149,10 @@ export default function AdminPage() {
   }, []);
 
   const orgGroups = useMemo(() => buildOrgGroups(users), [users]);
+  const pendingRegistrations = useMemo(
+    () => users.filter((user) => user.registrationApproval === 'pending'),
+    [users]
+  );
 
   const toggleOrgCollapsed = useCallback((organizationId: string) => {
     setCollapsedOrgIds((prev) => {
@@ -182,6 +187,29 @@ export default function AdminPage() {
       );
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to update user');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleRegistrationApproval = async (
+    userId: string,
+    registrationApproval: 'approved' | 'rejected'
+  ) => {
+    setUpdatingId(userId);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationApproval }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to review registration');
+      setUsers((prev) => prev.map((user) =>
+        user.id === userId ? { ...user, registrationApproval } : user
+      ));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to review registration');
     } finally {
       setUpdatingId(null);
     }
@@ -315,13 +343,44 @@ export default function AdminPage() {
         </div>
 
         <Card className="p-6 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-6">
             <div>
               <h2 className="text-xl font-semibold text-text-primary mb-1">Registered Users</h2>
               <p className="text-3xl font-bold text-primary">{totalUsers}</p>
             </div>
+            <div>
+              <h2 className="text-xl font-semibold text-text-primary mb-1">Awaiting approval</h2>
+              <p className="text-3xl font-bold text-warning-dark">{pendingRegistrations.length}</p>
+            </div>
           </div>
         </Card>
+
+        {pendingRegistrations.length > 0 && (
+          <Card className="p-6 mb-6 border-warning/40">
+            <h2 className="text-xl font-semibold text-text-primary mb-1">Registration requests</h2>
+            <p className="text-sm text-text-secondary mb-4">Approve access or reject the request. Invited teammates bypass this queue.</p>
+            <div className="space-y-3">
+              {pendingRegistrations.map((user) => (
+                <div key={user.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 last:border-0">
+                  <div>
+                    <div className="font-medium text-text-primary">{user.name}</div>
+                    <div className="text-sm text-text-secondary">{user.email} · Registered {new Date(user.createdAt).toLocaleString()}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => void handleRegistrationApproval(user.id, 'approved')}
+                      disabled={updatingId === user.id} className="rounded bg-success/10 px-3 py-2 text-sm text-success disabled:opacity-50">
+                      Approve
+                    </button>
+                    <button type="button" onClick={() => void handleRegistrationApproval(user.id, 'rejected')}
+                      disabled={updatingId === user.id} className="rounded bg-error-light px-3 py-2 text-sm text-error disabled:opacity-50">
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <Card className="p-6">
           <h2 className="text-xl font-semibold text-text-primary mb-4">Users by organization</h2>
@@ -470,6 +529,15 @@ export default function AdminPage() {
                                     {new Date(user.createdAt).toLocaleDateString()}
                                   </td>
                                   <td className="py-3 px-4 text-sm">
+                                    <span className={`mr-2 px-2 py-1 rounded text-xs font-medium ${
+                                      user.registrationApproval === 'approved'
+                                        ? 'bg-success/10 text-success'
+                                        : user.registrationApproval === 'pending'
+                                          ? 'bg-warning-light text-warning-dark'
+                                          : 'bg-error-light text-error'
+                                    }`}>
+                                      {user.registrationApproval === 'approved' ? 'Approved' : user.registrationApproval === 'pending' ? 'Pending' : 'Rejected'}
+                                    </span>
                                     {user.isAdmin ? (
                                       <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
                                         Admin
@@ -482,6 +550,18 @@ export default function AdminPage() {
                                   </td>
                                   <td className="py-3 px-4 text-sm text-right">
                                     <div className="flex items-center justify-end gap-3">
+                                      {user.registrationApproval !== 'approved' && (
+                                        <button type="button" onClick={() => void handleRegistrationApproval(user.id, 'approved')}
+                                          disabled={updatingId === user.id} className="text-sm px-3 py-1 rounded bg-success/10 text-success disabled:opacity-50">
+                                          Approve
+                                        </button>
+                                      )}
+                                      {user.registrationApproval === 'pending' && (
+                                        <button type="button" onClick={() => void handleRegistrationApproval(user.id, 'rejected')}
+                                          disabled={updatingId === user.id} className="text-sm px-3 py-1 rounded bg-error-light text-error disabled:opacity-50">
+                                          Reject
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() =>
@@ -555,6 +635,9 @@ export default function AdminPage() {
                                     <div className="text-xs font-semibold text-text-secondary mb-1">
                                       Role
                                     </div>
+                                    <div className="mb-2 text-xs font-medium">
+                                      Registration: {user.registrationApproval}
+                                    </div>
                                     {user.isAdmin ? (
                                       <span className="px-2 py-1 rounded bg-primary-light text-primary-dark text-xs font-medium">
                                         Admin
@@ -566,6 +649,18 @@ export default function AdminPage() {
                                     )}
                                   </div>
                                   <div className="flex gap-2">
+                                    {user.registrationApproval !== 'approved' && (
+                                      <button type="button" onClick={() => void handleRegistrationApproval(user.id, 'approved')}
+                                        disabled={updatingId === user.id} className="text-xs px-3 py-1.5 rounded bg-success/10 text-success disabled:opacity-50">
+                                        Approve
+                                      </button>
+                                    )}
+                                    {user.registrationApproval === 'pending' && (
+                                      <button type="button" onClick={() => void handleRegistrationApproval(user.id, 'rejected')}
+                                        disabled={updatingId === user.id} className="text-xs px-3 py-1.5 rounded bg-error-light text-error disabled:opacity-50">
+                                        Reject
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() =>

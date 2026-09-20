@@ -18,6 +18,7 @@ const errorMessages: Record<string, string> = {
   no_email: 'No email address found in your Google account.',
   email_mismatch: 'The email address associated with your Google account does not match the invitation.',
   no_code: 'No authorization code received from Google.',
+  registration_rejected: 'This registration was not approved. Contact Nucleas support if you believe this is an error.',
 };
 
 function LoginForm() {
@@ -52,7 +53,7 @@ function LoginForm() {
         body: JSON.stringify({ email, password, recaptchaToken }),
       });
 
-      let data: { error?: string; needsEmailVerification?: boolean; user?: { organizationSetupComplete?: boolean } } = {};
+      let data: { error?: string; needsEmailVerification?: boolean; awaitingApproval?: boolean; user?: { organizationSetupComplete?: boolean } } = {};
       try {
         data = await response.json();
       } catch {
@@ -61,6 +62,10 @@ function LoginForm() {
       }
 
       if (!response.ok) {
+        if (data.awaitingApproval) {
+          router.push('/pending-approval');
+          return;
+        }
         if (data.needsEmailVerification) {
           router.push(`/verify-email?email=${encodeURIComponent(email)}`);
           return;

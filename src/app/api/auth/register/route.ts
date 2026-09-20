@@ -20,6 +20,7 @@ import {
 } from '@/lib/auth/emailVerification';
 import { sendVerificationEmail } from '@/lib/services/email';
 import { RECAPTCHA_ACTIONS } from '@/lib/recaptcha/actions';
+import { registrationApprovalForSignup } from '@/lib/auth/registrationApproval';
 import { recaptchaFailureResponse, verifyRecaptchaToken } from '@/lib/recaptcha/verifyRecaptcha';
 
 export async function POST(request: NextRequest) {
@@ -118,6 +119,7 @@ export async function POST(request: NextRequest) {
       name,
       organizationId,
       emailVerified: !soloSignup,
+      registrationApproval: registrationApprovalForSignup(Boolean(invitationToken)),
       ...(verificationToken
         ? {
             emailVerificationTokenHash: hashEmailVerificationToken(verificationToken),
@@ -218,7 +220,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           needsEmailVerification: true,
-          message: 'Check your email to verify your account before signing in.',
+          message: 'Check your email to verify your address. A platform administrator must also approve your account before you can sign in.',
           user: {
             id: user._id.toString(),
             email: user.email,

@@ -617,7 +617,7 @@ export default function AiTeamWorkspace({
             {stageEditor('Worker', worker, setWorker, workerProfiles)}
             {stageEditor('Reviewer', reviewer, setReviewer, commercialProfiles)}
             <label className="text-sm">
-              Max subtasks
+              Max jobs per phase
               <input
                 className={`${field} mt-1`}
                 type="number"
@@ -629,7 +629,7 @@ export default function AiTeamWorkspace({
               />
             </label>
             <label className="text-sm">
-              Max worker retries
+              Correction retries
               <input
                 className={`${field} mt-1`}
                 type="number"
@@ -640,6 +640,9 @@ export default function AiTeamWorkspace({
                 disabled={busy}
               />
             </label>
+            <p className="text-xs text-text-secondary lg:col-span-3">
+              The worker receives all jobs as one coherent phase. The reviewer checks the combined evidence once, with one correction pass recommended.
+            </p>
             <label className="flex items-center gap-2 text-sm mt-6">
               <input
                 type="checkbox"

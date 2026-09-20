@@ -11,6 +11,9 @@ export interface IUser extends Document {
   googleId?: string; // Google OAuth ID
   isAdmin?: boolean; // System admin flag
   emailVerified?: boolean;
+  registrationApproval?: 'pending' | 'approved' | 'rejected';
+  registrationReviewedAt?: Date;
+  registrationReviewedBy?: mongoose.Types.ObjectId;
   emailVerificationTokenHash?: string;
   emailVerificationExpires?: Date;
   platformGuideCompletedAt?: Date;
@@ -68,6 +71,15 @@ const UserSchema: Schema = new Schema(
       type: Boolean,
       default: false,
     },
+    registrationApproval: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      // Legacy accounts predate approval gating; missing means approved.
+      default: undefined,
+      index: true,
+    },
+    registrationReviewedAt: { type: Date },
+    registrationReviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     emailVerificationTokenHash: {
       type: String,
       trim: true,

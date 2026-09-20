@@ -4,6 +4,7 @@ import User from '@/lib/models/User';
 import { createSession } from '@/lib/auth/session';
 import { hashEmailVerificationToken } from '@/lib/auth/emailVerification';
 import { getAppBaseUrl } from '@/lib/utils/invitation';
+import { effectiveRegistrationApproval } from '@/lib/auth/registrationApproval';
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token')?.trim();
@@ -29,6 +30,13 @@ export async function GET(request: NextRequest) {
     user.emailVerificationTokenHash = undefined;
     user.emailVerificationExpires = undefined;
     await user.save();
+
+    if (effectiveRegistrationApproval(user.registrationApproval) === 'pending') {
+      return NextResponse.redirect(`${base}/pending-approval?verified=1`);
+    }
+    if (effectiveRegistrationApproval(user.registrationApproval) === 'rejected') {
+      return NextResponse.redirect(`${base}/login?error=registration_rejected`);
+    }
 
     await createSession(user._id.toString(), user.email);
 

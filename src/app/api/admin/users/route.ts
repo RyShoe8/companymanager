@@ -10,6 +10,7 @@ import {
   type SubscriptionPlanDoc,
 } from 'billing-engine';
 import mongoose from 'mongoose';
+import { effectiveRegistrationApproval } from '@/lib/auth/registrationApproval';
 
 /**
  * Get all users (admin only)
@@ -102,6 +103,8 @@ export async function GET(request: NextRequest) {
         subscriptionPlanId,
         createdAt: u.createdAt,
         isAdmin: u.isAdmin || false,
+        registrationApproval: effectiveRegistrationApproval(u.registrationApproval),
+        registrationReviewedAt: u.registrationReviewedAt ?? null,
       };
     });
 

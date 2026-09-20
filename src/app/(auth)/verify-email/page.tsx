@@ -35,8 +35,8 @@ function VerifyEmailContent() {
       <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4">
         <div className="max-w-md w-full text-center space-y-4">
           <h1 className="text-2xl font-bold text-text-primary">Email verified</h1>
-          <p className="text-text-secondary">Your account is ready. Welcome to Nucleas.</p>
-          <Button onClick={() => router.push('/planning-map')}>Continue</Button>
+          <p className="text-text-secondary">Your email is verified. Your registration is waiting for platform administrator approval.</p>
+          <Button onClick={() => router.push('/pending-approval')}>View status</Button>
         </div>
       </div>
     );

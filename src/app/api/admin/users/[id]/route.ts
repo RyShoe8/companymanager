@@ -6,6 +6,7 @@ import Invitation from '@/lib/models/Invitation';
 import { requirePlatformAdmin } from '@/lib/auth/requirePlatformAdmin';
 import { isValidObjectId } from '@/lib/utils/security';
 import { teardownOrganization } from '@/lib/account/deleteUserAccount';
+import { effectiveRegistrationApproval } from '@/lib/auth/registrationApproval';
 
 /**
  * Update user (admin only)
@@ -29,11 +30,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const body = await request.json();
-    const { isAdmin } = body;
+    const { isAdmin, registrationApproval } = body;
 
     // Update isAdmin status using updateOne to bypass pre-save hooks
     if (typeof isAdmin === 'boolean') {
       await User.updateOne({ _id: id }, { $set: { isAdmin } });
+    }
+    if (registrationApproval !== undefined) {
+      if (registrationApproval !== 'approved' && registrationApproval !== 'rejected') {
+        return NextResponse.json({ error: 'Approval status must be approved or rejected.' }, { status: 400 });
+      }
+      await User.updateOne(
+        { _id: id },
+        { $set: {
+          registrationApproval,
+          registrationReviewedAt: new Date(),
+          registrationReviewedBy: auth.user._id,
+        } }
+      );
     }
 
     const updatedUser = await User.findById(id);
@@ -43,6 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       email: updatedUser!.email,
       name: updatedUser!.name,
       isAdmin: updatedUser!.isAdmin || false,
+      registrationApproval: effectiveRegistrationApproval(updatedUser!.registrationApproval),
     });
   } catch (error) {
     // Admin update user error
