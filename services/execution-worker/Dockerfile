@@ -4,6 +4,7 @@ WORKDIR /app
 RUN groupadd --gid 10001 sandbox && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin sandbox
 COPY package.json package-lock.json tsconfig.json ./
 COPY packages/ai-contracts ./packages/ai-contracts
+COPY packages/billing-engine ./packages/billing-engine
 COPY services/execution-worker ./services/execution-worker
 RUN npm ci --ignore-scripts && npm run worker:build
 # The controller retains only enough privilege to launch repository commands as

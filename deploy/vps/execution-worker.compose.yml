@@ -1,0 +1,47 @@
+services:
+  execution-worker:
+    build:
+      context: ../..
+      dockerfile: services/execution-worker/Dockerfile
+    image: nucleas-execution-worker:latest
+    container_name: nucleas-execution-worker
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: execution-worker.env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "8788"
+    ports:
+      - "127.0.0.1:8788:8788"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=4g,mode=1777
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 4g
+    cpus: 2.0
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8788/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

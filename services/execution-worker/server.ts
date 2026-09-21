@@ -77,7 +77,7 @@ async function modelReply(messages: ChatMessage[]): Promise<{ content: string; t
 async function execute(request: ExecutionWorkerRequest) {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'nucleas-exec-'));
   const workspace = path.join(temp, 'repo');
-  const allowed = new Set((process.env.NUCLEAS_EXECUTION_ALLOWED_BINARIES ?? 'node,npm,npx,pnpm,yarn,bun,git').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean));
+  const allowed = new Set((process.env.NUCLEAS_EXECUTION_ALLOWED_BINARIES ?? 'node,npm,npx,git').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean));
   const evidence: CommandEvidence[] = [];
   try {
     const basic = Buffer.from(`x-access-token:${request.repository.accessToken}`).toString('base64');

@@ -4,32 +4,49 @@ The execution worker lets Build mode edit a temporary copy of a connected GitHub
 
 It never commits, pushes, opens a pull request, deploys, or changes the real repository. Those actions require a separate explicit confirmation in Nucleas.
 
-## Your friend's setup
+## Model infrastructure operator
 
-### 1. Create one permanent LiteLLM model alias
+### 1. Create one permanent LiteLLM routing alias
 
-Your friend must expose the permanent LiteLLM model name:
+Expose this permanent LiteLLM model name:
 
 ```text
 nucleas-worker
 ```
 
-Example LiteLLM configuration:
+Put every approved, tool-capable execution model behind that same alias. LiteLLM can then route requests across the available deployments without any Nucleas configuration change.
+
+OpenAI-compatible requests always require a `model` value. The worker therefore cannot omit the model field or request an unspecified model. It sends the permanent routing alias `nucleas-worker` instead of a physical model ID, and LiteLLM selects a compatible deployment from that routing group.
+
+Example with multiple models:
 
 ```yaml
 model_list:
   - model_name: nucleas-worker
     litellm_params:
-      model: hosted_vllm/<current-model-id>
+      model: hosted_vllm/<first-model-id>
+      api_base: http://vllm-router-service.llm.svc.cluster.local/v1
+      api_key: os.environ/VLLM_KEY
+  - model_name: nucleas-worker
+    litellm_params:
+      model: hosted_vllm/<second-model-id>
       api_base: http://vllm-router-service.llm.svc.cluster.local/v1
       api_key: os.environ/VLLM_KEY
 ```
 
-`nucleas-worker` must remain unchanged. When the underlying model changes, your friend updates only `litellm_params.model`. No Nucleas or Vercel setting needs to change.
+`nucleas-worker` must remain unchanged. Add, remove, or replace the underlying model entries as the model fleet changes. No Nucleas, Vercel, or execution-worker setting needs to change.
 
-Do not automatically select the first model returned by `/v1/models`. The stable alias prevents an infrastructure change from silently selecting the wrong model.
+Only include models that reliably support OpenAI-compatible chat completions and function/tool calling. Do not put text-only, embedding, image, or incompatible models in this routing group.
 
-### 2. Generate a dedicated worker token
+Do not make the worker automatically select the first model returned by `/v1/models`, because that could silently select an incompatible model.
+
+The remaining deployment steps are owned by the Nucleas VPS operator. Model infrastructure does not run repository code.
+
+## Nucleas VPS operator
+
+Use the checked-in deployment package at `deploy/vps`. The existing Playwright worker remains a separate service and container.
+
+### 1. Generate a dedicated worker token
 
 Generate a new random secret:
 
@@ -37,20 +54,20 @@ Generate a new random secret:
 openssl rand -hex 32
 ```
 
-This token is used only between Nucleas and the execution worker. Send it to the Nucleas owner through a secure channel.
+This token is used only between Nucleas and the execution worker. Send it to the Nucleas administrator through a secure channel.
 
 Do not reuse a LiteLLM, GitHub, Vercel, Render, Kubernetes, or production credential.
 
-### 3. Build the worker
+### 2. Build the worker
 
-Run these commands from the repository root:
+Run these commands from the repository root, or follow `deploy/vps/README.md`:
 
 ```bash
 git pull origin main
 docker build -f services/execution-worker/Dockerfile -t nucleas-execution-worker:latest .
 ```
 
-### 4. Configure the worker
+### 3. Configure the worker
 
 Set these environment variables on the worker host:
 
@@ -65,10 +82,12 @@ PORT=8788
 Optional:
 
 ```env
-NUCLEAS_EXECUTION_ALLOWED_BINARIES=node,npm,npx,pnpm,yarn,bun,git
+NUCLEAS_EXECUTION_ALLOWED_BINARIES=node,npm,npx,git
 ```
 
-### 5. Deploy it safely
+The allowlist does not install software. Add another executable only after installing it in the worker image and reviewing its security impact.
+
+### 4. Deploy it safely
 
 The worker must have:
 
@@ -84,9 +103,9 @@ The worker must have:
 
 The controller needs only `CHOWN`, `SETUID`, and `SETGID` capabilities. Model-controlled commands run as the separate unprivileged uid/gid `10001`, receive a minimal environment, and cannot write Git metadata.
 
-The service processes one request at a time. Start with 2 CPUs, 2–4 GB of memory, a 128-process limit, and a five-minute external request limit.
+The checked-in VPS compose configuration limits the service to one request, 2 CPUs, 4 GB of memory, 128 processes, and 4 GB of disposable temporary storage. Do not increase concurrency on a shared 4-core, 8 GB VPS.
 
-### 6. Verify the deployment
+### 5. Verify the deployment
 
 Open:
 
@@ -100,13 +119,13 @@ Expected response:
 {"ok":true,"busy":false}
 ```
 
-Give the Nucleas owner only the HTTPS origin, without `/v1/execute`:
+Give the Nucleas administrator only the HTTPS origin, without `/v1/execute`:
 
 ```text
 https://<worker-host>
 ```
 
-## Your setup
+## Nucleas administrator
 
 ### 1. Add two Vercel variables
 
@@ -139,7 +158,7 @@ In a connected project's IDE, select Build mode and request:
 Create execution-test.txt containing "Nucleas execution worker test". Do not change other files. Verify the file exists.
 ```
 
-Success means Nucleas shows a proposed patch and command evidence. The file must not appear in GitHub until you separately request and confirm publishing.
+Success means Nucleas shows a proposed patch and command evidence. The file must not appear in GitHub until the Nucleas administrator separately requests and confirms publishing.
 
 ## Settings that should not need regular updates
 
@@ -151,7 +170,7 @@ NUCLEAS_EXECUTION_WORKER_URL=https://<worker-host>
 NUCLEAS_EXECUTION_WORKER_TOKEN=<dedicated worker token>
 ```
 
-Your friend may replace or upgrade the underlying vLLM model without contacting you, provided the LiteLLM alias remains `nucleas-worker` and its tool-calling behavior remains compatible.
+The model infrastructure operator may add, remove, replace, or upgrade models behind the LiteLLM alias without coordinating a Nucleas or Vercel configuration change. The alias must remain `nucleas-worker`, and every model in its routing group must remain compatible with chat completions and function/tool calling.
 
 Change the shared worker token only when intentionally rotating it. During rotation, update the worker and Vercel with the same new value.
 

@@ -1,0 +1,7 @@
+worker.example.com {
+	@allowed path /health /v1/execute
+	handle @allowed {
+		reverse_proxy 127.0.0.1:8788
+	}
+	respond 404
+}
