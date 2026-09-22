@@ -12,7 +12,7 @@ Owns the execution-worker container, HTTPS endpoint, resource limits, updates, m
 
 ### Model infrastructure operator
 
-Owns LiteLLM, the `nucleas-worker` routing alias, compatible model deployments, and the LiteLLM credential.
+Owns LiteLLM, compatible model deployments, the `/v1/models` catalog, and the LiteLLM credential.
 
 ### Nucleas administrator
 
@@ -32,7 +32,7 @@ openssl rand -hex 32
 Put the generated value in `NUCLEAS_EXECUTION_WORKER_TOKEN`. Add the LiteLLM endpoint and credential. Keep:
 
 ```env
-NUCLEAS_AI_REMOTE_MODEL=nucleas-worker
+NUCLEAS_AI_REMOTE_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-AWQ
 ```
 
 Build and start:

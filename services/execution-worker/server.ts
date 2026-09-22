@@ -58,13 +58,13 @@ const tools = [
   { type: 'function', function: { name: 'finish', description: 'Finish after implementation and verification.', parameters: { type: 'object', properties: { summary: { type: 'string' }, limitations: { type: 'array', items: { type: 'string' } }, status: { type: 'string', enum: ['completed', 'blocked'] } }, required: ['summary', 'limitations', 'status'], additionalProperties: false } } },
 ] as const;
 
-async function modelReply(messages: ChatMessage[]): Promise<{ content: string; toolCalls: ToolCall[] }> {
+async function modelReply(messages: ChatMessage[], model?: string): Promise<{ content: string; toolCalls: ToolCall[] }> {
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 120_000);
   try {
     const response = await fetch(required('NUCLEAS_AI_REMOTE_ENDPOINT'), {
       method: 'POST', redirect: 'error', signal: controller.signal,
       headers: { Authorization: `Bearer ${required('NUCLEAS_AI_REMOTE_BEARER_TOKEN')}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: required('NUCLEAS_AI_REMOTE_MODEL'), messages, tools, tool_choice: 'auto', temperature: 0.1, max_tokens: 4096 }),
+      body: JSON.stringify({ model: model?.trim() || required('NUCLEAS_AI_REMOTE_MODEL'), messages, tools, tool_choice: 'auto', temperature: 0.1, max_tokens: 4096 }),
     });
     if (!response.ok) throw new Error(`Inference failed with HTTP ${response.status}.`);
     const payload = await response.json() as { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[] };
@@ -93,7 +93,7 @@ async function execute(request: ExecutionWorkerRequest) {
     ];
     let finish: { summary: string; limitations: string[]; status: 'completed' | 'blocked' } | null = null;
     for (let round = 0; round < request.maxRounds && !finish; round += 1) {
-      const reply = await modelReply(messages);
+      const reply = await modelReply(messages, request.model);
       messages.push({ role: 'assistant', content: reply.content, tool_calls: reply.toolCalls });
       if (!reply.toolCalls.length) throw new Error('Worker stopped without a finish tool call.');
       for (const call of reply.toolCalls) {

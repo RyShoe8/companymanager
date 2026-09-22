@@ -3,7 +3,14 @@ import { aiBudgetSettingsSchema, defaultPlatformAiSettings, dollarsToMicros, mic
 
 describe('AI settings input', () => {
   it('defaults to all-organization manual planning without authorizing inference spend', () => {
-    expect(platformAiSettingsSchema.parse(defaultPlatformAiSettings)).toMatchObject({ planningEnabled: true, dispatchEnabled: false, reservationMicros: 0 });
+    expect(platformAiSettingsSchema.parse(defaultPlatformAiSettings)).toMatchObject({ planningEnabled: true, dispatchEnabled: false, reservationMicros: 0,
+      codingModel: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ', visualModel: 'Qwen/Qwen3-VL-8B-Thinking-FP8' });
+  });
+  it('adds routing defaults to legacy stored settings', () => {
+    const { codingModel: _coding, visualModel: _visual, ...legacy } = defaultPlatformAiSettings;
+    expect(platformAiSettingsSchema.parse(legacy)).toMatchObject({
+      codingModel: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ', visualModel: 'Qwen/Qwen3-VL-8B-Thinking-FP8',
+    });
   });
   it.each(['http://llm.rogly.net/chat', 'https://user:secret@llm.rogly.net/chat', 'https://llm.rogly.net/chat?key=secret',
     'https://127.0.0.1/chat', 'https://[::1]/chat', 'https://host.local/chat', 'https://llm.rogly.net/chat#secret'])('rejects unsafe endpoint %s', endpoint => {

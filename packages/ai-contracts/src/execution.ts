@@ -13,6 +13,7 @@ export const executionWorkerRequestSchema = z.object({
     accessToken: z.string().min(1).max(4096),
   }).strict(),
   task: z.string().trim().min(1).max(12_000),
+  model: z.string().trim().min(1).max(200).optional(),
   maxRounds: z.number().int().min(1).max(40).default(24),
   commandTimeoutMs: z.number().int().min(1_000).max(300_000).default(120_000),
 }).strict();

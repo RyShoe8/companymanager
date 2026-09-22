@@ -12,7 +12,10 @@ export const platformAiSettingsSchema = z.object({
         !/\.(localhost|local|internal)$/i.test(url.hostname);
     } catch { return false; }
   }, 'Use a public HTTPS hostname without credentials, query parameters or fragments.'),
-  model: z.string().trim().min(1).max(200), noProviderFee: z.boolean(),
+  model: z.string().trim().min(1).max(200),
+  codingModel: z.string().trim().min(1).max(200).default('Qwen/Qwen2.5-Coder-14B-Instruct-AWQ'),
+  visualModel: z.string().trim().min(1).max(200).default('Qwen/Qwen3-VL-8B-Thinking-FP8'),
+  noProviderFee: z.boolean(),
   dailyRequestLimit: z.number().int().min(1).max(10000).default(48),
   minimumIntervalSeconds: z.number().int().min(1).max(86400).default(300),
   maxOutputTokens: z.number().int().min(256).max(8192).default(3072),
@@ -37,6 +40,7 @@ export type PlatformAiSettings = z.infer<typeof platformAiSettingsSchema>;
 export const defaultPlatformAiSettings: PlatformAiSettings = {
   planningEnabled: true, remoteEnabled: false, dispatchEnabled: false, protocol: 'openai-chat',
   endpoint: 'https://llm.rogly.net/v1/chat/completions', model: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ',
+  codingModel: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ', visualModel: 'Qwen/Qwen3-VL-8B-Thinking-FP8',
   noProviderFee: false, reservationMicros: 0, organizationLimitMicros: 0, projectLimitMicros: 0,
   dailyRequestLimit: 48, minimumIntervalSeconds: 300, maxOutputTokens: 3072,
   freePoolLimitMicros: 0, freePoolRemainingMicros: 0,

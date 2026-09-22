@@ -6,6 +6,7 @@ import { assertSafePublicHttpsUrl } from '@/lib/ai/tools/ssrf';
 import { createInstallationAccessToken } from '@/lib/ai/githubAppClient';
 import { AiProjectRepository } from '@/lib/models/AiProjectRepository';
 import { AiIdeExecutionArtifact } from '@/lib/models/AiIdeExecutionArtifact';
+import { readPlatformSettings } from '@/lib/ai/control/settings';
 
 let indexes: Promise<unknown> | undefined;
 
@@ -21,6 +22,7 @@ export async function executeInRemoteSandbox(input: {
     .select('owner repo defaultBranch installationId').maxTimeMS(3000).lean();
   if (!repository?.installationId) throw new Error('Connect the GitHub App to this project before running sandbox execution.');
   const accessToken = await createInstallationAccessToken(repository.installationId);
+  const { value: aiSettings } = await readPlatformSettings();
   const endpoint = assertSafePublicHttpsUrl(`${process.env.NUCLEAS_EXECUTION_WORKER_URL!.replace(/\/+$/, '')}/v1/execute`);
   const requestId = randomUUID();
   const controller = new AbortController();
@@ -31,7 +33,7 @@ export async function executeInRemoteSandbox(input: {
     const response = await fetch(endpoint, {
       method: 'POST', redirect: 'error', signal: controller.signal,
       headers: { Authorization: `Bearer ${process.env.NUCLEAS_EXECUTION_WORKER_TOKEN!.trim()}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ protocolVersion: 1, requestId, repository: { owner: repository.owner, repo: repository.repo, ref: repository.defaultBranch, accessToken }, task: input.task.slice(0, 12_000), maxRounds: 24, commandTimeoutMs: 120_000 }),
+      body: JSON.stringify({ protocolVersion: 1, requestId, repository: { owner: repository.owner, repo: repository.repo, ref: repository.defaultBranch, accessToken }, task: input.task.slice(0, 12_000), model: aiSettings.codingModel, maxRounds: 24, commandTimeoutMs: 120_000 }),
     });
     if (!response.ok) throw new Error(`Execution worker returned HTTP ${response.status}.`);
     const length = Number(response.headers.get('content-length') ?? 0);

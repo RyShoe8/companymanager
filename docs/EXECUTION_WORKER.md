@@ -6,39 +6,15 @@ It never commits, pushes, opens a pull request, deploys, or changes the real rep
 
 ## Model infrastructure operator
 
-### 1. Create one permanent LiteLLM routing alias
+### 1. Expose available models through LiteLLM
 
-Expose this permanent LiteLLM model name:
+LiteLLM must return the authorized model IDs from its OpenAI-compatible `/v1/models` endpoint. Nucleas loads that catalog into **Admin → AI Settings**, where an administrator explicitly chooses the general, coding, and visual routes.
 
-```text
-nucleas-worker
-```
+The execution worker receives the selected coding model with each request. Model additions and upgrades therefore require no execution-worker or Vercel environment change. They appear in Nucleas after LiteLLM exposes them.
 
-Put every approved, tool-capable execution model behind that same alias. LiteLLM can then route requests across the available deployments without any Nucleas configuration change.
+Only select a coding model that reliably supports OpenAI-compatible chat completions and function/tool calling. Nucleas never silently chooses the first model returned by `/v1/models`.
 
-OpenAI-compatible requests always require a `model` value. The worker therefore cannot omit the model field or request an unspecified model. It sends the permanent routing alias `nucleas-worker` instead of a physical model ID, and LiteLLM selects a compatible deployment from that routing group.
-
-Example with multiple models:
-
-```yaml
-model_list:
-  - model_name: nucleas-worker
-    litellm_params:
-      model: hosted_vllm/<first-model-id>
-      api_base: http://vllm-router-service.llm.svc.cluster.local/v1
-      api_key: os.environ/VLLM_KEY
-  - model_name: nucleas-worker
-    litellm_params:
-      model: hosted_vllm/<second-model-id>
-      api_base: http://vllm-router-service.llm.svc.cluster.local/v1
-      api_key: os.environ/VLLM_KEY
-```
-
-`nucleas-worker` must remain unchanged. Add, remove, or replace the underlying model entries as the model fleet changes. No Nucleas, Vercel, or execution-worker setting needs to change.
-
-Only include models that reliably support OpenAI-compatible chat completions and function/tool calling. Do not put text-only, embedding, image, or incompatible models in this routing group.
-
-Do not make the worker automatically select the first model returned by `/v1/models`, because that could silently select an incompatible model.
+A stable LiteLLM routing alias remains supported as an optional model entry when infrastructure-side load balancing is preferred, but it is no longer required.
 
 The remaining deployment steps are owned by the Nucleas VPS operator. Model infrastructure does not run repository code.
 
@@ -75,7 +51,7 @@ Set these environment variables on the worker host:
 NUCLEAS_EXECUTION_WORKER_TOKEN=<dedicated worker token>
 NUCLEAS_AI_REMOTE_ENDPOINT=<internal LiteLLM chat-completions URL>
 NUCLEAS_AI_REMOTE_BEARER_TOKEN=<LiteLLM credential>
-NUCLEAS_AI_REMOTE_MODEL=nucleas-worker
+NUCLEAS_AI_REMOTE_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-AWQ
 PORT=8788
 ```
 
@@ -162,15 +138,16 @@ Success means Nucleas shows a proposed patch and command evidence. The file must
 
 ## Settings that should not need regular updates
 
-These values remain stable:
+These connection values remain stable:
 
 ```env
-NUCLEAS_AI_REMOTE_MODEL=nucleas-worker
 NUCLEAS_EXECUTION_WORKER_URL=https://<worker-host>
 NUCLEAS_EXECUTION_WORKER_TOKEN=<dedicated worker token>
 ```
 
-The model infrastructure operator may add, remove, replace, or upgrade models behind the LiteLLM alias without coordinating a Nucleas or Vercel configuration change. The alias must remain `nucleas-worker`, and every model in its routing group must remain compatible with chat completions and function/tool calling.
+Choose the active coding model in **Admin → AI Settings → Model routing**. Nucleas sends it with each new execution request, so switching models does not require editing the VPS environment or rebuilding the worker.
+
+The worker's `NUCLEAS_AI_REMOTE_MODEL` remains a required fallback for older callers. Set it to a known-good coding model. Every coding model selected in Nucleas must support OpenAI-compatible chat completions and function/tool calling through LiteLLM.
 
 Change the shared worker token only when intentionally rotating it. During rotation, update the worker and Vercel with the same new value.
 
