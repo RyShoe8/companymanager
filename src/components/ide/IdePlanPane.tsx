@@ -67,7 +67,7 @@ export default function IdePlanPane({
               disabled={approveDisabled}
               onClick={onApprove}
             >
-              Approve
+              Approve &amp; Build
             </button>
           ) : null}
         </div>
@@ -121,7 +121,7 @@ export default function IdePlanPane({
                   ))}
                 </ol>
               ) : (
-                <p className="text-xs text-text-secondary">No steps yet. Add one or Approve with summary only.</p>
+                <p className="text-xs text-text-secondary">No steps yet. Add one or approve and build from the summary only.</p>
               )}
             </div>
           </>

@@ -1,6 +1,6 @@
 import type { IdePlanDocument } from '@/lib/ide/idePlan';
 
-/** Rebuild plan markdown from editable fields for Approve → build. */
+/** Rebuild plan markdown from editable fields for Approve & Build. */
 export function rebuildIdePlanMarkdown(plan: Pick<IdePlanDocument, 'title' | 'summary' | 'steps'>): string {
   const parts = [
     `# ${plan.title.trim() || 'Plan'}`,

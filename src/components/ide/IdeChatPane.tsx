@@ -793,7 +793,7 @@ export default function IdeChatPane({
     const building: IdePlanDocument = { ...plan, status: 'building' };
     onPlanReady?.(building);
     setPlanReadyFlag(false);
-    const header = `Approved plan: "${plan.title || 'Implementation Plan'}"\nAdvisory implementation: Generate code recommendations and patches for this approved plan. Note: Build mode provides code advisory; repository changes require manual editor review and publishing.`;
+    const header = `Approved plan: "${plan.title || 'Implementation Plan'}"\nBuild this plan in the isolated disposable repository, run focused verification, and return the proposed patch and evidence. Never commit, push, or deploy; publishing requires separate review and approval.`;
     const snippet = plan.markdown.length > 4000 ? `${plan.markdown.slice(0, 4000)}\n\n[...plan continues...]` : plan.markdown;
     const text = `${header}\n\n${snippet}`.slice(0, 5900);
     void postChat({ text, modeForRequest: 'build', appendUserTurn: true });

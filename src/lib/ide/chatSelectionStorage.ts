@@ -196,7 +196,7 @@ export function readStoredIdeInteractionMode(projectId: string): IdeInteractionM
   if (!projectId) return null;
   const raw = storageGet(`${INTERACTION_KEY_PREFIX}${projectId}`);
   if (!raw || !isIdeInteractionMode(raw)) return null;
-  // Persist only chat|plan; build is ephemeral per Approve.
+  // Persist only chat|plan; build is ephemeral per Approve & Build.
   return raw === 'build' ? 'chat' : raw;
 }
 
