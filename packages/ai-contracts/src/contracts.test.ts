@@ -24,6 +24,8 @@ describe('AI contracts', () => {
     const request = { protocolVersion: 1, requestId: '123e4567-e89b-12d3-a456-426614174000', repository: { owner: 'nucleas', repo: 'app', ref: 'main', accessToken: 'temporary' }, task: 'Implement the approved slice.', model: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ' };
     expect(executionWorkerRequestSchema.safeParse(request).success).toBe(true);
     expect(executionWorkerRequestSchema.safeParse({ ...request, shell: 'rm -rf /' }).success).toBe(false);
-    expect(executionWorkerResponseSchema.safeParse({ protocolVersion: 1, requestId: request.requestId, status: 'completed', summary: 'Done', baseCommit: 'a'.repeat(40), patch: 'diff', changedFiles: ['a.ts'], evidence: [], limitations: [] }).success).toBe(true);
+    expect(executionWorkerResponseSchema.safeParse({ protocolVersion: 1, requestId: request.requestId,
+      routing: { requestedModel: request.model, providerReportedModels: [request.model] },
+      status: 'completed', summary: 'Done', baseCommit: 'a'.repeat(40), patch: 'diff', changedFiles: ['a.ts'], evidence: [], limitations: [] }).success).toBe(true);
   });
 });

@@ -348,6 +348,7 @@ describe('attemptTeamChatReply full orchestra', () => {
   it('uses the isolated executor for Build mode and gives its evidence to the reviewer', async () => {
     mocks.execute.mockResolvedValue({
       protocolVersion: 1, requestId: '123e4567-e89b-12d3-a456-426614174000', artifactId: 'd'.repeat(24),
+      routing: { requestedModel: 'Qwen/Qwen2.5-Coder-14B-Instruct-AWQ', providerReportedModels: ['hosted_vllm/Qwen/Qwen2.5-Coder-14B-Instruct-AWQ'] },
       status: 'completed', summary: 'Implemented the feature.', baseCommit: 'a'.repeat(40),
       patch: 'diff --git a/a.ts b/a.ts\n+export const ready = true;', changedFiles: ['a.ts'],
       evidence: [{ command: ['npm', 'test'], exitCode: 0, timedOut: false, output: 'passed' }], limitations: [],
@@ -363,6 +364,8 @@ describe('attemptTeamChatReply full orchestra', () => {
     expect(mocks.companyChat.mock.calls[1][0].userText).toContain('npm test: exit 0');
     expect(turn.toolsUsed).toContain('sandbox_edit');
     expect(turn.toolsUsed).toContain('command_execute');
+    expect(turn.text).toContain('Model requested: Qwen/Qwen2.5-Coder-14B-Instruct-AWQ');
+    expect(turn.text).toContain('Model reported by provider: hosted_vllm/Qwen/Qwen2.5-Coder-14B-Instruct-AWQ');
   });
 });
 

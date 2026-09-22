@@ -10,6 +10,8 @@ const schema = new Schema({
   projectId: { type: Schema.Types.ObjectId, required: true, immutable: true },
   createdByUserId: { type: Schema.Types.ObjectId, required: true, immutable: true },
   requestId: { type: String, required: true, immutable: true },
+  requestedModel: { type: String, required: true, immutable: true, maxlength: 200 },
+  providerReportedModels: { type: [String], required: true, immutable: true },
   status: { type: String, enum: ['completed', 'blocked', 'failed'] as const, required: true },
   summary: { type: String, required: true, maxlength: 4000 },
   baseCommit: { type: String, required: true, maxlength: 40 },

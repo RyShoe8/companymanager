@@ -697,6 +697,8 @@ export async function attemptTeamChatReply(input: {
         toolsUsed: ['sandbox_edit', 'command_execute'],
         text: [
           execution.summary,
+          `Model requested: ${execution.routing.requestedModel}`,
+          `Model reported by provider: ${execution.routing.providerReportedModels.join(', ') || 'not reported'}`,
           `Base commit: ${execution.baseCommit}`,
           `Changed files:\n${execution.changedFiles.map((file) => `- ${file}`).join('\n') || '- none'}`,
           checks ? `Checks:\n${checks}` : 'Checks: none recorded',

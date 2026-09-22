@@ -28,6 +28,10 @@ export const executionEvidenceSchema = z.object({
 export const executionWorkerResponseSchema = z.object({
   protocolVersion: z.literal(1),
   requestId: z.string().uuid(),
+  routing: z.object({
+    requestedModel: z.string().trim().min(1).max(200),
+    providerReportedModels: z.array(z.string().trim().min(1).max(200)).max(40),
+  }).strict(),
   status: z.enum(['completed', 'blocked', 'failed']),
   summary: z.string().trim().min(1).max(4000),
   baseCommit: z.string().regex(/^[a-f0-9]{40}$/),

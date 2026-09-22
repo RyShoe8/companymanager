@@ -47,6 +47,7 @@ export async function executeInRemoteSandbox(input: {
     const [artifact] = await AiIdeExecutionArtifact.create([{
       organizationId: input.organizationId, projectId: input.projectId, createdByUserId: new Types.ObjectId(input.userId),
       requestId, status: result.status, summary: result.summary, baseCommit: result.baseCommit,
+      requestedModel: result.routing.requestedModel, providerReportedModels: result.routing.providerReportedModels,
       patch: Buffer.from(result.patch, 'utf8'), changedFiles: result.changedFiles, evidence: result.evidence,
       limitations: result.limitations, expiresAt: new Date(Date.now() + 30 * 86400000),
     }]);

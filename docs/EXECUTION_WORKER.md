@@ -147,6 +147,8 @@ NUCLEAS_EXECUTION_WORKER_TOKEN=<dedicated worker token>
 
 Choose the active coding model in **Admin → AI Settings → Model routing**. Nucleas sends it with each new execution request, so switching models does not require editing the VPS environment or rebuilding the worker.
 
+Each completed execution records and displays the model Nucleas requested and every model identifier LiteLLM reported across the worker's inference rounds. If LiteLLM omits the response `model` field, Nucleas displays `not reported` instead of claiming that the requested model was served.
+
 The worker's `NUCLEAS_AI_REMOTE_MODEL` remains a required fallback for older callers. Set it to a known-good coding model. Every coding model selected in Nucleas must support OpenAI-compatible chat completions and function/tool calling through LiteLLM.
 
 Change the shared worker token only when intentionally rotating it. During rotation, update the worker and Vercel with the same new value.
