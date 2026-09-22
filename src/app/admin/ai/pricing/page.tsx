@@ -1,24 +1,29 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PRICING_SOURCE_PAGE, type PricingSnapshot } from '@/lib/ai/pricing/liveCatalog';
-import { MODEL_TOKEN_RATES } from '@/lib/ai/pricing/modelRates';
+import type {
+  AvailablePricingProvider,
+  AvailablePricingSnapshot,
+} from '@/lib/ai/pricing/availablePricing';
 
-const money = (value: number | null) => value === null ? 'Unknown' : new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'USD', maximumFractionDigits: 6,
-}).format(value);
 const HOUR = 60 * 60 * 1000;
+const money = (value: number | null, free: boolean) => {
+  if (free) return 'Free';
+  if (value === null) return 'Unknown';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD', maximumFractionDigits: 6,
+  }).format(value);
+};
 
 export default function AdminAiPricingPage() {
-  const [snapshot, setSnapshot] = useState<PricingSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<AvailablePricingSnapshot | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState('');
+  const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [query, setQuery] = useState('');
-  const [provider, setProvider] = useState('');
-  const [page, setPage] = useState(0);
-  const [view, setView] = useState('live');
   const request = useRef<AbortController | null>(null);
   const lastAttempt = useRef(0);
+
   const refresh = useCallback(async () => {
     if (request.current) return;
     const controller = new AbortController();
@@ -26,81 +31,165 @@ export default function AdminAiPricingPage() {
     lastAttempt.current = Date.now();
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/ai/pricing', { cache: 'no-store', signal: controller.signal });
+      const response = await fetch('/api/admin/ai/pricing', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Unable to load pricing.');
-      if (!controller.signal.aborted) { setSnapshot(body); setError(''); }
-    } catch (err) {
-      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Unable to load pricing.');
+      if (!response.ok) throw new Error(body.error || 'Unable to load available models.');
+      if (!controller.signal.aborted) {
+        const next = body as AvailablePricingSnapshot;
+        setSnapshot(next);
+        setSelectedProviderId((current) =>
+          next.providers.some((item) => item.id === current)
+            ? current
+            : (next.providers[0]?.id ?? '')
+        );
+        setError('');
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setError(cause instanceof Error ? cause.message : 'Unable to load available models.');
+      }
     } finally {
       if (request.current === controller) request.current = null;
       if (!controller.signal.aborted) setLoading(false);
     }
   }, []);
+
   useEffect(() => {
     void refresh();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastAttempt.current >= HOUR) void refresh();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastAttempt.current >= HOUR) {
+        void refresh();
+      }
     };
-    const timer = setInterval(onVisible, HOUR);
-    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(refreshWhenVisible, HOUR);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       request.current?.abort();
       request.current = null;
     };
   }, [refresh]);
-  const providers = useMemo(() => [...new Set(snapshot?.rows.map(row => row.provider) ?? [])].sort(), [snapshot]);
-  const rows = useMemo(() => (snapshot?.rows ?? []).filter(row =>
-    (!provider || row.provider === provider) &&
-    (row.id + ' ' + row.provider).toLowerCase().includes(query.toLowerCase())
-  ), [snapshot, provider, query]);
-  const estimates = Object.entries(MODEL_TOKEN_RATES).filter(([id]) => id.includes(query.toLowerCase()));
-  return <main className="mx-auto max-w-7xl p-6 space-y-5">
-    <h1 className="text-2xl font-semibold">AI model pricing</h1>
-    <p className="text-sm text-text-secondary">USD per 1 million tokens. Reference list prices, not an invoice or guaranteed quote.
-      Refreshes on opening this page and hourly while visible; no background inference calls or API keys required.</p>
-    <div className="flex flex-wrap gap-3 items-center">
-      <button className="rounded border border-border px-3 py-2 disabled:opacity-50" disabled={loading} onClick={() => void refresh()}>{loading ? 'Refreshing…' : 'Refresh prices'}</button>
-      <a className="text-primary underline" href={PRICING_SOURCE_PAGE} target="_blank" rel="noopener noreferrer">LiteLLM pricing source</a>
-      <span className="text-sm">Last successful fetch: {snapshot ? new Date(snapshot.fetchedAt).toLocaleString() : 'Not yet available'}</span>
-    </div>
-    {error && <p role="alert" className="rounded border border-border p-3">{error}</p>}
-    <p className="text-sm text-text-secondary">Fresh retrieval does not mean every rate was recently verified by its provider.
-      LiteLLM maintains this registry; changes may lag. Context tiers, batch discounts, cache writes, images, audio,
-      tools, taxes, and negotiated rates can change your bill. Missing values are unknown, not free.
-      Rogly/private aliases require host-specific pricing; public model prices do not establish your host’s fee.</p>
-    <div className="flex flex-wrap gap-3">
-      <label>View <select className="bg-background border border-border p-2" value={view} onChange={e => {setView(e.target.value); setPage(0);}}>
-        <option value="live">Published reference rates</option><option value="estimates">Nucleas settlement estimates (static)</option>
-      </select></label>
-      <label>Search models <input className="bg-background border border-border p-2" value={query} onChange={e => {setQuery(e.target.value); setPage(0);}} /></label>
-      {view === 'live' && <label>Provider <select className="bg-background border border-border p-2" value={provider} onChange={e => {setProvider(e.target.value); setPage(0);}}>
-        <option value="">All providers</option>{providers.map(id => <option key={id}>{id}</option>)}
-      </select></label>}
-    </div>
-    {view === 'live' ? <>
-      <p className="text-sm">{rows.length} matching models. {snapshot && error ? 'Showing the previous snapshot — refresh failed.' : 'Base token rates from the latest successful fetch.'}</p>
-      <div className="overflow-x-auto"><table className="w-full text-sm text-left">
-        <caption className="sr-only">Published base token prices in USD per million tokens</caption>
-        <thead><tr>{['Provider / model ID', 'Mode', 'Input / 1M', 'Output / 1M', 'Cache read / 1M', 'Conditions'].map(h => <th scope="col" className="p-3 border-b border-border" key={h}>{h}</th>)}</tr></thead>
-        <tbody>{rows.slice(page * 50, (page + 1) * 50).map(row => <tr key={row.id}>
-          <td className="p-3 border-b border-border break-all">{row.provider}<br/><span className="font-mono">{row.id}</span></td>
-          <td>{row.mode}</td><td>{money(row.input)}</td><td>{money(row.output)}</td><td>{money(row.cacheRead)}</td><td>{row.variable ? 'Additional rates / tiers; inspect source' : 'Verify provider terms'}</td>
-        </tr>)}</tbody>
-      </table></div>
-      {!loading && !rows.length && <p>No matching reference rates available.</p>}
-      <div className="flex gap-4 items-center"><button disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</button>
-        <span>Page {page + 1} of {Math.max(1, Math.ceil(rows.length / 50))}</span>
-        <button disabled={(page + 1) * 50 >= rows.length} onClick={() => setPage(p => p + 1)}>Next</button></div>
-    </> : <>
-      <p className="text-sm">These are the bundled rates used for Nucleas cost estimates, not the live registry.
-        Refreshing reference prices does not change settlement rates or rewrite historical costs. Source labels are legacy provenance, not a fresh verification.</p>
-      <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead><tr><th>Model ID</th><th>Input / 1M</th><th>Output / 1M</th><th>Bundled source label</th></tr></thead>
-        <tbody>{estimates.map(([id, rate]) => <tr key={id}><td className="py-2">{id}</td><td>{money(rate.inputMicrosPer1M / 1e6)}</td><td>{money(rate.outputMicrosPer1M / 1e6)}</td><td>{rate.source}</td></tr>)}</tbody>
-      </table></div>
-    </>}
-  </main>;
-}
 
+  const selected = useMemo<AvailablePricingProvider | null>(
+    () => snapshot?.providers.find((item) => item.id === selectedProviderId) ?? null,
+    [selectedProviderId, snapshot]
+  );
+  const models = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return (selected?.models ?? []).filter((model) =>
+      !needle || model.id.toLowerCase().includes(needle)
+    );
+  }, [query, selected]);
+
+  return (
+    <main className="mx-auto max-w-7xl space-y-5 p-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Available AI model pricing</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Only enabled providers and model IDs currently returned by their APIs are shown.
+          Prices are USD per 1 million tokens. Rogly and other no-provider-fee credentials show as Free.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          Provider
+          <select
+            className="mt-1 block min-w-64 rounded border border-border bg-background p-2"
+            value={selectedProviderId}
+            onChange={(event) => {
+              setSelectedProviderId(event.target.value);
+              setQuery('');
+            }}
+            disabled={loading || !snapshot?.providers.length}
+          >
+            {!snapshot?.providers.length ? <option value="">No configured providers</option> : null}
+            {snapshot?.providers.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}{item.free ? ' · Free' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          Search this provider
+          <input
+            className="mt-1 block rounded border border-border bg-background p-2"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Exact model name"
+          />
+        </label>
+        <button
+          type="button"
+          className="rounded border border-border px-3 py-2 disabled:opacity-50"
+          disabled={loading}
+          onClick={() => void refresh()}
+        >
+          {loading ? 'Refreshing…' : 'Refresh availability'}
+        </button>
+      </div>
+
+      {error ? <p role="alert" className="rounded border border-border p-3">{error}</p> : null}
+      {snapshot ? (
+        <p className="text-sm text-text-secondary">
+          Checked {new Date(snapshot.fetchedAt).toLocaleString()}.
+          {snapshot.referencePricingAvailable
+            ? ' Pricing matched against the latest LiteLLM registry where available.'
+            : ' The reference registry was unavailable; bundled rates are shown where available.'}
+        </p>
+      ) : null}
+
+      {selected?.error ? (
+        <p role="alert" className="rounded border border-border p-3">
+          {selected.label}: {selected.error}
+        </p>
+      ) : null}
+
+      {selected ? (
+        <>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold">{selected.label}</h2>
+            <span className="text-sm text-text-secondary">
+              {models.length} of {selected.models.length} available models
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded border border-border">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">Available models and token pricing for {selected.label}</caption>
+              <thead>
+                <tr>
+                  {['Exact model ID', 'Input / 1M', 'Output / 1M', 'Cache read / 1M', 'Pricing source'].map((heading) => (
+                    <th key={heading} scope="col" className="border-b border-border p-3">{heading}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {models.map((model) => (
+                  <tr key={model.id}>
+                    <td className="border-b border-border p-3 font-mono break-all">{model.id}</td>
+                    <td className="border-b border-border p-3">{money(model.input, model.free)}</td>
+                    <td className="border-b border-border p-3">{money(model.output, model.free)}</td>
+                    <td className="border-b border-border p-3">{money(model.cacheRead, model.free)}</td>
+                    <td className="border-b border-border p-3">
+                      {model.source}{model.variable ? ' · additional tiers may apply' : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!loading && !models.length && !selected.error ? (
+            <p>No matching models are available from this provider.</p>
+          ) : null}
+        </>
+      ) : !loading ? (
+        <p>No enabled AI provider credentials are configured. Add one on the AI Models page.</p>
+      ) : null}
+    </main>
+  );
+}
